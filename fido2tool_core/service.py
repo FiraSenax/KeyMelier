@@ -379,6 +379,21 @@ class KeyService:
     def fingerprint_enroll_cancel(self, token_id: str) -> dict:
         return {"cancelled": fingerprints_mod.cancel_enrollment(token_id)}
 
+    # ── Function test ────────────────────────────────────────────────────────
+
+    def function_test_info(self, token_id: str) -> dict:
+        from fido2tool_core import function_test
+        with self._scanner.session(token_id, refresh=False) as (_record, ctap2):
+            return {"needs_pin": function_test.needs_pin(ctap2)}
+
+    def function_test(self, token_id: str, pin: str | None = None) -> dict:
+        from fido2tool_core import function_test
+        with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (record, ctap2):
+            result = function_test.run(ctap2, pin=pin or None,
+                                       on_touch=lambda: self.emit("test_touch", {"id": token_id}))
+        self._log(record, "function_test", passed=bool(result["ok"]))
+        return result
+
     # ── Key settings (authenticatorConfig) ───────────────────────────────────
 
     def _config(self, token_id, ctap2) -> dict:

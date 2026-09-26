@@ -582,6 +582,7 @@ function selectToken(id) {
   selectedHist = null;
   histDetail = null;
   histConfirmForget = false;
+  ftState = null;
   pinState = null;
   pkState = null;
   fpState = null;
@@ -603,6 +604,7 @@ function switchTab(tab) {
   if (tab === 'passkeys' && token) loadPasskeys(token);
   if (tab === 'fingerprints' && token) loadFingerprints(token);
   if (tab === 'settings' && token) loadConfig(token);
+  if (tab === 'security') { if (token) loadFunctionTest(token); else renderFunctionTest(); }
 }
 
 // ── Data freshness ──────────────────────────────────────────────────────────
@@ -659,12 +661,13 @@ const EVENT_ICONS = {
   connected: 'plug', disconnected: 'plug', attestation: 'shield', attestation_skipped: 'shield', pin_set: 'lock', pin_changed: 'lock',
   passkey_deleted: 'passkey', passkey_renamed: 'passkey', fingerprint_enrolled: 'fingerprint', fingerprint_renamed: 'fingerprint',
   fingerprint_removed: 'fingerprint', reset: 'trash',
-  config_min_pin: 'lock', config_always_uv: 'lock', config_force_pin: 'lock',
+  function_test: 'key', config_min_pin: 'lock', config_always_uv: 'lock', config_force_pin: 'lock',
 };
 
 function eventText(ev) {
   if (ev.type === 'attestation') return t(ev.passed ? 'ev.attestation.pass' : 'ev.attestation.fail');
   if (ev.type === 'attestation_skipped') return t('ev.attestation.skipped');
+  if (ev.type === 'function_test') return t(ev.passed ? 'ev.function_test.pass' : 'ev.function_test.fail');
   if (ev.type === 'config_min_pin') return t('ev.config_min_pin', { n: ev.value });
   if (ev.type === 'config_always_uv') return t(ev.value ? 'ev.config_always_uv.on' : 'ev.config_always_uv.off');
   const key = `ev.${ev.type}`;
@@ -1267,6 +1270,62 @@ function initManagementPane(paneId, onAction) {
   });
 }
 
+// ── Function test ───────────────────────────────────────────────────────────
+
+let ftState = null;       // { needsPin, running, touch, result }
+
+function renderFunctionTest() {
+  const el = $('ft-card');
+  const token = currentToken();
+  if (!el || !token || token.offline) { if (el) el.innerHTML = ''; el?.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const st = ftState || {};
+  const r = st.result;
+  let body = '';
+  if (st.running) {
+    body = `<div class="uv-wait"><span class="uv-icon">${icon('key', 26)}</span>
+      <span>${escHtml(t(st.needsPin ? 'ft.touchUv' : 'ft.touch'))}</span></div>`;
+  } else if (r) {
+    const names = { register: 'ft.step.register', sign_in: 'ft.step.signIn', signature: 'ft.step.signature' };
+    body = `<div class="att-summary ${r.ok ? 'pass' : 'fail'}">${escHtml(r.ok ? t('ft.ok', { s: r.seconds }) : (r.error ? errorMessage({ data: r, message: r.error }) : t('ft.failed')))}</div>
+      <div class="att-checks">${(r.steps || []).map(s => `<div class="att-check ${s.ok ? 'pass' : 'fail'}">
+        <span class="att-check-icon">${s.ok ? '✓' : '✕'}</span><div><div class="att-check-name">${escHtml(t(names[s.step] || s.step))}</div></div></div>`).join('')}
+        ${r.ok ? `<div class="att-check pass"><span class="att-check-icon">${r.user_verified ? '✓' : '○'}</span><div><div class="att-check-name">${escHtml(t(r.user_verified ? 'ft.uv' : 'ft.noUv'))}</div></div></div>` : ''}
+      </div>`;
+  }
+  el.innerHTML = `<h2>${escHtml(t('ft.title'))}</h2>
+    <p class="card-text">${escHtml(t('ft.text'))}</p>
+    ${body}
+    ${st.running ? '' : `<form class="ft-form" autocomplete="off">
+      ${st.needsPin ? `<label class="field"><span>${escHtml(t('pin.form.current'))}</span>
+        <input type="password" class="ft-pin" autocomplete="off" spellcheck="false"></label>` : ''}
+      <div class="form-actions att-actions"><button type="submit" class="btn btn-secondary">${escHtml(t(r ? 'ft.again' : 'ft.start'))}</button></div>
+    </form>`}`;
+}
+
+async function loadFunctionTest(token) {
+  ftState = { needsPin: false };
+  renderFunctionTest();
+  try {
+    const info = await call('function_test_info', { token_id: token.id });
+    if (selectedId === token.id) { ftState = { ...ftState, ...info }; renderFunctionTest(); }
+  } catch { /* busy during attestation – button still works */ }
+}
+
+async function runFunctionTest(pin) {
+  const token = tokens.get(selectedId);
+  if (!token) return;
+  ftState = { ...ftState, running: true, result: null };
+  renderFunctionTest();
+  try {
+    const result = await call('function_test', { token_id: token.id, pin: pin || null });
+    ftState = { ...ftState, running: false, result, needsPin: ftState.needsPin || result.code === 'pin_required' };
+  } catch (e) {
+    ftState = { ...ftState, running: false, result: { ok: false, error: e.message, code: e.data?.code, steps: [] } };
+  }
+  if (selectedId === token.id) renderFunctionTest();
+}
+
 // ── Settings tab / key configuration ────────────────────────────────────────
 
 let cfgState = null;
@@ -1778,6 +1837,10 @@ function init() {
   $('tiles').addEventListener('click', ev => {
     const tileEl = ev.target.closest('[data-goto]');
     if (tileEl) switchTab(tileEl.dataset.goto);
+  });
+  $('ft-card').addEventListener('submit', ev => {
+    ev.preventDefault();
+    runFunctionTest(ev.target.querySelector('.ft-pin')?.value);
   });
   $('check').addEventListener('click', ev => {
     const b = ev.target.closest('[data-goto]');
