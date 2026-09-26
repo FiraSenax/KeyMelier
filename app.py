@@ -74,6 +74,12 @@ class Api:
 
     def __init__(self, service: KeyService):
         self._service = service
+        self._menubar = None  # private: pywebview only exposes public members
+
+    def set_ui_language(self, lang):
+        """The page tells the menu bar which language it shows."""
+        if self._menubar is not None:
+            self._menubar.set_language(str(lang)[:5])
 
     def client_log(self, message):
         logger.info("UI: %s", str(message)[:500])
@@ -215,7 +221,14 @@ def main():
     )
     service = KeyService(scanner, CSVExporter(), mds3_client=mds3, advisories=advisories)
     pump = EventPump()
-    service.emit = pump.emit
+    menubar = None
+
+    def emit(name, payload):
+        pump.emit(name, payload)
+        if menubar is not None:
+            menubar.on_event(name, payload)
+
+    service.emit = emit
 
     def background_start():
         # Metadata first (downloads on first run, then cached 24h) so the
@@ -230,10 +243,11 @@ def main():
         threading.Thread(target=service.run_update_loop, daemon=True, name="updates").start()
 
     dark = sys.platform == "darwin" and _macos_dark_mode()
+    api = Api(service)
     window = webview.create_window(
         "KeyMelier",
         html=build_html(),
-        js_api=Api(service),
+        js_api=api,
         width=1180,
         height=780,
         min_size=(820, 560),
@@ -244,6 +258,10 @@ def main():
 
     if sys.platform == "darwin":
         _macos_app_identity()
+        from fido2tool_core.menubar import MenuBar
+        menubar = MenuBar(service, window, STATIC_DIR / "menubar.png")
+        menubar.start()
+        api._menubar = menubar
 
     webview.start(background_start, debug="--debug" in sys.argv)
     scanner.stop()

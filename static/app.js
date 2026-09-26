@@ -1671,6 +1671,7 @@ function renderLangSelect() {
 function changeLang(choice, persist = true) {
   LANG_CHOICE = STRINGS[choice] ? choice : '';
   setLang(LANG_CHOICE || SYSTEM_LANG);
+  window.pywebview?.api?.set_ui_language?.(LANG);
   if (persist) call('set_settings', { values: { lang: LANG_CHOICE || null } }).catch(() => {});
   renderLangSelect();
   renderMds();
@@ -1761,6 +1762,9 @@ const EVENT_HANDLERS = {
   data_status: p => { dataStatus = p; mdsInfo = p.mds; renderMds(); renderDataStatus(); },
   app_update: p => { dataStatus = { ...(dataStatus || {}), app: p }; renderDataStatus(); },
 };
+
+// Called from the macOS menu bar item: show a key
+window.__kmSelectToken = id => { if (tokens.has(id)) { selectToken(id); switchTab('overview'); } };
 
 // Called from Python (EventPump) for every live event
 window.__kmEvent = (name, payload) => {

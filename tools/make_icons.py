@@ -3,7 +3,8 @@
 
     python3 tools/make_icons.py
 
-Produces static/icon.png (window/dock icon at runtime), static/icon.ico
+Produces static/icon.png (window/dock icon at runtime), static/menubar.png,
+static/icon.ico
 (Windows) and, on macOS, static/icon.icns. Needs cairosvg (with the cairo
 library, e.g. `brew install cairo`) and Pillow. CI uses the committed files,
 so the build machines don't need cairo.
@@ -30,6 +31,10 @@ def render(px: int) -> Image.Image:
 
 def main():
     render(512).save(ROOT / "static" / "icon.png")
+
+    # Menu bar template image (black on transparent, 18 pt @2x)
+    png = cairosvg.svg2png(url=str(ROOT / "static" / "menubar.svg"), output_width=36, output_height=36)
+    (ROOT / "static" / "menubar.png").write_bytes(png)
 
     sizes = [16, 24, 32, 48, 64, 128, 256]
     frames = [render(s) for s in sizes]
