@@ -237,6 +237,7 @@ function renderKeyView(token) {
   if (!tabAllowed(token, activeTab)) switchTab('overview');
 
   renderTiles(token);
+  renderSecurityCheck(token);
   renderSettings(token);
   renderSecurity(token);
   renderDetails(token);
@@ -253,6 +254,72 @@ function tileHtml({ cls, iconName, label, value, sub, tab }) {
       <div class="tile-value">${escHtml(value)}</div>
       ${sub ? `<div class="tile-sub">${escHtml(sub)}</div>` : ''}
     </${tag}>`;
+}
+
+// ── Security check ──────────────────────────────────────────────────────────
+
+// Recommendations for a key, most important first. level: crit | warn | info | ok
+function securityChecks(token) {
+  const o = token.options || {};
+  const checks = [];
+  const add = (level, key, vars = {}, tab = null) => checks.push({ level, text: t(key, vars), tab });
+
+  const revoked = ['REVOKED', 'ATTESTATION_KEY_COMPROMISE', 'USER_KEY_REMOTE_COMPROMISE', 'USER_KEY_PHYSICAL_COMPROMISE'];
+  if (revoked.includes(token.mds_status)) add('crit', 'chk.mdsRevoked', { s: token.mds_status }, 'security');
+  else if (token.mds_status === 'USER_VERIFICATION_BYPASS') add('crit', 'chk.uvBypass', {}, 'security');
+
+  if ((token.cve_ids || []).length) add('warn', 'chk.vulnerable', { n: token.cve_ids.length }, 'security');
+  else add('ok', 'chk.noVulns');
+
+  const att = token.attestation;
+  if (att && !att.inconclusive && !token.force_pin_change) {
+    if (att.passed) add('ok', 'chk.genuine');
+    else if (att.ran) add('crit', 'chk.notGenuine', {}, 'security');
+  }
+
+  if ('clientPin' in o) {
+    if (!o.clientPin) add('warn', 'chk.noPin', {}, 'pin');
+    else if (token.force_pin_change) add('warn', 'chk.forcePin', {}, 'pin');
+    else if ((token.min_pin_length || 4) < 6 && o.setMinPINLength) add('info', 'chk.shortMinPin', { n: token.min_pin_length }, 'settings');
+    else add('ok', 'chk.pinSet');
+  }
+
+  if (isBio(token)) {
+    const enrolled = (o.bioEnroll ?? o.userVerificationMgmtPreview ?? o.uv) === true;
+    if (!enrolled) add('info', 'chk.noFingerprint', {}, 'fingerprints');
+    else add('info', 'chk.secondFinger', {}, 'fingerprints');
+  }
+
+  const backup = backupStatus(token);
+  if (backup && backup.onlyHere.length) add('warn', 'chk.noBackup', { n: backup.onlyHere.length }, 'history');
+  else if (backup) add('ok', 'chk.backupOk');
+
+  const order = { crit: 0, warn: 1, info: 2, ok: 3 };
+  return checks.sort((a, b) => order[a.level] - order[b.level]);
+}
+
+function renderSecurityCheck(token) {
+  const el = $('check');
+  const checks = securityChecks(token);
+  const ok = checks.filter(c => c.level === 'ok').length;
+  const icons = { crit: '✕', warn: '!', info: 'i', ok: '✓' };
+  el.innerHTML = `
+    <div class="check-head">
+      <h2>${escHtml(t('chk.title'))}</h2>
+      <span class="check-score">${escHtml(t('chk.score', { ok, n: checks.length }))}</span>
+    </div>
+    <ul class="check-list">${checks.map(c => `
+      <li class="check-item ${c.level}">
+        <span class="check-icon">${icons[c.level]}</span>
+        <span class="check-text">${escHtml(c.text)}</span>
+        ${c.tab && tabAllowed(token, c.tab) ? `<button type="button" class="btn-link" data-goto="${c.tab}">${escHtml(t('chk.fix'))}</button>` : ''}
+      </li>`).join('')}
+    </ul>`;
+}
+
+// Filled in by the backup check (sites stored only on this key)
+function backupStatus(_token) {
+  return null;
 }
 
 function renderTiles(token) {
@@ -1576,6 +1643,10 @@ function init() {
   $('tiles').addEventListener('click', ev => {
     const tileEl = ev.target.closest('[data-goto]');
     if (tileEl) switchTab(tileEl.dataset.goto);
+  });
+  $('check').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-goto]');
+    if (b) switchTab(b.dataset.goto);
   });
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   $('lang-select').addEventListener('change', ev => changeLang(ev.target.value));

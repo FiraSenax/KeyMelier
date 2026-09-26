@@ -1095,3 +1095,21 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .pk-rename-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .pk-rename-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .pk-rename-actions .btn { padding: 5px 12px; }
+
+/* Security check */
+.check-card { margin-top: 14px; }
+.check-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.check-score { color: var(--text-3); font-size: 0.85rem; font-weight: 500; }
+.check-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.check-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.check-item:last-child { border-bottom: none; }
+.check-icon {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.75rem; font-weight: 800;
+}
+.check-item.ok .check-icon { background: var(--ok-soft); color: var(--ok); }
+.check-item.info .check-icon { background: var(--accent-soft); color: var(--accent); }
+.check-item.warn .check-icon { background: var(--warn-soft); color: var(--warn); }
+.check-item.crit .check-icon { background: var(--crit-soft); color: var(--crit); }
+.check-item.ok .check-text { color: var(--text-2); }
+.check-text { flex: 1; }
