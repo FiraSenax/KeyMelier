@@ -3072,6 +3072,40 @@ const UPDATE_STRINGS = {
 };
 for (const [code, strings] of Object.entries(UPDATE_STRINGS)) Object.assign(STRINGS[code], strings);
 
+// Strings of the newer features (de/en first; other languages fall back to English
+// until translated – FEATURE_STRINGS entries for them are added below)
+const FEATURE_STRINGS = {
+  de: {
+    'det.formFactor': 'Bauform',
+    'det.nfc': 'NFC',
+    'det.fips': 'FIPS-Version',
+    'det.yes': 'ja',
+    'det.no': 'nein',
+    'ff.usb-a-keychain': 'USB-A, Schlüsselanhänger',
+    'ff.usb-a-nano': 'USB-A, Nano',
+    'ff.usb-c-keychain': 'USB-C, Schlüsselanhänger',
+    'ff.usb-c-nano': 'USB-C, Nano',
+    'ff.usb-c-lightning': 'USB-C und Lightning',
+    'ff.usb-a-bio': 'USB-A mit Fingerabdrucksensor',
+    'ff.usb-c-bio': 'USB-C mit Fingerabdrucksensor',
+  },
+  en: {
+    'det.formFactor': 'Form factor',
+    'det.nfc': 'NFC',
+    'det.fips': 'FIPS edition',
+    'det.yes': 'yes',
+    'det.no': 'no',
+    'ff.usb-a-keychain': 'USB-A, keychain',
+    'ff.usb-a-nano': 'USB-A, nano',
+    'ff.usb-c-keychain': 'USB-C, keychain',
+    'ff.usb-c-nano': 'USB-C, nano',
+    'ff.usb-c-lightning': 'USB-C and Lightning',
+    'ff.usb-a-bio': 'USB-A with fingerprint sensor',
+    'ff.usb-c-bio': 'USB-C with fingerprint sensor',
+  },
+};
+for (const [code, strings] of Object.entries(FEATURE_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // Languages offered in the UI, by native name. Missing keys fall back to English.
 const LANGUAGES = {
   de: 'Deutsch', en: 'English', es: 'Español', fr: 'Français',

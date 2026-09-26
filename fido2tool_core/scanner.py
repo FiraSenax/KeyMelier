@@ -35,6 +35,11 @@ class TokenRecord:
     firmware_version_raw: Optional[int]
     firmware_version_str: str
     first_seen: str
+    vendor_id: Optional[int] = None
+    product_id: Optional[int] = None
+    form_factor: Optional[str] = None   # e.g. "usb-c-nano" (from vendor tools)
+    fips: bool = False
+    nfc: Optional[bool] = None
     min_pin_length: int = 4
     force_pin_change: bool = False
     remaining_disc_creds: Optional[int] = None
@@ -49,6 +54,22 @@ class TokenRecord:
 
 
 from fido2tool_core.firmware import decode_firmware as _decode_firmware
+from fido2tool_core import vendor_info
+
+
+def _apply_vendor_info(record: "TokenRecord", details: Optional[dict]) -> None:
+    if not details:
+        return
+    if details.get("serial") and not record.serial_number:
+        record.serial_number = details["serial"]
+    version = details.get("version")
+    if version:
+        major, minor, patch = (list(version) + [0, 0, 0])[:3]
+        record.firmware_version_raw = (major << 16) | (minor << 8) | patch
+        record.firmware_version_str = f"{major}.{minor}.{patch}"
+    record.form_factor = details.get("form_factor") or record.form_factor
+    record.fips = details.get("fips", False)
+    record.nfc = details.get("nfc")
 
 
 def _infer_manufacturer(product_name: str) -> str:
@@ -144,6 +165,8 @@ class TokenScanner:
             try:
                 dev = CtapHidDevice(desc, open_connection(desc))
                 info = Ctap2(dev).info
+                with self._lock:
+                    is_new = path_key not in self._known
 
                 aaguid_str = _aaguid_bytes_to_str(info.aaguid)
                 fw_raw = getattr(info, "firmware_version", None)
@@ -168,6 +191,11 @@ class TokenScanner:
                     first_seen=datetime.now(timezone.utc).isoformat(),
                 )
                 _apply_info(record, info)
+                record.vendor_id = getattr(desc, "vid", None)
+                record.product_id = getattr(desc, "pid", None)
+                if is_new:
+                    # Serial, real firmware, form factor – only once per plug-in
+                    _apply_vendor_info(record, vendor_info.read(dev, record.vendor_id, record.product_id))
                 result[path_key] = record
             except Exception as e:
                 logger.debug("Could not read CTAP2 info from device: %s", e)

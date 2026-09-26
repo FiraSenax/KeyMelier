@@ -358,6 +358,9 @@ function renderDetails(token) {
     [t('det.manufacturer'), token.manufacturer],
     [t('det.product'), token.product_name || '—'],
     [t('det.serial'), token.serial_number || t('det.serialNone')],
+    ...(token.form_factor ? [[t('det.formFactor'), t(`ff.${token.form_factor}`)]] : []),
+    ...(token.nfc != null ? [[t('det.nfc'), token.nfc ? t('det.yes') : t('det.no')]] : []),
+    ...(token.fips ? [[t('det.fips'), t('det.yes')]] : []),
     [t('det.firmware'), token.firmware_version_str || t('unknown')],
     [aaguidKey, token.aaguid],
     [firstSeenLabel, firstSeenValue ? new Date(firstSeenValue).toLocaleString(LANG) : '—'],
@@ -584,6 +587,10 @@ async function saveHistoryName(label) {
 }
 
 function onHistoryUpdated(summary) {
+  if (summary.replaces) {
+    historyKeys.delete(summary.replaces);
+    if (selectedHist === summary.replaces) selectedHist = summary.key_id;
+  }
   historyKeys.set(summary.key_id, summary);
   const token = currentToken();
   if (token && token.history_id === summary.key_id) {

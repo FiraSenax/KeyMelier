@@ -40,6 +40,9 @@ a = Analysis(
         'fido2.cbor',
         'fido2.ctap2.credman',
         'fido2.ctap2.bio',
+        # YubiKey serial/firmware/form factor via the management application
+        'yubikit.management',
+        'yubikit.core.fido',
         # Native window
         'webview',
         # Cryptography

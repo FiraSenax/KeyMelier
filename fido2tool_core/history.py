@@ -64,11 +64,23 @@ class History:
 
     @staticmethod
     def _summary(entry: dict) -> dict:
-        return {k: v for k, v in entry.items() if k != "events"}
+        summary = {k: v for k, v in entry.items() if k != "events"}
+        entry.pop("replaces", None)  # reported once, then forgotten
+        return summary
 
     def _entry_for(self, record) -> dict:
         kid = key_id(record)
         entry = self._entries.get(kid)
+        if entry is None and record.serial_number:
+            # Seen before without a serial (older KeyMelier or no vendor info):
+            # continue that entry instead of starting a new one
+            legacy_kid = hashlib.sha256(f"{record.aaguid}|".encode()).hexdigest()[:16]
+            legacy = self._entries.get(legacy_kid)
+            if legacy is not None and not legacy.get("snapshot", {}).get("serial_number"):
+                entry = self._entries.pop(legacy_kid)
+                entry["key_id"] = kid
+                entry["replaces"] = legacy_kid
+                self._entries[kid] = entry
         if entry is None:
             entry = {
                 "key_id": kid,
