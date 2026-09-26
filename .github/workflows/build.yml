@@ -128,6 +128,13 @@ jobs:
           files: artifacts/*
 
       # Push to main: rolling pre-release for testing, never offered as an update.
+      # Remove the previous one first so tag and date follow the latest commit.
+      - name: Remove previous nightly
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete nightly --cleanup-tag --yes || true
+
       - name: Publish nightly pre-release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v3
