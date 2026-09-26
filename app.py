@@ -76,10 +76,10 @@ class Api:
         self._service = service
         self._menubar = None  # private: pywebview only exposes public members
 
-    def set_ui_language(self, lang):
-        """The page tells the menu bar which language it shows."""
+    def set_ui_language(self, lang, texts=None):
+        """The page tells the menu bar which language and texts it shows."""
         if self._menubar is not None:
-            self._menubar.set_language(str(lang)[:5])
+            self._menubar.set_language(str(lang)[:5], texts if isinstance(texts, dict) else None)
 
     def client_log(self, message):
         logger.info("UI: %s", str(message)[:500])

@@ -1714,7 +1714,10 @@ function renderLangSelect() {
 function changeLang(choice, persist = true) {
   LANG_CHOICE = STRINGS[choice] ? choice : '';
   setLang(LANG_CHOICE || SYSTEM_LANG);
-  window.pywebview?.api?.set_ui_language?.(LANG);
+  window.pywebview?.api?.set_ui_language?.(LANG, {
+    open: t('menu.open'), quit: t('menu.quit'), none: t('sidebar.none'),
+    OK: t('status.OK'), WARNING: t('status.WARNING'), CRITICAL: t('status.CRITICAL'), PENDING: t('status.PENDING'),
+  });
   if (persist) call('set_settings', { values: { lang: LANG_CHOICE || null } }).catch(() => {});
   renderLangSelect();
   renderMds();

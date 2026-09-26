@@ -73,7 +73,10 @@ class MenuBar:
 
     # ── Events from the service ──────────────────────────────────────────────
 
-    def set_language(self, lang: str):
+    def set_language(self, lang: str, texts: dict | None = None):
+        """Use the page's own translations when given (all UI languages)."""
+        if texts:
+            TEXTS[lang] = {k: str(v)[:60] for k, v in texts.items() if k in TEXTS["en"]}
         self._lang = lang if lang in TEXTS else "en"
         self._refresh()
 
