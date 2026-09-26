@@ -240,11 +240,11 @@ class KeyService:
             self._scanner.start_attestation(record)
         return {"result": action}
 
-    def attestation_rerun(self, token_id: str) -> dict:
+    def attestation_rerun(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
         record = self._scanner.get(token_id)
         record.attestation = None
         self._on_update(record)
-        self._scanner.start_attestation(record)
+        self._scanner.start_attestation(record, pin=pin or None, use_uv=method == "uv")
         return {"started": True}
 
     # ── Unlock ───────────────────────────────────────────────────────────────

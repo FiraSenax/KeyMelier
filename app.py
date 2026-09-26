@@ -102,7 +102,7 @@ class Api:
         try:
             return {"ok": True, "data": getattr(self._service, method)(**(kwargs or {}))}
         except PinError as e:
-            logger.warning("%s -> %s", method, e.code)
+            logger.warning("%s -> %s: %s", method, e.code, e.message)
             return {"ok": False, "error": e.message, "code": e.code, "status": e.status, **e.extra}
         except DeviceBusy:
             return {"ok": False, "error": "The key is busy.", "code": "busy", "status": 409}

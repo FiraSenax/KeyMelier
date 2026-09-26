@@ -27,15 +27,24 @@ echo "Building app icon..."
 "$PYTHON" tools/make_icons.py
 export KEYMELIER_ICON="static/icon.icns"
 
+xattr -cr static data fido2tool_core
+
 echo "Running PyInstaller..."
 "$PYINSTALLER" --clean --noconfirm fido2tool.spec
 
 # Extended attributes (Finder info, provenance) copied from the source tree
 # break code signing; strip them and re-apply the ad-hoc signature.
 # A Developer ID signature would replace "-" here.
-xattr -cr dist/KeyMelier.app
-codesign --force --deep --sign - dist/KeyMelier.app
-codesign --verify --deep --strict dist/KeyMelier.app
+# macOS may re-attach attributes right after the build, so retry once.
+for attempt in 1 2 3; do
+    xattr -cr dist/KeyMelier.app
+    if codesign --force --deep --sign - dist/KeyMelier.app 2>/dev/null \
+        && codesign --verify --deep --strict dist/KeyMelier.app 2>/dev/null; then
+        break
+    fi
+    [ "$attempt" = 3 ] && { echo "Code signing failed"; exit 1; }
+    sleep 1
+done
 
 echo ""
 echo "Build complete: dist/KeyMelier.app"

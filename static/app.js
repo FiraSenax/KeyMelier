@@ -188,7 +188,11 @@ function attestationSummary(att, token) {
     return { cls: 'partial', text: t('sec.att.needsPinChange'), short: t('tile.security.attNeedsPin') };
   }
   if (att.inconclusive) {
-    return { cls: 'partial', text: t(`sec.att.skip.${att.inconclusive}`), short: t('tile.security.attSkipped'), skipped: true };
+    // Keys that want PIN/UV for registrations: explain what this key needs
+    const reason = att.inconclusive === 'needs_uv'
+      ? ((token?.options || {}).uv === true ? 'needs_pin_bio' : 'needs_pin')
+      : att.inconclusive;
+    return { cls: 'partial', text: t(`sec.att.skip.${reason}`), short: t('tile.security.attSkipped'), skipped: true, reason: att.inconclusive };
   }
   const checks = att.checks || [];
   const pass = checks.filter(c => c.passed === true).length;
@@ -411,8 +415,12 @@ function renderBackupView() {
     const sites = [...new Map(withSites.flatMap(e => e.sites).map(s => [s.rp_id, s])).values()]
       .sort((a, b) => a.rp_id.localeCompare(b.rp_id));
     const holders = s => withSites.filter(e => !e.lost_since && e.sites.some(x => x.rp_id === s.rp_id));
+    if (!sites.length) {
+      parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('bk.noPasskeys.title'))}</div>
+        <div class="callout-text">${escHtml(t('bk.noPasskeys.text', { names: withSites.map(keyLabel).join(', ') }))}</div></div>`);
+    }
     const single = sites.filter(s => holders(s).length <= 1).length;
-    parts.push(`<section class="card">
+    if (sites.length) parts.push(`<section class="card">
       <div class="check-head"><h2>${escHtml(t('bk.matrix'))}</h2>
         <span class="check-score">${escHtml(single ? t('bk.single', { n: single }) : t('bk.allCovered'))}</span></div>
       <div class="bk-table-wrap"><table class="bk-table">
@@ -457,7 +465,8 @@ function lostAssistantHtml(entry) {
         <span class="bk-backup ${backups.length ? 'ok' : 'warn'}">${escHtml(backups.length ? t('bk.lost.backupOn', { names: backups.join(', ') }) : t('bk.lost.noBackup'))}</span>
       </li>`;
     }).join('')}</ul>
-    <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t('bk.lost.noSites'))}</p>`;
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t(entry.sites ? 'bk.lost.emptyKey' : 'bk.lost.notRecorded'))}</p>
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>`;
   return `<div class="bk-lost">
     <div class="form-actions bk-lost-actions">${toggle}</div>
     ${entry.lost_since ? `<p class="bk-lost-since">${escHtml(t('bk.lost.since', { when: new Date(entry.lost_since).toLocaleDateString(LANG) }))}</p>` : ''}
@@ -551,12 +560,34 @@ function renderSecurity(token) {
       </div>`;
     }).join('') + '</div>';
   }
+  const wantsPin = ['needs_uv', 'pin_invalid'].includes(sum.reason) && (token.options || {}).clientPin;
   if (!token.offline && sum.cls !== 'running') {
-    html += `<div class="form-actions att-actions"><button type="button" class="btn btn-secondary" id="att-rerun">${escHtml(t('sec.att.rerun'))}</button></div>`;
+    if (wantsPin) {
+      const uv = (token.options || {}).uv === true;
+      html += `<form class="att-pin-form" autocomplete="off">
+        <label class="field"><span>${escHtml(t('pin.form.current'))}</span>
+          <input type="password" class="att-pin" autocomplete="off" spellcheck="false"></label>
+        <div class="form-actions att-actions">
+          ${uv ? `<button type="button" class="btn btn-secondary" id="att-uv">${icon('fingerprint', 15)} ${escHtml(t('sec.att.withUv'))}</button>` : ''}
+          <button type="submit" class="btn btn-primary">${escHtml(t('sec.att.withPin'))}</button>
+        </div></form>`;
+    } else {
+      html += `<div class="form-actions att-actions"><button type="button" class="btn btn-secondary" id="att-rerun">${escHtml(t('sec.att.rerun'))}</button></div>`;
+    }
   }
   $('sec-attestation').innerHTML = html;
+  const rerunWith = args => call('attestation_rerun', { token_id: token.id, ...args }).catch(e => showToast(errorMessage(e), 'error'));
   const rerun = $('att-rerun');
-  if (rerun) rerun.onclick = () => call('attestation_rerun', { token_id: token.id }).catch(e => showToast(errorMessage(e), 'error'));
+  if (rerun) rerun.onclick = () => rerunWith({});
+  const uvBtn = $('att-uv');
+  if (uvBtn) uvBtn.onclick = () => rerunWith({ method: 'uv' });
+  const pinForm = $('sec-attestation').querySelector('.att-pin-form');
+  if (pinForm) pinForm.onsubmit = ev => {
+    ev.preventDefault();
+    const pin = pinForm.querySelector('.att-pin').value;
+    if (!pin) return showToast(t('pin.v.current'), 'error');
+    rerunWith({ pin });
+  };
 
   $('sec-mds').innerHTML = buildKv([
     [t('sec.mds.description'), token.mds_description || t('sec.mds.notFound')],
@@ -852,6 +883,10 @@ function isBusy(e) {
   return e.data?.code === 'busy';
 }
 
+function isLocked(e) {
+  return e.data?.code === 'locked';
+}
+
 let unlockBusy = null;    // null | 'pin' | 'uv' while unlocking
 let unlockError = null;   // error message shown in the unlock form
 
@@ -1027,9 +1062,11 @@ function renderPasskeys() {
   el.innerHTML = html;
 }
 
-async function loadPasskeys(token) {
+// retried: the key rejected the unlock (expired) – reload once to get the
+// locked state and show the unlock form with a hint instead of an error
+async function loadPasskeys(token, retried = false) {
   pkState = null;
-  unlockError = null;
+  if (!retried) unlockError = null;
   pkConfirm = null;
   renderPasskeys();
   try {
@@ -1038,6 +1075,7 @@ async function loadPasskeys(token) {
     pkState = st;
   } catch (e) {
     if (selectedId !== token.id) return;
+    if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadPasskeys(token, true); }
     pkState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }
   renderPasskeys();
@@ -1192,9 +1230,9 @@ function renderFingerprints() {
   if (fpRename) el.querySelector('.fp-rename-input')?.focus();
 }
 
-async function loadFingerprints(token) {
+async function loadFingerprints(token, retried = false) {
   fpState = null;
-  unlockError = null;
+  if (!retried) unlockError = null;
   fpConfirm = null;
   fpRename = null;
   renderFingerprints();
@@ -1206,6 +1244,7 @@ async function loadFingerprints(token) {
     if (!st.enrolling && fpEnroll && !fpEnroll.error) fpEnroll = null;
   } catch (e) {
     if (selectedId !== token.id) return;
+    if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadFingerprints(token, true); }
     fpState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }
   renderFingerprints();
@@ -1417,9 +1456,9 @@ function renderConfig() {
   el.innerHTML = parts.join('');
 }
 
-async function loadConfig(token) {
+async function loadConfig(token, retried = false) {
   cfgState = null;
-  unlockError = null;
+  if (!retried) unlockError = null;
   renderConfig();
   try {
     const st = await call('config', { token_id: token.id });
@@ -1427,6 +1466,7 @@ async function loadConfig(token) {
     cfgState = st;
   } catch (e) {
     if (selectedId !== token.id) return;
+    if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadConfig(token, true); }
     cfgState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }
   renderConfig();
@@ -1852,6 +1892,7 @@ function init() {
     if (item) selectToken(item.dataset.id);
   });
   $('nav-backup').addEventListener('click', showBackupView);
+  $('nav-backup-icon').innerHTML = icon('shield', 18);
   $('backup-content').addEventListener('change', async ev => {
     const el = ev.target;
     if (el.id === 'bk-remember') {

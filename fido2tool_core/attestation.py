@@ -40,7 +40,8 @@ class AttestationResult:
     checks: list = field(default_factory=list)  # list of {name, passed, detail}
 
 
-def run(device, expected_aaguid: str, mds3_client=None) -> AttestationResult:
+def run(device, expected_aaguid: str, mds3_client=None, pin: str | None = None,
+        use_uv: bool = False) -> AttestationResult:
     """Run the full attestation test against an already-opened HID device.
 
     Args:
@@ -53,7 +54,7 @@ def run(device, expected_aaguid: str, mds3_client=None) -> AttestationResult:
     """
     result = AttestationResult(ran=True)
     try:
-        _run_checks(device, expected_aaguid, mds3_client, result)
+        _run_checks(device, expected_aaguid, mds3_client, result, pin=pin, use_uv=use_uv)
     except Exception as e:
         result.error = f"Unexpected error during attestation test: {e}"
         result.passed = False
@@ -75,10 +76,15 @@ def _inconclusive_reason(exc) -> Optional[str]:
         return "needs_uv"
     if exc.code in (err.OPERATION_DENIED, err.PIN_POLICY_VIOLATION, err.NOT_ALLOWED):
         return "declined"
+    if exc.code == err.PIN_INVALID:
+        return "pin_invalid"
+    if exc.code in (err.PIN_BLOCKED, err.PIN_AUTH_BLOCKED):
+        return "pin_blocked"
     return None
 
 
-def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationResult):
+def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationResult,
+                pin: str | None = None, use_uv: bool = False):
     from fido2.ctap2 import Ctap2
     from fido2.webauthn import AttestedCredentialData, ES256
 
@@ -110,12 +116,25 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
 
     logger.info("Sending makeCredential to token for attestation test…")
     try:
+        # Keys that require user verification for registrations get a
+        # PIN/UV token scoped to this test's RP (PIN is used once, never kept)
+        pin_uv_param = pin_uv_protocol = None
+        if pin or use_uv:
+            from fido2.ctap2.pin import ClientPin
+            client_pin = ClientPin(ctap2)
+            perm = ClientPin.PERMISSION.MAKE_CREDENTIAL
+            token = (client_pin.get_uv_token(perm, rp["id"]) if use_uv
+                     else client_pin.get_pin_token(pin, perm, rp["id"]))
+            pin_uv_param = client_pin.protocol.authenticate(token, client_data_hash)
+            pin_uv_protocol = client_pin.protocol.VERSION
         att_obj = ctap2.make_credential(
             client_data_hash=client_data_hash,
             rp=rp,
             user=user,
             key_params=pub_key_params,
             options=options,
+            pin_uv_param=pin_uv_param,
+            pin_uv_protocol=pin_uv_protocol,
         )
     except Exception as e:
         result.error = f"makeCredential failed: {e}"

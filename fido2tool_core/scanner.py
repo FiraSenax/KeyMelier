@@ -268,19 +268,19 @@ class TokenScanner:
         except Exception as e:
             logger.error("on_update callback error (post-session): %s", e)
 
-    def start_attestation(self, record: TokenRecord):
+    def start_attestation(self, record: TokenRecord, pin: str | None = None, use_uv: bool = False):
         """Run the attestation test in the background.
 
         It takes the device lock itself and fires on_update when done.
         """
         threading.Thread(
             target=self._run_attestation,
-            args=(record,),
+            args=(record, pin, use_uv),
             daemon=True,
             name=f"attestation-{record.id}",
         ).start()
 
-    def _run_attestation(self, record: TokenRecord):
+    def _run_attestation(self, record: TokenRecord, pin: str | None = None, use_uv: bool = False):
         """Run the attestation test in its own thread, holding the device lock.
 
         Calls on_update when done so the UI refreshes automatically.
@@ -289,7 +289,8 @@ class TokenScanner:
             import fido2tool_core.attestation as attestation_mod
 
             with self._open(record, timeout=10.0) as ctap2:
-                att_result = attestation_mod.run(ctap2.device, record.aaguid, self._mds3)
+                att_result = attestation_mod.run(ctap2.device, record.aaguid, self._mds3,
+                                                 pin=pin, use_uv=use_uv)
                 record.attestation = _attestation_to_dict(att_result)
         except DeviceNotFound:
             record.attestation = {
