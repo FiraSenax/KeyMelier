@@ -4,14 +4,19 @@ A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys.
 
 ## Features
 
-- **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions
+- **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions; for YubiKeys also serial number, real firmware and form factor (via Yubico's yubikit)
+- **Security check:** per-key checklist with direct links to fix issues (PIN, vulnerabilities, authenticity, fingerprints, backups)
 - **Security:** attestation test (is the key genuine?), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
-- **Passkeys:** list discoverable credentials per website and delete them
+- **Passkeys:** list discoverable credentials per website, rename and delete them
+- **Backup & loss:** which websites are on which key (names only, stored locally, can be turned off), sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
+- **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
+- **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
 - **Factory reset:** guided flow (re-plug, touch)
 - **History:** keys seen before stay in the sidebar with their last known state, a custom name and an activity timeline
-- **Languages:** German and English, light and dark mode
+- **Languages:** 11 languages following the OS (de, en, es, fr, it, nl, pl, pt, ja, ko, zh), light and dark mode
+- **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
 - CSV export of every connected key to `~/keymelier/exports/`
 
 ## Download
