@@ -1142,3 +1142,16 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .bk-backup { font-size: 0.8rem; }
 .bk-backup.ok { color: var(--ok); }
 .bk-backup.warn { color: var(--warn); font-weight: 600; }
+
+/* Key illustrations */
+.key-art-wrap { position: relative; display: grid; place-items: center; }
+.key-art { display: block; }
+.vendor-badge {
+  position: absolute; right: -5px; bottom: -3px;
+  width: 42%; height: 42%; object-fit: contain;
+  background: #fff; border-radius: 50%; padding: 1px;
+  box-shadow: 0 0 0 1.5px var(--surface), 0 1px 3px rgba(0,0,0,0.25);
+}
+.key-item-icon { overflow: visible; }
+.key-item.offline .key-art { filter: grayscale(0.8); opacity: 0.7; }
+.key-view.offline .key-art { filter: grayscale(0.8); }

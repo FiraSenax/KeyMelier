@@ -80,14 +80,57 @@ function icon(name, size = 18) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
 }
 
-// Vendor logo from the FIDO metadata if available, otherwise a generic glyph
-function keyIcon(token, size) {
-  const src = token.mds_icon;
-  if (typeof src === 'string' && src.startsWith('data:image/')) {
-    return `<img class="vendor-icon" src="${escHtml(src)}" width="${size}" height="${size}" alt="">`;
-  }
-  return icon(isBio(token) ? 'fingerprint' : 'key', size);
+// ── Key illustrations ───────────────────────────────────────────────────────
+
+// Form factor from the key itself (YubiKey) or guessed from the model name
+function formFactor(token) {
+  if (token.form_factor) return token.form_factor;
+  const text = `${token.mds_description || ''} ${token.product_name || ''}`.toLowerCase();
+  const usbC = /usb-?c|type-?c|\bc\b|nfc-c|k33|k40|k45/.test(text);
+  const shape = /nano/.test(text) ? 'nano' : (isBio(token) || /bio/.test(text)) ? 'bio' : 'keychain';
+  return `usb-${usbC ? 'c' : 'a'}-${shape}`;
 }
+
+// Stylised drawing of the key (vertical, connector at the bottom)
+function keyArt(token, size) {
+  const ff = formFactor(token);
+  const usbC = ff.includes('usb-c');
+  const lightning = ff.includes('lightning');
+  const nano = ff.includes('nano');
+  const bio = ff.includes('bio') || isBio(token);
+  const id = `g${Math.random().toString(36).slice(2, 8)}`;
+  const connector = usbC
+    ? `<rect x="25" y="${nano ? 44 : 47}" width="14" height="${nano ? 12 : 11}" rx="4" fill="url(#${id}m)"/><rect x="28" y="${nano ? 49 : 51.5}" width="8" height="2" rx="1" fill="#5d6679"/>`
+    : `<rect x="21" y="${nano ? 44 : 47}" width="22" height="${nano ? 14 : 13}" rx="1.5" fill="url(#${id}m)"/><rect x="25" y="${nano ? 48 : 51}" width="4" height="3" fill="#5d6679"/><rect x="35" y="${nano ? 48 : 51}" width="4" height="3" fill="#5d6679"/>`;
+  let body;
+  if (nano) {
+    body = `<rect x="20" y="30" width="24" height="15" rx="4" fill="url(#${id}b)"/><rect x="23" y="33" width="18" height="4" rx="2" fill="url(#${id}g)"/>`;
+  } else if (bio) {
+    body = `<rect x="16" y="4" width="32" height="44" rx="10" fill="url(#${id}b)"/><circle cx="32" cy="11" r="3" fill="#0c0f16"/>
+      <rect x="23" y="19" width="18" height="18" rx="5" fill="url(#${id}g)"/>
+      <g fill="none" stroke="#8a5a00" stroke-width="1.4" stroke-linecap="round"><path d="M27 31a5 5 0 0 1 10-3"/><path d="M29 33a3 3 0 0 1 6-2"/><path d="M26 27a7 7 0 0 1 12-2"/></g>`;
+  } else {
+    body = `<rect x="18" y="4" width="28" height="44" rx="8" fill="url(#${id}b)"/><circle cx="32" cy="11" r="3.2" fill="#0c0f16"/>
+      <circle cx="32" cy="29" r="7" fill="url(#${id}g)"/>`;
+  }
+  const top = lightning ? `<rect x="28" y="0" width="8" height="6" rx="2" fill="url(#${id}m)"/>` : '';
+  return `<svg class="key-art" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">
+    <defs>
+      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a4150"/><stop offset="1" stop-color="#151920"/></linearGradient>
+      <linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe89a"/><stop offset="0.5" stop-color="#f5bd12"/><stop offset="1" stop-color="#c47f00"/></linearGradient>
+      <linearGradient id="${id}m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#c9d0de"/><stop offset="1" stop-color="#7b869d"/></linearGradient>
+    </defs>${top}${connector}${body}
+  </svg>`;
+}
+
+// Illustration plus the vendor's logo (from the FIDO metadata) as a badge
+function keyAvatar(token, size) {
+  const src = token.mds_icon;
+  const badge = typeof src === 'string' && src.startsWith('data:image/')
+    ? `<img class="vendor-badge" src="${escHtml(src)}" alt="">` : '';
+  return `<span class="key-art-wrap">${keyArt(token, size)}${badge}</span>`;
+}
+
 
 function isBio(token) {
   const o = token.options || {};
@@ -170,7 +213,7 @@ function renderSidebar() {
   $('history-list').innerHTML = past.map(e => {
     const tok = offlineToken(e);
     return `<button type="button" class="key-item offline${e.key_id === selectedHist && mainView === 'key' ? ' active' : ''}" data-hist="${escHtml(e.key_id)}">
-      <span class="key-item-icon">${keyIcon(tok, 22)}</span>
+      <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
         <span class="key-item-sub">${escHtml(e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen))}</span>
@@ -180,7 +223,7 @@ function renderSidebar() {
   }).join('');
   list.innerHTML = [...tokens.values()].map(tok => `
     <button type="button" class="key-item${tok.id === selectedId && mainView === 'key' ? ' active' : ''}" data-id="${escHtml(tok.id)}">
-      <span class="key-item-icon">${keyIcon(tok, 22)}</span>
+      <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
         <span class="key-item-sub">${escHtml(tok.manufacturer || '')} · ${escHtml(t(`status.${tok.security_status}`))}</span>
@@ -228,7 +271,7 @@ function render() {
 }
 
 function renderKeyView(token) {
-  $('key-avatar').innerHTML = keyIcon(token, 36);
+  $('key-avatar').innerHTML = keyAvatar(token, 48);
   $('key-title').textContent = displayName(token);
   const sub = [];
   if (token.offline) sub.push(t('hist.offline', { when: relTime(token.last_seen) }));
