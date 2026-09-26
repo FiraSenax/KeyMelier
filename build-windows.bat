@@ -1,11 +1,11 @@
 @echo off
-REM FIDO2 Token Inspector — Windows build script
-REM Produces: dist\Fido2Tool\Fido2Tool.exe
+REM KeyMelier — Windows build script
+REM Produces: dist\KeyMelier\KeyMelier.exe
 REM Requires: Python 3.10+ on PATH
 
 cd /d "%~dp0"
 
-echo === FIDO2 Tool - Windows build ===
+echo === KeyMelier - Windows build ===
 
 if not exist "build-venv\Scripts\python.exe" (
     echo Creating build venv...
@@ -21,5 +21,5 @@ echo Running PyInstaller...
 build-venv\Scripts\pyinstaller --clean --noconfirm fido2tool.spec
 
 echo.
-echo Build complete: dist\Fido2Tool\Fido2Tool.exe
+echo Build complete: dist\KeyMelier\KeyMelier.exe
 pause

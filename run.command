@@ -1,5 +1,5 @@
 #!/bin/bash
-# FIDO2 Token Inspector — macOS launcher
+# KeyMelier — macOS launcher
 # Double-click this file in Finder, or run from Terminal.
 # Handles Homebrew-managed Python (PEP 668) by using a local venv.
 

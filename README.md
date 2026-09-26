@@ -105,3 +105,16 @@ static/                  # UI (HTML/CSS/JS, inlined into the window at start)
 data/advisories.json     # Curated advisory database
 fido2tool.spec           # PyInstaller spec (.app / .exe)
 ```
+
+## License
+
+KeyMelier is released under the [MIT License](LICENSE).
+
+It builds on open-source libraries under their own licenses, among them
+[python-fido2](https://github.com/Yubico/python-fido2) (BSD-2-Clause),
+[pywebview](https://github.com/r0x0r/pywebview) (BSD-3-Clause),
+[cryptography](https://github.com/pyca/cryptography) (Apache-2.0 / BSD) and
+[requests](https://github.com/psf/requests) (Apache-2.0); app bundles are built with
+[PyInstaller](https://pyinstaller.org) (GPL with bootloader exception, which permits this use).
+FIDO metadata is downloaded at runtime from the FIDO Alliance Metadata Service; vendor
+icons shown in the app come from that service. Product names are trademarks of their owners.
