@@ -267,6 +267,14 @@ class KeyService:
         with self._scanner.session(token_id, refresh=False) as (_record, ctap2):
             return self._passkeys(token_id, ctap2)
 
+    def passkey_rename(self, token_id: str, credential_id: str, user_id: str, name: str = "",
+                       display_name: str = "", site: str = "") -> dict:
+        with self._scanner.session(token_id, refresh=False) as (record, ctap2):
+            passkeys_mod.rename_passkey(token_id, ctap2, credential_id, user_id, name, display_name)
+            data = self._passkeys(token_id, ctap2)
+        self._log(record, "passkey_renamed", site=str(site)[:120], user=str(display_name or name)[:120])
+        return data
+
     def passkey_delete(self, token_id: str, credential_id: str, site: str = "", user: str = "") -> dict:
         with self._scanner.session(token_id) as (record, ctap2):
             passkeys_mod.delete_passkey(token_id, ctap2, credential_id)

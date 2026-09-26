@@ -3108,6 +3108,10 @@ const FEATURE_STRINGS = {
     'ev.config_always_uv.on': 'PIN/Fingerabdruck immer verlangen: ein',
     'ev.config_always_uv.off': 'PIN/Fingerabdruck immer verlangen: aus',
     'ev.config_force_pin': 'PIN-Änderung angefordert',
+    'pk.rename.display': 'Anzeigename',
+    'pk.rename.name': 'Benutzername',
+    'pk.rename.done': 'Passkey umbenannt',
+    'ev.passkey_renamed': 'Passkey umbenannt',
   },
   en: {
     'det.formFactor': 'Form factor',
@@ -3142,6 +3146,10 @@ const FEATURE_STRINGS = {
     'ev.config_always_uv.on': 'Always require PIN/fingerprint: on',
     'ev.config_always_uv.off': 'Always require PIN/fingerprint: off',
     'ev.config_force_pin': 'PIN change requested',
+    'pk.rename.display': 'Display name',
+    'pk.rename.name': 'User name',
+    'pk.rename.done': 'Passkey renamed',
+    'ev.passkey_renamed': 'Passkey renamed',
   },
 };
 for (const [code, strings] of Object.entries(FEATURE_STRINGS)) Object.assign(STRINGS[code], strings);

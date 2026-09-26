@@ -1086,3 +1086,12 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .switch-row { display: flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer; }
 .switch-row input { width: 18px; height: 18px; accent-color: var(--accent); }
 .inline-form input[type=number] { max-width: 110px; }
+
+.pk-rename-form { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.pk-rename-form input {
+  font: inherit; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px;
+}
+.pk-rename-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.pk-rename-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pk-rename-actions .btn { padding: 5px 12px; }

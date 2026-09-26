@@ -51,7 +51,7 @@ ALLOWED = {
     "get_settings", "set_settings",
     "pin_status", "pin_update", "attestation_rerun",
     "unlock", "lock",
-    "passkeys", "passkey_delete",
+    "passkeys", "passkey_delete", "passkey_rename",
     "fingerprints", "fingerprint_rename", "fingerprint_delete",
     "fingerprint_enroll", "fingerprint_enroll_cancel",
     "reset_arm", "reset_disarm", "config", "config_update",

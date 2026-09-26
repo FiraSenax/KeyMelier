@@ -82,6 +82,25 @@ def list_passkeys(token_id: str, ctap2) -> dict:
     }
 
 
+def rename_passkey(token_id: str, ctap2, credential_id: str, user_id: str, name: str, display_name: str) -> None:
+    """Change the stored account name / display name (CTAP 2.1 only)."""
+    from fido2.ctap2.credman import CredentialManagement
+
+    if not CredentialManagement.is_update_supported(ctap2.info):
+        raise AuthError("This key cannot rename passkeys.", "unsupported")
+    name = (name or "").strip()
+    display_name = (display_name or "").strip()
+    if not name and not display_name:
+        raise AuthError("Please enter a name.", "invalid_input")
+    if len(name.encode()) > 64 or len(display_name.encode()) > 64:
+        raise AuthError("The name is too long (max. 64 bytes).", "name_too_long", max=64)
+    cm = _credman(token_id, ctap2)
+    descriptor = {"type": "public-key", "id": _unb64(credential_id)}
+    user = {"id": _unb64(user_id), "name": name or display_name, "displayName": display_name or name}
+    auth.call(token_id, lambda: cm.update_user_info(descriptor, user))
+    logger.info("Passkey renamed")
+
+
 def delete_passkey(token_id: str, ctap2, credential_id: str) -> None:
     if not credential_id:
         raise AuthError("Missing credential id.", "invalid_input")

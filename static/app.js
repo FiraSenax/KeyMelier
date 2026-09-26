@@ -483,7 +483,7 @@ async function checkDataNow() {
 
 const EVENT_ICONS = {
   connected: 'plug', disconnected: 'plug', attestation: 'shield', attestation_skipped: 'shield', pin_set: 'lock', pin_changed: 'lock',
-  passkey_deleted: 'passkey', fingerprint_enrolled: 'fingerprint', fingerprint_renamed: 'fingerprint',
+  passkey_deleted: 'passkey', passkey_renamed: 'passkey', fingerprint_enrolled: 'fingerprint', fingerprint_renamed: 'fingerprint',
   fingerprint_removed: 'fingerprint', reset: 'trash',
   config_min_pin: 'lock', config_always_uv: 'lock', config_force_pin: 'lock',
 };
@@ -495,6 +495,7 @@ function eventText(ev) {
   if (ev.type === 'config_always_uv') return t(ev.value ? 'ev.config_always_uv.on' : 'ev.config_always_uv.off');
   const key = `ev.${ev.type}`;
   const base = STRINGS[LANG][key] ? t(key) : ev.type;
+  if (ev.type === 'passkey_renamed' && (ev.site || ev.user)) return `${t('ev.passkey_renamed')}: ${[ev.site, ev.user].filter(Boolean).join(' · ')}`;
   if (ev.type === 'passkey_deleted' && (ev.site || ev.user)) return `${base}: ${[ev.site, ev.user].filter(Boolean).join(' · ')}`;
   if (ev.type.startsWith('fingerprint_') && ev.name) return `${base}: ${ev.name}`;
   return base;
@@ -730,6 +731,7 @@ function handleActionError(e, state) {
 
 let pkState = null;       // last passkeys response for the selected token
 let pkConfirm = null;     // credential_id awaiting delete confirmation
+let pkRename = null;      // credential_id being renamed
 
 function credProtectLabel(level) {
   return level === 3 ? t('pk.protect3') : null;
@@ -767,6 +769,17 @@ function renderPasskeys() {
         const sub = c.display_name && c.user_name && c.user_name !== c.display_name ? c.user_name : '';
         const prot = credProtectLabel(c.cred_protect);
         const confirming = pkConfirm === c.credential_id;
+        if (pkRename === c.credential_id) {
+          return `<li class="pk-item">
+            <form class="pk-rename-form" data-id="${escHtml(c.credential_id)}">
+              <input type="text" class="pk-rename-display" value="${escHtml(c.display_name)}" placeholder="${escHtml(t('pk.rename.display'))}" maxlength="64" spellcheck="false">
+              <input type="text" class="pk-rename-name" value="${escHtml(c.user_name)}" placeholder="${escHtml(t('pk.rename.name'))}" maxlength="64" spellcheck="false">
+              <div class="pk-rename-actions">
+                <button type="button" class="btn btn-secondary" data-act="rename-cancel">${escHtml(t('pk.delete.cancel'))}</button>
+                <button type="submit" class="btn btn-primary">${escHtml(t('fp.save'))}</button>
+              </div>
+            </form></li>`;
+        }
         return `<li class="pk-item">
           <div class="pk-user">
             <div class="pk-user-name">${escHtml(main)}</div>
@@ -779,6 +792,7 @@ function renderPasskeys() {
               <button type="button" class="btn btn-secondary" data-act="cancel">${escHtml(t('pk.delete.cancel'))}</button>
               <button type="button" class="btn btn-danger" data-act="delete" data-id="${escHtml(c.credential_id)}">${escHtml(t('pk.delete.do'))}</button>
             </div>` : `
+            ${st.rename ? `<button type="button" class="btn-icon" data-act="rename" data-id="${escHtml(c.credential_id)}" title="${escHtml(t('fp.rename'))}">${icon('pencil', 16)}</button>` : ''}
             <button type="button" class="btn-icon danger" data-act="ask-delete" data-id="${escHtml(c.credential_id)}" title="${escHtml(t('pk.delete.do'))}">${icon('trash', 16)}</button>`}
         </li>`;
       }).join('') + '</ul></section>';
@@ -803,11 +817,38 @@ async function loadPasskeys(token) {
   renderPasskeys();
 }
 
+function findPasskey(credId) {
+  for (const rp of pkState?.rps || []) {
+    const c = rp.credentials.find(x => x.credential_id === credId);
+    if (c) return { rp, c };
+  }
+  return null;
+}
+
+async function renamePasskey(credId, displayName, name) {
+  const token = tokens.get(selectedId);
+  const found = findPasskey(credId);
+  if (!token || !found) return;
+  try {
+    pkState = await call('passkey_rename', {
+      token_id: token.id, credential_id: credId, user_id: found.c.user_id,
+      name, display_name: displayName, site: found.rp.rp_id || found.rp.rp_name,
+    });
+    pkRename = null;
+    renderPasskeys();
+    showToast(t('pk.rename.done'), 'success');
+  } catch (e) {
+    handleActionError(e, pkState);
+  }
+}
+
 async function passkeyAction(action, credId) {
   const token = tokens.get(selectedId);
   if (!token) return;
   if (action === 'reload') return loadPasskeys(token);
-  if (action === 'ask-delete') { pkConfirm = credId; return renderPasskeys(); }
+  if (action === 'ask-delete') { pkConfirm = credId; pkRename = null; return renderPasskeys(); }
+  if (action === 'rename') { pkRename = credId; pkConfirm = null; return renderPasskeys(); }
+  if (action === 'rename-cancel') { pkRename = null; return renderPasskeys(); }
   if (action === 'cancel') { pkConfirm = null; return renderPasskeys(); }
   if (action === 'delete') {
     pkConfirm = null;
@@ -1041,6 +1082,7 @@ function initManagementPane(paneId, onAction) {
     if (f.classList.contains('unlock-form')) unlockKey('pin');
     else if (f.classList.contains('fp-enroll-form')) startEnrollment(f.querySelector('.fp-name').value.trim());
     else if (f.classList.contains('fp-rename-form')) renameFingerprint(f.dataset.id, f.querySelector('.fp-rename-input').value);
+    else if (f.classList.contains('pk-rename-form')) renamePasskey(f.dataset.id, f.querySelector('.pk-rename-display').value, f.querySelector('.pk-rename-name').value);
     else if (f.classList.contains('cfg-minpin-form')) updateConfig({ min_pin_length: Number(f.querySelector('.cfg-minpin').value) }, 'cfg.saved');
   });
 }
