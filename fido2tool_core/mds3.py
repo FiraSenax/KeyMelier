@@ -144,10 +144,19 @@ class MDS3Client:
         self._loaded = True
 
     def refresh_if_stale(self) -> bool:
-        """Re-download the metadata if the cache is older than the max age.
-        Returns True if new metadata was loaded."""
+        """Re-download the metadata if the cache is older than the max age, or
+        re-verify a fresh cache whose revocation evidence is missing/expired
+        (e.g. after an offline start). Returns True if the state changed."""
         if self._is_cache_fresh():
-            return False
+            if not self._entries or self.is_current():
+                return False
+            try:
+                entries = self._load_cache()  # re-runs signature, path and revocation checks
+            except Exception as e:
+                logger.info("MDS3 re-verification failed: %s", e)
+                return False
+            self._index(entries)
+            return self.is_current()
         try:
             entries = self._fetch_from_network()
         except Exception as e:

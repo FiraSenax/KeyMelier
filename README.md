@@ -2,7 +2,7 @@
 
 *The sommelier for your security keys.*
 
-A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, its attestation evidence and known vulnerability findings — and manage it: PIN, passkeys, fingerprints, factory reset. Key history is opt-in; the default session keeps key metadata in memory.
+A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, its attestation evidence and known vulnerability findings — and manage it: PIN, passkeys, fingerprints, factory reset. Previously seen keys are kept in a local history (on by default, can be turned off; stateless mode keeps everything in memory).
 
 ## Features
 
@@ -79,7 +79,7 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
 - PINs are only held in memory for the single operation that needs them and are never logged or stored. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only.
 - Network: the app contacts the FIDO Alliance (metadata), GlobalSign (signer certificate revocation lists), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
-- History is disabled by default. Enable it explicitly in the backup view to persist key models, serials and events. Website recording is a separate opt-in, disabled by default; enabling it can reveal accounts and internal domains. Disabling it removes site lists and account details from history events.
+- History is enabled by default: key models, serial numbers and events are saved locally so previously seen keys stay in the sidebar. Turn it off in the "Backup & loss" view (existing files are kept) or use stateless mode. Website recording is a separate opt-in, disabled by default; enabling it can reveal accounts and internal domains. Disabling it removes site lists and account details from history events.
 - CSV files are created only using the export button; exported metadata is plaintext. Formula-like cells are neutralized.
 - `python app.py --stateless` (or `KEYMELIER_STATELESS=1`) skips persistent settings, history, caches, the lock file and exports. Metadata remains in process memory. OS/browser runtime files are outside this application-level guarantee.
 - Optional encrypted history: start with `KEYMELIER_ENCRYPT_HISTORY=1` and enable history. `history.encrypted` uses authenticated encryption with its key held in macOS Keychain or Windows Credential Manager. There is no plaintext-keyring fallback. Existing plaintext history is not migrated or deleted automatically; remove/archive it separately if required. CSV exports remain plaintext. Losing the OS-stored key prevents recovery.
@@ -88,7 +88,7 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 ## Limitations
 
 - Only passkeys stored **on** the key (discoverable credentials) can be listed. Classic two-factor registrations (U2F / "security key as second factor") are not stored on the key and cannot be listed by any tool.
-- FIDO keys expose no unique serial number over FIDO. Two keys of the same model and firmware batch share one history entry.
+- FIDO keys expose no unique serial number over FIDO. YubiKeys are told apart by the serial read via yubikit; for other vendors, two keys of the same model and firmware batch share one history entry.
 - A factory reset deletes passkeys, PIN and fingerprints but does not fix firmware vulnerabilities.
 
 ## FIDO Alliance MDS3

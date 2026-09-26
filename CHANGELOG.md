@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- After an offline start, metadata is re-verified as soon as revocation lists are reachable again (retried every 15 minutes while evidence is missing) instead of staying "Unknown" until restart.
+- A cached revocation list that fails validation is discarded and downloaded again instead of blocking recovery.
+- README privacy section matches the new default (history on).
+
 ## 1.1.2 — 2026-09-27
 
 - FIDO metadata works offline: verified signer CRLs are stored locally and re-validated on every use.

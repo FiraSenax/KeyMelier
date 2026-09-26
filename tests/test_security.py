@@ -277,6 +277,77 @@ class ExtendedSecurityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 revocation.check_chain_revocation([leaf, root])
 
+    def test_invalid_cached_crl_is_replaced_by_download(self):
+        from fido2tool_core import revocation
+        rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
+        root = cert('root', rk, ca=True)
+        now = datetime.now(timezone.utc)
+        url = 'https://crl.globalsign.com/test.crl'
+        leaf = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'leaf')]))
+            .issuer_name(root.subject).public_key(lk.public_key()).serial_number(9)
+            .not_valid_before(now-timedelta(days=1)).not_valid_after(now+timedelta(days=1))
+            .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+                full_name=[x509.UniformResourceIdentifier(url)], relative_name=None, reasons=None, crl_issuer=None)]), False)
+            .sign(rk, hashes.SHA256()))
+        def crl(key):
+            return (x509.CertificateRevocationListBuilder().issuer_name(root.subject)
+                .last_update(now-timedelta(hours=1)).next_update(now+timedelta(days=1)).sign(key, hashes.SHA256()))
+        good = crl(rk)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(revocation, 'CRL_DIR', Path(tmp)), \
+             patch.object(revocation, '_CACHE', {}):
+            revocation._save_disk(url, crl(lk))  # forged/corrupt copy on disk
+            downloads = []
+            def download(u, allow_cache=True):
+                if allow_cache:
+                    return revocation._load_disk(u)
+                downloads.append(u)
+                return good
+            with patch.object(revocation, '_fetch_crl', side_effect=download):
+                self.assertGreater(revocation.check_chain_revocation([leaf, root]), now)
+            self.assertEqual(downloads, [url])
+            self.assertEqual(revocation._load_disk(url).public_bytes(
+                __import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding']).Encoding.DER),
+                good.public_bytes(__import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding']).Encoding.DER))
+
+    def test_no_double_download_without_cache(self):
+        from fido2tool_core import revocation
+        rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
+        root = cert('root', rk, ca=True)
+        now = datetime.now(timezone.utc)
+        url = 'https://crl.globalsign.com/test.crl'
+        leaf = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'leaf')]))
+            .issuer_name(root.subject).public_key(lk.public_key()).serial_number(10)
+            .not_valid_before(now-timedelta(days=1)).not_valid_after(now+timedelta(days=1))
+            .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+                full_name=[x509.UniformResourceIdentifier(url)], relative_name=None, reasons=None, crl_issuer=None)]), False)
+            .sign(rk, hashes.SHA256()))
+        calls = []
+        def offline(u, allow_cache=True):
+            calls.append(allow_cache)
+            raise ValueError("MDS CRL download failed")
+        with tempfile.TemporaryDirectory() as tmp, patch.object(revocation, 'CRL_DIR', Path(tmp)), \
+             patch.object(revocation, '_CACHE', {}), patch.object(revocation, '_fetch_crl', side_effect=offline):
+            with self.assertRaises(ValueError):
+                revocation.check_chain_revocation([leaf, root])
+        self.assertEqual(calls, [True])
+
+    def test_fresh_cache_is_reverified_when_revocation_returns(self):
+        from fido2tool_core import mds3
+        m = mds3.MDS3Client()
+        m._entries = [{}]
+        m._next_update = '2999-01-01'
+        m._verified_until = None  # started offline
+        future = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        def reload():
+            m._verified_until = future
+            return [{'aaguid': 'x'}]
+        with patch.object(m, '_is_cache_fresh', return_value=True), patch.object(m, '_load_cache', side_effect=reload):
+            self.assertTrue(m.refresh_if_stale())
+        self.assertTrue(m.is_current())
+        with patch.object(m, '_is_cache_fresh', return_value=True), patch.object(m, '_load_cache') as again:
+            self.assertFalse(m.refresh_if_stale())  # already current: no work
+            again.assert_not_called()
+
     def test_encrypted_history_and_no_plaintext_fallback(self):
         from cryptography.fernet import Fernet
         cipher = Fernet(Fernet.generate_key())

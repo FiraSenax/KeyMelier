@@ -132,12 +132,14 @@ class KeyService:
         return {"tokens": [self._record_dict(r) for r in self._scanner.get_all()]}
 
     UPDATE_INTERVAL = 6 * 3600  # seconds between update checks
+    RETRY_INTERVAL = 15 * 60    # while metadata lacks current revocation evidence
 
     def run_update_loop(self):
         """Background thread: keep metadata and advisories current."""
         while True:
             self.check_updates()
-            threading.Event().wait(self.UPDATE_INTERVAL)
+            current = self._mds3 is None or self._mds3.is_current()
+            threading.Event().wait(self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL)
 
     def check_updates(self) -> dict:
         from fido2tool_core.updates import now_iso
