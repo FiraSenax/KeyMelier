@@ -23,39 +23,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller Pillow cairosvg
-
-      - name: Convert SVG icon to .icns
-        run: |
-          python - <<'EOF'
-          import subprocess, sys, os
-          from pathlib import Path
-
-          # Convert SVG -> PNG at multiple sizes using cairosvg
-          import cairosvg
-          sizes = [16, 32, 64, 128, 256, 512, 1024]
-          iconset = Path("KeyMelier.iconset")
-          iconset.mkdir(exist_ok=True)
-          for s in sizes:
-              cairosvg.svg2png(
-                  url="static/icon.svg",
-                  write_to=str(iconset / f"icon_{s}x{s}.png"),
-                  output_width=s, output_height=s
-              )
-              cairosvg.svg2png(
-                  url="static/icon.svg",
-                  write_to=str(iconset / f"icon_{s}x{s}@2x.png"),
-                  output_width=s*2, output_height=s*2
-              )
-          # Use macOS iconutil to produce the .icns
-          subprocess.run(["iconutil", "-c", "icns", "KeyMelier.iconset", "-o", "static/icon.icns"], check=True)
-          print("icon.icns created")
-          EOF
+          pip install pyinstaller
 
       - name: Build .app with PyInstaller
         env:
           KEYMELIER_ICON: static/icon.icns
-        run: pyinstaller --clean --noconfirm fido2tool.spec
+        run: |
+          pyinstaller --clean --noconfirm fido2tool.spec
+          codesign --force --deep --sign - dist/KeyMelier.app
+          codesign --verify --deep --strict dist/KeyMelier.app
 
       - name: Zip the .app
         run: |
@@ -84,31 +60,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller Pillow cairosvg
-
-      - name: Convert SVG icon to .ico
-        run: |
-          python - << 'EOF'
-          import cairosvg
-          from PIL import Image
-          from io import BytesIO
-          from pathlib import Path
-
-          sizes = [16, 32, 48, 64, 128, 256]
-          frames = []
-          for s in sizes:
-              png = cairosvg.svg2png(url="static/icon.svg", output_width=s, output_height=s)
-              frames.append(Image.open(BytesIO(png)).convert("RGBA"))
-
-          frames[0].save(
-              "static/icon.ico",
-              format="ICO",
-              sizes=[(f.width, f.height) for f in frames],
-              append_images=frames[1:]
-          )
-          print("icon.ico created")
-          EOF
-        shell: cmd
+          pip install pyinstaller
 
       - name: Build .exe with PyInstaller
         env:

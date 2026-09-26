@@ -21,22 +21,11 @@ fi
 echo "Installing dependencies..."
 "$PIP" install -q --upgrade pip
 "$PIP" install -q -r requirements.txt
-"$PIP" install -q pyinstaller cairosvg
+"$PIP" install -q pyinstaller cairosvg pillow
 
 echo "Building app icon..."
-ICONSET="build/KeyMelier.iconset"
-rm -rf "$ICONSET" && mkdir -p "$ICONSET"
-"$PYTHON" - <<'EOF'
-import cairosvg
-for size in (16, 32, 128, 256, 512):
-    for scale in (1, 2):
-        px = size * scale
-        name = f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
-        cairosvg.svg2png(url="static/icon.svg", write_to=f"build/KeyMelier.iconset/{name}",
-                         output_width=px, output_height=px)
-EOF
-iconutil -c icns "$ICONSET" -o build/KeyMelier.icns
-export KEYMELIER_ICON="build/KeyMelier.icns"
+"$PYTHON" tools/make_icons.py
+export KEYMELIER_ICON="static/icon.icns"
 
 echo "Running PyInstaller..."
 "$PYINSTALLER" --clean --noconfirm fido2tool.spec
