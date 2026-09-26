@@ -65,6 +65,8 @@ def nvd_findings(since: datetime, until: datetime) -> list[dict]:
     for kw in VENDOR_KEYWORDS:
         params = {
             "keywordSearch": kw,
+            # Multi-word terms must appear as a phrase, not as scattered words
+            **({"keywordExactMatch": ""} if " " in kw else {}),
             "pubStartDate": since.strftime("%Y-%m-%dT%H:%M:%S.000"),
             "pubEndDate": until.strftime("%Y-%m-%dT%H:%M:%S.000"),
         }
