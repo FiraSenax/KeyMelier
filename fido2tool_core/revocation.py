@@ -2,10 +2,51 @@
 
 Only direct, complete CRLs from GlobalSign are supported. Redirects and
 arbitrary certificate-provided hosts are never followed.
+
+Downloaded CRLs are also kept on disk (~/.keymelier/crl/). That is safe:
+a CRL is signed by its issuer and every use re-validates signature, issuer
+and validity window in check_chain_revocation. The disk copy only lets the
+check succeed offline until the CRL's own nextUpdate.
 """
 from datetime import datetime, timezone
+from hashlib import sha256
+from pathlib import Path
 from urllib.parse import urlparse
 import threading
+
+CRL_DIR = Path.home() / ".keymelier" / "crl"
+
+
+class RevokedError(ValueError):
+    """A valid, current CRL lists the certificate as revoked (never soft-fail)."""
+
+
+def _disk_path(url):
+    return CRL_DIR / (sha256(url.encode()).hexdigest()[:32] + ".crl")
+
+
+def _load_disk(url):
+    from cryptography import x509
+    from fido2tool_core.storage import stateless
+
+    if stateless():
+        return None
+    try:
+        return x509.load_der_x509_crl(_disk_path(url).read_bytes())
+    except (OSError, ValueError):
+        return None
+
+
+def _save_disk(url, crl):
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from fido2tool_core.storage import atomic_write, stateless
+
+    if stateless():
+        return
+    try:
+        atomic_write(_disk_path(url), crl.public_bytes(Encoding.DER))
+    except Exception:
+        pass  # the disk copy is only an offline convenience
 
 _CACHE = {}
 _LOCK = threading.Lock()
@@ -26,16 +67,22 @@ def _fetch_crl(url):
         cached = _CACHE.get(url)
         if cached and cached.next_update_utc and now < cached.next_update_utc:
             return cached
+    disk = _load_disk(url)
+    if disk is not None and disk.next_update_utc and now < disk.next_update_utc:
+        return disk  # still validated by the caller like a fresh download
     # HTTP CRLs are authenticated by the issuer signature, not the transport.
-    with requests.get(url, timeout=15, stream=True, allow_redirects=False) as response:
-        if response.status_code != 200:
-            raise ValueError("MDS CRL download failed")
-        chunks, size = [], 0
-        for chunk in response.iter_content(65536):
-            size += len(chunk)
-            if size > _MAX_SIZE:
-                raise ValueError("MDS CRL exceeds size limit")
-            chunks.append(chunk)
+    try:
+        with requests.get(url, timeout=15, stream=True, allow_redirects=False) as response:
+            if response.status_code != 200:
+                raise ValueError("MDS CRL download failed")
+            chunks, size = [], 0
+            for chunk in response.iter_content(65536):
+                size += len(chunk)
+                if size > _MAX_SIZE:
+                    raise ValueError("MDS CRL exceeds size limit")
+                chunks.append(chunk)
+    except requests.RequestException:
+        raise ValueError("MDS CRL download failed") from None
     crl = x509.load_der_x509_crl(b"".join(chunks))
     # Cache only after validation in check_chain_revocation.
     return crl
@@ -69,12 +116,15 @@ def check_chain_revocation(chain):
                     if ext.critical:
                         raise ValueError("Unsupported critical CRL extension")
                 if crl.get_revoked_certificate_by_serial_number(cert.serial_number):
-                    raise ValueError("MDS signer certificate revoked")
+                    raise RevokedError("MDS signer certificate revoked")
                 with _LOCK:
                     _CACHE[url] = crl
+                _save_disk(url, crl)
                 deadlines.append(crl.next_update_utc)
                 checked = True
                 break
+            except RevokedError:
+                raise
             except Exception:
                 continue
         if not checked:

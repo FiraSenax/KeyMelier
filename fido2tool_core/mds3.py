@@ -57,7 +57,7 @@ class MDS3Client:
             return None
         try:
             data = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-            payload = verify_jwt(data["jwt"])
+            payload = verify_jwt(data["jwt"], require_revocation=False)
             return {"fetched_at": datetime.fromisoformat(data["fetched_at"]), "payload": payload}
         except FileNotFoundError:
             return None
@@ -76,7 +76,7 @@ class MDS3Client:
         logger.info("Fetching MDS3 from %s", MDS3_URL)
         resp = requests.get(MDS3_URL, timeout=20)
         resp.raise_for_status()
-        payload = verify_jwt(resp.text)  # raises MdsVerificationError
+        payload = verify_jwt(resp.text, require_revocation=False)  # raises MdsVerificationError
         cached = self._read_cache()
         if cached and payload.get("no", 0) < cached["payload"].get("no", 0):
             raise ValueError(f"MDS3 blob #{payload.get('no')} is older than cached #{cached['payload'].get('no')}")
@@ -206,6 +206,6 @@ class MDS3Client:
             "serial": self._serial,
             "current": self.is_current(),
             "next_update": self._next_update,
-            "revocation_checked": bool(self._entries),
+            "revocation_checked": bool(self._entries) and self._verified_until is not None,
             "verified": bool(self._entries),  # only verified blobs are ever loaded
         }

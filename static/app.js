@@ -716,6 +716,7 @@ function renderDataStatus() {
     [t('data.mds'), st.mds?.fetched_at
       ? `${fmtDate(st.mds.fetched_at)}${st.mds.serial ? ` · #${st.mds.serial}` : ''}${st.mds.verified ? ` · ${t('data.verified')}` : ''}`
       : t('data.none')],
+    ...(st.mds?.entry_count && !st.mds.revocation_checked ? [['', t('data.revocationUnknown')]] : []),
     [t('data.lastCheck'), st.last_check ? fmtDate(st.last_check) : t('data.pending')],
     [t('data.appVersion'), st.app?.current
       ? `${st.app.current}${st.app.latest ? ` · ${st.app.newer ? t('upd.available', { v: st.app.latest }) : t('upd.upToDate')}` : ''}`

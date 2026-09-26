@@ -23,15 +23,30 @@ A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys.
 
 ## Download
 
-Release builds must be Developer ID signed and notarized on macOS, and Authenticode
-signed on Windows. Older releases and CI test artifacts may be unsigned. Do not
-bypass Gatekeeper or SmartScreen to run an unverified download. Use a reviewed
-source checkout for local testing, or wait for a signed release.
+Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest).
+Each release states whether its macOS build is Developer ID signed and notarized
+and whether its Windows build is Authenticode signed. Checksums (`SHA256SUMS.txt`),
+dependency locks and the source commit are attached to every release.
 
-After extracting a signed release, verify the expected publisher before opening it.
-Windows direct CTAP2 HID management can require elevation; build/install dependencies
-without administrator privileges, then elevate only the reviewed application when
-needed. Managed devices require your organization's approval.
+### First launch of an unsigned macOS build
+
+1. Unzip `KeyMelier-macOS.zip` and move **KeyMelier.app** to **Applications**.
+2. Open it. macOS says it "cannot verify" the app – click **Done** (not "Move to Trash").
+3. Open **System Settings → Privacy & Security**, click **Open Anyway** next to the
+   message about KeyMelier and confirm.
+
+Or in Terminal: `xattr -dr com.apple.quarantine /Applications/KeyMelier.app`.
+Only do this for a download from this repository whose checksum matches `SHA256SUMS.txt`.
+
+### First launch on Windows
+
+1. Unzip `KeyMelier-Windows.zip` and open the `KeyMelier` folder.
+2. Right-click **KeyMelier.exe** → **Run as administrator** (Windows only allows
+   direct FIDO access to elevated programs).
+3. For an unsigned build SmartScreen may show "Windows protected your PC":
+   click **More info** → **Run anyway**.
+
+Managed devices may require your organization's approval.
 
 ## Build it yourself
 

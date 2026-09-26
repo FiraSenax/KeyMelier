@@ -69,7 +69,8 @@ class KeyService:
         self._exporter = exporter
         self._mds3 = mds3_client
         self._session_settings = {}
-        self.history = history or History(enabled=self._stored_settings().get("history_enabled") is True)
+        # History is on unless the user switched it off (websites stay opt-in)
+        self.history = history or History(enabled=self._stored_settings().get("history_enabled") is not False)
         if self._stored_settings().get("remember_sites") is not True:
             self.history.clear_sites()
         self.emit = lambda name, payload: None
@@ -201,7 +202,8 @@ class KeyService:
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
-        return {"history_enabled": False, "remember_sites": False, **self._stored_settings(), "stateless": stateless(), "system_languages": system_languages()}
+        return {"history_enabled": not stateless(), "remember_sites": False, **self._stored_settings(),
+                "stateless": stateless(), "system_languages": system_languages()}
 
     def set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()

@@ -1,4 +1,8 @@
-# Signed release setup
+# Release setup
+
+Signing is optional. When the credentials below are configured, version-tag builds
+are signed (and notarized on macOS); without them the builds are published unsigned
+and the release notes say so, including first-launch instructions.
 
 The repository provides the workflow; the maintainer must obtain identities and
 configure the GitHub `release-signing` environment. Never commit certificates,
@@ -47,6 +51,7 @@ reputation.
 3. Commit and push the reviewed version tag (`vX.Y.Z`).
 4. Verify successful signing/notarization and the attached source/dependency evidence.
 
-Without the credentials above, version-tag builds fail before publication.
-The signing branches require their first real CI run after provisioning; they
-cannot be validated with ad-hoc certificates.
+Without the credentials above, version-tag builds are published unsigned (macOS
+ad-hoc signed) and labelled as such in the release notes. The signing branches
+require their first real CI run after provisioning; they cannot be validated with
+ad-hoc certificates.

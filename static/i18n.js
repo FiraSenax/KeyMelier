@@ -4218,14 +4218,21 @@ for (const [lang, [unknown, ok, verified, unverified]] of Object.entries(SECURIT
     'tile.security.attPartial': unverified, 'sec.att.unverified': unverified,
   });
 }
-Object.assign(STRINGS.en, {
-  'privacy.history': 'Save key history on this computer (opt in)',
-  'privacy.hint': 'Off by default. Existing files are kept when disabled. Website recording is separate; CSV exports require an explicit click. Stateless mode disables persistence and exports.',
-});
-Object.assign(STRINGS.de, {
-  'privacy.history': 'Schlüsselverlauf auf diesem Computer speichern (optional)',
-  'privacy.hint': 'Standardmäßig aus. Vorhandene Dateien bleiben beim Ausschalten erhalten. Websites werden separat aktiviert; CSV-Exporte erfolgen nur auf Klick. Der Stateless-Modus verhindert Speicherung und Exporte.',
-});
+// Privacy settings and metadata revocation state
+const PRIVACY_STRINGS = {
+  de: {"privacy.history": "Schlüsselverlauf auf diesem Computer speichern", "privacy.hint": "Standardmäßig an. Beim Ausschalten bleiben vorhandene Dateien erhalten. Websites werden separat aktiviert; CSV-Exporte erfolgen nur auf Klick. Der Stateless-Modus verhindert jede Speicherung.", "data.revocationUnknown": "Sperrstatus nicht prüfbar (offline?) – Modellnamen ja, keine Sicherheitsbewertung"},
+  en: {"privacy.history": "Save key history on this computer", "privacy.hint": "On by default. Existing files are kept when turned off. Website recording is separate; CSV exports need an explicit click. Stateless mode disables all storage.", "data.revocationUnknown": "Revocation status unavailable (offline?) – model names only, no security assessment"},
+  es: {"privacy.history": "Guardar el historial de llaves en este equipo", "privacy.hint": "Activado por defecto. Al desactivarlo se conservan los archivos existentes. Los sitios web se activan aparte; las exportaciones CSV solo con un clic. El modo sin estado impide todo almacenamiento.", "data.revocationUnknown": "Estado de revocación no verificable (¿sin conexión?): solo nombres de modelo, sin evaluación de seguridad"},
+  fr: {"privacy.history": "Enregistrer l'historique des clés sur cet ordinateur", "privacy.hint": "Activé par défaut. Les fichiers existants sont conservés si vous le désactivez. Les sites web s'activent séparément ; les exports CSV uniquement sur clic. Le mode sans état empêche tout enregistrement.", "data.revocationUnknown": "Statut de révocation invérifiable (hors ligne ?) – noms de modèles seulement, pas d’évaluation de sécurité"},
+  it: {"privacy.history": "Salva la cronologia delle chiavi su questo computer", "privacy.hint": "Attivo per impostazione predefinita. Disattivandolo i file esistenti restano. I siti web si attivano a parte; le esportazioni CSV solo con un clic. La modalità senza stato impedisce ogni salvataggio.", "data.revocationUnknown": "Stato di revoca non verificabile (offline?) – solo nomi dei modelli, nessuna valutazione di sicurezza"},
+  nl: {"privacy.history": "Sleutelgeschiedenis op deze computer opslaan", "privacy.hint": "Standaard aan. Bij uitschakelen blijven bestaande bestanden bewaard. Websites schakel je apart in; CSV-exports alleen na een klik. De stateless-modus voorkomt elke opslag.", "data.revocationUnknown": "Intrekkingsstatus niet controleerbaar (offline?) – alleen modelnamen, geen beveiligingsbeoordeling"},
+  pl: {"privacy.history": "Zapisuj historię kluczy na tym komputerze", "privacy.hint": "Domyślnie włączone. Po wyłączeniu istniejące pliki zostają. Witryny włącza się osobno; eksport CSV tylko po kliknięciu. Tryb bezstanowy blokuje zapisywanie.", "data.revocationUnknown": "Nie można sprawdzić statusu unieważnienia (offline?) – tylko nazwy modeli, bez oceny bezpieczeństwa"},
+  pt: {"privacy.history": "Guardar o histórico de chaves neste computador", "privacy.hint": "Ativado por predefinição. Ao desativar, os ficheiros existentes mantêm-se. Os sites ativam-se à parte; exportações CSV só com um clique. O modo sem estado impede qualquer gravação.", "data.revocationUnknown": "Estado de revogação não verificável (offline?) – só nomes de modelos, sem avaliação de segurança"},
+  ja: {"privacy.history": "このコンピューターにキーの履歴を保存", "privacy.hint": "既定でオン。オフにしても既存のファイルは残ります。Web サイトの記録は別途オンにします。CSV エクスポートはクリックした時のみ。ステートレスモードでは何も保存しません。", "data.revocationUnknown": "失効状態を確認できません（オフライン？）– モデル名のみ表示、セキュリティ評価なし"},
+  ko: {"privacy.history": "이 컴퓨터에 키 기록 저장", "privacy.hint": "기본적으로 켜져 있습니다. 끄더라도 기존 파일은 유지됩니다. 웹사이트 기록은 따로 켭니다. CSV 내보내기는 클릭할 때만 합니다. 상태 비저장 모드에서는 아무것도 저장하지 않습니다.", "data.revocationUnknown": "폐기 상태를 확인할 수 없음(오프라인?) – 모델 이름만, 보안 평가 없음"},
+  zh: {"privacy.history": "在此电脑上保存密钥历史", "privacy.hint": "默认开启。关闭后现有文件会保留。网站记录需单独开启；CSV 导出仅在点击时进行。无状态模式下不保存任何内容。", "data.revocationUnknown": "无法检查吊销状态（离线？）——仅显示型号名称，不做安全评估"},
+};
+for (const [code, strings] of Object.entries(PRIVACY_STRINGS)) Object.assign(STRINGS[code], strings);
 
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {

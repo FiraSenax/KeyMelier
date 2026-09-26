@@ -226,6 +226,57 @@ class ExtendedSecurityTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         check_chain_revocation([leaf,root])
 
+    def test_revoked_signer_is_never_soft_failed(self):
+        import base64
+        from cryptography.hazmat.primitives.serialization import Encoding
+        from fido2tool_core import mds_verify
+        from fido2tool_core.revocation import RevokedError
+        k = ec.generate_private_key(ec.SECP256R1())
+        leaf = cert('mds.fidoalliance.org', k)
+        header = base64.urlsafe_b64encode(json.dumps(
+            {"alg": "ES256", "x5c": [base64.b64encode(leaf.public_bytes(Encoding.DER)).decode()]}).encode()).rstrip(b'=').decode()
+        token = f"{header}.e30.AA"
+        with patch('fido2tool_core.certificates.validate_path', return_value=[leaf]):
+            with patch('fido2tool_core.revocation.check_chain_revocation', side_effect=RevokedError('revoked')):
+                for required in (True, False):
+                    with self.assertRaises(mds_verify.MdsVerificationError):
+                        mds_verify.verify_jwt(token, require_revocation=required)
+            # merely unavailable: only the strict mode refuses; display mode goes on to the signature check
+            with patch('fido2tool_core.revocation.check_chain_revocation', side_effect=ValueError('unavailable')):
+                with self.assertRaisesRegex(mds_verify.MdsVerificationError, 'revocation'):
+                    mds_verify.verify_jwt(token, require_revocation=True)
+                with self.assertRaises(mds_verify.MdsVerificationError) as ctx:
+                    mds_verify.verify_jwt(token, require_revocation=False)
+                self.assertNotIn('revocation', str(ctx.exception))  # got past revocation
+        from fido2tool_core.mds3 import MDS3Client
+        m = MDS3Client()
+        m._entries = [{}]
+        m._next_update = '2999-01-01'
+        m._verified_until = None  # revocation not established
+        self.assertFalse(m.is_current())
+
+    def test_crl_disk_cache_is_revalidated(self):
+        from fido2tool_core import revocation
+        rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
+        root = cert('root', rk, ca=True)
+        now = datetime.now(timezone.utc)
+        # A forged CRL on disk (signed by the wrong key) must not be accepted
+        forged = (x509.CertificateRevocationListBuilder().issuer_name(root.subject)
+            .last_update(now-timedelta(days=1)).next_update(now+timedelta(days=1)).sign(lk, hashes.SHA256()))
+        with tempfile.TemporaryDirectory() as tmp, patch.object(revocation, 'CRL_DIR', Path(tmp)), \
+             patch.object(revocation, '_CACHE', {}):
+            url = 'https://crl.globalsign.com/test.crl'
+            revocation._save_disk(url, forged)
+            self.assertIsNotNone(revocation._load_disk(url))
+            leaf = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'leaf')]))
+                .issuer_name(root.subject).public_key(lk.public_key()).serial_number(7)
+                .not_valid_before(now-timedelta(days=1)).not_valid_after(now+timedelta(days=1))
+                .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+                    full_name=[x509.UniformResourceIdentifier(url)], relative_name=None, reasons=None, crl_issuer=None)]), False)
+                .sign(rk, hashes.SHA256()))
+            with self.assertRaises(ValueError):
+                revocation.check_chain_revocation([leaf, root])
+
     def test_encrypted_history_and_no_plaintext_fallback(self):
         from cryptography.fernet import Fernet
         cipher = Fernet(Fernet.generate_key())

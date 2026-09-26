@@ -47,8 +47,15 @@ def _b64url(part: str) -> bytes:
     return base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))
 
 
-def verify_jwt(token: str) -> dict:
-    """Return the verified payload, or raise MdsVerificationError."""
+def verify_jwt(token: str, require_revocation: bool = True) -> dict:
+    """Return the verified payload, or raise MdsVerificationError.
+
+    With require_revocation=False a payload whose signature and certificate
+    path are valid is returned even when the signer's revocation status cannot
+    be established (e.g. offline). It is then marked "_revocation_ok": False
+    and "_verified_until": None, so it can name models but never support a
+    positive security assessment (see MDS3Client.is_current).
+    """
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
@@ -74,9 +81,17 @@ def verify_jwt(token: str) -> dict:
         from fido2tool_core.certificates import validate_path
         from fido2tool_core.revocation import check_chain_revocation
         verified_chain = validate_path(chain[0], chain[1:], root)
-        valid_until = check_chain_revocation(verified_chain)
     except Exception as e:
-        raise MdsVerificationError(f"certificate path/revocation invalid: {e}") from None
+        raise MdsVerificationError(f"certificate path invalid: {e}") from None
+    from fido2tool_core.revocation import RevokedError
+    try:
+        valid_until = check_chain_revocation(verified_chain)
+    except RevokedError as e:
+        raise MdsVerificationError(f"MDS signer revoked: {e}") from None  # never usable
+    except Exception as e:
+        if require_revocation:
+            raise MdsVerificationError(f"certificate revocation status unavailable: {e}") from None
+        valid_until = None  # display only; is_current() stays False
 
     cns = [a.value for a in chain[0].subject.get_attributes_for_oid(NameOID.COMMON_NAME)]
     if EXPECTED_LEAF_CN not in cns:
@@ -109,5 +124,6 @@ def verify_jwt(token: str) -> dict:
         datetime.strptime(payload["nextUpdate"], "%Y-%m-%d")
     except (KeyError, ValueError, TypeError):
         raise MdsVerificationError("invalid metadata nextUpdate") from None
-    payload["_verified_until"] = valid_until.isoformat()
+    payload["_verified_until"] = valid_until.isoformat() if valid_until else None
+    payload["_revocation_ok"] = valid_until is not None
     return payload

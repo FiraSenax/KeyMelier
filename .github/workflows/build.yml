@@ -25,41 +25,51 @@ jobs:
       - run: node --check static/app.js
       - run: node --check static/i18n.js
       - run: node tests/ui_security.cjs
+  # Signing is used when the credentials are configured as secrets; without
+  # them the builds are published unsigned and clearly labelled as such.
   build-macos:
     needs: test
     runs-on: macos-14
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
+    env:
+      SIGN_MAC: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
+    outputs:
+      signed: ${{ steps.build.outputs.signed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
       - run: python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt
-      - name: Import Developer ID for release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Import Developer ID
+        if: env.SIGN_MAC == 'true'
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: bash tools/import-macos-signing.sh
       - name: Build
+        id: build
         env:
           KEYMELIER_ICON: static/icon.icns
-          KEYMELIER_SIGN_IDENTITY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_SIGN_IDENTITY || '' }}
+          KEYMELIER_SIGN_IDENTITY: ${{ env.SIGN_MAC == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* && -z "$KEYMELIER_SIGN_IDENTITY" ]]; then
-            echo 'Release requires Developer ID signing'; exit 1
-          fi
           pyinstaller --clean --noconfirm fido2tool.spec
+          if [[ -z "$KEYMELIER_SIGN_IDENTITY" ]]; then
+            codesign --force --deep --sign - dist/KeyMelier.app   # ad-hoc: runs locally, no publisher
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
           codesign --verify --deep --strict dist/KeyMelier.app
-      - name: Notarize release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Notarize
+        if: env.SIGN_MAC == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash tools/sign-macos.sh
       - name: Remove temporary signing keychain
-        if: always() && startsWith(github.ref, 'refs/tags/v')
+        if: always() && env.SIGN_MAC == 'true'
         run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
       - run: ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -74,6 +84,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      SIGN_WIN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' }}
+    outputs:
+      signed: ${{ steps.signed.outputs.signed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -84,15 +98,15 @@ jobs:
         env:
           KEYMELIER_ICON: static\icon.ico
         run: pyinstaller --clean --noconfirm fido2tool.spec
-      - name: Azure login for release signing
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Azure login for signing
+        if: env.SIGN_WIN == 'true'
         uses: Azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Sign release binaries
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Sign binaries
+        if: env.SIGN_WIN == 'true'
         uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
         with:
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
@@ -104,13 +118,17 @@ jobs:
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
-      - name: Verify release signatures
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Verify signatures
+        if: env.SIGN_WIN == 'true'
         shell: pwsh
         run: |
           Get-ChildItem dist\KeyMelier -Recurse -File | Where-Object { $_.Extension -in '.exe','.dll','.pyd' } | ForEach-Object {
             if ((Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid') { throw "Invalid signature: $($_.Name)" }
           }
+      - name: Record signing state
+        id: signed
+        shell: bash
+        run: echo "signed=$SIGN_WIN" >> "$GITHUB_OUTPUT"
       - run: Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -140,11 +158,30 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > artifacts/SOURCE_COMMIT.txt
           cd artifacts
           sha256sum * > SHA256SUMS.txt
+      - name: Release notes with the actual signing state
+        env:
+          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
+          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
+        run: |
+          {
+            echo "**Downloads**"
+            if [ "$MAC_SIGNED" = "true" ]; then
+              echo "- \`KeyMelier-macOS.zip\` – macOS app, Developer ID signed and notarized."
+            else
+              echo "- \`KeyMelier-macOS.zip\` – macOS app, **not notarized**. First launch: open it, click *Done*, then *System Settings → Privacy & Security → Open Anyway*. (Or: \`xattr -dr com.apple.quarantine /Applications/KeyMelier.app\`)"
+            fi
+            if [ "$WIN_SIGNED" = "true" ]; then
+              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, Authenticode signed. Run \`KeyMelier.exe\` as Administrator for FIDO access."
+            else
+              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, **not signed**. Right-click \`KeyMelier.exe\` → *Run as administrator*; if SmartScreen appears: *More info* → *Run anyway*."
+            fi
+            echo
+            echo "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no verified publisher – compare the checksums if in doubt."
+          } > release-notes.md
+          cat release-notes.md
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           generate_release_notes: true
           make_latest: 'true'
-          body: |
-            macOS: Developer ID signed and notarized. Windows: Authenticode signed.
-            Verify the publisher before running. Checksums, dependency locks and the source commit are attached.
+          body_path: release-notes.md
           files: artifacts/*

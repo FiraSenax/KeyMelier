@@ -1162,5 +1162,5 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 }
 .empty-view h1 { margin-top: 0; }
 
-.status-dot.UNKNOWN { background: var(--text-muted, #888); }
-.status-pill.UNKNOWN { background: var(--surface, #eee); color: var(--text-muted, #666); }
+.status-dot.UNKNOWN { background: var(--neutral); }
+.status-pill.UNKNOWN { background: var(--neutral-soft); color: var(--neutral); }
