@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.2 — 2026-09-27
+
+- FIDO metadata works offline: verified signer CRLs are stored locally and re-validated on every use.
+- Without revocation evidence, model names and vendor icons are still shown, but no positive security assessment is made; a revoked signer is always rejected.
+- Key history is on by default again; website recording remains opt-in.
+- Release signing is optional: builds are signed/notarized when credentials are configured, otherwise published unsigned with the signing state and first-launch steps in the release notes.
+- Privacy texts in all 11 languages; revocation state shown under Data freshness; fixed colours for the Unknown status.
+
 ## 1.1.1 — 2026-09-26
 
 - Distinguish verified, unverified and failed attestation evidence.
