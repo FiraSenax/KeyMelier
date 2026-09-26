@@ -1113,3 +1113,32 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .check-item.crit .check-icon { background: var(--crit-soft); color: var(--crit); }
 .check-item.ok .check-text { color: var(--text-2); }
 .check-text { flex: 1; }
+
+/* Backup & loss view */
+.nav-item { margin-bottom: 12px; }
+.backup-content { max-width: 820px; margin-top: 22px; }
+.bk-hint { margin: 8px 0 0; }
+.bk-table-wrap { overflow-x: auto; }
+.bk-table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+.bk-table th, .bk-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap; }
+.bk-table th:first-child, .bk-table td:first-child { text-align: left; }
+.bk-table th { color: var(--text-2); font-weight: 600; font-size: 0.8rem; }
+.bk-table td.yes { color: var(--ok); font-weight: 700; }
+.bk-table td.no { color: var(--text-3); }
+.bk-table tr.single td:first-child { color: var(--warn); font-weight: 600; }
+.bk-table tr.single { background: var(--warn-soft); }
+.bk-table .lost { opacity: 0.45; text-decoration: line-through; }
+.bk-select { font: inherit; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); min-width: 260px; }
+.bk-lost { margin-top: 14px; }
+.bk-lost-actions { justify-content: flex-start; }
+.bk-lost-since { color: var(--crit); font-weight: 600; margin-top: 10px; }
+.bk-steps { margin-top: 12px; }
+.bk-lost-list { list-style: none; display: flex; flex-direction: column; }
+.bk-lost-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.bk-lost-list li:last-child { border-bottom: none; }
+.bk-lost-list label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.bk-lost-list input { width: 17px; height: 17px; accent-color: var(--accent); }
+.bk-lost-list li.done .bk-site { text-decoration: line-through; color: var(--text-3); }
+.bk-backup { font-size: 0.8rem; }
+.bk-backup.ok { color: var(--ok); }
+.bk-backup.warn { color: var(--warn); font-weight: 600; }

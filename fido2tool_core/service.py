@@ -206,12 +206,15 @@ class KeyService:
     def set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()
         for key, value in (values or {}).items():
-            if key != "lang":
-                continue
-            if value:
-                settings["lang"] = str(value)[:10]
-            else:
-                settings.pop("lang", None)
+            if key == "lang":
+                if value:
+                    settings["lang"] = str(value)[:10]
+                else:
+                    settings.pop("lang", None)
+            elif key == "remember_sites":
+                settings["remember_sites"] = bool(value)
+                if not value:
+                    self.history.clear_sites()
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
             SETTINGS_FILE.write_text(json.dumps(settings), encoding="utf-8")
@@ -261,7 +264,35 @@ class KeyService:
         caps = passkeys_mod.capabilities(ctap2)
         if not caps["supported"] or not auth.is_unlocked(token_id):
             return {**caps, "unlocked": False}
-        return {**caps, "unlocked": True, **passkeys_mod.list_passkeys(token_id, ctap2)}
+        data = passkeys_mod.list_passkeys(token_id, ctap2)
+        self._remember_sites(token_id, data["rps"])
+        return {**caps, "unlocked": True, **data}
+
+    def _remember_sites(self, token_id, rps):
+        """Store the website names for the backup check (unless disabled)."""
+        if self._stored_settings().get("remember_sites") is False:
+            return
+        try:
+            record = self._scanner.get(token_id)
+        except DeviceNotFound:
+            return
+        sites = [{"rp_id": rp["rp_id"] or rp["rp_id_hash"][:16], "name": rp["rp_name"],
+                  "count": len(rp["credentials"])} for rp in rps]
+        self.emit("history_updated", self.history.set_sites(record, sites))
+
+    def history_set_lost(self, kid: str, lost: bool) -> dict:
+        summary = self.history.set_lost(kid, bool(lost))
+        if summary is None:
+            raise PinError("Unknown history entry.", "not_found", status=404)
+        self.emit("history_updated", summary)
+        return summary
+
+    def history_lost_done(self, kid: str, rp_id: str, done: bool) -> dict:
+        summary = self.history.set_lost_done(kid, str(rp_id), bool(done))
+        if summary is None:
+            raise PinError("Unknown history entry.", "not_found", status=404)
+        self.emit("history_updated", summary)
+        return summary
 
     def passkeys(self, token_id: str) -> dict:
         with self._scanner.session(token_id, refresh=False) as (_record, ctap2):

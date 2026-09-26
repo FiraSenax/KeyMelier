@@ -116,6 +116,50 @@ class History:
             self._save()
             return self._summary(entry)
 
+    def set_sites(self, record, sites: list[dict]) -> dict:
+        """Remember which websites have passkeys on this key (names only)."""
+        with self._lock:
+            entry = self._entry_for(record)
+            entry["sites"] = sorted(
+                ({"rp_id": s["rp_id"], "name": s.get("name", ""), "count": int(s.get("count", 1))} for s in sites),
+                key=lambda s: s["rp_id"],
+            )
+            entry["sites_updated"] = _now()
+            self._save()
+            return self._summary(entry)
+
+    def clear_sites(self) -> None:
+        with self._lock:
+            for entry in self._entries.values():
+                entry.pop("sites", None)
+                entry.pop("sites_updated", None)
+                entry.pop("lost_done", None)
+            self._save()
+
+    def set_lost(self, kid: str, lost: bool) -> dict | None:
+        with self._lock:
+            entry = self._entries.get(kid)
+            if not entry:
+                return None
+            if lost:
+                entry["lost_since"] = entry.get("lost_since") or _now()
+            else:
+                entry.pop("lost_since", None)
+                entry.pop("lost_done", None)
+            self._save()
+            return self._summary(entry)
+
+    def set_lost_done(self, kid: str, rp_id: str, done: bool) -> dict | None:
+        with self._lock:
+            entry = self._entries.get(kid)
+            if not entry:
+                return None
+            items = set(entry.get("lost_done", []))
+            (items.add if done else items.discard)(rp_id)
+            entry["lost_done"] = sorted(items)
+            self._save()
+            return self._summary(entry)
+
     def list(self) -> list[dict]:
         with self._lock:
             items = [self._summary(e) for e in self._entries.values()]

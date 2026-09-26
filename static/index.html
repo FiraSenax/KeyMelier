@@ -17,6 +17,11 @@
         <span>KeyMelier</span>
       </div>
 
+      <button type="button" id="nav-backup" class="key-item nav-item">
+        <span class="key-item-icon" id="nav-backup-icon"></span>
+        <span class="key-item-text"><span class="key-item-name" data-i18n="bk.nav"></span></span>
+      </button>
+
       <div class="sidebar-label" data-i18n="sidebar.keys"></div>
       <nav id="key-list" class="key-list"></nav>
       <p id="key-list-empty" class="key-list-empty" data-i18n="sidebar.none"></p>
@@ -52,6 +57,17 @@
         <h1 data-i18n="empty.title"></h1>
         <p data-i18n="empty.text"></p>
         <p class="hint" data-i18n="empty.hint"></p>
+      </section>
+
+      <section id="backup-view" class="key-view hidden">
+        <header class="key-header">
+          <div class="key-avatar" id="backup-avatar"></div>
+          <div class="key-heading">
+            <h1 data-i18n="bk.title"></h1>
+            <p data-i18n="bk.subtitle"></p>
+          </div>
+        </header>
+        <div id="backup-content" class="pane-stack backup-content"></div>
       </section>
 
       <section id="key-view" class="key-view hidden">

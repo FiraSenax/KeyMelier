@@ -18,6 +18,9 @@ let selectedHist = null;  // key_id of a disconnected key shown from history
 let histDetail = null;    // full history entry for the Verlauf tab
 let histConfirmForget = false;
 let dataStatus = null;    // freshness of advisories and FIDO metadata
+let mainView = 'key';     // 'key' | 'backup'
+let appSettings = {};     // persisted settings (remember_sites, ...)
+let lostKid = null;       // key selected in the lost-key assistant
 
 const $ = id => document.getElementById(id);
 
@@ -166,17 +169,17 @@ function renderSidebar() {
   $('history-label').classList.toggle('hidden', !past.length);
   $('history-list').innerHTML = past.map(e => {
     const tok = offlineToken(e);
-    return `<button type="button" class="key-item offline${e.key_id === selectedHist ? ' active' : ''}" data-hist="${escHtml(e.key_id)}">
+    return `<button type="button" class="key-item offline${e.key_id === selectedHist && mainView === 'key' ? ' active' : ''}" data-hist="${escHtml(e.key_id)}">
       <span class="key-item-icon">${keyIcon(tok, 22)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub">${escHtml(relTime(e.last_seen))}</span>
+        <span class="key-item-sub">${escHtml(e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen))}</span>
       </span>
       <span class="status-dot ${escHtml(tok.security_status || '')}"></span>
     </button>`;
   }).join('');
   list.innerHTML = [...tokens.values()].map(tok => `
-    <button type="button" class="key-item${tok.id === selectedId ? ' active' : ''}" data-id="${escHtml(tok.id)}">
+    <button type="button" class="key-item${tok.id === selectedId && mainView === 'key' ? ' active' : ''}" data-id="${escHtml(tok.id)}">
       <span class="key-item-icon">${keyIcon(tok, 22)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
@@ -210,6 +213,14 @@ function render() {
   if (!selectedId && !selectedHist && tokens.size) selectedId = tokens.keys().next().value;
 
   renderSidebar();
+  $('nav-backup').classList.toggle('active', mainView === 'backup');
+  $('backup-view').classList.toggle('hidden', mainView !== 'backup');
+  if (mainView === 'backup') {
+    $('empty-view').classList.add('hidden');
+    $('key-view').classList.add('hidden');
+    renderBackupView();
+    return;
+  }
   const token = currentToken();
   $('empty-view').classList.toggle('hidden', !!token);
   $('key-view').classList.toggle('hidden', !token);
@@ -317,9 +328,103 @@ function renderSecurityCheck(token) {
     </ul>`;
 }
 
-// Filled in by the backup check (sites stored only on this key)
-function backupStatus(_token) {
-  return null;
+// Which of this key's websites exist on no other (non-lost) key.
+// null = nothing known yet (passkeys never listed / remembering disabled)
+function backupStatus(token) {
+  const entry = historyKeys.get(token.history_id);
+  if (!entry?.sites?.length) return null;
+  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since);
+  const onlyHere = entry.sites.filter(s => !others.some(o => o.sites.some(x => x.rp_id === s.rp_id)));
+  return { onlyHere, othersKnown: others.length };
+}
+
+// ── Backup & loss view ──────────────────────────────────────────────────────
+
+function keyLabel(entry) {
+  return displayName(offlineToken(entry));
+}
+
+function renderBackupView() {
+  $('backup-avatar').innerHTML = icon('shield', 30);
+  const el = $('backup-content');
+  const entries = [...historyKeys.values()];
+  const withSites = entries.filter(e => e.sites);
+  const remember = appSettings.remember_sites !== false;
+  const parts = [];
+
+  parts.push(`<section class="card">
+    <label class="switch-row">
+      <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''}>
+      <span>${escHtml(t('bk.remember'))}</span>
+    </label>
+    <p class="field-hint bk-hint">${escHtml(t('bk.rememberText'))}</p>
+  </section>`);
+
+  // Coverage matrix: websites x keys
+  if (!withSites.length) {
+    parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('bk.empty.title'))}</div>
+      <div class="callout-text">${escHtml(t('bk.empty.text'))}</div></div>`);
+  } else {
+    const sites = [...new Map(withSites.flatMap(e => e.sites).map(s => [s.rp_id, s])).values()]
+      .sort((a, b) => a.rp_id.localeCompare(b.rp_id));
+    const holders = s => withSites.filter(e => !e.lost_since && e.sites.some(x => x.rp_id === s.rp_id));
+    const single = sites.filter(s => holders(s).length <= 1).length;
+    parts.push(`<section class="card">
+      <div class="check-head"><h2>${escHtml(t('bk.matrix'))}</h2>
+        <span class="check-score">${escHtml(single ? t('bk.single', { n: single }) : t('bk.allCovered'))}</span></div>
+      <div class="bk-table-wrap"><table class="bk-table">
+        <thead><tr><th>${escHtml(t('bk.site'))}</th>${withSites.map(e => `<th class="${e.lost_since ? 'lost' : ''}">${escHtml(keyLabel(e))}</th>`).join('')}</tr></thead>
+        <tbody>${sites.map(s => `<tr class="${holders(s).length <= 1 ? 'single' : ''}">
+          <td>${escHtml(s.rp_id)}</td>
+          ${withSites.map(e => { const hit = e.sites.find(x => x.rp_id === s.rp_id); return `<td class="${hit ? 'yes' : 'no'}${e.lost_since ? ' lost' : ''}">${hit ? '✓' : '–'}</td>`; }).join('')}
+        </tr>`).join('')}</tbody>
+      </table></div>
+      ${entries.length > withSites.length ? `<p class="field-hint bk-hint">${escHtml(t('bk.unknownKeys', { names: entries.filter(e => !e.sites).map(keyLabel).join(', ') }))}</p>` : ''}
+    </section>`);
+  }
+
+  // Lost-key assistant
+  const lost = lostKid && historyKeys.get(lostKid);
+  parts.push(`<section class="card">
+    <h2>${escHtml(t('bk.lost.title'))}</h2>
+    <p class="card-text">${escHtml(t('bk.lost.text'))}</p>
+    <select id="bk-lost-select" class="bk-select">
+      <option value="">${escHtml(t('bk.lost.choose'))}</option>
+      ${entries.map(e => `<option value="${escHtml(e.key_id)}"${e.key_id === lostKid ? ' selected' : ''}>${escHtml(keyLabel(e))}${e.lost_since ? ' – ' + escHtml(t('bk.lostBadge')) : ''}</option>`).join('')}
+    </select>
+    ${lost ? lostAssistantHtml(lost) : ''}
+  </section>`);
+  el.innerHTML = parts.join('');
+}
+
+function lostAssistantHtml(entry) {
+  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since);
+  const done = new Set(entry.lost_done || []);
+  const sites = entry.sites || [];
+  const toggle = entry.lost_since
+    ? `<button type="button" class="btn btn-secondary" data-act="unlost">${escHtml(t('bk.lost.unmark'))}</button>`
+    : `<button type="button" class="btn btn-danger" data-act="lost">${escHtml(t('bk.lost.mark'))}</button>`;
+  const list = !entry.lost_since ? '' : sites.length ? `
+    <p class="card-text bk-steps">${escHtml(t('bk.lost.steps'))}</p>
+    <ul class="bk-lost-list">${sites.map(s => {
+      const backups = others.filter(o => o.sites.some(x => x.rp_id === s.rp_id)).map(keyLabel);
+      return `<li class="${done.has(s.rp_id) ? 'done' : ''}">
+        <label><input type="checkbox" data-site="${escHtml(s.rp_id)}" ${done.has(s.rp_id) ? 'checked' : ''}>
+          <span class="bk-site">${escHtml(s.rp_id)}</span></label>
+        <span class="bk-backup ${backups.length ? 'ok' : 'warn'}">${escHtml(backups.length ? t('bk.lost.backupOn', { names: backups.join(', ') }) : t('bk.lost.noBackup'))}</span>
+      </li>`;
+    }).join('')}</ul>
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t('bk.lost.noSites'))}</p>`;
+  return `<div class="bk-lost">
+    <div class="form-actions bk-lost-actions">${toggle}</div>
+    ${entry.lost_since ? `<p class="bk-lost-since">${escHtml(t('bk.lost.since', { when: new Date(entry.lost_since).toLocaleDateString(LANG) }))}</p>` : ''}
+    ${list}
+  </div>`;
+}
+
+function showBackupView() {
+  mainView = 'backup';
+  render();
 }
 
 function renderTiles(token) {
@@ -461,7 +566,8 @@ function resetViewState() {
 }
 
 function selectHistory(kid) {
-  if (kid === selectedHist && !selectedId) return;
+  if (kid === selectedHist && !selectedId && mainView === 'key') return;
+  mainView = 'key';
   selectedId = null;
   selectedHist = kid;
   resetViewState();
@@ -470,7 +576,8 @@ function selectHistory(kid) {
 }
 
 function selectToken(id) {
-  if (id === selectedId) return;
+  if (id === selectedId && mainView === 'key') return;
+  mainView = 'key';
   selectedId = id;
   selectedHist = null;
   histDetail = null;
@@ -659,6 +766,12 @@ async function saveHistoryName(label) {
 }
 
 function onHistoryUpdated(summary) {
+  if (mainView === 'backup') {
+    if (summary.replaces) historyKeys.delete(summary.replaces);
+    historyKeys.set(summary.key_id, summary);
+    render();
+    return;
+  }
   if (summary.replaces) {
     historyKeys.delete(summary.replaces);
     if (selectedHist === summary.replaces) selectedHist = summary.key_id;
@@ -1613,6 +1726,7 @@ function whenBridgeReady(fn) {
 async function start() {
   try {
     const settings = await call('get_settings');
+    appSettings = settings;
     SYSTEM_LANG = pickLanguage(settings.system_languages);
     changeLang(settings.lang || '', false);
   } catch { /* defaults */ }
@@ -1627,6 +1741,27 @@ function init() {
   $('key-list').addEventListener('click', ev => {
     const item = ev.target.closest('.key-item');
     if (item) selectToken(item.dataset.id);
+  });
+  $('nav-backup').addEventListener('click', showBackupView);
+  $('backup-content').addEventListener('change', async ev => {
+    const el = ev.target;
+    if (el.id === 'bk-remember') {
+      appSettings = await call('set_settings', { values: { remember_sites: el.checked } }).catch(() => appSettings);
+      if (!el.checked) await loadHistory();
+      render();
+    } else if (el.id === 'bk-lost-select') {
+      lostKid = el.value || null;
+      renderBackupView();
+    } else if (el.dataset.site && lostKid) {
+      const summary = await call('history_lost_done', { kid: lostKid, rp_id: el.dataset.site, done: el.checked }).catch(() => null);
+      if (summary) { historyKeys.set(summary.key_id, summary); renderBackupView(); }
+    }
+  });
+  $('backup-content').addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-act]');
+    if (!b || !lostKid) return;
+    const summary = await call('history_set_lost', { kid: lostKid, lost: b.dataset.act === 'lost' }).catch(() => null);
+    if (summary) { historyKeys.set(summary.key_id, summary); render(); }
   });
   $('history-list').addEventListener('click', ev => {
     const item = ev.target.closest('.key-item');
