@@ -1,0 +1,170 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller Pillow cairosvg
+
+      - name: Convert SVG icon to .icns
+        run: |
+          python - <<'EOF'
+          import subprocess, sys, os
+          from pathlib import Path
+
+          # Convert SVG -> PNG at multiple sizes using cairosvg
+          import cairosvg
+          sizes = [16, 32, 64, 128, 256, 512, 1024]
+          iconset = Path("KeyMelier.iconset")
+          iconset.mkdir(exist_ok=True)
+          for s in sizes:
+              cairosvg.svg2png(
+                  url="static/icon.svg",
+                  write_to=str(iconset / f"icon_{s}x{s}.png"),
+                  output_width=s, output_height=s
+              )
+              cairosvg.svg2png(
+                  url="static/icon.svg",
+                  write_to=str(iconset / f"icon_{s}x{s}@2x.png"),
+                  output_width=s*2, output_height=s*2
+              )
+          # Use macOS iconutil to produce the .icns
+          subprocess.run(["iconutil", "-c", "icns", "KeyMelier.iconset", "-o", "static/icon.icns"], check=True)
+          print("icon.icns created")
+          EOF
+
+      - name: Build .app with PyInstaller
+        env:
+          KEYMELIER_ICON: static/icon.icns
+        run: pyinstaller --clean --noconfirm fido2tool.spec
+
+      - name: Zip the .app
+        run: |
+          cd dist
+          zip -r KeyMelier-macOS.zip KeyMelier.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeyMelier-macOS
+          path: dist/KeyMelier-macOS.zip
+          retention-days: 30
+
+  build-windows:
+    name: Build Windows exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller Pillow cairosvg
+
+      - name: Convert SVG icon to .ico
+        run: |
+          python - << 'EOF'
+          import cairosvg
+          from PIL import Image
+          from io import BytesIO
+          from pathlib import Path
+
+          sizes = [16, 32, 48, 64, 128, 256]
+          frames = []
+          for s in sizes:
+              png = cairosvg.svg2png(url="static/icon.svg", output_width=s, output_height=s)
+              frames.append(Image.open(BytesIO(png)).convert("RGBA"))
+
+          frames[0].save(
+              "static/icon.ico",
+              format="ICO",
+              sizes=[(f.width, f.height) for f in frames],
+              append_images=frames[1:]
+          )
+          print("icon.ico created")
+          EOF
+        shell: cmd
+
+      - name: Build .exe with PyInstaller
+        env:
+          KEYMELIER_ICON: static\icon.ico
+        run: pyinstaller --clean --noconfirm fido2tool.spec
+
+      - name: Zip the exe folder
+        run: Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
+        shell: pwsh
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeyMelier-Windows
+          path: dist\KeyMelier-Windows.zip
+          retention-days: 30
+
+  release:
+    name: Create release
+    needs: [build-macos, build-windows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: KeyMelier-macOS
+          path: artifacts
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: KeyMelier-Windows
+          path: artifacts
+
+      - name: Create or update rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest build"
+          body: |
+            Automatically built from the latest commit on `main`.
+
+            **Downloads**
+            - `KeyMelier-macOS.zip` — macOS app (move KeyMelier.app to Applications)
+            - `KeyMelier-Windows.zip` — Windows app folder (run `KeyMelier.exe` as Administrator for FIDO access)
+
+            **First launch on macOS:** the app is not notarized, so macOS blocks it once. Open it, click *Done*, then go to *System Settings → Privacy & Security* and click *Open Anyway*. (Or: `xattr -dr com.apple.quarantine /Applications/KeyMelier.app`)
+
+            **First launch on Windows:** right-click `KeyMelier.exe` → *Run as administrator*. If SmartScreen appears, click *More info* → *Run anyway*.
+
+            Details: see the README.
+          prerelease: false
+          make_latest: true
+          files: artifacts/*

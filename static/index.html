@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>KeyMelier</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="icon.svg" width="30" height="30" alt="">
+        <span>KeyMelier</span>
+      </div>
+
+      <div class="sidebar-label" data-i18n="sidebar.keys"></div>
+      <nav id="key-list" class="key-list"></nav>
+      <p id="key-list-empty" class="key-list-empty" data-i18n="sidebar.none"></p>
+      <div id="history-label" class="sidebar-label history-label hidden" data-i18n="sidebar.history"></div>
+      <nav id="history-list" class="key-list history-list"></nav>
+
+      <footer class="sidebar-footer">
+        <div id="mds-status" class="mds-status">
+          <span class="dot"></span>
+          <span id="mds-text" data-i18n="mds.loading"></span>
+        </div>
+        <select id="lang-select" class="lang-select" aria-label="Language"></select>
+      </footer>
+    </aside>
+
+    <!-- ── Main ────────────────────────────────────────────────── -->
+    <main class="main">
+
+      <section id="empty-view" class="empty-view">
+        <div class="empty-illustration" aria-hidden="true">
+          <svg viewBox="0 0 120 120" width="120" height="120">
+            <circle class="pulse" cx="60" cy="60" r="54"></circle>
+            <rect x="42" y="22" width="36" height="62" rx="10" class="fob"></rect>
+            <rect x="50" y="84" width="20" height="18" rx="3" class="plug"></rect>
+            <circle cx="60" cy="48" r="9" class="button"></circle>
+          </svg>
+        </div>
+        <h1 data-i18n="empty.title"></h1>
+        <p data-i18n="empty.text"></p>
+        <p class="hint" data-i18n="empty.hint"></p>
+      </section>
+
+      <section id="key-view" class="key-view hidden">
+        <header class="key-header">
+          <div id="key-avatar" class="key-avatar"></div>
+          <div class="key-heading">
+            <h1 id="key-title"></h1>
+            <p id="key-subtitle"></p>
+          </div>
+          <span id="key-status" class="status-pill"></span>
+          <button type="button" id="export-btn" class="btn btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="action.export"></span>
+          </button>
+        </header>
+
+        <div id="touch-banner" class="touch-banner hidden">
+          <span class="touch-dot"></span>
+          <span data-i18n="header.touch"></span>
+        </div>
+
+        <nav class="tabs" role="tablist">
+          <button type="button" class="tab" data-tab="overview" role="tab" data-i18n="tab.overview"></button>
+          <button type="button" class="tab" data-tab="pin" role="tab" data-i18n="tab.pin"></button>
+          <button type="button" class="tab" data-tab="passkeys" role="tab" data-i18n="tab.passkeys"></button>
+          <button type="button" class="tab" data-tab="fingerprints" role="tab" data-i18n="tab.fingerprints"></button>
+          <button type="button" class="tab" data-tab="history" role="tab" data-i18n="tab.history"></button>
+          <button type="button" class="tab" data-tab="security" role="tab" data-i18n="tab.security"></button>
+          <button type="button" class="tab" data-tab="settings" role="tab" data-i18n="tab.settings"></button>
+          <button type="button" class="tab" data-tab="details" role="tab" data-i18n="tab.details"></button>
+        </nav>
+
+        <div class="tab-panels">
+
+          <!-- Overview -->
+          <div class="tab-pane" data-pane="overview">
+            <div id="tiles" class="tiles"></div>
+          </div>
+
+          <!-- PIN -->
+          <div class="tab-pane hidden" data-pane="pin">
+            <div class="pane-narrow">
+              <div id="pin-status" class="callout"></div>
+
+              <form id="pin-form" class="card form-card hidden" autocomplete="off">
+                <h2 id="pin-form-title"></h2>
+                <label id="pin-current-row" class="field">
+                  <span data-i18n="pin.form.current"></span>
+                  <input type="password" id="pin-current" autocomplete="off" spellcheck="false">
+                </label>
+                <label class="field">
+                  <span data-i18n="pin.form.new"></span>
+                  <input type="password" id="pin-new" autocomplete="new-password" spellcheck="false">
+                </label>
+                <label class="field">
+                  <span data-i18n="pin.form.confirm"></span>
+                  <input type="password" id="pin-confirm" autocomplete="new-password" spellcheck="false">
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="pin-show">
+                  <span data-i18n="pin.form.show"></span>
+                </label>
+                <p id="pin-hint" class="field-hint"></p>
+                <p id="pin-error" class="field-error hidden"></p>
+                <div class="form-actions">
+                  <button type="submit" id="pin-submit" class="btn btn-primary"></button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Passkeys -->
+          <div class="tab-pane hidden" data-pane="passkeys">
+            <div class="pane-narrow">
+              <div id="pk-content" class="pane-stack"></div>
+              <p class="muted" data-i18n="pk.scopeNote"></p>
+            </div>
+          </div>
+
+          <!-- Fingerprints -->
+          <div class="tab-pane hidden" data-pane="fingerprints">
+            <div class="pane-narrow">
+              <div id="fp-content" class="pane-stack"></div>
+            </div>
+          </div>
+
+          <!-- History -->
+          <div class="tab-pane hidden" data-pane="history">
+            <div class="pane-narrow">
+              <div id="hist-content" class="pane-stack"></div>
+            </div>
+          </div>
+
+          <!-- Security -->
+          <div class="tab-pane hidden" data-pane="security">
+            <div class="pane-narrow">
+              <section class="card">
+                <h2 data-i18n="sec.advisories"></h2>
+                <div id="sec-advisories"></div>
+              </section>
+              <section class="card">
+                <h2 data-i18n="sec.attestation"></h2>
+                <div id="sec-attestation"></div>
+              </section>
+              <section class="card">
+                <h2 data-i18n="sec.mds"></h2>
+                <dl id="sec-mds" class="kv"></dl>
+              </section>
+              <section class="card">
+                <h2 data-i18n="data.title"></h2>
+                <dl id="data-status" class="kv"></dl>
+                <div class="form-actions att-actions">
+                  <button type="button" id="data-check" class="btn btn-secondary" data-i18n="data.check"></button>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- Settings -->
+          <div class="tab-pane hidden" data-pane="settings">
+            <div class="pane-narrow">
+              <section class="card danger-card">
+                <h2 data-i18n="rs.title"></h2>
+                <p class="card-text" data-i18n="rs.text"></p>
+                <ul class="rs-list">
+                  <li data-i18n="rs.item.passkeys"></li>
+                  <li data-i18n="rs.item.pin"></li>
+                  <li data-i18n="rs.item.fp"></li>
+                  <li data-i18n="rs.item.u2f"></li>
+                </ul>
+                <p class="card-text" data-i18n="rs.keeps"></p>
+                <p id="rs-prereg" class="field-error hidden" data-i18n="rs.prereg"></p>
+                <p id="rs-vuln" class="rs-note hidden" data-i18n="rs.vuln"></p>
+                <label class="check">
+                  <input type="checkbox" id="rs-confirm">
+                  <span data-i18n="rs.confirm"></span>
+                </label>
+                <div class="form-actions">
+                  <button type="button" id="rs-start" class="btn btn-danger" disabled data-i18n="rs.start"></button>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- Technical details -->
+          <div class="tab-pane hidden" data-pane="details">
+            <div class="pane-narrow">
+              <section class="card">
+                <h2 data-i18n="det.identity"></h2>
+                <dl id="det-identity" class="kv"></dl>
+              </section>
+              <section class="card">
+                <h2 data-i18n="det.options"></h2>
+                <div id="det-options" class="pills"></div>
+              </section>
+              <section class="card">
+                <h2 data-i18n="det.protocols"></h2>
+                <dl id="det-protocols" class="kv"></dl>
+              </section>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="reset-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlay-card">
+      <div id="rs-ov-icon" class="rs-ov-icon"></div>
+      <h2 id="rs-ov-title"></h2>
+      <p id="rs-ov-text"></p>
+      <div id="rs-ov-count" class="rs-ov-count"></div>
+      <div class="rs-ov-actions">
+        <button type="button" id="rs-ov-secondary" class="btn btn-secondary"></button>
+        <button type="button" id="rs-ov-primary" class="btn btn-primary hidden"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

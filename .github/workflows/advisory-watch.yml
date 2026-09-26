@@ -1,0 +1,52 @@
+name: Advisory watch
+
+# Daily scan for new vulnerabilities affecting FIDO keys (NVD + FIDO MDS3
+# status reports). Opens an issue per finding for human review; the curated
+# data/advisories.json is only changed and signed by a maintainer.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Look back this many days"
+        default: "8"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests cryptography
+
+      - name: Ensure the "advisory" label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create advisory --color B60205 --description "Possible new security advisory" 2>/dev/null || true
+
+      - name: Scan for new advisories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/advisory_watch.py --create-issues --days "${{ github.event.inputs.days || '8' }}"
+
+  verify-signature:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography
+      - name: The published advisory database must be validly signed
+        run: python tools/advisories_sign.py verify

@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+build-venv/
+.venv/
+env/
+
+# PyInstaller build output
+dist/
+build/
+*.spec.bak
+
+# MDS3 cache (downloaded at runtime, not part of the repo)
+.keymelier/
+
+# CSV exports
+keymelier/
+
+# Secrets / environment
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Signing keys (never commit)
+*.pem
