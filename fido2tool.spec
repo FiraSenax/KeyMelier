@@ -11,6 +11,11 @@ from pathlib import Path
 
 block_cipher = None
 
+# App version for the bundle metadata
+_version_ns = {}
+exec(Path('fido2tool_core/version.py').read_text(), _version_ns)
+APP_VERSION = _version_ns['__version__']
+
 # Icon path can be overridden via env var (used by CI)
 icon_path = os.environ.get('KEYMELIER_ICON') or None
 
@@ -105,8 +110,8 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'KeyMelier',
             'CFBundleDisplayName': 'KeyMelier',
-            'CFBundleVersion': '1.0.0',
-            'CFBundleShortVersionString': '1.0.0',
+            'CFBundleVersion': APP_VERSION,
+            'CFBundleShortVersionString': APP_VERSION,
             'NSHighResolutionCapable': True,
             'NSRequiresAquaSystemAppearance': False,
         },

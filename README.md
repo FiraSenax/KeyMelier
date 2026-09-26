@@ -16,7 +16,7 @@ A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys.
 
 ## Download
 
-Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/tag/latest) (built automatically from `main`).
+Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest). Test builds of the newest `main` are published as the [nightly pre-release](https://github.com/FiraSenax/KeyMelier/releases/tag/nightly).
 
 ### First launch on macOS
 
@@ -64,6 +64,7 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
 - PINs are only held in memory for the single operation that needs them and are never logged or stored. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only.
+- Network: the app contacts the FIDO Alliance (metadata), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
 - Local data: `~/keymelier/history.json` (keys seen, events), `~/keymelier/settings.json` (language), `~/keymelier/exports/` (CSV), `~/.keymelier/mds3_cache.json` (FIDO metadata cache).
 
 ## Limitations
@@ -86,6 +87,14 @@ On first launch the app downloads the [FIDO Alliance Metadata Service](https://m
 | CVE-2024-45678 (EUCLEAK, YSA-2024-03) | Medium (CVSS 4.9) | YubiKey Bio Series | firmware < 5.7.2 |
 
 When adding entries, derive the AAGUIDs from MDS3 rather than by hand and include a `references` link to the official advisory.
+
+## Releasing a new version
+
+1. Bump `fido2tool_core/version.py` (e.g. `1.0.1`) and commit.
+2. `git tag v1.0.1 && git push origin main v1.0.1`
+3. GitHub Actions builds macOS and Windows and publishes the release. Running apps show "Version 1.0.1 available" within a few hours.
+
+Every push to `main` also produces a `nightly` pre-release for testing; it is never offered as an update.
 
 ## Project structure
 

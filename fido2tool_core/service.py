@@ -19,6 +19,7 @@ from fido2tool_core import reset as reset_mod
 from fido2tool_core.history import History, key_id
 from fido2tool_core.pin import PinError
 from fido2tool_core.scanner import DeviceBusy, DeviceNotFound
+from fido2tool_core.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class KeyService:
         self._scanner = scanner
         self._advisories = advisories
         self._last_update_check = None
+        self._app_update = None
         self._exporter = exporter
         self._mds3 = mds3_client
         self.history = history or History()
@@ -146,6 +148,10 @@ class KeyService:
         if self._advisories and self._advisories.check_for_update():
             changed = True
         self._last_update_check = now_iso()
+        from fido2tool_core import app_update
+        self._app_update = app_update.check()
+        if self._app_update.get("newer"):
+            self.emit("app_update", self._app_update)
         if changed:
             self._scanner.reevaluate_all()
         status = self.data_status()
@@ -157,6 +163,7 @@ class KeyService:
             "advisories": self._advisories.info() if self._advisories else None,
             "mds": self.mds_status(),
             "last_check": self._last_update_check,
+            "app": self._app_update or {"current": __version__},
         }
 
     def mds_status(self) -> dict:

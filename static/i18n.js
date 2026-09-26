@@ -3056,6 +3056,22 @@ Object.assign(STRINGS, {
 },
 });
 
+// App update strings
+const UPDATE_STRINGS = {
+  de: { 'upd.available': 'Version {v} verfügbar', 'upd.download': 'Herunterladen', 'data.appVersion': 'App-Version', 'upd.upToDate': 'aktuell' },
+  en: { 'upd.available': 'Version {v} available', 'upd.download': 'Download', 'data.appVersion': 'App version', 'upd.upToDate': 'up to date' },
+  es: { 'upd.available': 'Versión {v} disponible', 'upd.download': 'Descargar', 'data.appVersion': 'Versión de la app', 'upd.upToDate': 'actualizada' },
+  fr: { 'upd.available': 'Version {v} disponible', 'upd.download': 'Télécharger', 'data.appVersion': "Version de l'app", 'upd.upToDate': 'à jour' },
+  it: { 'upd.available': 'Versione {v} disponibile', 'upd.download': 'Scarica', 'data.appVersion': "Versione dell'app", 'upd.upToDate': 'aggiornata' },
+  nl: { 'upd.available': 'Versie {v} beschikbaar', 'upd.download': 'Downloaden', 'data.appVersion': 'App-versie', 'upd.upToDate': 'up-to-date' },
+  pl: { 'upd.available': 'Dostępna wersja {v}', 'upd.download': 'Pobierz', 'data.appVersion': 'Wersja aplikacji', 'upd.upToDate': 'aktualna' },
+  pt: { 'upd.available': 'Versão {v} disponível', 'upd.download': 'Transferir', 'data.appVersion': 'Versão da app', 'upd.upToDate': 'atualizada' },
+  ja: { 'upd.available': 'バージョン {v} が利用可能です', 'upd.download': 'ダウンロード', 'data.appVersion': 'アプリのバージョン', 'upd.upToDate': '最新' },
+  ko: { 'upd.available': '버전 {v} 사용 가능', 'upd.download': '다운로드', 'data.appVersion': '앱 버전', 'upd.upToDate': '최신' },
+  zh: { 'upd.available': '版本 {v} 可用', 'upd.download': '下载', 'data.appVersion': '应用版本', 'upd.upToDate': '已是最新' },
+};
+for (const [code, strings] of Object.entries(UPDATE_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // Languages offered in the UI, by native name. Missing keys fall back to English.
 const LANGUAGES = {
   de: 'Deutsch', en: 'English', es: 'Español', fr: 'Français',

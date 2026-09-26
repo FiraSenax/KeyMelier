@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -79,9 +80,9 @@ jobs:
           retention-days: 30
 
   release:
-    name: Create release
+    name: Publish release
     needs: [build-macos, build-windows]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,14 +101,23 @@ jobs:
           name: KeyMelier-Windows
           path: artifacts
 
-      - name: Create or update rolling release
+      - name: Check that the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python3 -c "exec(open('fido2tool_core/version.py').read()); print(__version__)")
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match fido2tool_core/version.py ($version)"; exit 1
+          fi
+
+      # Tag vX.Y.Z: a real release. The app's update check only looks at these.
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: latest
-          name: "Latest build"
+          name: KeyMelier ${{ github.ref_name }}
+          make_latest: "true"
+          generate_release_notes: true
           body: |
-            Automatically built from the latest commit on `main`.
-
             **Downloads**
             - `KeyMelier-macOS.zip` — macOS app (move KeyMelier.app to Applications)
             - `KeyMelier-Windows.zip` — Windows app folder (run `KeyMelier.exe` as Administrator for FIDO access)
@@ -115,8 +125,17 @@ jobs:
             **First launch on macOS:** the app is not notarized, so macOS blocks it once. Open it, click *Done*, then go to *System Settings → Privacy & Security* and click *Open Anyway*. (Or: `xattr -dr com.apple.quarantine /Applications/KeyMelier.app`)
 
             **First launch on Windows:** right-click `KeyMelier.exe` → *Run as administrator*. If SmartScreen appears, click *More info* → *Run anyway*.
+          files: artifacts/*
 
-            Details: see the README.
-          prerelease: false
-          make_latest: true
+      # Push to main: rolling pre-release for testing, never offered as an update.
+      - name: Publish nightly pre-release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly
+          name: Nightly build
+          prerelease: true
+          make_latest: "false"
+          body: |
+            Automatically built from the latest commit on `main` (${{ github.sha }}). For testing – stable versions are the numbered releases.
           files: artifacts/*

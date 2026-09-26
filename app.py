@@ -60,7 +60,7 @@ ALLOWED = {
 
 
 # Hosts the UI may open in the external browser (advisory references)
-ALLOWED_LINK_HOSTS = {"www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
+ALLOWED_LINK_HOSTS = {"github.com", "www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
 
 
 class Api:
@@ -197,6 +197,8 @@ def _single_instance():
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
+    from fido2tool_core.version import __version__
+    logger.info("KeyMelier %s", __version__)
     lock = _single_instance()
     if lock is None:
         logger.error("KeyMelier is already running.")
@@ -244,6 +246,7 @@ def main():
     webview.start(background_start, debug="--debug" in sys.argv)
     scanner.stop()
     logger.info("Window closed, exiting.")
+
 
 
 if __name__ == "__main__":

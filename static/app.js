@@ -433,7 +433,15 @@ function fmtDate(iso) {
   return iso ? `${new Date(iso).toLocaleString(LANG)} (${relTime(iso)})` : '—';
 }
 
+function renderUpdateBanner() {
+  const app = dataStatus?.app;
+  const show = !!(app && app.newer && app.url);
+  $('update-banner').classList.toggle('hidden', !show);
+  if (show) $('update-text').textContent = t('upd.available', { v: app.latest });
+}
+
 function renderDataStatus() {
+  renderUpdateBanner();
   const el = $('data-status');
   if (!el) return;
   const st = dataStatus;
@@ -446,6 +454,9 @@ function renderDataStatus() {
       ? `${fmtDate(st.mds.fetched_at)}${st.mds.serial ? ` · #${st.mds.serial}` : ''}${st.mds.verified ? ` · ${t('data.verified')}` : ''}`
       : t('data.none')],
     [t('data.lastCheck'), st.last_check ? fmtDate(st.last_check) : t('data.pending')],
+    [t('data.appVersion'), st.app?.current
+      ? `${st.app.current}${st.app.latest ? ` · ${st.app.newer ? t('upd.available', { v: st.app.latest }) : t('upd.upToDate')}` : ''}`
+      : '—'],
   ]);
 }
 
@@ -1368,6 +1379,7 @@ const EVENT_HANDLERS = {
   history_updated: p => onHistoryUpdated(p),
   mds_ready: p => { mdsInfo = p; renderMds(); },
   data_status: p => { dataStatus = p; mdsInfo = p.mds; renderMds(); renderDataStatus(); },
+  app_update: p => { dataStatus = { ...(dataStatus || {}), app: p }; renderDataStatus(); },
 };
 
 // Called from Python (EventPump) for every live event
@@ -1436,6 +1448,9 @@ function init() {
   $('pin-show').addEventListener('change', ev => setPinVisible(ev.target.checked));
   $('export-btn').addEventListener('click', exportTokens);
   $('data-check').addEventListener('click', checkDataNow);
+  $('update-btn').addEventListener('click', () => {
+    if (dataStatus?.app?.url) window.pywebview?.api?.open_url(dataStatus.app.url);
+  });
 
   changeLang('', false);
   switchTab('overview');
