@@ -4174,6 +4174,22 @@ const BACKUP_STRINGS = {
 };
 for (const [code, strings] of Object.entries(BACKUP_STRINGS)) Object.assign(STRINGS[code], strings);
 
+// Tagline
+const TAGLINE_STRINGS = {
+  de: {"app.tagline": "Der Sommelier für deine Sicherheitsschlüssel", "empty.playful": "Steck einen Schlüssel ein – ich probiere ihn."},
+  en: {"app.tagline": "The sommelier for your security keys", "empty.playful": "Plug in a key – I'll give it a taste."},
+  es: {"app.tagline": "El sumiller de tus llaves de seguridad", "empty.playful": "Conecta una llave: yo la cato."},
+  fr: {"app.tagline": "Le sommelier de vos clés de sécurité", "empty.playful": "Branchez une clé – je la déguste."},
+  it: {"app.tagline": "Il sommelier delle tue chiavi di sicurezza", "empty.playful": "Inserisci una chiave: la assaggio io."},
+  nl: {"app.tagline": "De sommelier voor je beveiligingssleutels", "empty.playful": "Steek een sleutel in – ik proef hem."},
+  pl: {"app.tagline": "Sommelier twoich kluczy bezpieczeństwa", "empty.playful": "Podłącz klucz – spróbuję go."},
+  pt: {"app.tagline": "O sommelier das suas chaves de segurança", "empty.playful": "Ligue uma chave – eu provo-a."},
+  ja: {"app.tagline": "あなたのセキュリティキーのソムリエ", "empty.playful": "キーを挿してください。テイスティングします。"},
+  ko: {"app.tagline": "보안 키를 위한 소믈리에", "empty.playful": "키를 꽂아 주세요. 제가 테이스팅해 볼게요."},
+  zh: {"app.tagline": "你的安全密钥品鉴师", "empty.playful": "插入一把密钥——我来品鉴一下。"},
+};
+for (const [code, strings] of Object.entries(TAGLINE_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // Languages offered in the UI, by native name. Missing keys fall back to English.
 const LANGUAGES = {
   de: 'Deutsch', en: 'English', es: 'Español', fr: 'Français',

@@ -1155,3 +1155,9 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .key-item-icon { overflow: visible; }
 .key-item.offline .key-art { filter: grayscale(0.8); opacity: 0.7; }
 .key-view.offline .key-art { filter: grayscale(0.8); }
+
+.empty-view .tagline {
+  font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--brand); margin-top: 6px;
+}
+.empty-view h1 { margin-top: 0; }

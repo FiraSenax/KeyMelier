@@ -1,5 +1,7 @@
 # KeyMelier
 
+*The sommelier for your security keys.*
+
 A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, whether it is genuine and affected by known vulnerabilities — and manage it: PIN, passkeys, fingerprints, factory reset. KeyMelier remembers every key it has seen, with an activity history.
 
 ## Features
