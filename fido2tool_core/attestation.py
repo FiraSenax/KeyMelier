@@ -7,7 +7,7 @@ Performs a real makeCredential call against the attached token, then verifies:
   4. Reports the attestation format (packed, fido-u2f, tpm, none, android-*)
 
 The test requires NO PIN and NO user interaction beyond a physical touch.
-It uses a random ephemeral RP / challenge so no real credential is persisted
+It uses a dedicated test RP and random challenge so no real credential is persisted
 anywhere useful, and the key handle is immediately discarded.
 """
 
@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AttestationResult:
     ran: bool = False                        # was the test attempted?
-    passed: bool = False                     # overall pass/fail
+    passed: bool = False                     # compatibility: true only for VERIFIED
+    status: str = "UNVERIFIED"              # VERIFIED | UNVERIFIED | FAILED
     format: Optional[str] = None            # packed | fido-u2f | tpm | none | …
     aaguid_match: Optional[bool] = None     # getInfo AAGUID == authData AAGUID
     aaguid_from_auth_data: Optional[str] = None
@@ -140,7 +141,7 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
         result.error = f"makeCredential failed: {e}"
         result.passed = False
         result.inconclusive = _inconclusive_reason(e)
-        result.checks.append({"name": "makeCredential", "passed": False, "detail": str(e)})
+        result.checks.append({"name": "makeCredential", "passed": None, "detail": str(e)})
         return
 
     result.checks.append({"name": "makeCredential", "passed": True, "detail": "Credential created"})
@@ -153,6 +154,13 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
     att_stmt = att_obj.att_stmt
 
     result.checks.append({"name": "Format", "passed": True, "detail": fmt})
+    result.checks.append({
+        "name": "Request binding and user presence",
+        "passed": (len(auth_data_bytes) >= 37
+                   and auth_data_bytes[:32] == hashlib.sha256(rp["id"].encode()).digest()
+                   and bool(auth_data_bytes[32] & 1)),
+        "detail": "RP ID hash and user-presence flag must match this test",
+    })
 
     # ── Extract AAGUID via AttestedCredentialData.unpack_from ────────────────
     # AuthenticatorData layout: 32 rpIdHash | 1 flags | 4 signCount | [AT: credential data]
@@ -178,14 +186,14 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
     elif fmt == "fido-u2f":
         sig_ok, sig_detail, leaf_cert = _verify_fido_u2f(att_stmt, auth_data_bytes, client_data_hash)
     elif fmt == "none":
-        sig_ok, sig_detail, leaf_cert = True, "No attestation (self-attestation or none format)", None
+        sig_ok, sig_detail, leaf_cert = None, "No attestation evidence (none format)", None
     else:
         sig_ok, sig_detail, leaf_cert = None, f"Unhandled format '{fmt}' — signature not verified", None
 
     result.sig_valid = sig_ok
     result.checks.append({
         "name": "Signature",
-        "passed": bool(sig_ok),
+        "passed": sig_ok,
         "detail": sig_detail,
     })
 
@@ -228,8 +236,18 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
         })
 
     # ── Overall result ───────────────────────────────────────────────────────
-    definite_failures = [c for c in result.checks if c["passed"] is False]
-    result.passed = len(definite_failures) == 0
+    _finalize(result)
+
+
+def _finalize(result):
+    required = (result.aaguid_match, result.sig_valid, result.chain_valid)
+    if any(c["passed"] is False for c in result.checks):
+        result.status = "FAILED"
+    elif all(v is True for v in required):
+        result.status = "VERIFIED"
+    else:
+        result.status = "UNVERIFIED"
+    result.passed = result.status == "VERIFIED"
 
 
 # ── Authenticator data helpers ───────────────────────────────────────────────
@@ -277,30 +295,15 @@ def _extract_aaguid_raw(auth_data: bytes) -> Optional[str]:
 def _verify_packed(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
     """Verify a 'packed' attestation statement signature."""
     try:
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import ec, padding
-        from cryptography import x509
-
-        sig = att_stmt.get("sig")
+        from fido2.attestation import PackedAttestation
+        from fido2.webauthn import AuthenticatorData
+        PackedAttestation().verify(att_stmt, AuthenticatorData(auth_data), client_data_hash)
         x5c = att_stmt.get("x5c")
-        alg = att_stmt.get("alg", -7)
-
-        if sig is None:
-            return False, "No signature in packed attestation", None
-
-        signed_data = auth_data + client_data_hash
-
         if x5c:
-            # Full attestation: cert contains public key
-            leaf_der = bytes(x5c[0])
-            cert = x509.load_der_x509_certificate(leaf_der)
-            pub_key = cert.public_key()
-            _verify_signature(pub_key, bytes(sig), signed_data, alg)
-            return True, f"Signature valid (packed, full attestation, {len(x5c)} cert(s))", leaf_der
-        else:
-            # Self attestation: use the credential public key — skip for now
-            return None, "Self-attestation (no x5c) — signature not independently verified", None
-
+            return True, "Packed signature and certificate profile verified", bytes(x5c[0])
+        return None, "Self-attestation does not establish manufacturer authenticity", None
+    except NotImplementedError:
+        return None, "Unsupported packed attestation variant", None
     except Exception as e:
         return False, f"Packed signature verification failed: {e}", None
 
@@ -343,39 +346,23 @@ def _verify_fido_u2f(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
 
 
 def _verify_signature(pub_key, sig: bytes, data: bytes, alg: int):
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import ec, padding as asym_padding
-    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-    from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+    from fido2.cose import CoseKey
 
-    if isinstance(pub_key, EllipticCurvePublicKey):
-        pub_key.verify(sig, data, ec.ECDSA(hashes.SHA256()))
-    elif isinstance(pub_key, RSAPublicKey):
-        hash_alg = hashes.SHA256() if alg in (-257, -258) else hashes.SHA384()
-        pub_key.verify(sig, data, asym_padding.PKCS1v15(), hash_alg)
-    else:
-        raise ValueError(f"Unsupported key type: {type(pub_key)}")
+    # The COSE algorithm controls hash, padding and allowed key type.
+    key = CoseKey.for_alg(alg).from_cryptography_key(pub_key)
+    key.verify(data, sig)
 
 
 def _cose_to_uncompressed(cbor_bytes: bytes) -> bytes:
     """Decode a COSE_Key CBOR map and return uncompressed EC point (0x04 | x | y)."""
-    try:
-        import cbor2
-        cose = cbor2.loads(cbor_bytes)
-        x = cose.get(-2) or cose.get(b"-2")
-        y = cose.get(-3) or cose.get(b"-3")
-        if x is None or y is None:
-            raise ValueError("Missing x or y in COSE key")
-        return b"\x04" + bytes(x) + bytes(y)
-    except ImportError:
-        # cbor2 not available — fall back to manual parse of simple case
-        # COSE key for P-256: a5 01 02 03 26 20 01 21 58 20 <x32> 22 58 20 <y32>
-        idx = cbor_bytes.find(b"\x21\x58\x20")
-        if idx == -1:
-            raise ValueError("Cannot decode COSE key without cbor2")
-        x = cbor_bytes[idx + 3: idx + 35]
-        y = cbor_bytes[idx + 38: idx + 70]
-        return b"\x04" + x + y
+    from fido2 import cbor
+    cose, _ = cbor.decode_from(cbor_bytes)
+    if cose.get(1) != 2 or cose.get(-1) != 1 or cose.get(3) != -7:
+        raise ValueError("U2F requires an ES256 P-256 credential key")
+    x, y = cose.get(-2), cose.get(-3)
+    if not isinstance(x, bytes) or not isinstance(y, bytes) or len(x) != 32 or len(y) != 32:
+        raise ValueError("Invalid EC coordinates")
+    return b"\x04" + x + y
 
 
 # ── Certificate chain helpers ────────────────────────────────────────────────
@@ -395,6 +382,9 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
         entry = mds3_client.lookup(aaguid)
         if not entry:
             return None, "AAGUID not found in MDS3 — chain not verifiable"
+
+        if not mds3_client.is_current():
+            return None, "MDS3 metadata expired — chain not currently verifiable"
 
         ms = entry.get("metadataStatement", {})
         root_b64_list = ms.get("attestationRootCertificates", [])
@@ -439,38 +429,10 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
 
 
 def _chain_validates(leaf, intermediates: list, root) -> bool:
-    """Simple path validation: each cert's issuer must be signed by the next."""
+    """Validate time, signatures, CA/key usage, path length and critical extensions."""
+    from fido2tool_core.certificates import validate_path
     try:
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.asymmetric import ec, padding as asym_padding, rsa
-
-        chain = [leaf] + intermediates + [root]
-        for i in range(len(chain) - 1):
-            subject_cert = chain[i]
-            issuer_cert = chain[i + 1]
-            # Subject's issuer DN must match issuer cert's subject DN
-            if subject_cert.issuer != issuer_cert.subject:
-                return False
-            # Verify subject cert signature with issuer public key
-            pub = issuer_cert.public_key()
-            try:
-                if isinstance(pub, ec.EllipticCurvePublicKey):
-                    pub.verify(
-                        subject_cert.signature,
-                        subject_cert.tbs_certificate_bytes,
-                        ec.ECDSA(subject_cert.signature_hash_algorithm),
-                    )
-                elif isinstance(pub, rsa.RSAPublicKey):
-                    pub.verify(
-                        subject_cert.signature,
-                        subject_cert.tbs_certificate_bytes,
-                        asym_padding.PKCS1v15(),
-                        subject_cert.signature_hash_algorithm,
-                    )
-                else:
-                    return False
-            except Exception:
-                return False
+        validate_path(leaf, intermediates, root)
         return True
     except Exception:
         return False

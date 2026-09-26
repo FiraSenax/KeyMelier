@@ -12,9 +12,11 @@ import dataclasses
 import hashlib
 import json
 import logging
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from fido2tool_core.storage import atomic_write, stateless, history_cipher
 
 logger = logging.getLogger(__name__)
 
@@ -35,32 +37,73 @@ def key_id(record) -> str:
 
 
 class History:
-    def __init__(self, path: Path = HISTORY_FILE):
-        self._path = path
+    def __init__(self, path: Path = HISTORY_FILE, enabled: bool = False):
+        self.enabled = enabled and not stateless()
+        self._encrypted = os.environ.get("KEYMELIER_ENCRYPT_HISTORY") == "1"
+        self._path = path.with_suffix(".encrypted") if self._encrypted else path
+        self._cipher = None
         self._lock = threading.Lock()
         self._entries: dict[str, dict] = {}
         self._load()
 
     def _load(self):
+        if not self.enabled:
+            return
         try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
+            raw = self._path.read_bytes()
+            if self._encrypted:
+                self._cipher = history_cipher(create=False)
+                raw = self._cipher.decrypt(raw)
+            data = json.loads(raw)
             self._entries = {e["key_id"]: e for e in data.get("keys", [])}
+            for entry in self._entries.values():
+                snap = entry.get("snapshot", {})
+                snap["security_status"] = "UNKNOWN"
+                att = snap.get("attestation")
+                if att and "status" not in att:
+                    att.update(status="UNVERIFIED", passed=False)
+                for ev in entry.get("events", []):
+                    if ev.get("type") == "attestation" and "status" not in ev:
+                        ev["type"] = "attestation_skipped"
         except FileNotFoundError:
             pass
         except Exception as e:
+            if self._encrypted:
+                self.enabled = False
+                raise RuntimeError("Encrypted history could not be opened; existing file preserved") from e
             logger.warning("Could not read history (%s); starting fresh", e)
 
     def _save(self):
+        if not self.enabled:
+            return
         try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._path.with_suffix(".tmp")
-            tmp.write_text(
-                json.dumps({"version": 1, "keys": list(self._entries.values())}, indent=1),
-                encoding="utf-8",
-            )
-            tmp.replace(self._path)
+            raw = json.dumps({"version": 1, "keys": list(self._entries.values())}, indent=1).encode()
+            if self._encrypted:
+                self._cipher = self._cipher or history_cipher()
+                raw = self._cipher.encrypt(raw)
+            atomic_write(self._path, raw)
         except Exception as e:
             logger.error("Could not save history: %s", e)
+
+    def set_enabled(self, enabled):
+        with self._lock:
+            was_enabled = self.enabled
+            self.enabled = bool(enabled) and not stateless()
+            # Turning persistence off does not delete existing user files.
+            if self.enabled and not was_enabled and self._path.exists():
+                session_entries = self._entries
+                self._load()
+                for kid, current in session_entries.items():
+                    previous = self._entries.get(kid)
+                    if previous is None:
+                        self._entries[kid] = current
+                    else:
+                        previous["snapshot"] = current["snapshot"]
+                        previous["last_seen"] = current["last_seen"]
+                        previous["connect_count"] += current["connect_count"]
+                        previous["events"] = (previous["events"] + current["events"])[-MAX_EVENTS:]
+            if self.enabled:
+                self._save()
 
     @staticmethod
     def _summary(entry: dict) -> dict:
@@ -134,6 +177,9 @@ class History:
                 entry.pop("sites", None)
                 entry.pop("sites_updated", None)
                 entry.pop("lost_done", None)
+                for event in entry.get("events", []):
+                    for field in ("site", "user", "rp_id"):
+                        event.pop(field, None)
             self._save()
 
     def set_lost(self, kid: str, lost: bool) -> dict | None:

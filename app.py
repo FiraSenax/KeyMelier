@@ -8,6 +8,7 @@ can reach the app.
 """
 
 import base64
+import os
 import json
 import logging
 import queue
@@ -207,7 +208,9 @@ def _single_instance():
 def main():
     from fido2tool_core.version import __version__
     logger.info("KeyMelier %s", __version__)
-    lock = _single_instance()
+    if "--stateless" in sys.argv:
+        os.environ["KEYMELIER_STATELESS"] = "1"
+    lock = True if os.environ.get("KEYMELIER_STATELESS") == "1" else _single_instance()
     if lock is None:
         logger.error("KeyMelier is already running.")
         sys.exit(1)

@@ -53,7 +53,7 @@ a = Analysis(
         'cryptography.hazmat.primitives.asymmetric.padding',
         'cryptography.hazmat.backends.openssl',
         # stdlib extras picked up at runtime
-        'cbor2',
+        'OpenSSL.crypto',
         'requests',
         'base64',
         'uuid',
@@ -87,8 +87,8 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    codesign_identity=os.environ.get("KEYMELIER_SIGN_IDENTITY"),
+    entitlements_file="data/macos-entitlements.plist" if os.environ.get("KEYMELIER_SIGN_IDENTITY") else None,
     icon=icon_path,
 )
 

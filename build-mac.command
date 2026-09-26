@@ -19,12 +19,11 @@ if [ ! -f "$PYTHON" ]; then
 fi
 
 echo "Installing dependencies..."
-"$PIP" install -q --upgrade pip
-"$PIP" install -q -r requirements.txt
-"$PIP" install -q pyinstaller cairosvg pillow
+"$PIP" install --require-hashes -q -r requirements.txt
+"$PIP" install --require-hashes -q -r requirements-build.txt
 
-echo "Building app icon..."
-"$PYTHON" tools/make_icons.py
+echo "Using committed app icon..."
+# Use the reviewed, committed icons; regeneration is a separate design task.
 export KEYMELIER_ICON="static/icon.icns"
 
 xattr -cr static data fido2tool_core
@@ -48,4 +47,4 @@ done
 
 echo ""
 echo "Build complete: dist/KeyMelier.app"
-echo "You can drag it to /Applications or distribute the .app directly."
+echo "Local test build only. Public distribution requires Developer ID signing and notarization."

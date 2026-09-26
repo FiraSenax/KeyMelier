@@ -1,4 +1,7 @@
 import csv
+import io
+import uuid
+from fido2tool_core.storage import atomic_write, stateless
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +30,7 @@ class CSVExporter:
         "mds_status",
         "attestation_ran",
         "attestation_passed",
+        "attestation_status",
         "attestation_format",
         "attestation_sig_valid",
         "attestation_chain_valid",
@@ -36,10 +40,10 @@ class CSVExporter:
     ]
 
     def export(self, record) -> Path:
-        EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+        if stateless():
+            raise ValueError("Exports are disabled in stateless mode")
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        safe_serial = (record.serial_number or "noserial").replace("/", "_").replace("\\", "_")
-        filename = EXPORT_DIR / f"{ts}_{safe_serial}.csv"
+        filename = EXPORT_DIR / f"{ts}_{uuid.uuid4().hex}.csv"
 
         options_str = "|".join(
             f"{k}:{v}" for k, v in sorted((record.options or {}).items())
@@ -64,6 +68,7 @@ class CSVExporter:
             record.mds_status or "",
             str(att.get("ran", "")),
             str(att.get("passed", "")),
+            att.get("status", "UNVERIFIED"),
             att.get("format") or "",
             str(att.get("sig_valid", "")),
             str(att.get("chain_valid", "")),
@@ -72,10 +77,19 @@ class CSVExporter:
             att.get("error") or "",
         ]
 
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(self.HEADERS)
-            writer.writerow(row)
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer)
+        writer.writerow(self.HEADERS)
+        # CSV quoting alone does not prevent spreadsheet formula execution.
+        writer.writerow([_safe_cell(value) for value in row])
+        atomic_write(filename, buffer.getvalue())
 
         logger.info("CSV exported: %s", filename)
         return filename
+
+
+def _safe_cell(value):
+    value = str(value)
+    if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")):
+        return "'" + value
+    return value

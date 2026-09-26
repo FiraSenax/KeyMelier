@@ -198,12 +198,11 @@ function attestationSummary(att, token) {
   const pass = checks.filter(c => c.passed === true).length;
   const fail = checks.filter(c => c.passed === false).length;
   const skip = checks.filter(c => c.passed == null).length;
-  if (att.error && !att.passed) {
-    return { cls: 'fail', text: t('sec.att.failErr', { e: att.error }), short: t('tile.security.attFail') };
-  }
+  if (att.status !== 'FAILED' && att.status !== 'VERIFIED') return { cls: 'partial', text: t('sec.att.unverified'), short: t('tile.security.attPartial') };
   if (fail > 0) return { cls: 'fail', text: t('sec.att.fail', { n: fail }), short: t('tile.security.attFail') };
   if (skip > 0) return { cls: 'partial', text: t('sec.att.partial', { p: pass, s: skip }), short: t('tile.security.attPartial') };
-  return { cls: 'pass', text: t('sec.att.pass', { f: att.format || '—' }), short: t('tile.security.attPass') };
+  if (att.status === 'VERIFIED' && att.passed && att.sig_valid === true && att.chain_valid === true && att.aaguid_match === true) return { cls: 'pass', text: t('sec.att.pass', { f: att.format || '—' }), short: t('tile.security.attPass') };
+  return { cls: 'partial', text: t('sec.att.unverified'), short: t('tile.security.attPartial') };
 }
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -327,12 +326,14 @@ function securityChecks(token) {
   else if (token.mds_status === 'USER_VERIFICATION_BYPASS') add('crit', 'chk.uvBypass', {}, 'security');
 
   if ((token.cve_ids || []).length) add('warn', 'chk.vulnerable', { n: token.cve_ids.length }, 'security');
-  else add('ok', 'chk.noVulns');
+  else if (token.security_status === 'OK') add('ok', 'chk.noVulns');
+  else add('info', 'status.UNKNOWN', {}, 'security');
 
   const att = token.attestation;
   if (att && !att.inconclusive && !token.force_pin_change) {
-    if (att.passed) add('ok', 'chk.genuine');
-    else if (att.ran) add('crit', 'chk.notGenuine', {}, 'security');
+    if (att.status === 'VERIFIED' && att.passed) add('ok', 'chk.genuine');
+    else if (att.status === 'FAILED') add('crit', 'chk.notGenuine', {}, 'security');
+    else add('info', 'sec.att.unverified', {}, 'security');
   }
 
   if ('clientPin' in o) {
@@ -396,15 +397,23 @@ function renderBackupView() {
   const el = $('backup-content');
   const entries = [...historyKeys.values()];
   const withSites = entries.filter(e => e.sites);
-  const remember = appSettings.remember_sites !== false;
+  const remember = appSettings.remember_sites === true;
   const parts = [];
 
   parts.push(`<section class="card">
     <label class="switch-row">
-      <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''}>
+      <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
       <span>${escHtml(t('bk.remember'))}</span>
     </label>
     <p class="field-hint bk-hint">${escHtml(t('bk.rememberText'))}</p>
+  </section>`);
+
+  parts.push(`<section class="card">
+    <label class="switch-row">
+      <input type="checkbox" id="history-enabled" ${appSettings.history_enabled ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
+      <span>${escHtml(t('privacy.history'))}</span>
+    </label>
+    <p class="field-hint bk-hint">${escHtml(t('privacy.hint'))}</p>
   </section>`);
 
   // Coverage matrix: websites x keys
@@ -1895,6 +1904,10 @@ function init() {
   $('nav-backup-icon').innerHTML = icon('shield', 18);
   $('backup-content').addEventListener('change', async ev => {
     const el = ev.target;
+    if (el.id === 'history-enabled') {
+      appSettings = await call('set_settings', { values: { history_enabled: el.checked } }).catch(() => appSettings);
+      renderBackupView();
+    }
     if (el.id === 'bk-remember') {
       appSettings = await call('set_settings', { values: { remember_sites: el.checked } }).catch(() => appSettings);
       if (!el.checked) await loadHistory();

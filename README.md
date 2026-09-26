@@ -2,16 +2,16 @@
 
 *The sommelier for your security keys.*
 
-A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, whether it is genuine and affected by known vulnerabilities — and manage it: PIN, passkeys, fingerprints, factory reset. KeyMelier remembers every key it has seen, with an activity history.
+A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, its attestation evidence and known vulnerability findings — and manage it: PIN, passkeys, fingerprints, factory reset. Key history is opt-in; the default session keeps key metadata in memory.
 
 ## Features
 
 - **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions; for YubiKeys also serial number, real firmware and form factor (via Yubico's yubikit)
 - **Security check:** per-key checklist with direct links to fix issues (PIN, vulnerabilities, authenticity, fingerprints, backups)
-- **Security:** attestation test (is the key genuine?), certification status, known vulnerabilities from a curated advisory database
+- **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
 - **Passkeys:** list discoverable credentials per website, rename and delete them
-- **Backup & loss:** which websites are on which key (names only, stored locally, can be turned off), sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
+- **Backup & loss:** which websites are on which key (names only, local recording disabled by default), sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
 - **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
@@ -19,27 +19,19 @@ A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys.
 - **History:** keys seen before stay in the sidebar with their last known state, a custom name and an activity timeline
 - **Languages:** 11 languages following the OS (de, en, es, fr, it, nl, pl, pt, ja, ko, zh), light and dark mode
 - **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
-- CSV export of every connected key to `~/keymelier/exports/`
+- Explicit CSV export of connected keys to `~/keymelier/exports/`
 
 ## Download
 
-Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest). Test builds of the newest `main` are published as the [nightly pre-release](https://github.com/FiraSenax/KeyMelier/releases/tag/nightly).
+Release builds must be Developer ID signed and notarized on macOS, and Authenticode
+signed on Windows. Older releases and CI test artifacts may be unsigned. Do not
+bypass Gatekeeper or SmartScreen to run an unverified download. Use a reviewed
+source checkout for local testing, or wait for a signed release.
 
-### First launch on macOS
-
-The app is not notarized by Apple, so macOS blocks it the first time:
-
-1. Unzip `KeyMelier-macOS.zip` and move **KeyMelier.app** to **Applications**.
-2. Open it. macOS says it "cannot verify" the app – click **Done** (not "Move to Trash").
-3. Open **System Settings → Privacy & Security**, scroll down to the message about KeyMelier and click **Open Anyway**, then confirm with your password or Touch ID.
-
-This is needed only once. Alternatively, in Terminal: `xattr -dr com.apple.quarantine /Applications/KeyMelier.app`
-
-### First launch on Windows
-
-1. Unzip `KeyMelier-Windows.zip` and open the `KeyMelier` folder.
-2. Right-click **KeyMelier.exe** → **Run as administrator** (Windows only allows FIDO access to elevated programs).
-3. If SmartScreen shows "Windows protected your PC", click **More info** → **Run anyway**.
+After extracting a signed release, verify the expected publisher before opening it.
+Windows direct CTAP2 HID management can require elevation; build/install dependencies
+without administrator privileges, then elevate only the reviewed application when
+needed. Managed devices require your organization's approval.
 
 ## Build it yourself
 
@@ -50,14 +42,14 @@ This is needed only once. Alternatively, in Terminal: `xattr -dr com.apple.quara
 cp -R dist/KeyMelier.app /Applications/
 ```
 
-The app is not signed; a locally built copy opens normally. No drivers are needed (macOS uses IOKit HID).
+The local build is ad-hoc signed for testing, without a verified publisher identity. No drivers are needed (macOS uses IOKit HID).
 
 ### From source
 
 ```bash
 git clone https://github.com/FiraSenax/KeyMelier
 cd KeyMelier
-python3 -m venv venv && venv/bin/pip install -r requirements.txt
+python3 -m venv venv && venv/bin/pip install --require-hashes -r requirements.txt
 venv/bin/python3 app.py
 ```
 
@@ -71,8 +63,12 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
 - PINs are only held in memory for the single operation that needs them and are never logged or stored. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only.
-- Network: the app contacts the FIDO Alliance (metadata), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
-- Local data: `~/keymelier/history.json` (keys seen, events), `~/keymelier/settings.json` (language), `~/keymelier/exports/` (CSV), `~/.keymelier/mds3_cache.json` (FIDO metadata cache).
+- Network: the app contacts the FIDO Alliance (metadata), GlobalSign (signer certificate revocation lists), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
+- History is disabled by default. Enable it explicitly in the backup view to persist key models, serials and events. Website recording is a separate opt-in, disabled by default; enabling it can reveal accounts and internal domains. Disabling it removes site lists and account details from history events.
+- CSV files are created only using the export button; exported metadata is plaintext. Formula-like cells are neutralized.
+- `python app.py --stateless` (or `KEYMELIER_STATELESS=1`) skips persistent settings, history, caches, the lock file and exports. Metadata remains in process memory. OS/browser runtime files are outside this application-level guarantee.
+- Optional encrypted history: start with `KEYMELIER_ENCRYPT_HISTORY=1` and enable history. `history.encrypted` uses authenticated encryption with its key held in macOS Keychain or Windows Credential Manager. There is no plaintext-keyring fallback. Existing plaintext history is not migrated or deleted automatically; remove/archive it separately if required. CSV exports remain plaintext. Losing the OS-stored key prevents recovery.
+- Local data when enabled: `~/keymelier/history.json` (or `history.encrypted`), `~/keymelier/settings.json`, explicitly generated `~/keymelier/exports/`, and public caches under `~/.keymelier/`. Writes are atomic with owner-only POSIX permissions or Windows user ACLs. Disabling history preserves existing files; it does not securely erase old copies or backups.
 
 ## Limitations
 
@@ -83,6 +79,22 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 ## FIDO Alliance MDS3
 
 On first launch the app downloads the [FIDO Alliance Metadata Service](https://mds.fidoalliance.org/) blob and caches it for 24 hours. It is used to resolve the AAGUID to model name and vendor icon, check certification status, and verify attestation certificate chains.
+
+The MDS JWT is checked against the pinned root using PKIX path validation and
+current, issuer-signed CRLs. Unavailable, expired or unsupported revocation evidence
+fails closed. Metadata past its signed `nextUpdate` cannot produce a positive assessment.
+
+`VERIFIED` attestation requires a valid supported signature, matching AAGUID and
+request binding, user presence, and a valid certificate path to the current MDS roots.
+`none`, self-attestation, unsupported formats or missing metadata are `UNVERIFIED`.
+`FAILED` means a performed evidence check failed; a transport error alone is not proof
+of a counterfeit key. Authenticator attestation certificates do not currently get
+individual online CRL/OCSP checks; MDS security status is shown separately. A verified
+attestation is not an unconditional safety guarantee or enterprise certification.
+
+`OK` means current certified MDS status and an available signed advisory database,
+with no matching findings. Missing evidence produces `UNKNOWN`; known warnings and
+critical findings take priority. The curated advisory database is not exhaustive.
 
 ## Security advisories
 
@@ -95,13 +107,34 @@ On first launch the app downloads the [FIDO Alliance Metadata Service](https://m
 
 When adding entries, derive the AAGUIDs from MDS3 rather than by hand and include a `references` link to the official advisory.
 
-## Releasing a new version
+## Dependencies and releases
 
-1. Bump `fido2tool_core/version.py` (e.g. `1.0.1`) and commit.
-2. `git tag v1.0.1 && git push origin main v1.0.1`
-3. GitHub Actions builds macOS and Windows and publishes the release. Running apps show "Version 1.0.1 available" within a few hours.
+Python 3.11–3.13 is supported. `uv.lock` pins runtime/build dependencies across
+platforms. `requirements.txt` and `requirements-build.txt` include hashes; scripts
+and CI install them with `--require-hashes`. To intentionally update dependencies,
+review the lock diff and regenerate exports with uv:
 
-Every push to `main` also produces a `nightly` pre-release for testing; it is never offered as an update.
+```bash
+uv lock
+uv export --frozen --no-dev --no-emit-project -o requirements.txt
+uv export --frozen --only-group build --no-emit-project -o requirements-build.txt
+```
+
+CI actions are pinned to commit IDs. The build uses committed icons. Dependency
+locking improves traceability; it does not promise bit-for-bit identical binaries
+across different operating systems, SDKs or signing timestamps.
+
+See [RELEASING.md](RELEASING.md) for the signing setup. Version tags publish only
+after tests, signing and platform signature verification succeed. Pushes to main
+produce CI test artifacts, not public unsigned nightly releases. Releases include
+checksums, the source commit and dependency lockfiles.
+
+Run the regression suite with:
+
+```bash
+venv/bin/python -m unittest discover -s tests -v
+node tests/ui_security.cjs
+```
 
 ## Project structure
 

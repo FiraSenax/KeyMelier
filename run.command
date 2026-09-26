@@ -17,8 +17,7 @@ if [ ! -f "$PYTHON" ]; then
 fi
 
 # ── Install / update dependencies inside the venv ───────────────────────────
-"$PIP" install -q --upgrade pip
-"$PIP" install -q -r requirements.txt
+"$PIP" install --require-hashes -q -r requirements.txt
 
 # ── Launch ───────────────────────────────────────────────────────────────────
-"$PYTHON" app.py
+"$PYTHON" app.py "$@"

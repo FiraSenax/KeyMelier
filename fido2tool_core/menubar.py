@@ -16,12 +16,12 @@ FLASH_SECONDS = 5
 # Menu texts per UI language (kept short; falls back to English)
 TEXTS = {
     "de": {"open": "KeyMelier öffnen", "quit": "Beenden", "none": "Kein Schlüssel verbunden",
-           "OK": "sicher", "WARNING": "Warnung", "CRITICAL": "kritisch", "PENDING": "wird geprüft"},
+           "UNKNOWN": "unbekannt", "OK": "keine bekannten Hinweise", "WARNING": "Warnung", "CRITICAL": "kritisch", "PENDING": "wird geprüft"},
     "en": {"open": "Open KeyMelier", "quit": "Quit", "none": "No key connected",
-           "OK": "secure", "WARNING": "warning", "CRITICAL": "critical", "PENDING": "checking"},
+           "UNKNOWN": "unknown", "OK": "no known findings", "WARNING": "warning", "CRITICAL": "critical", "PENDING": "checking"},
 }
 
-STATUS_MARK = {"OK": "●", "WARNING": "▲", "CRITICAL": "✕", "PENDING": "…"}
+STATUS_MARK = {"UNKNOWN": "○", "OK": "●", "WARNING": "▲", "CRITICAL": "✕", "PENDING": "…"}
 
 
 class MenuBar:

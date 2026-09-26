@@ -4197,6 +4197,36 @@ const LANGUAGES = {
   ja: '日本語', ko: '한국어', zh: '简体中文',
 };
 
+// Security labels describe evidence, never an unconditional safety guarantee.
+const SECURITY_LABELS = {
+  de: ['Unbekannt', 'Keine bekannten Hinweise', 'Attestation verifiziert', 'Echtheit nicht nachgewiesen'],
+  en: ['Unknown', 'No known findings', 'Attestation verified', 'Authenticity unverified'],
+  es: ['Desconocido', 'Sin alertas conocidas', 'Atestación verificada', 'Autenticidad no verificada'],
+  fr: ['Inconnu', 'Aucune alerte connue', 'Attestation vérifiée', 'Authenticité non vérifiée'],
+  it: ['Sconosciuto', 'Nessun avviso noto', 'Attestazione verificata', 'Autenticità non verificata'],
+  nl: ['Onbekend', 'Geen bekende meldingen', 'Attestatie geverifieerd', 'Echtheid niet geverifieerd'],
+  pl: ['Nieznany', 'Brak znanych ostrzeżeń', 'Atestacja zweryfikowana', 'Autentyczność niezweryfikowana'],
+  pt: ['Desconhecido', 'Sem alertas conhecidos', 'Atestação verificada', 'Autenticidade não verificada'],
+  ja: ['不明', '既知の警告なし', 'アテステーション検証済み', '真正性は未検証'],
+  ko: ['알 수 없음', '알려진 경고 없음', '증명 검증됨', '진위 미확인'],
+  zh: ['未知', '无已知警告', '证明已验证', '真实性未验证'],
+};
+for (const [lang, [unknown, ok, verified, unverified]] of Object.entries(SECURITY_LABELS)) {
+  Object.assign(STRINGS[lang], {
+    'status.UNKNOWN': unknown, 'status.OK': ok,
+    'tile.security.attPass': verified, 'chk.genuine': verified,
+    'tile.security.attPartial': unverified, 'sec.att.unverified': unverified,
+  });
+}
+Object.assign(STRINGS.en, {
+  'privacy.history': 'Save key history on this computer (opt in)',
+  'privacy.hint': 'Off by default. Existing files are kept when disabled. Website recording is separate; CSV exports require an explicit click. Stateless mode disables persistence and exports.',
+});
+Object.assign(STRINGS.de, {
+  'privacy.history': 'Schlüsselverlauf auf diesem Computer speichern (optional)',
+  'privacy.hint': 'Standardmäßig aus. Vorhandene Dateien bleiben beim Ausschalten erhalten. Websites werden separat aktiviert; CSV-Exporte erfolgen nur auf Klick. Der Stateless-Modus verhindert Speicherung und Exporte.',
+});
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

@@ -53,3 +53,8 @@ logs/
 
 # Signing keys (never commit)
 *.pem
+
+# Code-signing credentials
+*.p12
+*.pfx
+*.keychain-db

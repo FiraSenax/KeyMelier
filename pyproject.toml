@@ -1,0 +1,16 @@
+[project]
+name = "keymelier"
+version = "1.1.1"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fido2==2.2.1",
+  "pywebview==6.2.1",
+  "requests==2.34.2",
+  "yubikey-manager==5.9.2",
+  "cryptography==50.0.1",
+  "pyOpenSSL==26.4.0",
+  "keyring==25.7.0",
+]
+
+[dependency-groups]
+build = ["pyinstaller==6.20.0"]

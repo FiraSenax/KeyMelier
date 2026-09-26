@@ -1,148 +1,150 @@
 name: Build
-
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  build-macos:
-    name: Build macOS app
-    runs-on: macos-latest
+  test:
+    strategy:
+      matrix:
+        os: [macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build .app with PyInstaller
+          python-version: '3.12'
+      - run: python -m pip install --require-hashes -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python tools/advisories_sign.py verify
+      - run: node --check static/app.js
+      - run: node --check static/i18n.js
+      - run: node tests/ui_security.cjs
+  build-macos:
+    needs: test
+    runs-on: macos-14
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt
+      - name: Import Developer ID for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash tools/import-macos-signing.sh
+      - name: Build
         env:
           KEYMELIER_ICON: static/icon.icns
+          KEYMELIER_SIGN_IDENTITY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_SIGN_IDENTITY || '' }}
         run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* && -z "$KEYMELIER_SIGN_IDENTITY" ]]; then
+            echo 'Release requires Developer ID signing'; exit 1
+          fi
           pyinstaller --clean --noconfirm fido2tool.spec
-          codesign --force --deep --sign - dist/KeyMelier.app
           codesign --verify --deep --strict dist/KeyMelier.app
-
-      - name: Zip the .app
-        run: |
-          cd dist
-          zip -r KeyMelier-macOS.zip KeyMelier.app
-
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v7
+      - name: Notarize release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: bash tools/sign-macos.sh
+      - name: Remove temporary signing keychain
+        if: always() && startsWith(github.ref, 'refs/tags/v')
+        run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
+      - run: ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
           path: dist/KeyMelier-macOS.zip
-          retention-days: 30
-
+          retention-days: 14
   build-windows:
-    name: Build Windows exe
-    runs-on: windows-latest
+    needs: test
+    runs-on: windows-2022
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build .exe with PyInstaller
+          python-version: '3.12'
+      - run: python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt
+      - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico
         run: pyinstaller --clean --noconfirm fido2tool.spec
-
-      - name: Zip the exe folder
-        run: Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
+      - name: Azure login for release signing
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: Azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign release binaries
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist\KeyMelier
+          files-folder-filter: exe,dll,pyd
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Verify release signatures
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v7
+        run: |
+          Get-ChildItem dist\KeyMelier -Recurse -File | Where-Object { $_.Extension -in '.exe','.dll','.pyd' } | ForEach-Object {
+            if ((Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid') { throw "Invalid signature: $($_.Name)" }
+          }
+      - run: Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Windows
-          path: dist\KeyMelier-Windows.zip
-          retention-days: 30
-
+          path: dist/KeyMelier-Windows.zip
+          retention-days: 14
   release:
-    name: Publish release
     needs: [build-macos, build-windows]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: KeyMelier-macOS
-          path: artifacts
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: KeyMelier-Windows
-          path: artifacts
-
-      - name: Check that the tag matches the app version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check release version
         run: |
-          version=$(python3 -c "exec(open('fido2tool_core/version.py').read()); print(__version__)")
-          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match fido2tool_core/version.py ($version)"; exit 1
-          fi
-
-      # Tag vX.Y.Z: a real release. The app's update check only looks at these.
-      - name: Publish versioned release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+          version=$(python3 -c "from fido2tool_core.version import __version__; print(__version__)")
+          test "v$version" = "$GITHUB_REF_NAME"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: KeyMelier ${{ github.ref_name }}
-          make_latest: "true"
+          pattern: KeyMelier-*
+          merge-multiple: true
+          path: artifacts
+      - name: Attach source revision and dependency locks
+        run: |
+          cp uv.lock requirements.txt requirements-build.txt artifacts/
+          printf '%s\n' "$GITHUB_SHA" > artifacts/SOURCE_COMMIT.txt
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
           generate_release_notes: true
+          make_latest: 'true'
           body: |
-            **Downloads**
-            - `KeyMelier-macOS.zip` — macOS app (move KeyMelier.app to Applications)
-            - `KeyMelier-Windows.zip` — Windows app folder (run `KeyMelier.exe` as Administrator for FIDO access)
-
-            **First launch on macOS:** the app is not notarized, so macOS blocks it once. Open it, click *Done*, then go to *System Settings → Privacy & Security* and click *Open Anyway*. (Or: `xattr -dr com.apple.quarantine /Applications/KeyMelier.app`)
-
-            **First launch on Windows:** right-click `KeyMelier.exe` → *Run as administrator*. If SmartScreen appears, click *More info* → *Run anyway*.
-          files: artifacts/*
-
-      # Push to main: rolling pre-release for testing, never offered as an update.
-      # Remove the previous one first so tag and date follow the latest commit.
-      - name: Remove previous nightly
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release delete nightly --cleanup-tag --yes || true
-
-      - name: Publish nightly pre-release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: nightly
-          name: Nightly build
-          prerelease: true
-          make_latest: "false"
-          body: |
-            Automatically built from the latest commit on `main` (${{ github.sha }}). For testing – stable versions are the numbered releases.
+            macOS: Developer ID signed and notarized. Windows: Authenticode signed.
+            Verify the publisher before running. Checksums, dependency locks and the source commit are attached.
           files: artifacts/*

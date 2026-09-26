@@ -15,6 +15,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from fido2tool_core.storage import atomic_write, stateless
 
 logger = logging.getLogger(__name__)
 
@@ -71,15 +72,12 @@ def load_best(bundled_dir: Path) -> tuple[dict | None, str]:
     """Return (document, source) of the newest valid advisory file.
 
     Source is "downloaded" or "bundled". The bundled file ships inside the
-    app; it is used even without a valid signature (e.g. during development).
+    app; its signature is required just like a downloaded copy.
     """
-    best, source = None, "bundled"
-    bundled_path = Path(bundled_dir) / "advisories.json"
-    try:
-        best = _parse(bundled_path.read_bytes())
-    except OSError:
-        pass
-    cached = _read_signed(CACHE_FILE, CACHE_SIG)
+    source = "bundled"
+    best = _read_signed(Path(bundled_dir) / "advisories.json",
+                        Path(bundled_dir) / "advisories.json.sig")
+    cached = None if stateless() else _read_signed(CACHE_FILE, CACHE_SIG)
     if cached and (best is None or _updated(cached) > _updated(best)):
         best, source = cached, "downloaded"
     return best, source
@@ -104,9 +102,9 @@ def fetch(current: dict | None) -> dict | None:
         return None
     if current is not None and _updated(doc) <= _updated(current):
         return None
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_bytes(data)
-    CACHE_SIG.write_text(sig.strip(), encoding="ascii")
+    if not stateless():
+        atomic_write(CACHE_FILE, data)
+        atomic_write(CACHE_SIG, sig.strip())
     logger.info("Advisory database updated (%s, %d entries)", doc["updated"], len(doc["advisories"]))
     return doc
 

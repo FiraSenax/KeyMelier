@@ -10,6 +10,7 @@ import json
 import logging
 import threading
 from pathlib import Path
+from fido2tool_core.storage import atomic_write, stateless
 
 from fido2tool_core import auth
 from fido2tool_core import fingerprints as fingerprints_mod
@@ -67,7 +68,10 @@ class KeyService:
         self._app_update = None
         self._exporter = exporter
         self._mds3 = mds3_client
-        self.history = history or History()
+        self._session_settings = {}
+        self.history = history or History(enabled=self._stored_settings().get("history_enabled") is True)
+        if self._stored_settings().get("remember_sites") is not True:
+            self.history.clear_sites()
         self.emit = lambda name, payload: None
         self._attestation_logged: set[str] = set()
 
@@ -87,16 +91,14 @@ class KeyService:
         return d
 
     def _log(self, record, kind, **detail):
+        if self._stored_settings().get("remember_sites") is not True:
+            detail = {k: v for k, v in detail.items() if k not in {"site", "user", "rp_id"}}
         summary = self.history.add_event(record, kind, **detail)
         self.emit("history_updated", summary)
 
     # ── Scanner callbacks ────────────────────────────────────────────────────
 
     def _on_connect(self, record):
-        try:
-            self._exporter.export(record)
-        except Exception as e:
-            logger.error("Export failed: %s", e)
         logger.info("Token connected: %s", record.product_name)
         self.history.update_snapshot(record)
         self._log(record, "connected")
@@ -111,20 +113,16 @@ class KeyService:
         self.emit("token_disconnected", {"id": record.id, "product_name": record.product_name})
 
     def _on_update(self, record):
-        try:
-            self._exporter.export(record)
-        except Exception as e:
-            logger.error("Re-export failed: %s", e)
         self.history.update_snapshot(record)
         att = record.attestation
         if att is None:
             self._attestation_logged.discard(record.id)
         elif att.get("ran") and record.id not in self._attestation_logged:
             self._attestation_logged.add(record.id)
-            if att.get("inconclusive"):
-                self._log(record, "attestation_skipped", reason=att["inconclusive"])
+            if att.get("status") != "FAILED" and not att.get("passed"):
+                self._log(record, "attestation_skipped", reason=att.get("inconclusive") or "unverified")
             else:
-                self._log(record, "attestation", passed=bool(att.get("passed")))
+                self._log(record, "attestation", passed=bool(att.get("passed")), status=att.get("status", "UNVERIFIED"))
         self.emit("token_updated", self._record_dict(record))
 
     # ── Queries ──────────────────────────────────────────────────────────────
@@ -153,8 +151,8 @@ class KeyService:
         self._app_update = app_update.check()
         if self._app_update.get("newer"):
             self.emit("app_update", self._app_update)
-        if changed:
-            self._scanner.reevaluate_all()
+        # Expiry can change the assessment even when no new blob arrives.
+        self._scanner.reevaluate_all()
         status = self.data_status()
         self.emit("data_status", status)
         return status
@@ -194,6 +192,8 @@ class KeyService:
     # ── Settings ─────────────────────────────────────────────────────────────
 
     def _stored_settings(self) -> dict:
+        if stateless():
+            return self._session_settings
         try:
             return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
         except Exception:
@@ -201,7 +201,7 @@ class KeyService:
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
-        return {**self._stored_settings(), "system_languages": system_languages()}
+        return {"history_enabled": False, "remember_sites": False, **self._stored_settings(), "stateless": stateless(), "system_languages": system_languages()}
 
     def set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()
@@ -211,16 +211,25 @@ class KeyService:
                     settings["lang"] = str(value)[:10]
                 else:
                     settings.pop("lang", None)
+            elif key == "history_enabled":
+                if not isinstance(value, bool):
+                    raise PinError("Expected a boolean", "invalid_input")
+                settings[key] = value and not stateless()
+                self.history.set_enabled(settings[key])
+                if settings.get("remember_sites") is not True:
+                    self.history.clear_sites()
             elif key == "remember_sites":
-                settings["remember_sites"] = bool(value)
+                settings["remember_sites"] = value is True and not stateless()
                 if not value:
                     self.history.clear_sites()
         try:
-            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            SETTINGS_FILE.write_text(json.dumps(settings), encoding="utf-8")
+            if stateless():
+                self._session_settings = settings
+            else:
+                atomic_write(SETTINGS_FILE, json.dumps(settings))
         except Exception as e:
             logger.error("Could not save settings: %s", e)
-        return {**settings, "system_languages": system_languages()}
+        return self.get_settings()
 
     # ── PIN ──────────────────────────────────────────────────────────────────
 
@@ -270,7 +279,7 @@ class KeyService:
 
     def _remember_sites(self, token_id, rps):
         """Store the website names for the backup check (unless disabled)."""
-        if self._stored_settings().get("remember_sites") is False:
+        if self._stored_settings().get("remember_sites") is not True:
             return
         try:
             record = self._scanner.get(token_id)
@@ -472,6 +481,8 @@ class KeyService:
     # ── Export ───────────────────────────────────────────────────────────────
 
     def export_all(self) -> dict:
+        if stateless():
+            raise PinError("Exports are disabled in stateless mode.", "disabled")
         results = []
         for record in self._scanner.get_all():
             try:

@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
+from fido2tool_core.storage import atomic_write, stateless
 
 import requests
 
@@ -41,6 +42,8 @@ class MDS3Client:
         self._fetched_at: Optional[datetime] = None
         self._serial: Optional[int] = None
         self._loaded = False
+        self._next_update = None
+        self._verified_until = None
 
     def _read_cache(self) -> dict | None:
         """Return the cached, signature-verified blob, or None.
@@ -50,6 +53,8 @@ class MDS3Client:
         """
         from fido2tool_core.mds_verify import MdsVerificationError, verify_jwt
 
+        if stateless():
+            return None
         try:
             data = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
             payload = verify_jwt(data["jwt"])
@@ -62,7 +67,8 @@ class MDS3Client:
 
     def _is_cache_fresh(self) -> bool:
         cache = self._read_cache()
-        return bool(cache and datetime.now(timezone.utc) - cache["fetched_at"] < timedelta(hours=CACHE_MAX_AGE_HOURS))
+        return bool(cache and timedelta(0) <= datetime.now(timezone.utc) - cache["fetched_at"] < timedelta(hours=CACHE_MAX_AGE_HOURS)
+                    and self._payload_current(cache["payload"]))
 
     def _fetch_from_network(self) -> list[dict]:
         from fido2tool_core.mds_verify import verify_jwt
@@ -74,6 +80,12 @@ class MDS3Client:
         cached = self._read_cache()
         if cached and payload.get("no", 0) < cached["payload"].get("no", 0):
             raise ValueError(f"MDS3 blob #{payload.get('no')} is older than cached #{cached['payload'].get('no')}")
+        if not self._payload_current(payload):
+            raise ValueError("MDS3 metadata has expired")
+        if self._serial is not None and payload["no"] < self._serial:
+            raise ValueError("MDS3 metadata rollback")
+        self._next_update = payload["nextUpdate"]
+        self._verified_until = payload["_verified_until"]
         self._serial = payload.get("no")
         self._save_cache(resp.text)
         entries = payload.get("entries", [])
@@ -81,9 +93,10 @@ class MDS3Client:
         return entries
 
     def _save_cache(self, jwt: str):
-        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if stateless():
+            return
         cache = {"fetched_at": datetime.now(timezone.utc).isoformat(), "jwt": jwt}
-        CACHE_PATH.write_text(json.dumps(cache), encoding="utf-8")
+        atomic_write(CACHE_PATH, json.dumps(cache))
 
     def _load_cache(self) -> list[dict]:
         cache = self._read_cache()
@@ -91,6 +104,8 @@ class MDS3Client:
             raise ValueError("no valid MDS3 cache")
         self._fetched_at = cache["fetched_at"]
         self._serial = cache["payload"].get("no")
+        self._next_update = cache["payload"].get("nextUpdate")
+        self._verified_until = cache["payload"].get("_verified_until")
         return cache["payload"].get("entries", [])
 
     def _index(self, entries: list[dict]):
@@ -142,6 +157,19 @@ class MDS3Client:
         self._index(entries)
         return True
 
+    @staticmethod
+    def _payload_current(payload):
+        try:
+            deadline = datetime.strptime(payload["nextUpdate"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc) < deadline
+        except (KeyError, ValueError, TypeError):
+            return False
+
+    def is_current(self):
+        return (bool(self._entries) and self._payload_current({"nextUpdate": self._next_update})
+                and self._verified_until is not None
+                and datetime.now(timezone.utc) < datetime.fromisoformat(self._verified_until))
+
     def lookup(self, aaguid: str) -> Optional[dict]:
         return self._by_aaguid.get(aaguid.lower().strip())
 
@@ -159,6 +187,7 @@ class MDS3Client:
         statuses = [r.get("status", "") for r in reports]
         best = None
         best_priority = -1
+        unknown = False
         for s in statuses:
             try:
                 p = STATUS_PRIORITY.index(s)
@@ -166,8 +195,8 @@ class MDS3Client:
                     best_priority = p
                     best = s
             except ValueError:
-                pass
-        return best
+                unknown = True
+        return "UNKNOWN" if unknown and best_priority < STATUS_PRIORITY.index("UPDATE_AVAILABLE") else best
 
     def get_cache_info(self) -> dict:
         return {
@@ -175,5 +204,8 @@ class MDS3Client:
             "fetched_at": self._fetched_at.isoformat() if self._fetched_at else None,
             "entry_count": len(self._entries),
             "serial": self._serial,
+            "current": self.is_current(),
+            "next_update": self._next_update,
+            "revocation_checked": bool(self._entries),
             "verified": bool(self._entries),  # only verified blobs are ever loaded
         }

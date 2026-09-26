@@ -49,7 +49,7 @@ class AdvisoryChecker:
         fw = _parse_firmware(firmware_str)
         if fw is None:
             # Unknown firmware — conservatively flag as affected if advisory has no lower bound
-            return adv.get("firmware_min_inclusive") is None
+            return True
 
         max_excl = _parse_firmware(adv.get("firmware_max_exclusive"))
         min_incl = _parse_firmware(adv.get("firmware_min_inclusive"))

@@ -313,6 +313,14 @@ class TokenScanner:
             logger.error("on_update callback error (post-attestation): %s", e)
 
     def _enrich_record(self, record: TokenRecord):
+        record.mds_status = None
+        record.mds_description = None
+        record.mds_authenticator_version = None
+        record.mds_icon = None
+        record.cve_ids = []
+        record.advisories = []
+        advisory_ok = False
+        advisory_level = None
         try:
             if self._mds3:
                 entry = self._mds3.lookup(record.aaguid)
@@ -341,12 +349,11 @@ class TokenScanner:
                     {k: a.get(k) for k in ("id", "title", "severity", "cvss", "note", "references")}
                     for a in advisories
                 ]
+                advisory_ok = self._advisory.document is not None
                 if any(a.get("severity") == "CRITICAL" for a in advisories):
-                    record.security_status = "CRITICAL"
-                    return
-                if any(a.get("severity") in ("HIGH", "MEDIUM") for a in advisories):
-                    record.security_status = "WARNING"
-                    return
+                    advisory_level = "CRITICAL"
+                elif advisories:
+                    advisory_level = "WARNING"
         except Exception as e:
             logger.warning("Advisory check failed: %s", e)
 
@@ -357,12 +364,18 @@ class TokenScanner:
         }
         warn_statuses = {"UPDATE_AVAILABLE", "USER_VERIFICATION_BYPASS"}
 
-        if record.mds_status in revoked_statuses:
+        if record.mds_status in revoked_statuses or advisory_level == "CRITICAL":
             record.security_status = "CRITICAL"
-        elif record.mds_status in warn_statuses:
+        elif record.mds_status in warn_statuses or advisory_level == "WARNING":
             record.security_status = "WARNING"
-        else:
+        elif (advisory_ok and self._mds3 and self._mds3.is_current()
+              and record.mds_status in {
+                  "FIDO_CERTIFIED", "FIDO_CERTIFIED_L1", "FIDO_CERTIFIED_L1plus",
+                  "FIDO_CERTIFIED_L2", "FIDO_CERTIFIED_L2plus",
+                  "FIDO_CERTIFIED_L3", "FIDO_CERTIFIED_L3plus"}):
             record.security_status = "OK"
+        else:
+            record.security_status = "UNKNOWN"
 
     def run_forever(self):
         self._running = True

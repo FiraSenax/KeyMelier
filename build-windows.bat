@@ -13,12 +13,14 @@ if not exist "build-venv\Scripts\python.exe" (
 )
 
 echo Installing dependencies...
-build-venv\Scripts\pip install -q --upgrade pip
-build-venv\Scripts\pip install -q -r requirements.txt
-build-venv\Scripts\pip install -q pyinstaller
+build-venv\Scripts\pip install --require-hashes -q -r requirements.txt
+if errorlevel 1 exit /b 1
+build-venv\Scripts\pip install --require-hashes -q -r requirements-build.txt
+if errorlevel 1 exit /b 1
 
 echo Running PyInstaller...
 build-venv\Scripts\pyinstaller --clean --noconfirm fido2tool.spec
+if errorlevel 1 exit /b 1
 
 echo.
 echo Build complete: dist\KeyMelier\KeyMelier.exe

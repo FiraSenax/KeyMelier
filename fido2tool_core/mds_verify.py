@@ -4,7 +4,7 @@ Checks, per the FIDO MDS3 specification:
   - the x5c certificate chain leads to the FIDO MDS root (GlobalSign Root CA - R3)
   - every certificate is currently valid and the leaf is issued for mds.fidoalliance.org
   - the JWT signature verifies with the leaf key
-Revocation (CRL) is not checked.
+Revocation is checked using current, issuer-signed GlobalSign CRLs; failure is closed.
 """
 
 import base64
@@ -68,16 +68,15 @@ def verify_jwt(token: str) -> dict:
     if chain[-1].fingerprint(hashes.SHA256()) == root.fingerprint(hashes.SHA256()):
         chain = chain[:-1]
 
-    now = datetime.now(timezone.utc)
+    if not chain:
+        raise MdsVerificationError("missing signer leaf")
     try:
-        for cert, issuer in zip(chain, chain[1:] + [root]):
-            if not (cert.not_valid_before_utc <= now <= cert.not_valid_after_utc):
-                raise MdsVerificationError(f"certificate expired or not yet valid: {cert.subject.rfc4514_string()}")
-            cert.verify_directly_issued_by(issuer)
-    except MdsVerificationError:
-        raise
+        from fido2tool_core.certificates import validate_path
+        from fido2tool_core.revocation import check_chain_revocation
+        verified_chain = validate_path(chain[0], chain[1:], root)
+        valid_until = check_chain_revocation(verified_chain)
     except Exception as e:
-        raise MdsVerificationError(f"certificate chain invalid: {e}") from None
+        raise MdsVerificationError(f"certificate path/revocation invalid: {e}") from None
 
     cns = [a.value for a in chain[0].subject.get_attributes_for_oid(NameOID.COMMON_NAME)]
     if EXPECTED_LEAF_CN not in cns:
@@ -90,7 +89,8 @@ def verify_jwt(token: str) -> dict:
     try:
         if alg == "RS256" and isinstance(key, rsa.RSAPublicKey):
             key.verify(signature, signed, padding.PKCS1v15(), hashes.SHA256())
-        elif alg == "ES256" and isinstance(key, ec.EllipticCurvePublicKey):
+        elif (alg == "ES256" and isinstance(key, ec.EllipticCurvePublicKey)
+              and isinstance(key.curve, ec.SECP256R1) and len(signature) == 64):
             from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
             r, s = int.from_bytes(signature[:32], "big"), int.from_bytes(signature[32:], "big")
             key.verify(encode_dss_signature(r, s), signed, ec.ECDSA(hashes.SHA256()))
@@ -101,4 +101,13 @@ def verify_jwt(token: str) -> dict:
     except Exception:
         raise MdsVerificationError("signature invalid") from None
 
-    return json.loads(_b64url(payload_b64))
+    payload = json.loads(_b64url(payload_b64))
+    if (not isinstance(payload, dict) or type(payload.get("no")) is not int
+            or payload["no"] < 0 or not isinstance(payload.get("entries"), list)):
+        raise MdsVerificationError("malformed metadata payload")
+    try:
+        datetime.strptime(payload["nextUpdate"], "%Y-%m-%d")
+    except (KeyError, ValueError, TypeError):
+        raise MdsVerificationError("invalid metadata nextUpdate") from None
+    payload["_verified_until"] = valid_until.isoformat()
+    return payload
