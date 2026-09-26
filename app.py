@@ -54,7 +54,7 @@ ALLOWED = {
     "passkeys", "passkey_delete",
     "fingerprints", "fingerprint_rename", "fingerprint_delete",
     "fingerprint_enroll", "fingerprint_enroll_cancel",
-    "reset_arm", "reset_disarm",
+    "reset_arm", "reset_disarm", "config", "config_update",
     "export_all",
 }
 

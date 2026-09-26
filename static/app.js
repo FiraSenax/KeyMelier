@@ -428,6 +428,7 @@ function switchTab(tab) {
   if (tab === 'pin' && token) loadPinStatus(token);
   if (tab === 'passkeys' && token) loadPasskeys(token);
   if (tab === 'fingerprints' && token) loadFingerprints(token);
+  if (tab === 'settings' && token) loadConfig(token);
 }
 
 // ── Data freshness ──────────────────────────────────────────────────────────
@@ -484,11 +485,14 @@ const EVENT_ICONS = {
   connected: 'plug', disconnected: 'plug', attestation: 'shield', attestation_skipped: 'shield', pin_set: 'lock', pin_changed: 'lock',
   passkey_deleted: 'passkey', fingerprint_enrolled: 'fingerprint', fingerprint_renamed: 'fingerprint',
   fingerprint_removed: 'fingerprint', reset: 'trash',
+  config_min_pin: 'lock', config_always_uv: 'lock', config_force_pin: 'lock',
 };
 
 function eventText(ev) {
   if (ev.type === 'attestation') return t(ev.passed ? 'ev.attestation.pass' : 'ev.attestation.fail');
   if (ev.type === 'attestation_skipped') return t('ev.attestation.skipped');
+  if (ev.type === 'config_min_pin') return t('ev.config_min_pin', { n: ev.value });
+  if (ev.type === 'config_always_uv') return t(ev.value ? 'ev.config_always_uv.on' : 'ev.config_always_uv.off');
   const key = `ev.${ev.type}`;
   const base = STRINGS[LANG][key] ? t(key) : ev.type;
   if (ev.type === 'passkey_deleted' && (ev.site || ev.user)) return `${base}: ${[ev.site, ev.user].filter(Boolean).join(' · ')}`;
@@ -677,11 +681,13 @@ function focusUnlockPin(pane) {
 function renderManagement() {
   if (activeTab === 'passkeys') renderPasskeys();
   if (activeTab === 'fingerprints') renderFingerprints();
+  if (activeTab === 'settings') renderConfig();
 }
 
 function loadManagement(token) {
   if (activeTab === 'passkeys') return loadPasskeys(token);
   if (activeTab === 'fingerprints') return loadFingerprints(token);
+  if (activeTab === 'settings') return loadConfig(token);
 }
 
 async function unlockKey(method) {
@@ -1035,7 +1041,93 @@ function initManagementPane(paneId, onAction) {
     if (f.classList.contains('unlock-form')) unlockKey('pin');
     else if (f.classList.contains('fp-enroll-form')) startEnrollment(f.querySelector('.fp-name').value.trim());
     else if (f.classList.contains('fp-rename-form')) renameFingerprint(f.dataset.id, f.querySelector('.fp-rename-input').value);
+    else if (f.classList.contains('cfg-minpin-form')) updateConfig({ min_pin_length: Number(f.querySelector('.cfg-minpin').value) }, 'cfg.saved');
   });
+}
+
+// ── Settings tab / key configuration ────────────────────────────────────────
+
+let cfgState = null;
+let cfgBusy = false;
+
+function renderConfig() {
+  const el = $('cfg-content');
+  if (!el) return;
+  const st = cfgState;
+  if (st && !st.supported) {
+    el.innerHTML = `<div class="callout"><div class="callout-text">${escHtml(t('cfg.unsupported'))}</div></div>`;
+    return;
+  }
+  const gate = managementGateHtml(st, 'cfg.unsupported');
+  if (gate !== null) { el.innerHTML = gate; focusUnlockPin('settings'); return; }
+
+  const parts = [toolbarHtml(t('cfg.title'))];
+  if (st.can_set_min_pin) {
+    parts.push(`<form class="card form-card cfg-minpin-form" autocomplete="off">
+      <h2>${escHtml(t('cfg.minPin.title'))}</h2>
+      <p class="card-text">${escHtml(t('cfg.minPin.text', { n: st.min_pin_length }))}</p>
+      <div class="inline-form">
+        <input type="number" class="cfg-minpin" min="${st.min_pin_length + 1}" max="63" value="${Math.max(st.min_pin_length + 1, 6)}">
+        <button type="submit" class="btn btn-primary" ${cfgBusy ? 'disabled' : ''}>${escHtml(t('cfg.minPin.do'))}</button>
+      </div>
+      <p class="field-hint">${escHtml(t('cfg.minPin.warn'))}</p>
+    </form>`);
+  }
+  if (st.always_uv !== null && st.always_uv !== undefined) {
+    parts.push(`<section class="card">
+      <h2>${escHtml(t('cfg.alwaysUv.title'))}</h2>
+      <p class="card-text">${escHtml(t('cfg.alwaysUv.text'))}</p>
+      <label class="switch-row">
+        <input type="checkbox" class="cfg-alwaysuv" ${st.always_uv ? 'checked' : ''} ${cfgBusy ? 'disabled' : ''}>
+        <span>${escHtml(st.always_uv ? t('cfg.alwaysUv.on') : t('cfg.alwaysUv.off'))}</span>
+      </label>
+    </section>`);
+  }
+  if (st.can_set_min_pin) {
+    parts.push(`<section class="card">
+      <h2>${escHtml(t('cfg.force.title'))}</h2>
+      <p class="card-text">${escHtml(st.force_pin_change ? t('cfg.force.active') : t('cfg.force.text'))}</p>
+      ${st.force_pin_change ? '' : `<div class="form-actions"><button type="button" class="btn btn-secondary" data-act="force-pin" ${cfgBusy ? 'disabled' : ''}>${escHtml(t('cfg.force.do'))}</button></div>`}
+    </section>`);
+  }
+  el.innerHTML = parts.join('');
+}
+
+async function loadConfig(token) {
+  cfgState = null;
+  unlockError = null;
+  renderConfig();
+  try {
+    const st = await call('config', { token_id: token.id });
+    if (selectedId !== token.id) return;
+    cfgState = st;
+  } catch (e) {
+    if (selectedId !== token.id) return;
+    cfgState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
+  }
+  renderConfig();
+}
+
+async function updateConfig(changes, doneKey) {
+  const token = tokens.get(selectedId);
+  if (!token) return;
+  cfgBusy = true;
+  renderConfig();
+  try {
+    cfgState = await call('config_update', { token_id: token.id, ...changes });
+    showToast(t(doneKey), 'success');
+  } catch (e) {
+    cfgBusy = false;
+    handleActionError(e, cfgState);
+    return;
+  }
+  cfgBusy = false;
+  renderConfig();
+}
+
+function configAction(act) {
+  if (act === 'reload') return loadConfig(tokens.get(selectedId));
+  if (act === 'force-pin') return updateConfig({ force_pin_change: true }, 'cfg.saved');
 }
 
 // ── Settings tab / factory reset ────────────────────────────────────────────
@@ -1452,6 +1544,10 @@ function init() {
   $('rs-ov-primary').addEventListener('click', () => closeReset(true));
   initManagementPane('pk-content', passkeyAction);
   initManagementPane('fp-content', fingerprintAction);
+  initManagementPane('cfg-content', configAction);
+  $('cfg-content').addEventListener('change', ev => {
+    if (ev.target.classList.contains('cfg-alwaysuv')) updateConfig({ always_uv: ev.target.checked }, 'cfg.saved');
+  });
   $('pin-show').addEventListener('change', ev => setPinVisible(ev.target.checked));
   $('export-btn').addEventListener('click', exportTokens);
   $('data-check').addEventListener('click', checkDataNow);

@@ -69,6 +69,7 @@ def uv_unlock_available(info) -> bool:
 
 def _permissions(info):
     from fido2.ctap2.bio import BioEnrollment
+    from fido2.ctap2.config import Config
     from fido2.ctap2.credman import CredentialManagement
     from fido2.ctap2.pin import ClientPin
 
@@ -77,6 +78,8 @@ def _permissions(info):
         perm |= ClientPin.PERMISSION.CREDENTIAL_MGMT
     if BioEnrollment.is_supported(info):
         perm |= ClientPin.PERMISSION.BIO_ENROLL
+    if Config.is_supported(info):
+        perm |= ClientPin.PERMISSION.AUTHENTICATOR_CFG
     return perm
 
 

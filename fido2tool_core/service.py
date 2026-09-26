@@ -13,6 +13,7 @@ from pathlib import Path
 
 from fido2tool_core import auth
 from fido2tool_core import fingerprints as fingerprints_mod
+from fido2tool_core import key_config
 from fido2tool_core import passkeys as passkeys_mod
 from fido2tool_core import pin as pin_mod
 from fido2tool_core import reset as reset_mod
@@ -338,6 +339,33 @@ class KeyService:
 
     def fingerprint_enroll_cancel(self, token_id: str) -> dict:
         return {"cancelled": fingerprints_mod.cancel_enrollment(token_id)}
+
+    # ── Key settings (authenticatorConfig) ───────────────────────────────────
+
+    def _config(self, token_id, ctap2) -> dict:
+        caps = key_config.capabilities(ctap2)
+        return {**caps, "unlocked": auth.is_unlocked(token_id)}
+
+    def config(self, token_id: str) -> dict:
+        with self._scanner.session(token_id, refresh=False) as (_record, ctap2):
+            return self._config(token_id, ctap2)
+
+    def config_update(self, token_id: str, min_pin_length: int | None = None,
+                      always_uv: bool | None = None, force_pin_change: bool = False) -> dict:
+        with self._scanner.session(token_id) as (record, ctap2):
+            if min_pin_length is not None:
+                key_config.set_min_pin_length(token_id, ctap2, min_pin_length)
+                self._log(record, "config_min_pin", value=int(min_pin_length))
+            if always_uv is not None:
+                before = key_config.capabilities(ctap2)["always_uv"]
+                key_config.set_always_uv(token_id, ctap2, always_uv)
+                if bool(before) != bool(always_uv):
+                    self._log(record, "config_always_uv", value=bool(always_uv))
+            if force_pin_change:
+                key_config.force_pin_change(token_id, ctap2)
+                self._log(record, "config_force_pin")
+            ctap2._info = ctap2.get_info()  # re-read the changed options
+            return self._config(token_id, ctap2)
 
     # ── Factory reset ────────────────────────────────────────────────────────
 
