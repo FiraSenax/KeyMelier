@@ -180,7 +180,8 @@ CI actions are pinned to commit IDs. The build uses committed icons. Dependency
 locking improves traceability; it does not promise bit-for-bit identical binaries
 across different operating systems, SDKs or signing timestamps.
 
-See [RELEASING.md](RELEASING.md) for the signing setup. Version tags publish only
+How the app is tested (automatically and with real keys): [TESTING.md](TESTING.md) and
+[HARDWARE_TESTS.md](HARDWARE_TESTS.md). See [RELEASING.md](RELEASING.md) for the signing setup. Version tags publish only
 after tests, signing and platform signature verification succeed. Pushes to main
 produce CI test artifacts, not public unsigned nightly releases. Releases include
 checksums, the source commit and dependency lockfiles.

@@ -53,7 +53,8 @@ immediate SmartScreen reputation.
 
 ## Release
 
-1. Review changes and run the tests. Test with physical supported keys on both OSes.
+1. Review changes; the automatic checks (see [TESTING.md](TESTING.md)) must pass in CI. Test with
+   physical supported keys on both OSes and record the results in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 2. Bump `fido2tool_core/version.py` and `pyproject.toml` consistently; refresh the lock.
 3. Commit and push the reviewed version tag (`vX.Y.Z`).
 4. Verify successful signing/notarization and the attached source/dependency evidence.
