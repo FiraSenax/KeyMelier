@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1 — 2026-09-27
+
+Bug fixes only.
+
+- **Sync: no data loss when two computers share a sync id.** A computer that took over another's sync id (e.g. settings copied to a new computer) skipped the existing file and overwrote it on its first write; a third computer then lost the first computer's data if that one stayed offline. Now every computer first reads and merges a file under its own id before writing. Who wrote it is recognised by an anonymous machine hash inside the encrypted file: another computer means a real collision and this one moves to a new, stored sync id; a normal restart keeps its id. An own file that cannot be read (incomplete, damaged, other passphrase) is never overwritten – the computer moves to a new id, keeps the file and shows a notice.
+- Account overview: service logos and letters are centred in their tile.
+- Website: the download buttons link the macOS disk image and the Windows installer instead of the ZIPs.
+
 ## 1.6.0 — 2026-09-27
 
 - **About KeyMelier inside the app** (bottom of the sidebar) – also on Windows, which has no app menu: version, what KeyMelier does, privacy, links, open-source licenses and "check for updates".
