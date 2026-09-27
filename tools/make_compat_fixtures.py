@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "tests" / "fixtures" / "compat"
-TAGS = sys.argv[1:] or ["v1.5.0", "v1.6.1", "v1.7.0"]
+TAGS = sys.argv[1:] or ["v1.4.0", "v1.5.0", "v1.6.0", "v1.6.1", "v1.7.0"]
 
 WRITER = r'''
 import json, sys
@@ -53,11 +53,17 @@ a = h.set_sites(A, [
     {"rp_id": "login.microsoft.com", "name": "Microsoft", "count": 2,
      "users": [{"name": "a@contoso.example", "display": ""}, {"name": "b@contoso.example", "display": ""}]},
 ])["key_id"]
-b = h.merge_probe(B, [
-    {"rp_id": "github.com", "status": "found", "count": 1, "users": [{"name": "erika", "display": ""}]},
-    {"rp_id": "example.com", "status": "none"},
-    {"rp_id": "gitlab.com", "status": "error"},
-], True, 3)["key_id"]
+features = {"probe": hasattr(h, "merge_probe"), "replace": hasattr(h, "set_replace"),
+            "sync": hasattr(service, "_write_settings")}
+if features["probe"]:                               # 1.5+: keys without a passkey list are searched
+    b = h.merge_probe(B, [
+        {"rp_id": "github.com", "status": "found", "count": 1, "users": [{"name": "erika", "display": ""}]},
+        {"rp_id": "example.com", "status": "none"},
+        {"rp_id": "gitlab.com", "status": "error"},
+    ], True, 3)["key_id"]
+else:
+    b = h.set_sites(B, [{"rp_id": "github.com", "name": "GitHub", "count": 1,
+                         "users": [{"name": "erika", "display": ""}]}])["key_id"]
 c = h.set_sites(C, [{"rp_id": "aws.amazon.com", "name": "AWS", "count": 1, "users": [{"name": "", "display": "Administrator"}]}])["key_id"]
 d = h.update_snapshot(D)["key_id"]
 h.set_inventory(A, "oath", [{"issuer": "AWS", "name": "root@example.com"}, {"issuer": "GitHub", "name": "erika"}])
@@ -69,14 +75,15 @@ h.rename(b, "Backup key")
 h.rename(c, "Old office key")
 h.set_lost(c, True)
 h.set_lost_done(c, "aws.amazon.com", True)
-h.set_replace(a, b)
-h.set_replace_done(a, "pk:github.com|erika", True)
+if features["replace"]:                             # 1.5+: guided key replacement
+    h.set_replace(a, b)
+    h.set_replace_done(a, "pk:github.com|erika", True)
 service.set_settings({"lang": "de", "personal_mode": True})
-if hasattr(service, "_write_settings"):             # 1.6+: sync configuration
+if features["sync"]:                                # 1.6+: sync configuration
     s = service._stored_settings()
     s.update(sync_folder="/Users/fixture/CloudSync/KeyMelier", sync_device="0123456789abcdef")
     service._write_settings(s)
-print(json.dumps({"A": a, "B": b, "C": c, "D": d}))
+print(json.dumps({"keys": {"A": a, "B": b, "C": c, "D": d}, "features": features}))
 '''
 
 
@@ -102,7 +109,7 @@ def main() -> int:
         target.mkdir(parents=True)
         for name in ("history.json", "settings.json"):
             shutil.copy(home / "keymelier" / name, target / name)
-        (target / "keys.json").write_text(json.dumps({"tag": tag, "keys": json.loads(ids)}, indent=1) + "\n")
+        (target / "keys.json").write_text(json.dumps({"tag": tag, **json.loads(ids)}, indent=1) + "\n")
         shutil.rmtree(work, ignore_errors=True)
         print(f"{tag}: {target.relative_to(ROOT)}")
     return 0

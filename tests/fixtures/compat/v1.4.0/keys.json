@@ -1,5 +1,5 @@
 {
- "tag": "v1.6.1",
+ "tag": "v1.4.0",
  "keys": {
   "A": "f39fddf49252f89d",
   "B": "9b1d764dbb8bdfcc",
@@ -7,8 +7,8 @@
   "D": "e5b964c5866d5193"
  },
  "features": {
-  "probe": true,
-  "replace": true,
-  "sync": true
+  "probe": false,
+  "replace": false,
+  "sync": false
  }
 }

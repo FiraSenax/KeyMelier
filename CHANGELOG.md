@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.1 — 2026-09-27
 
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.
 - **Unreadable data files are never overwritten:** a damaged `history.json` or `settings.json` (e.g. after an interrupted save) is kept as `*.unreadable-<time>`; KeyMelier starts with defaults and says so.

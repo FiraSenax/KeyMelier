@@ -190,7 +190,14 @@ async function main() {
     await press('Escape');
     await until('$("quick-unlock").classList.contains("hidden")', 'closed');
     assert(await active() === 'unlock:demo-yk5', `focus returned to the lock: ${await active()}`);
-    assert(!(await js('window.__demoCalls.includes("unlock")')), 'no PIN sent after a cancel');
+    const DEVICE = '["unlock","read_contents","passkeys","passkeys_probe","oath","openpgp","piv","otp","pin_status"]';
+    assert(await js(`!window.__demoCalls.some(c => ${DEVICE}.includes(c))`), `no device call after a cancel: ${await js('window.__demoCalls')}`);
+    await press('Enter');                                  // open again, this time cancel with the button
+    await until('!!document.querySelector("#quick-unlock [data-ql=cancel]")', 'dialog with cancel button');
+    await click('#quick-unlock [data-ql=cancel]');
+    await until('$("quick-unlock").classList.contains("hidden")', 'closed by the button');
+    assert(await js(`!window.__demoCalls.some(c => ${DEVICE}.includes(c))`), 'no device call after the cancel button');
+    await focus('[data-unlock="demo-yk5"]');
     await press('Enter');                                  // try again
     await until('!!document.querySelector("#quick-unlock .ql-pin")', 'dialog again');
     await focus('#quick-unlock .ql-pin');
@@ -214,6 +221,17 @@ async function main() {
     assert(toast.length === 1 && toast[0].includes('error') && /removed|abgezogen/.test(toast[0]), `message: ${toast}`);
     assert(await js('!$("read-btn").disabled'), 'button usable again');
     await js('window.pywebview.api.call = window.__realCall');
+  });
+  await test('passkey search on a FIDO 2.0 key: cancelling the PIN/search dialog calls nothing on the key', async () => {
+    // simulate a FIDO 2.0 key (no credential management) with the second demo key
+    await js(`(() => { const t = tokens.get("demo-t2"); t.options = { rk: true, up: true, clientPin: true };
+      window.__demoCalls.length = 0; selectToken("demo-t2"); switchTab("overview"); })()`);
+    assert(await js('!canManage(tokens.get("demo-t2"))'), 'simulated key without credential management');
+    await click('#read-btn');
+    await until('!$("quick-unlock").classList.contains("hidden")', 'search dialog');
+    await press('Escape');
+    await until('$("quick-unlock").classList.contains("hidden")', 'closed');
+    assert(await js('!window.__demoCalls.includes("passkeys_probe")'), `no search started: ${await js('window.__demoCalls')}`);
   });
   await test('About dialog: Enter opens, Tab stays inside, Escape returns focus', async () => {
     await focus('#about-open');

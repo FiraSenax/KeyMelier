@@ -78,11 +78,15 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
-      - name: Install (hash-pinned; the report records which files were installed, for the SBOM)
+      # --force-reinstall: packages that come with the runner's Python are
+      # replaced by the files from the lock (uninstall first – no stale second
+      # copy), so every shipped file is hash-checked and recorded in the
+      # report (for the SBOM)
+      - name: Install (hash-pinned, every package from the lock)
         shell: bash
         run: |
           mkdir -p build
-          python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+          python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
       - name: Import Developer ID
         if: env.SIGN_MAC == 'true'
         env:
@@ -175,11 +179,15 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
-      - name: Install (hash-pinned; the report records which files were installed, for the SBOM)
+      # --force-reinstall: packages that come with the runner's Python are
+      # replaced by the files from the lock (uninstall first – no stale second
+      # copy), so every shipped file is hash-checked and recorded in the
+      # report (for the SBOM)
+      - name: Install (hash-pinned, every package from the lock)
         shell: bash
         run: |
           mkdir -p build
-          python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+          python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico

@@ -5,5 +5,10 @@
   "B": "9b1d764dbb8bdfcc",
   "C": "925172ec8291477d",
   "D": "e5b964c5866d5193"
+ },
+ "features": {
+  "probe": true,
+  "replace": true,
+  "sync": true
  }
 }

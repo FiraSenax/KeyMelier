@@ -47,7 +47,9 @@ class UpgradeCompatTests(unittest.TestCase):
     def copy(self, tag):
         d = Path(self.tmp.name) / tag
         shutil.copytree(FIXTURES / tag, d)
-        return d, json.loads((d / "keys.json").read_text())["keys"]
+        meta = json.loads((d / "keys.json").read_text())
+        self.features = meta["features"]
+        return d, meta["keys"]
 
     def service(self, d, history=None):
         with patch.object(service_mod, "SETTINGS_FILE", d / "settings.json"), \
@@ -56,7 +58,8 @@ class UpgradeCompatTests(unittest.TestCase):
         return svc
 
     def test_fixtures_exist_for_published_releases(self):
-        self.assertGreaterEqual(len(TAGS), 3, TAGS)
+        self.assertGreaterEqual(len(TAGS), 5, TAGS)
+        self.assertIn("v1.4.0", TAGS, "last release before the account model")
 
     def test_history_keeps_its_meaning(self):
         for tag in TAGS:
@@ -68,15 +71,17 @@ class UpgradeCompatTests(unittest.TestCase):
                 # lost key and the service already handled
                 self.assertTrue(c.get("lost_since"))
                 self.assertEqual(c.get("lost_done"), ["aws.amazon.com"])
-                # running replacement with its progress
-                self.assertEqual(a["replace"]["new"], k["B"])
-                self.assertEqual(a["replace"]["done"], ["pk:github.com|erika"])
+                # running replacement with its progress (1.5+)
+                if self.features["replace"]:
+                    self.assertEqual(a["replace"]["new"], k["B"])
+                    self.assertEqual(a["replace"]["done"], ["pk:github.com|erika"])
                 # what is on the keys
                 self.assertEqual({s["rp_id"]: s["count"] for s in a["sites"]}, {"github.com": 1, "login.microsoft.com": 2})
                 self.assertEqual([u["name"] for s in a["sites"] for u in s["users"] if s["rp_id"] == "login.microsoft.com"],
                                  ["a@contoso.example", "b@contoso.example"])
                 self.assertEqual([s["rp_id"] for s in b["sites"]], ["github.com"])
-                self.assertIn("sites_probed", b, "searched key stays marked as searched")
+                if self.features["probe"]:
+                    self.assertIn("sites_probed", b, "searched key stays marked as searched")
                 self.assertEqual(len(a["inventory"]["oath"]["items"]), 2)
                 self.assertIn("pin_changed", [e["type"] for e in a["events"]])
                 # verdicts are never trusted from disk
@@ -91,7 +96,7 @@ class UpgradeCompatTests(unittest.TestCase):
                     st = svc.get_settings()
                     self.assertEqual((st["lang"], st["personal_mode"], st["remember_sites"], st["history_enabled"]),
                                      ("de", True, True, True))
-                    if tag >= "v1.6":
+                    if self.features["sync"]:
                         self.assertEqual(st["sync_device"], "0123456789abcdef")
                         status = svc.sync_status()
                         # passphrase not in the (test) keychain: sync stays off and says why – nothing crashes
@@ -113,6 +118,18 @@ class UpgradeCompatTests(unittest.TestCase):
                     after = {e["key_id"]: {f: e.get(f) for f in ("label", "lost_since", "lost_done", "replace", "sites", "inventory")}
                              for e in again.list()}
                     self.assertEqual(after, before)
+
+    def test_saving_twice_writes_identical_files(self):
+        """Once converted by a save, further load/save cycles change nothing at all."""
+        for tag in TAGS:
+            with self.subTest(tag):
+                d, _k = self.copy(tag)
+                path = d / "history.json"
+                History(path, enabled=True)._save()
+                first = path.read_bytes()
+                for _ in range(3):
+                    History(path, enabled=True)._save()
+                self.assertEqual(path.read_bytes(), first)
 
     def test_stateless_mode_does_not_touch_old_data(self):
         for tag in TAGS:
@@ -160,9 +177,12 @@ console.log(JSON.stringify({{ erika: row.status, bCoverage: m.keyInfo.get({json.
   plan: replacePlanItems(plan).length, lost: lost.status }}));
 """
                 out = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
-                self.assertEqual(out["erika"], "passkey_multi", "listed + searched passkey counts on both keys")
-                self.assertEqual(out["bCoverage"], "probe")
-                self.assertTrue(out["notAsked"], "not searched there = unknown, never 'not there'")
+                self.assertEqual(out["erika"], "passkey_multi", "passkey on both keys")
+                if self.features["probe"]:
+                    self.assertEqual(out["bCoverage"], "probe")
+                    self.assertTrue(out["notAsked"], "not searched there = unknown, never 'not there'")
+                else:
+                    self.assertEqual(out["bCoverage"], "full")
                 self.assertGreater(out["plan"], 0)
                 self.assertEqual(out["lost"], "unclear_lost", "display name only + lost key: never a backup")
 
