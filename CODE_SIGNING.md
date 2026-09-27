@@ -1,11 +1,16 @@
 # Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io),
-certificate by [SignPath Foundation](https://signpath.org).
+> **Status (September 2026):** releases so far are **unsigned**; each
+> release's notes state the actual signing state. KeyMelier has applied to
+> the SignPath Foundation program for Windows, and Apple Developer ID
+> signing is being set up for macOS. This policy describes how signing works
+> once active.
 
-Windows releases of KeyMelier are signed through the SignPath Foundation's
-program for open-source projects. macOS releases are signed with the
-maintainer's Apple Developer ID and notarized by Apple.
+Windows (once accepted): free code signing provided by
+[SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+macOS: signed with the maintainer's Apple Developer ID and notarized by Apple.
 
 ## What is signed
 

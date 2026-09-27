@@ -94,8 +94,10 @@
 
   <section id="signing">
     <h2>Code signing</h2>
-    <p class="note">Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
-    <p>Windows releases are signed through the SignPath Foundation's program for open-source projects; macOS releases with an Apple Developer ID. Each release is built by GitHub Actions from a tagged commit and lists the source commit, dependency locks, SHA-256 checksums, an SBOM and third-party licenses. Read the full <a href="https://github.com/FiraSenax/KeyMelier/blob/main/CODE_SIGNING.md">code signing policy</a>, including team roles.</p>
+    <p class="note"><strong>Current status:</strong> releases up to now are <strong>not signed</strong> – the release notes of each version say so and explain the first launch. Signing is being set up.</p>
+    <p><strong>Windows:</strong> KeyMelier has applied to the SignPath Foundation's free code signing program for open-source projects. Once accepted, Windows releases will carry: <em>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</em><br>
+    <strong>macOS:</strong> signing with an Apple Developer ID and notarization by Apple is being set up.</p>
+    <p>Every release is already built by GitHub Actions from a tagged commit and lists the source commit, dependency locks, SHA-256 checksums, an SBOM and third-party licenses – compare the checksums if in doubt. Read the full <a href="https://github.com/FiraSenax/KeyMelier/blob/main/CODE_SIGNING.md">code signing policy</a>, including team roles.</p>
   </section>
 
   <footer>

@@ -49,7 +49,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Code signing
 
-Windows releases: free code signing provided by SignPath.io, certificate by SignPath Foundation. macOS releases: Apple Developer ID. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
+Releases are currently **unsigned** (each release's notes say so). Signing is being set up: Windows via the SignPath Foundation's open-source program (applied; once accepted: free code signing provided by SignPath.io, certificate by SignPath Foundation), macOS via Apple Developer ID with notarization. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
 ## License
 
