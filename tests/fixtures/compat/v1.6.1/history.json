@@ -1,0 +1,368 @@
+{
+ "version": 1,
+ "keys": [
+  {
+   "key_id": "f39fddf49252f89d",
+   "first_seen": "2026-09-27T13:02:07.633562+00:00",
+   "last_seen": "2026-09-27T13:02:07.649726+00:00",
+   "connect_count": 1,
+   "label": "Everyday key",
+   "snapshot": {
+    "product_name": "Fixture Key 1",
+    "serial_number": "11110001",
+    "manufacturer": "Yubico",
+    "aaguid": "aaguid-fixture-1",
+    "fido2_versions": [
+     "FIDO_2_0",
+     "FIDO_2_1"
+    ],
+    "extensions": [
+     "credProtect"
+    ],
+    "options": {
+     "clientPin": true,
+     "credMgmt": true
+    },
+    "pin_protocols": [
+     2,
+     1
+    ],
+    "max_cred_count": 25,
+    "firmware_version_raw": 329474,
+    "firmware_version_str": "5.7.2",
+    "vendor_id": 4176,
+    "product_id": 1031,
+    "form_factor": null,
+    "fips": false,
+    "nfc": null,
+    "min_pin_length": 4,
+    "force_pin_change": false,
+    "remaining_disc_creds": null,
+    "security_status": "PENDING",
+    "cve_ids": [],
+    "advisories": [],
+    "mds_description": null,
+    "mds_status": null,
+    "mds_authenticator_version": null,
+    "mds_icon": null,
+    "attestation": null,
+    "algorithms": []
+   },
+   "events": [
+    {
+     "ts": "2026-09-27T13:02:07.635797+00:00",
+     "type": "connected"
+    },
+    {
+     "ts": "2026-09-27T13:02:07.649732+00:00",
+     "type": "pin_changed"
+    }
+   ],
+   "sites": [
+    {
+     "rp_id": "github.com",
+     "name": "GitHub",
+     "count": 1,
+     "users": [
+      {
+       "name": "erika",
+       "display": "Erika"
+      }
+     ],
+     "source": "list",
+     "checked": "2026-09-27T13:02:07.642724+00:00"
+    },
+    {
+     "rp_id": "login.microsoft.com",
+     "name": "Microsoft",
+     "count": 2,
+     "users": [
+      {
+       "name": "a@contoso.example",
+       "display": ""
+      },
+      {
+       "name": "b@contoso.example",
+       "display": ""
+      }
+     ],
+     "source": "list",
+     "checked": "2026-09-27T13:02:07.642724+00:00"
+    }
+   ],
+   "sites_updated": "2026-09-27T13:02:07.642724+00:00",
+   "inventory": {
+    "oath": {
+     "items": [
+      {
+       "issuer": "AWS",
+       "name": "root@example.com"
+      },
+      {
+       "issuer": "GitHub",
+       "name": "erika"
+      }
+     ],
+     "updated": "2026-09-27T13:02:07.646612+00:00"
+    },
+    "openpgp": {
+     "items": [
+      {
+       "slot": "sig",
+       "algorithm": "Ed25519",
+       "fingerprint": "AAAA BBBB CCCC DDDD"
+      }
+     ],
+     "updated": "2026-09-27T13:02:07.648724+00:00"
+    }
+   },
+   "label_at": "2026-09-27T13:02:07.650845+00:00",
+   "replace": {
+    "new": "9b1d764dbb8bdfcc",
+    "since": "2026-09-27T13:02:07.655865+00:00",
+    "done": [
+     "pk:github.com|erika"
+    ]
+   },
+   "replace_at": "2026-09-27T13:02:07.656818+00:00"
+  },
+  {
+   "key_id": "9b1d764dbb8bdfcc",
+   "first_seen": "2026-09-27T13:02:07.636818+00:00",
+   "last_seen": "2026-09-27T13:02:07.637703+00:00",
+   "connect_count": 1,
+   "label": "Backup key",
+   "snapshot": {
+    "product_name": "Fixture Key 2",
+    "serial_number": "11110002",
+    "manufacturer": "Yubico",
+    "aaguid": "aaguid-fixture-2",
+    "fido2_versions": [
+     "FIDO_2_0",
+     "FIDO_2_1"
+    ],
+    "extensions": [
+     "credProtect"
+    ],
+    "options": {
+     "clientPin": true,
+     "credMgmt": true
+    },
+    "pin_protocols": [
+     2,
+     1
+    ],
+    "max_cred_count": 25,
+    "firmware_version_raw": 329474,
+    "firmware_version_str": "5.7.2",
+    "vendor_id": 4176,
+    "product_id": 1031,
+    "form_factor": null,
+    "fips": false,
+    "nfc": null,
+    "min_pin_length": 4,
+    "force_pin_change": false,
+    "remaining_disc_creds": null,
+    "security_status": "PENDING",
+    "cve_ids": [],
+    "advisories": [],
+    "mds_description": null,
+    "mds_status": null,
+    "mds_authenticator_version": null,
+    "mds_icon": null,
+    "attestation": null,
+    "algorithms": []
+   },
+   "events": [
+    {
+     "ts": "2026-09-27T13:02:07.637708+00:00",
+     "type": "connected"
+    }
+   ],
+   "sites": [
+    {
+     "rp_id": "github.com",
+     "name": "",
+     "count": 1,
+     "users": [
+      {
+       "name": "erika",
+       "display": ""
+      }
+     ],
+     "source": "probe",
+     "checked": "2026-09-27T13:02:07.643589+00:00"
+    }
+   ],
+   "sites_updated": "2026-09-27T13:02:07.643589+00:00",
+   "sites_probed": 3,
+   "probe_rp": {
+    "github.com": {
+     "status": "found",
+     "checked": "2026-09-27T13:02:07.643589+00:00"
+    },
+    "example.com": {
+     "status": "none",
+     "checked": "2026-09-27T13:02:07.643589+00:00"
+    },
+    "gitlab.com": {
+     "status": "error",
+     "checked": "2026-09-27T13:02:07.643589+00:00"
+    }
+   },
+   "probe": {
+    "at": "2026-09-27T13:02:07.643589+00:00",
+    "complete": true,
+    "asked": 3,
+    "counts": {
+     "found": 1,
+     "none": 1,
+     "error": 1
+    }
+   },
+   "inventory": {
+    "oath": {
+     "items": [
+      {
+       "issuer": "GitHub",
+       "name": "erika"
+      }
+     ],
+     "updated": "2026-09-27T13:02:07.647803+00:00"
+    }
+   },
+   "label_at": "2026-09-27T13:02:07.651942+00:00"
+  },
+  {
+   "key_id": "925172ec8291477d",
+   "first_seen": "2026-09-27T13:02:07.638445+00:00",
+   "last_seen": "2026-09-27T13:02:07.639236+00:00",
+   "connect_count": 1,
+   "label": "Old office key",
+   "snapshot": {
+    "product_name": "Fixture Key 3",
+    "serial_number": "11110003",
+    "manufacturer": "Yubico",
+    "aaguid": "aaguid-fixture-3",
+    "fido2_versions": [
+     "FIDO_2_0",
+     "FIDO_2_1"
+    ],
+    "extensions": [
+     "credProtect"
+    ],
+    "options": {
+     "clientPin": true,
+     "credMgmt": true
+    },
+    "pin_protocols": [
+     2,
+     1
+    ],
+    "max_cred_count": 25,
+    "firmware_version_raw": 329474,
+    "firmware_version_str": "5.7.2",
+    "vendor_id": 4176,
+    "product_id": 1031,
+    "form_factor": null,
+    "fips": false,
+    "nfc": null,
+    "min_pin_length": 4,
+    "force_pin_change": false,
+    "remaining_disc_creds": null,
+    "security_status": "PENDING",
+    "cve_ids": [],
+    "advisories": [],
+    "mds_description": null,
+    "mds_status": null,
+    "mds_authenticator_version": null,
+    "mds_icon": null,
+    "attestation": null,
+    "algorithms": []
+   },
+   "events": [
+    {
+     "ts": "2026-09-27T13:02:07.639244+00:00",
+     "type": "connected"
+    }
+   ],
+   "sites": [
+    {
+     "rp_id": "aws.amazon.com",
+     "name": "AWS",
+     "count": 1,
+     "users": [
+      {
+       "name": "",
+       "display": "Administrator"
+      }
+     ],
+     "source": "list",
+     "checked": "2026-09-27T13:02:07.644598+00:00"
+    }
+   ],
+   "sites_updated": "2026-09-27T13:02:07.644598+00:00",
+   "label_at": "2026-09-27T13:02:07.652933+00:00",
+   "lost_since": "2026-09-27T13:02:07.653868+00:00",
+   "lost_at": "2026-09-27T13:02:07.654875+00:00",
+   "lost_done": [
+    "aws.amazon.com"
+   ]
+  },
+  {
+   "key_id": "e5b964c5866d5193",
+   "first_seen": "2026-09-27T13:02:07.640811+00:00",
+   "last_seen": "2026-09-27T13:02:07.645664+00:00",
+   "connect_count": 1,
+   "label": "",
+   "snapshot": {
+    "product_name": "Fixture Key 4",
+    "serial_number": null,
+    "manufacturer": "Yubico",
+    "aaguid": "aaguid-fixture-4",
+    "fido2_versions": [
+     "FIDO_2_0",
+     "FIDO_2_1"
+    ],
+    "extensions": [
+     "credProtect"
+    ],
+    "options": {
+     "clientPin": true,
+     "credMgmt": true
+    },
+    "pin_protocols": [
+     2,
+     1
+    ],
+    "max_cred_count": 25,
+    "firmware_version_raw": 329474,
+    "firmware_version_str": "5.7.2",
+    "vendor_id": 4176,
+    "product_id": 1031,
+    "form_factor": null,
+    "fips": false,
+    "nfc": null,
+    "min_pin_length": 4,
+    "force_pin_change": false,
+    "remaining_disc_creds": null,
+    "security_status": "PENDING",
+    "cve_ids": [],
+    "advisories": [],
+    "mds_description": null,
+    "mds_status": null,
+    "mds_authenticator_version": null,
+    "mds_icon": null,
+    "attestation": null,
+    "algorithms": []
+   },
+   "events": [
+    {
+     "ts": "2026-09-27T13:02:07.641901+00:00",
+     "type": "connected"
+    }
+   ]
+  }
+ ],
+ "forgotten": {}
+}
