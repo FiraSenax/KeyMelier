@@ -103,7 +103,7 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False) -
     try:
         if use_uv:
             if not uv_unlock_available(info):
-                raise AuthError("Fingerprint unlock is not available on this key.", "unsupported")
+                raise AuthError("Fingerprint unlock is not available on this key.", "unsupported", reason="uv_unlock")
             token = client_pin.get_uv_token(permissions=perm)
         else:
             if not pin:

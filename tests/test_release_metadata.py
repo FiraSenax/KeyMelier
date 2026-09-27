@@ -1,6 +1,7 @@
 """Release metadata: one version everywhere, and a changelog entry for it."""
 
 import re
+import sys
 import tomllib
 import unittest
 from pathlib import Path
@@ -37,6 +38,12 @@ class ReleaseMetadataTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text()
         self.assertIn("from fido2tool_core.version import __version__", workflow)
         self.assertIn('"/DAppVersion=$version"', workflow)
+
+    def test_public_hardware_page_matches_the_matrix(self):
+        import subprocess
+        out = subprocess.run([sys.executable, str(ROOT / "tools" / "make_hardware_page.py"), "--check"],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stdout)
 
     def test_changelog_has_an_entry_for_this_version(self):
         headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(), re.M)

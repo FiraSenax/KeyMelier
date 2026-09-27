@@ -86,7 +86,7 @@ Use a test user account or a computer without important KeyMelier data.
    SmartScreen hint for unsigned builds.
 
 Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
-*Ergebnis*, note "Update von x.y").
+*Result*, note "update from x.y").
 
 ## Limits of the automatic checks
 

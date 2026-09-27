@@ -117,7 +117,7 @@ def set_or_change(ctap2, new_pin: str, current_pin: str | None = None) -> str:
 
     info = ctap2.info
     if not ClientPin.is_supported(info):
-        raise PinError("This key does not support a PIN.", "unsupported")
+        raise PinError("This key does not support a PIN.", "unsupported", reason="pin")
 
     _validate_new_pin(new_pin, getattr(info, "min_pin_length", 4) or 4)
     client_pin = ClientPin(ctap2)

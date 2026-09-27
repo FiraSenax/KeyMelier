@@ -358,6 +358,21 @@ async function main() {
     const csv = await js('window.__lastSave.text');
     assert(csv.startsWith('\ufeff"key"') && csv.split('\r\n').slice(1, -1).every(l => l.startsWith('"Backup key"')), 'only the chosen key');
   });
+  await test('what this key can do: every area with a state; a FIDO 2.0 key says passkeys work by search only', async () => {
+    await js('selectToken("demo-yk5"); switchTab("overview")');
+    await until('!$("caps").classList.contains("hidden")', 'capability card');
+    const caps = await js('keyCapabilities(tokens.get("demo-yk5"))');
+    assert(caps.length === 8 && caps.find(c => c.area === 'passkeys').state === 'full', JSON.stringify(caps));
+    await focus('#caps summary'); await press('Enter');
+    assert(await js('$("caps").querySelector("details").open'), 'opens by keyboard');
+    assert(await js('$("caps").querySelectorAll(".cap-list li").length') === 8, 'eight areas listed');
+    await js(`(() => { const t2 = tokens.get("demo-t2"); t2.options = { rk: true, clientPin: true }; t2.fido2_versions = ["FIDO_2_0"]; })()`);
+    assert(await js('keyCapabilities(tokens.get("demo-t2")).find(c => c.area === "passkeys").state') === 'partial', 'FIDO 2.0: partly');
+    const msg = await js(`errorMessage(Object.assign(new Error('x'), { data: { code: 'unsupported', reason: 'passkey_rename' } }))`);
+    assert(/FIDO 2.1/.test(msg), `specific reason instead of a generic "cannot": ${msg}`);
+    const generic = await js(`errorMessage(Object.assign(new Error('x'), { data: { code: 'unsupported' } }))`);
+    assert(generic.length > 0, 'still a message without a reason');
+  });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));
   });

@@ -174,7 +174,7 @@ def rename(conn, account_id: str, issuer: str, name: str) -> None:
     try:
         session.rename_credential(cred.id, name.strip(), (issuer or "").strip() or None)
     except Exception as e:
-        raise CardError(f"This key cannot rename accounts ({e}).", "unsupported") from None
+        raise CardError(f"This key cannot rename accounts ({e}).", "unsupported", reason="oath_rename") from None
 
 
 def delete(conn, account_id: str) -> None:

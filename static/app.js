@@ -42,6 +42,8 @@ async function call(method, args = {}) {
 function errorMessage(e) {
   const code = e.data?.code;
   if (code === 'pin_invalid' && e.data.retries != null) return t('err.pin_invalid_n', { n: e.data.retries });
+  // "this key cannot do that" – say what exactly
+  if (code === 'unsupported' && e.data.reason && STRINGS.en[`err.unsupported.${e.data.reason}`]) return t(`err.unsupported.${e.data.reason}`);
   if (code && STRINGS[LANG][`err.${code}`]) return t(`err.${code}`);
   return e.message;
 }
@@ -347,6 +349,7 @@ function renderKeyView(token) {
   syncTabMore();
 
   renderTiles(token);
+  renderCapabilities(token);
   renderSecurityCheck(token);
   renderSettings(token);
   renderSecurity(token);
@@ -410,6 +413,41 @@ function securityChecks(token) {
 
   const order = { crit: 0, warn: 1, info: 2, ok: 3 };
   return checks.sort((a, b) => order[a.level] - order[b.level]);
+}
+
+// What this key can do in KeyMelier – full, partly (e.g. FIDO 2.0: passkeys
+// only by search), not at all, or not checked yet – so a limit is expected,
+// not a surprise.
+function keyCapabilities(token) {
+  const o = token.options || {};
+  const apps = cardApps.get(token.id);
+  const card = app => (!apps || !Object.keys(apps).length ? 'unknown' : apps[app] ? 'full' : 'none');
+  return [
+    ['passkeys', o.credMgmt || o.credentialMgmtPreview ? 'full' : (token.fido2_versions || []).length ? 'partial' : 'none'],
+    ['pin', 'clientPin' in o ? 'full' : 'none'],
+    ['bio', isBio(token) ? 'full' : 'none'],
+    ['config', o.authnrCfg ? 'full' : 'none'],
+    ['oath', card('oath')], ['openpgp', card('openpgp')], ['piv', card('piv')],
+    ['otp', card('otp')],
+  ].map(([area, state]) => ({ area, state }));
+}
+
+function renderCapabilities(token) {
+  const el = $('caps');
+  if (token.offline) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  const caps = keyCapabilities(token);
+  const usable = caps.filter(c => c.state === 'full' || c.state === 'partial').length;
+  const icons = { full: '✓', partial: '◐', none: '–', unknown: '?' };
+  el.classList.remove('hidden');
+  const open = el.querySelector('details')?.open ? 'open' : '';
+  el.innerHTML = `<details ${open}><summary><h2>${escHtml(t('cap.title'))}</h2>
+      <span class="check-score">${escHtml(t('cap.summary', { n: usable, total: caps.length }))}</span></summary>
+    <ul class="cap-list">${caps.map(c => `<li class="cap-${c.state}">
+      <span class="cap-icon" aria-hidden="true">${icons[c.state]}</span>
+      <span><b>${escHtml(t(`cap.area.${c.area}`))}</b> – <span class="cap-state">${escHtml(t(`cap.state.${c.state}`))}</span>
+      <span class="cap-text">${escHtml(t(`cap.${c.area}.${c.state}`))}</span></span></li>`).join('')}</ul>
+    <p class="field-hint">${escHtml(t('cap.report'))} <button type="button" class="btn-link" data-url="https://github.com/FiraSenax/KeyMelier/issues/new?template=tested-with.yml">${escHtml(t('cap.reportLink'))}</button></p>
+  </details>`;
 }
 
 function renderSecurityCheck(token) {
@@ -3523,6 +3561,10 @@ function init() {
   });
   $('check').addEventListener('click', ev => {
     if (ev.target.closest('[data-view="accounts"]')) showAccountsView();
+  });
+  $('caps').addEventListener('click', ev => {
+    const link = ev.target.closest('[data-url]');
+    if (link) window.pywebview?.api?.open_url(link.dataset.url);
   });
   $('acc-status').addEventListener('click', showAccountsView);
   $('read-btn').addEventListener('click', () => readKey(currentToken()));

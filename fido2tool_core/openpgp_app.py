@@ -225,7 +225,7 @@ def set_touch(conn, slot: str, policy: str, admin_pin: str) -> None:
         raise CardError("Invalid setting.", "invalid_input")
     session = _session(conn)
     if session._generic:
-        raise CardError("This key has no touch policy.", "unsupported")
+        raise CardError("This key has no touch policy.", "unsupported", reason="touch_policy")
     current = session.get_uif(KEY_REF(SLOTS[slot]))
     if current in (UIF.FIXED, UIF.CACHED_FIXED):
         raise CardError("The touch policy of this key is fixed.", "pgp_touch_fixed")
@@ -332,7 +332,7 @@ def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
     user_id = _check_user_id(name, email)
     session = _session(conn)
     if algorithm not in algorithms_for(session):
-        raise CardError("This key does not support that algorithm.", "unsupported")
+        raise CardError("This key does not support that algorithm.", "unsupported", reason="algorithm")
     expire_days = int(expire_days or 0)
     if expire_days < 0 or expire_days > 3650 * 2:
         raise CardError("Invalid validity.", "invalid_input")

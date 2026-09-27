@@ -38,7 +38,7 @@ def _config(token_id: str, ctap2):
     from fido2.ctap2.config import Config
 
     if not Config.is_supported(ctap2.info):
-        raise AuthError("This key has no configurable settings.", "unsupported")
+        raise AuthError("This key has no configurable settings.", "unsupported", reason="no_config")
     protocol, token = auth.get_token(token_id)
     return Config(ctap2, protocol, token)
 
@@ -46,7 +46,7 @@ def _config(token_id: str, ctap2):
 def set_min_pin_length(token_id: str, ctap2, length: int) -> None:
     caps = capabilities(ctap2)
     if not caps["can_set_min_pin"]:
-        raise AuthError("This key does not allow changing the minimum PIN length.", "unsupported")
+        raise AuthError("This key does not allow changing the minimum PIN length.", "unsupported", reason="min_pin_length")
     try:
         length = int(length)
     except (TypeError, ValueError):
@@ -63,7 +63,7 @@ def set_min_pin_length(token_id: str, ctap2, length: int) -> None:
 
 def force_pin_change(token_id: str, ctap2) -> None:
     if not capabilities(ctap2)["can_set_min_pin"]:
-        raise AuthError("This key does not support forcing a PIN change.", "unsupported")
+        raise AuthError("This key does not support forcing a PIN change.", "unsupported", reason="force_pin_change")
     cfg = _config(token_id, ctap2)
     auth.call(token_id, lambda: cfg.set_min_pin_length(force_change_pin=True))
     logger.info("PIN change forced")
@@ -72,7 +72,7 @@ def force_pin_change(token_id: str, ctap2) -> None:
 def set_always_uv(token_id: str, ctap2, enabled: bool) -> None:
     current = capabilities(ctap2)["always_uv"]
     if current is None:
-        raise AuthError("This key does not support this setting.", "unsupported")
+        raise AuthError("This key does not support this setting.", "unsupported", reason="setting")
     if bool(current) == bool(enabled):
         return
     cfg = _config(token_id, ctap2)

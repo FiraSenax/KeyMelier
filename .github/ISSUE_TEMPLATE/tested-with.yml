@@ -1,0 +1,87 @@
+name: Tested with a security key
+description: Report how KeyMelier works with your key – it goes into the public hardware test matrix.
+title: "Tested with: <key model> (firmware <x.y>) on <OS>"
+labels: ["hardware-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! Please **do not include serial numbers, account names, website lists, PINs or screenshots
+        that show them** – only the key model, firmware and what worked.
+        Use a test or spare key; do not reset a key or delete credentials for this report.
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "macOS 15.5 / Windows 11 24H2"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: KeyMelier version
+      description: Shown under "About KeyMelier".
+      placeholder: "1.8.0"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Key model
+      placeholder: "YubiKey 5C NFC / Token2 PIN+ / Feitian BioPass K27"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: Shown in the key header; "unknown" if KeyMelier cannot read it.
+      placeholder: "5.7.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: detection
+    attributes:
+      label: Detection (key appears with model and check result)
+      options: ["Passed", "Failed", "Not tested"]
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What worked ("What this key can do" in the overview lists what applies)
+      options:
+        - label: Read key with PIN (passkeys listed, or found by search on FIDO 2.0 keys)
+        - label: PIN status / change PIN
+        - label: Fingerprints
+        - label: Authenticator (OATH)
+        - label: OpenPGP
+        - label: PIV
+        - label: OTP slots
+        - label: Authenticity test (attestation)
+  - type: dropdown
+    id: reconnect
+    attributes:
+      label: Cancel and reconnect (cancel the PIN dialog; unplug while reading; plug in and read again)
+      options: ["Passed", "Failed", "Not tested"]
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Overall result
+      options: ["Passed", "Failed", "Not supported", "Not tested"]
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: What did not work, error messages (without personal data).
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: This report contains no serial numbers, account names or other personal data.
+          required: true

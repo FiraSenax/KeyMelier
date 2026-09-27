@@ -28,7 +28,7 @@ def _bio(ctap2, protocol=None, token=None):
     from fido2.ctap2.bio import BioEnrollment, FPBioEnrollment
 
     if not BioEnrollment.is_supported(ctap2.info):
-        raise AuthError("This key has no fingerprint sensor.", "unsupported")
+        raise AuthError("This key has no fingerprint sensor.", "unsupported", reason="no_sensor")
     return FPBioEnrollment(ctap2, protocol, token)
 
 

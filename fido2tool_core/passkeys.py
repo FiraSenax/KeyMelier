@@ -39,7 +39,7 @@ def _credman(token_id: str, ctap2):
     from fido2.ctap2.credman import CredentialManagement
 
     if not CredentialManagement.is_supported(ctap2.info):
-        raise AuthError("This key does not support passkey management.", "unsupported")
+        raise AuthError("This key does not support passkey management.", "unsupported", reason="passkey_management")
     protocol, token = auth.get_token(token_id)
     return CredentialManagement(ctap2, protocol, token)
 
@@ -87,7 +87,7 @@ def rename_passkey(token_id: str, ctap2, credential_id: str, user_id: str, name:
     from fido2.ctap2.credman import CredentialManagement
 
     if not CredentialManagement.is_update_supported(ctap2.info):
-        raise AuthError("This key cannot rename passkeys.", "unsupported")
+        raise AuthError("This key cannot rename passkeys.", "unsupported", reason="passkey_rename")
     name = (name or "").strip()
     display_name = (display_name or "").strip()
     if not name and not display_name:

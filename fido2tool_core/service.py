@@ -930,7 +930,7 @@ class KeyService:
     def _yubikey(self, token_id):
         record = self._scanner.get(token_id)
         if not _is_yubikey(record):
-            raise CardError("Only available for YubiKeys.", "unsupported")
+            raise CardError("Only available for YubiKeys.", "unsupported", reason="yubikey_only")
         return record
 
     @contextmanager
