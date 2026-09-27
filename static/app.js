@@ -544,6 +544,7 @@ function syncCardHtml() {
       </dl>
       <h3 class="bk-group">${escHtml(t('sync.others'))}</h3>
       ${devices}
+      ${st.notice ? `<p class="field-hint bk-hint warn-text">${escHtml(t(`sync.notice.${st.notice.code}`, { file: st.notice.file }))}</p>` : ''}
       ${st.errors.map(e => `<p class="field-hint bk-hint warn-text">${escHtml(syncErrorText(e))}</p>`).join('')}
       <div class="form-actions att-actions">
         <button type="button" class="btn btn-secondary" data-act="sync-now">${escHtml(t('sync.now'))}</button>

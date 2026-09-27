@@ -341,7 +341,19 @@ class KeyService:
             self._sync_problem = "sync_keychain"
             self._syncer.configure(None, None, None)
             return
-        self._syncer.configure(Path(folder), device, passphrase)
+        self._syncer.configure(Path(folder), device, passphrase, self._sync_machine())
+
+    def _sync_machine(self) -> str:
+        """Anonymous id of this computer, to tell a restart from another computer."""
+        if getattr(self, "_machine", None) is None:
+            def stored():
+                settings = self._stored_settings()
+                if not settings.get("sync_machine"):
+                    settings["sync_machine"] = sync_mod.new_device_id() + sync_mod.new_device_id()
+                    self._write_settings(settings)
+                return settings["sync_machine"]
+            self._machine = sync_mod.machine_id(stored)
+        return self._machine
 
     def _sync_new_device(self, device: str) -> None:
         settings = self._stored_settings()

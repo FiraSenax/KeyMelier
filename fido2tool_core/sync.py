@@ -18,10 +18,17 @@ Credential Manager) – never in a plain file.
 Concurrency: a computer only ever writes its own file, atomically (temporary
 file + rename), and only reads the others. A file that is still arriving
 through the cloud fails authentication and is simply read again later; it is
-reported only if it stays unreadable (ERROR_AFTER checks). Two computers with
-the same device id (e.g. settings copied by a migration tool) are detected by
-a per-run instance id inside the encrypted file; the one that notices takes
-a new device id.
+reported only if it stays unreadable (ERROR_AFTER checks).
+
+Before its first write – and whenever its own file changed behind its back –
+a computer reads the file under its own device id and merges it, so nothing
+is lost. The file names the computer that wrote it (a hash of the OS machine
+id, inside the encrypted part). If that is another computer (same device id,
+e.g. settings copied by a migration tool), this computer takes a new device
+id, which the caller stores. A file at its own path that it cannot read
+(incomplete, damaged, other passphrase) is never overwritten: the computer
+moves to a new device id as well, and the old file stays for inspection.
+A normal restart finds its own machine hash and keeps the id.
 """
 
 import base64
@@ -32,6 +39,8 @@ import os
 import platform
 import re
 import secrets
+import subprocess
+import sys
 import tempfile
 import threading
 from datetime import datetime, timezone
@@ -58,6 +67,29 @@ class SyncError(Exception):
 
 def new_device_id() -> str:
     return secrets.token_hex(8)
+
+
+def machine_id(fallback) -> str:
+    """Stable, anonymous id of this computer (hash of the OS machine id).
+    fallback() supplies a stored random id where the OS has none."""
+    raw = None
+    try:
+        if sys.platform == "darwin":
+            out = subprocess.run(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                                 capture_output=True, text=True, timeout=5).stdout
+            m = re.search(r'"IOPlatformUUID" = "([0-9A-Fa-f-]+)"', out)
+            raw = m.group(1) if m else None
+        elif os.name == "nt":
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0,
+                                winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                raw = str(winreg.QueryValueEx(key, "MachineGuid")[0])
+        else:
+            raw = Path("/etc/machine-id").read_text(encoding="ascii").strip()
+    except Exception as e:
+        logger.info("No OS machine id (%s); using a stored one", e)
+    raw = raw or fallback()
+    return hashlib.sha256(f"keymelier-sync|{raw}".encode()).hexdigest()[:16]
 
 
 def _b64(data: bytes) -> str:
@@ -141,14 +173,15 @@ def _read_regular(path: Path) -> bytes | None:
 
 
 class SyncFolder:
-    def __init__(self, folder: Path, device: str, passphrase: str):
+    def __init__(self, folder: Path, device: str, passphrase: str, machine: str = ""):
         self.folder = Path(folder)
         self.device = device
+        self.machine = machine
         self._passphrase = passphrase
         self._salt = os.urandom(16)        # one salt per session: derive once
         self.instance = secrets.token_hex(8)   # this run of KeyMelier
         self._written_hash = None
-        self._own_stamp = None             # (mtime, size) of our file after our last write
+        self._own_stamp = None             # (mtime, size) of our file when we last wrote or read it
         self._last_written = ""
         self._seen: dict[str, tuple] = {}  # file name -> (mtime, size) already merged
 
@@ -168,7 +201,7 @@ class SyncFolder:
             return False
         self._last_written = datetime.now(timezone.utc).isoformat()
         payload = {"device_name": platform.node()[:80], "written": self._last_written,
-                   "instance": self.instance, "history": history_state}
+                   "instance": self.instance, "machine": self.machine, "history": history_state}
         data = seal(payload, self._passphrase, self.device, self._salt)
         if self.own_path.is_symlink():
             raise SyncError("The sync file must not be a symbolic link.", "sync_folder")
@@ -187,29 +220,34 @@ class SyncFolder:
         self._own_stamp = (st.st_mtime_ns, st.st_size)
         return True
 
-    def taken_over(self) -> bool:
-        """Did another computer write our file since our last write (same device id)?"""
-        if self._own_stamp is None:
-            return False
+    def own_changed(self) -> bool:
+        """Is there a file at our path we have not seen yet (first run) or that
+        changed since we last wrote or read it?"""
         try:
             st = os.lstat(self.own_path)
         except OSError:
             return False
-        if (st.st_mtime_ns, st.st_size) == self._own_stamp:
-            return False
+        return (st.st_mtime_ns, st.st_size) != self._own_stamp
+
+    def read_own(self) -> tuple[str, str | None, dict | None]:
+        """Read the file at our path: ("ok", None, payload) or ("unreadable", code, None)."""
+        st = os.lstat(self.own_path)
+        self._own_stamp = (st.st_mtime_ns, st.st_size)
         data = _read_regular(self.own_path)
         if data is None:
-            return False
+            return "unreadable", "sync_damaged", None
         try:
-            _device, payload = unseal(data, self._passphrase)
-        except SyncError:
-            return False
-        return payload.get("instance") != self.instance and str(payload.get("written", "")) > self._last_written
+            device, payload = unseal(data, self._passphrase)
+        except SyncError as e:
+            return "unreadable", e.code, None
+        if device != self.device:
+            return "unreadable", "sync_damaged", None
+        return "ok", None, payload
 
     def change_device(self, device: str) -> None:
         self.device = device
         self._written_hash = self._own_stamp = None
-        self._seen.clear()
+        self._seen.clear()   # the old file is read as another computer's from now on
 
     def read_others(self, only_new=True) -> tuple[list[dict], list[dict]]:
         """Files of the other computers: ([{device, name, written, history}], [{file, code}])."""
@@ -263,13 +301,14 @@ class Syncer:
         self._last_revision = None
         self.devices: dict[str, dict] = {}
         self.errors: list[dict] = []
+        self.notice: dict | None = None    # this computer took a new device id, and why
         self.last_sync: str | None = None
 
-    def configure(self, folder: Path | None, device: str | None, passphrase: str | None):
+    def configure(self, folder: Path | None, device: str | None, passphrase: str | None, machine: str = ""):
         with self._lock:
-            self._folder = SyncFolder(folder, device, passphrase) if folder and device and passphrase else None
+            self._folder = SyncFolder(folder, device, passphrase, machine) if folder and device and passphrase else None
             self._last_revision = None
-            self.devices, self.errors, self.last_sync = {}, [], None
+            self.devices, self.errors, self.notice, self.last_sync = {}, [], None, None
         self._history.track_forgotten = self._folder is not None
         if self._folder is not None:
             self.start()
@@ -301,17 +340,22 @@ class Syncer:
             folder = self._folder
             if folder is None or not self._history.enabled:
                 return self.status()
+            changed = False
             try:
-                if folder.taken_over():
-                    # another computer writes under our id: we take a new one
-                    new = new_device_id()
-                    logger.warning("Sync file %s is also written by another computer; this one now uses %s",
-                                   folder.device, new)
-                    folder.change_device(new)
-                    self._on_new_device(new)
-                    self._last_revision = None
+                if folder.own_changed():
+                    # first run, or someone else wrote our file: keep what is in it
+                    kind, code, payload = folder.read_own()
+                    if kind == "ok":
+                        changed |= self._history.merge_sync(payload.get("history") or {},
+                                                            keep_contents=self._keep_contents())
+                        writer = payload.get("machine")
+                        if writer and folder.machine and writer != folder.machine:
+                            self._switch_device(folder, "sync_shared_id")
+                    else:
+                        # never overwrite what we cannot read (incomplete, damaged, other passphrase)
+                        logger.warning("Own sync file unreadable (%s)", code)
+                        self._switch_device(folder, "sync_own_unreadable")
                 others, errors = folder.read_others(only_new=not full)
-                changed = False
                 for other in others:
                     self.devices[other["device"]] = {"device": other["device"], "name": other["name"],
                                                      "written": other["written"]}
@@ -332,6 +376,15 @@ class Syncer:
             self._emit("history_synced", {})
         return self.status()
 
+    def _switch_device(self, folder: SyncFolder, reason: str) -> None:
+        old = folder.own_path.name
+        new = new_device_id()
+        logger.warning("Sync: %s (%s) – this computer now uses %s", old, reason, new)
+        folder.change_device(new)
+        self._on_new_device(new)
+        self._last_revision = None
+        self.notice = {"code": reason, "file": old}
+
     def _settle(self, errors: list[dict]) -> list[dict]:
         """Report a problem only if it persists: a file still arriving through
         the cloud, or a folder that is briefly offline, heals by itself."""
@@ -344,7 +397,7 @@ class Syncer:
         return {"active": f is not None, "folder": str(f.folder) if f else None, "device": f.device if f else None,
                 "device_name": platform.node()[:80], "last_sync": self.last_sync,
                 "devices": sorted(self.devices.values(), key=lambda d: d["written"], reverse=True),
-                "errors": list(self.errors)}
+                "errors": list(self.errors), "notice": self.notice}
 
 
 def probe_folder(folder: Path, passphrase: str, device: str) -> dict:
