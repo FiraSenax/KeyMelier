@@ -43,8 +43,8 @@ case "$ID" in
     HARNESS="python xorg-server-xvfb xorg-xauth gnome-keyring squashfs-tools"
     # pacman's download sandbox cannot set up seccomp under QEMU emulation; only
     # then (inside this throwaway container) retry without it
-    install() { pacman -Sy --noconfirm --needed $RUNTIME $HARNESS ||
-                { [ "$MODE" = emulated ] && pacman -Sy --noconfirm --needed --disable-sandbox $RUNTIME $HARNESS; }; } ;;
+    install() { pacman -Syu --noconfirm --needed $RUNTIME $HARNESS ||
+                { [ "$MODE" = emulated ] && pacman -Syu --noconfirm --needed --disable-sandbox $RUNTIME $HARNESS; }; } ;;
   *) echo "unsupported distribution $ID"; exit 2 ;;
 esac
 
