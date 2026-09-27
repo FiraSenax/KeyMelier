@@ -7,8 +7,6 @@ nothing else on the machine (other programs, browser extensions, websites)
 can reach the app.
 """
 
-import base64
-import hashlib
 import os
 import json
 import logging
@@ -29,6 +27,7 @@ import webview
 from fido2tool_core.advisories import AdvisoryChecker
 from fido2tool_core.exporter import CSVExporter
 from fido2tool_core.mds3 import MDS3Client
+from fido2tool_core.page import build_html
 from fido2tool_core.pin import PinError
 from fido2tool_core.scanner import DeviceBusy, DeviceNotFound, TokenScanner
 from fido2tool_core.service import KeyService
@@ -302,30 +301,6 @@ class EventPump:
 
 
 # ── Page assembly ────────────────────────────────────────────────────────────
-
-def build_html() -> str:
-    """Inline CSS, JS and the icon into one document (no server, no file URLs)."""
-    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
-    css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
-    icon = base64.b64encode((STATIC_DIR / "icon.svg").read_bytes()).decode()
-    html = html.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
-    html = html.replace('src="icon.svg"', f'src="data:image/svg+xml;base64,{icon}"')
-    hashes = []
-    for name in ("i18n.js", "service-icons.js", "accounts.js", "app.js"):
-        js = (STATIC_DIR / name).read_text(encoding="utf-8").replace("</script", "<\\/script")
-        body = f"\n{js}\n"
-        hashes.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'")
-        html = html.replace(f'<script src="{name}"></script>', f"<script>{body}</script>")
-    # Only our two scripts may run: no inline handlers, no javascript: URLs,
-    # no network, no framing. 'unsafe-eval' is needed by pywebview's bridge
-    # stubs (new Function). Injected markup therefore cannot execute.
-    csp = ("default-src 'none'; script-src " + " ".join(hashes) + " 'unsafe-eval'; "
-           "style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; "
-           "form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'")
-    html = html.replace('<meta charset="UTF-8">',
-                        f'<meta charset="UTF-8">\n  <meta http-equiv="Content-Security-Policy" content="{csp}">', 1)
-    return html
-
 
 # ── Platform niceties ────────────────────────────────────────────────────────
 

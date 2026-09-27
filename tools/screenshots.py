@@ -3,7 +3,7 @@
 
     venv/bin/python tools/screenshots.py
 
-Builds the app page exactly like the app (app.build_html), swaps the Python
+Builds the app page exactly like the app (fido2tool_core.page.build_html), swaps the Python
 bridge for tools/docs_demo.js and renders each scene with headless Chrome
 into docs/img/. No real keys or personal data are involved.
 """
@@ -27,7 +27,7 @@ CHROME_CANDIDATES = [
 
 def demo_page() -> Path:
     import re
-    from app import build_html
+    from fido2tool_core.page import build_html
     html = build_html()
     html = re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', "", html)  # demo scripts are inline too
     demo = (ROOT / "tools" / "docs_demo.js").read_text(encoding="utf-8")
