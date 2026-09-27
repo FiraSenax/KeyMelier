@@ -140,6 +140,42 @@ class CheckArtifactsTests(unittest.TestCase):
             self.assertTrue(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, "missing udev rules found")
         self.assertTrue(ca.run(["linux", str(out), "--arch", "aarch64"]).problems, "files for another arch")
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX file modes")
+    def test_release_after_artifact_download_restores_exactly_the_appimages(self):
+        """download-artifact leaves every file at 0644: the release check fails until restore-exec ran."""
+        notes = make_release(self.dir)
+        for f in self.dir.iterdir():
+            f.chmod(0o644)
+        args = ["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),
+                "--mac-signed", "false", "--win-signed", "false"]
+        self.assertTrue(any("is executable" in p for p in ca.run(args).problems), "the check still demands +x")
+        self.assertEqual(ca.restore_exec(self.dir), [])
+        for f in self.dir.iterdir():
+            expected = 0o755 if f.name in ca.LINUX_FILES[0::3] else 0o644
+            self.assertEqual(f.stat().st_mode & 0o777, expected, f.name)
+        self.assertEqual(ca.run(args).problems, [])
+
+    def test_restore_exec_fails_visibly_on_a_missing_appimage(self):
+        make_release(self.dir)
+        (self.dir / "KeyMelier-Linux-aarch64.AppImage").unlink()
+        problems = ca.restore_exec(self.dir)
+        self.assertEqual(problems, [f"KeyMelier-Linux-aarch64.AppImage is missing in {self.dir}"])
+        import subprocess
+        out = subprocess.run([sys.executable, str(ROOT / "tools" / "check_artifacts.py"), "restore-exec", str(self.dir)],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1, out.stdout)
+        self.assertIn("KeyMelier-Linux-aarch64.AppImage is missing", out.stdout)
+
+    def test_release_job_order(self):
+        """download → restore-exec → squashfs-tools → … → validate → publish."""
+        text = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        job = text[text.index("\n  release:"):]
+        order = [job.index(marker) for marker in (
+            "actions/download-artifact", "check_artifacts.py restore-exec artifacts",
+            "install -y --no-install-recommends squashfs-tools", "sha256sum * > SHA256SUMS.txt",
+            "check_artifacts.py release artifacts", "action-gh-release")]
+        self.assertEqual(order, sorted(order))
+
     def test_pe_reader(self):
         self.assertEqual(ca.pe_info(pe("1.7.1", signed=True)), {"file_version": (1, 7, 1, 0), "signed": True})
         self.assertFalse(ca.pe_info(pe())["signed"])

@@ -3,6 +3,7 @@
 import base64
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -103,6 +104,33 @@ class TestPolicyParsing(unittest.TestCase):
             raw = policy._read_windows()
         self.assertEqual(opened[0][0], "HKLM")
         self.assertEqual([s["name"] for s in policy.advisory_sources(raw)], ["Contoso IT"])
+
+    def test_no_environment_switch_replaces_the_managed_configuration(self):
+        """A user-owned JSON file named in KEYMELIER_POLICY_TEST (or similar) is never read:
+        the platform reader still decides – with a policy it is kept, without one nothing appears."""
+        _, pub = keypair()
+        managed = {"AdvisorySources": [{"Name": "Contoso IT", "Location": "https://intra.example/a.json",
+                                        "PublicKey": pub}]}
+        readers = {"win32": "_read_windows", "darwin": "_read_mac", "linux": "_read_linux"}
+        with tempfile.TemporaryDirectory() as d:
+            own = Path(d) / "mine.json"
+            fake = {"AdvisorySources": [{"Name": "Mine", "Location": "https://evil.example/a.json", "PublicKey": pub}]}
+            for content in (json.dumps(fake), json.dumps({}), ""):
+                own.write_text(content)
+                for platform, reader in readers.items():
+                    with self.subTest(platform=platform, content=content[:20]), \
+                            patch.dict(os.environ, {"KEYMELIER_POLICY_TEST": str(own), "KEYMELIER_POLICY": str(own)}), \
+                            patch.object(sys, "platform", platform), \
+                            patch.object(policy, reader, return_value=managed) as platform_reader:
+                        self.assertEqual([s["name"] for s in policy.advisory_sources()], ["Contoso IT"])
+                        platform_reader.assert_called_once()
+            with patch.dict(os.environ, {"KEYMELIER_POLICY_TEST": str(own)}), patch.object(sys, "platform", "linux"), \
+                    patch.object(policy, "_read_linux", return_value={}):
+                self.assertEqual(policy.advisory_sources(), [], "no policy: the user file adds nothing either")
+
+    def test_policy_module_reads_no_environment(self):
+        source = (ROOT / "fido2tool_core" / "policy.py").read_text(encoding="utf-8")
+        self.assertNotRegex(source, r"(?m)os\.environ|getenv|^import os\b|^from os\b", "the policy must not depend on the environment")
 
     @unittest.skipIf(os.name == "nt", "POSIX permissions")
     def test_user_writable_policy_file_is_ignored(self):

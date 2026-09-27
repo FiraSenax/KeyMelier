@@ -396,6 +396,12 @@ jobs:
           pattern: KeyMelier-*
           merge-multiple: true
           path: artifacts
+      # The artifact transfer drops the execute bit; restore it on exactly the
+      # two AppImages (a missing one fails here)
+      - name: Make the AppImages executable again
+        run: python3 tools/check_artifacts.py restore-exec artifacts
+      - name: Tools for looking inside the AppImages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools
       - name: Attach source revision and dependency locks
         run: |
           cp uv.lock requirements.txt requirements-build.txt artifacts/

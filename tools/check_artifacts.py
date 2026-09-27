@@ -5,6 +5,11 @@
     check_artifacts.py windows DIST [--signed true|false]
     check_artifacts.py linux   DIST --arch x86_64|aarch64
     check_artifacts.py release DIR --commit SHA --notes NOTES.md --mac-signed X --win-signed Y
+    check_artifacts.py restore-exec DIR
+
+restore-exec (release job, right after downloading the artifacts): GitHub's
+artifact transfer drops the execute bit; set it again on exactly the two
+expected AppImages. A missing AppImage is an error; no other file is touched.
 
 macos/windows (build jobs): the expected files exist and are not empty; the
 ZIP lists the expected app structure; version in Info.plist / the Windows
@@ -283,6 +288,18 @@ def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> N
     r.check("AppImage" in text and "unsigned" in text.lower(), "release notes say the AppImages are unsigned")
 
 
+def restore_exec(folder: Path) -> list[str]:
+    """chmod 755 the expected AppImages in folder; returns the problems (missing files)."""
+    problems = []
+    for name in LINUX_FILES[0::3]:
+        path = folder / name
+        if not path.is_file():
+            problems.append(f"{name} is missing in {folder}")
+            continue
+        path.chmod(0o755)
+    return problems
+
+
 def run(argv: list[str]) -> Report:
     r = Report()
     mode, folder = argv[0], Path(argv[1])
@@ -348,6 +365,12 @@ def main() -> int:
     if len(sys.argv) < 3:
         print(__doc__)
         return 2
+    if sys.argv[1] == "restore-exec":
+        problems = restore_exec(Path(sys.argv[2]))
+        for p in problems:
+            print(f"FAIL {p}")
+        print("AppImages executable again" if not problems else "AppImages missing")
+        return 1 if problems else 0
     r = run(sys.argv[1:])
     for p in r.problems:
         print(f"FAIL {p}")

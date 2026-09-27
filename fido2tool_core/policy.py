@@ -22,7 +22,6 @@ base64. Invalid entries are skipped and logged.
 import base64
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -109,11 +108,12 @@ def _read_windows() -> dict:
 
 
 def read_raw() -> dict:
-    if os.environ.get("KEYMELIER_POLICY_TEST"):   # tests only: a JSON file, no protection check
-        try:
-            return json.loads(Path(os.environ["KEYMELIER_POLICY_TEST"]).read_text(encoding="utf-8"))
-        except Exception:
-            return {}
+    """The managed configuration of this platform – from the protected locations only.
+
+    There is deliberately no switch (environment variable, argument, user file)
+    to read it from elsewhere: whoever could set it could replace or hide the
+    organisation's sources. Tests mock the platform readers instead.
+    """
     try:
         if sys.platform == "win32":
             return _read_windows()
