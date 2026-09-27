@@ -60,6 +60,23 @@ class ReleaseMetadataTests(unittest.TestCase):
             with self.subTest(wf.name):
                 self.assertIn("jobs", yaml.safe_load(wf.read_text(encoding="utf-8")))
 
+    def test_shipped_files_have_the_same_bytes_on_every_platform(self):
+        """Git must not convert line endings on Windows: the SBOM hashes the shipped files."""
+        import shutil
+        import subprocess
+        if not shutil.which("git") or not (ROOT / ".git").exists():
+            self.skipTest("no git checkout")
+        files = ["static/service-icons.js", "static/app.js", "static/index.html", "fido2tool_core/page.py"]
+        out = subprocess.run(["git", "check-attr", "eol", "--", *files, "build-windows.bat"], cwd=ROOT,
+                             capture_output=True, text=True, check=True).stdout
+        eol = {path: value for path, _attr, value in (line.split(": ") for line in out.splitlines())}
+        for f in files:
+            self.assertEqual(eol[f], "lf", f)
+        self.assertEqual(eol["build-windows.bat"], "crlf")
+        binary = subprocess.run(["git", "check-attr", "text", "--", "data/advisories.json", "data/advisories.json.sig"],
+                                cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        self.assertEqual(binary.count(": text: unset"), 2, "signed files are never converted")
+
     def test_changelog_has_an_entry_for_this_version(self):
         headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
         versions = [h.split(" ")[0] for h in headings if h != "Unreleased"]

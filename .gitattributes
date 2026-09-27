@@ -1,3 +1,10 @@
+# The same bytes on every platform: the apps ship these files, the SBOM
+# records their hashes and the page's CSP hashes the scripts. Without this,
+# Git on Windows (core.autocrlf) checks text out with CRLF.
+* text=auto eol=lf
+# cmd.exe needs CRLF in batch files
+*.bat text eol=crlf
+
 # Signatures cover exact bytes. Never rewrite line endings on checkout or add.
 /data/advisories.json -text
 /data/advisories.json.sig -text
