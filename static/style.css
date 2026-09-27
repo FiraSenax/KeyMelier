@@ -1233,7 +1233,9 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .acc-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .acc-tools input[type=search] { flex: 1; min-width: 180px; }
 .acc-table td.yes .pill { margin: 1px 2px; font-size: 0.72rem; }
-.acc-name { display: flex; align-items: center; gap: 10px; min-width: 260px; }
+.acc-name { min-width: 260px; white-space: nowrap; }
+.acc-name > .pk-avatar { display: inline-flex; vertical-align: middle; margin-right: 10px; }
+.acc-name > span:last-child { display: inline-block; vertical-align: middle; white-space: normal; }
 .acc-label { display: block; font-weight: 600; }
 .acc-name .pk-avatar { width: 26px; height: 26px; font-size: 0.8rem; }
 .acc-key { white-space: nowrap; }
@@ -1259,3 +1261,8 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .acc-group td { background: var(--surface-2); }
 .acc-indent { padding-left: 46px !important; }
 .acc-sub-row .acc-upn { font-weight: 600; }
+/* The account overview uses the full window width */
+#accounts-view { max-width: none; }
+#accounts-view .backup-content { max-width: none; }
+.acc-table { width: 100%; }
+.acc-table th.acc-key, .acc-table td.yes, .acc-table td.no { text-align: center; }
