@@ -168,15 +168,18 @@
       nfc: { OTP: false, U2F: true, FIDO2: true, OATH: true, PIV: false, OPENPGP: false, HSMAUTH: false } } }),
   };
 
+  window.__demoCalls = [];
   window.pywebview = {
     api: {
       call: async (method, args) => {
+        window.__demoCalls.push(method);   // observed by tests/ui (e.g. no unlock after a cancel)
         const fn = api[method];
         if (!fn) return { ok: false, error: 'Not available in the demo', code: 'demo' };
         return { ok: true, data: JSON.parse(JSON.stringify(fn(args || {}))) };
       },
       client_log: async () => true, client_error: async () => true, set_ui_language: async () => true,
       copy_text: async () => true, open_url: async () => true, gpg_available: async () => false,
+      open_licenses: async () => true, choose_folder: async () => null,
     },
   };
 

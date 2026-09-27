@@ -28,10 +28,42 @@ jobs:
       - run: node --check static/i18n.js
       - run: node tests/ui_security.cjs
       - run: node tests/accounts_model.cjs
+  # UI tests on the demo page (no backend, no keys) with real keyboard and
+  # mouse input through the DevTools protocol; failures keep a screenshot
+  # and the browser log.
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        id: chrome
+        with:
+          chrome-version: stable
+      - name: UI tests
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          UI_ARTIFACTS: build/ui-test-artifacts
+        run: node tests/ui/ui_test.cjs
+      - name: Keep screenshot and browser log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ui-test-artifacts
+          path: build/ui-test-artifacts
+          if-no-files-found: ignore
   # Signing is used when the credentials are configured as secrets; without
   # them the builds are published unsigned and clearly labelled as such.
   build-macos:
-    needs: test
+    needs: [test, ui]
     runs-on: macos-14
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
     env:
@@ -106,7 +138,7 @@ jobs:
             dist/KeyMelier-macOS.cdx.json
           retention-days: 14
   build-windows:
-    needs: test
+    needs: [test, ui]
     runs-on: windows-2022
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
     permissions:
