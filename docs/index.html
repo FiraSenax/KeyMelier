@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KeyMelier – the sommelier for your security keys</title>
 <meta name="description" content="KeyMelier is a free, open-source desktop app for macOS and Windows that checks, rates and manages FIDO2 security keys from any vendor.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src https://api.github.com; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>
   :root {
@@ -30,7 +30,8 @@
   .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; }
   .btn.primary { background: var(--accent); color: #fff; }
   .btn.ghost { border: 1px solid var(--line); color: var(--text); background: var(--card); }
-  .small { color: var(--muted); font-size: 0.88rem; margin-top: 12px; }
+  .small { color: var(--muted); font-size: 0.88rem; margin: 12px 0 16px; }
+  .shot { width: 100%; border-radius: 14px; border: 1px solid var(--line); margin-top: 8px; }
   section { padding: 36px 0; border-top: 1px solid var(--line); }
   h2 { font-size: 1.6rem; margin: 0 0 18px; letter-spacing: -0.01em; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
@@ -55,12 +56,19 @@
     <h1>KeyMelier</h1>
     <p class="tagline">The sommelier for your security keys.</p>
     <p class="lead">A free, open-source desktop app for macOS and Windows that <strong>checks, rates and keeps track of</strong> your FIDO2 security keys – YubiKey, Token2, Feitian and every other vendor – and manages everything on them.</p>
-    <div class="buttons">
+    <div class="buttons" data-latest-downloads>
       <a class="btn primary" href="https://github.com/FiraSenax/KeyMelier/releases/latest">Download the latest release</a>
+    </div>
+    <p class="small">Latest version: <span data-latest-version>see the release page</span> · macOS and Windows · MIT license · 11 languages</p>
+    <div class="buttons links">
+      <a class="btn ghost" href="guide.html">Documentation</a>
       <a class="btn ghost" href="https://github.com/FiraSenax/KeyMelier">Source code on GitHub</a>
     </div>
-    <p class="small">macOS and Windows · MIT license · 11 languages</p>
   </header>
+
+  <section>
+    <img class="shot" src="img/overview.png" alt="KeyMelier showing a security key with its security check">
+  </section>
 
   <section>
     <h2>What it does</h2>
@@ -106,5 +114,6 @@
     · <a href="https://github.com/FiraSenax/KeyMelier/issues">Report an issue</a>
   </footer>
 </div>
+<script src="latest.js"></script>
 </body>
 </html>

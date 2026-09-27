@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeyMelier documentation</title>
+<meta name="description" content="How to install and use KeyMelier: security check, PIN, passkeys, authenticator codes, OpenPGP, PIV, OTP slots, history, backup and lost keys.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src https://api.github.com; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg: #f6f5f2; --card: #fff; --text: #1d1b20; --muted: #5d5a63; --line: #e3e0da; --accent: #7a1f3d; --accent-soft: #f4e6eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141217; --card: #1d1a21; --text: #f1eef4; --muted: #aaa4b1; --line: #2f2a35; --accent: #e0789c; --accent-soft: #3a2230; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 32px 20px 64px; }
+  nav { position: sticky; top: 24px; align-self: start; font-size: 0.93rem; }
+  nav a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  nav .home { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); font-size: 1.05rem; margin-bottom: 14px; }
+  nav .home img { width: 32px; height: 32px; }
+  nav h4 { margin: 16px 0 4px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  main h1 { font-size: 2.2rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+  main h2 { font-size: 1.5rem; margin: 48px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  main h3 { font-size: 1.1rem; margin: 22px 0 6px; }
+  .shot { width: 100%; border-radius: 12px; border: 1px solid var(--line); margin: 10px 0 6px; }
+  .note { background: var(--accent-soft); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+  code { font-size: 0.9em; background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <a class="home" href="index.html"><img src="icon.svg" alt="">KeyMelier</a>
+  <a href="#install">Install &amp; first launch</a>
+  <a href="#overview">Overview &amp; security check</a>
+  <h4>FIDO2</h4>
+  <a href="#security">Security &amp; authenticity</a>
+  <a href="#pin">PIN</a>
+  <a href="#passkeys">Passkeys</a>
+  <a href="#settings">Key settings &amp; reset</a>
+  <h4>Smart card</h4>
+  <a href="#authenticator">Authenticator (TOTP)</a>
+  <a href="#openpgp">OpenPGP</a>
+  <a href="#piv">PIV certificates</a>
+  <a href="#otp">OTP slots</a>
+  <h4>Keeping track</h4>
+  <a href="#history">History</a>
+  <a href="#backup">Backup &amp; lost keys</a>
+  <a href="#data">Data, updates &amp; privacy</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+</nav>
+<main>
+  <h1>Documentation</h1>
+  <p class="muted">For KeyMelier <span data-latest-version>– see the latest release</span>. Screenshots use fictional demo data.</p>
+
+  <h2 id="install">Install &amp; first launch</h2>
+  <p>Download the zip for your system from the <a href="https://github.com/FiraSenax/KeyMelier/releases/latest">latest release</a>. Each release lists SHA-256 checksums – compare them if in doubt.</p>
+  <h3>macOS</h3>
+  <ol>
+    <li>Unzip <code>KeyMelier-macOS.zip</code> and move <b>KeyMelier.app</b> to <b>Applications</b>.</li>
+    <li>Current releases are not yet notarized: on first launch macOS says it cannot verify the app. Click <b>Done</b>, then open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+    <li>For the OTP slots, macOS asks for the <b>Input Monitoring</b> permission (see <a href="#otp">OTP slots</a>).</li>
+  </ol>
+  <h3>Windows</h3>
+  <ol>
+    <li>Unzip <code>KeyMelier-Windows.zip</code> and open the <code>KeyMelier</code> folder.</li>
+    <li>Right-click <code>KeyMelier.exe</code> → <b>Run as administrator</b> – Windows only lets administrators talk to FIDO keys directly.</li>
+    <li>If SmartScreen appears: <b>More info → Run anyway</b> (releases are not yet code-signed).</li>
+  </ol>
+  <p>Plug in a key – it appears in the sidebar within a second. KeyMelier follows your system language (11 languages) and light/dark mode; the language can be changed at the bottom left.</p>
+
+  <h2 id="overview">Overview &amp; security check</h2>
+  <img class="shot" src="img/overview.png" alt="Overview of a key with tiles and the security check">
+  <p>The sidebar lists connected keys and, below, keys seen before. The overview shows the most important facts as tiles and a <b>security check</b>: a prioritised list of what to improve – for example websites that exist on only one key, a missing PIN or a known vulnerability. <b>Fix</b> jumps to the right place.</p>
+  <p>The status next to the name means:</p>
+  <ul>
+    <li><b>No known findings</b> – a certified model, authenticity verified, current metadata and vulnerability data, nothing found.</li>
+    <li><b>Warning / Critical</b> – a known vulnerability, a revoked or compromised model, or a failed authenticity test.</li>
+    <li><b>Unknown</b> – something needed for a verdict is missing (e.g. the authenticity test was not completed, or offline without current data).</li>
+  </ul>
+
+  <h2 id="security">Security &amp; authenticity</h2>
+  <img class="shot" src="img/security.png" alt="Security tab with advisories, function test and quantum safety">
+  <ul>
+    <li><b>Security advisories</b>: known vulnerabilities for this model and firmware, from KeyMelier's signed database, which updates itself.</li>
+    <li><b>Function test</b>: registers a test login, signs in and verifies the signature like a real website – nothing is stored on the key.</li>
+    <li><b>Quantum safety</b>: which signature algorithms the key offers; post-quantum ML-DSA is detected automatically once keys support it.</li>
+    <li><b>Authenticity test (attestation)</b>: when a key is plugged in, KeyMelier asks it to prove it is the model it claims to be. Touch the key when it blinks. Keys with a PIN may ask for it – enter it here to run the test.</li>
+    <li><b>FIDO metadata</b>: certification level and status from the FIDO Alliance.</li>
+    <li><b>Data freshness</b>: when the vulnerability database and FIDO metadata were last updated, with <b>Check now</b> and the open-source licenses.</li>
+  </ul>
+
+  <h2 id="pin">PIN</h2>
+  <img class="shot" src="img/pin.png" alt="PIN tab">
+  <p>Set or change the FIDO2 PIN and see the remaining attempts. After 8 wrong PINs the FIDO application locks and only a reset helps. Some keys require a PIN change on first use (e.g. keys delivered with a start PIN) – KeyMelier guides you through it.</p>
+
+  <h2 id="passkeys">Passkeys</h2>
+  <img class="shot" src="img/passkeys.png" alt="Passkeys grouped by website">
+  <p>Unlock with the PIN (or fingerprint) to list the passkeys stored on the key, grouped by website. Rename or delete them. Deleting a passkey here does not remove it from the website – remove it there too. The unlock is held in memory for a few minutes only.</p>
+  <p class="note">Classic two-factor registrations (U2F) are not stored on the key and therefore do not appear in this list.</p>
+
+  <h2 id="settings">Key settings &amp; reset</h2>
+  <img class="shot" src="img/settings.png" alt="Settings tab with key options and applications per interface">
+  <ul>
+    <li><b>Key settings</b>: minimum PIN length, always require PIN or fingerprint, force a PIN change.</li>
+    <li><b>Applications per interface</b> (YubiKey): turn off what you don't use over USB or NFC. FIDO2 over USB always stays on so KeyMelier can find the key.</li>
+    <li><b>Factory reset</b> of the FIDO application: KeyMelier asks you to re-plug the key and touch it. All passkeys and fingerprints are deleted; authenticator, OpenPGP and PIV are not affected.</li>
+  </ul>
+
+  <h2 id="authenticator">Authenticator (TOTP/HOTP)</h2>
+  <img class="shot" src="img/oath.png" alt="Authenticator codes with countdown">
+  <p>Two-factor codes stored on the key (compatible with Yubico Authenticator). Click a code to copy it. Accounts marked for touch show their code after you touch the key.</p>
+  <ul>
+    <li><b>Add account</b>: paste the <code>otpauth://</code> link from the website's QR code, or enter issuer, account and secret by hand.</li>
+    <li><b>Protection</b>: set a password so the codes cannot be read by anyone who plugs in the key. KeyMelier never stores the password.</li>
+  </ul>
+
+  <h2 id="openpgp">OpenPGP</h2>
+  <img class="shot" src="img/openpgp.png" alt="OpenPGP keys, card data and PINs">
+  <p>Shows the signature, encryption and authentication keys on the card with fingerprint, algorithm and creation date, plus the signature counter, cardholder data and the PIN/admin PIN attempts. You can change or unblock PINs, choose whether every signature asks for the PIN, set touch policies (YubiKey) and reset OpenPGP.</p>
+  <h3>Generate keys on the card</h3>
+  <img class="shot" src="img/openpgp-generate.png" alt="Generate OpenPGP keys form">
+  <p>Choose name, e-mail, algorithm (Ed25519/Cv25519 recommended) and validity, enter the PIN and admin PIN. The private keys are created on the key and never leave it. Afterwards:</p>
+  <ol>
+    <li><b>Save the revocation certificate</b> somewhere safe – you need it if the key is lost.</li>
+    <li>Save or copy the <b>public key</b>, or import it into GnuPG directly (if installed). Then <code>gpg --card-status</code> links it to the key.</li>
+  </ol>
+  <p class="note">Factory PINs: user PIN <code>123456</code>, admin PIN <code>12345678</code> – change both.</p>
+
+  <h2 id="piv">PIV certificates</h2>
+  <img class="shot" src="img/piv.png" alt="PIV slots with a certificate">
+  <p>PIV is used for smart card login on Windows and macOS, VPNs and e-mail signing. KeyMelier shows each slot's certificate with validity and warns about expiring certificates and factory defaults.</p>
+  <ul>
+    <li><b>Generate key</b>: a new key pair on the key with a self-signed certificate; for company use import the certificate issued by your CA.</li>
+    <li><b>Import / copy / delete</b> certificates, change PIN and PUK, unblock the PIN.</li>
+    <li><b>Protect with PIN</b>: replaces the factory management key with a random one unlocked by your PIN.</li>
+  </ul>
+
+  <h2 id="otp">OTP slots (YubiKey)</h2>
+  <img class="shot" src="img/otp.png" alt="OTP slots">
+  <p>A short touch triggers slot 1, a long touch slot 2. KeyMelier shows which slots are used and can program a static password or HMAC-SHA1 challenge-response (e.g. for KeePassXC – save the secret shown once to set up a backup key), swap or delete slots.</p>
+  <p class="note">macOS: the OTP slots use the key's keyboard interface. Allow KeyMelier under <b>System Settings → Privacy &amp; Security → Input Monitoring</b>, then restart KeyMelier.</p>
+
+  <h2 id="history">History</h2>
+  <img class="shot" src="img/history.png" alt="History with key facts, what's on it and activity">
+  <p>Every key KeyMelier has seen stays in the sidebar with its last known state. Give it a name, see serial number, AAGUID and an activity timeline – and <b>what's on it</b>: passkey websites, authenticator accounts, OpenPGP keys, certificates and OTP slots, with the time they were last read. Only names are stored, never secrets or codes.</p>
+
+  <h2 id="backup">Backup &amp; lost keys</h2>
+  <img class="shot" src="img/backup.png" alt="Backup overview of websites and accounts per key">
+  <p><b>Backup &amp; loss</b> (top of the sidebar) shows which websites and authenticator accounts are on which key and highlights those on a single key only. Here you also switch history and remembering contents on or off, and <b>export or import</b> the history to back it up or move it to another computer.</p>
+  <img class="shot" src="img/lost.png" alt="Lost-key assistant">
+  <p>If a key is lost, pick it in <b>Lost a key?</b> and mark it as lost. You get a checklist: websites to remove the key from (with the keys that still work there), authenticator accounts to set up again, OpenPGP keys to revoke and certificates to have revoked.</p>
+
+  <h2 id="data">Data, updates &amp; privacy</h2>
+  <img class="shot" src="img/details.png" alt="Technical details">
+  <p>KeyMelier does not send any information about you or your keys. It downloads FIDO Alliance metadata (verified against the FIDO root and revocation lists), its own signed vulnerability database and the latest release number for an update notice. The data freshness is shown at the bottom of the <b>Security</b> tab; <b>Check now</b> updates immediately.</p>
+  <p>Stored locally in your home folder (<code>keymelier</code>): settings and the history. Start with <code>--stateless</code> to store nothing. The open-source licenses of all components are one click away next to it (<b>Open-source licenses</b>).</p>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><b>Key not detected on Windows</b>: run KeyMelier as administrator.</li>
+    <li><b>"The smart card interface is used by another program"</b>: usually GnuPG. Run <code>gpgconf --kill scdaemon</code> and try again.</li>
+    <li><b>Authenticator/OpenPGP/PIV tabs missing</b>: the key has no smart card interface, it is disabled under Settings, or several keys of the same model are connected – plug in only one.</li>
+    <li><b>Authenticity test "not performed"</b>: touch the key when it blinks right after plugging it in, or run the test again in the Security tab (with PIN if asked).</li>
+    <li><b>OTP slots cannot be read on macOS</b>: grant Input Monitoring (see <a href="#otp">OTP slots</a>).</li>
+    <li>Anything else: <a href="https://github.com/FiraSenax/KeyMelier/issues">open an issue</a>.</li>
+  </ul>
+</main>
+</div>
+<script src="latest.js"></script>
+</body>
+</html>
