@@ -8,6 +8,23 @@ def stateless():
     return os.environ.get("KEYMELIER_STATELESS") == "1"
 
 
+def set_aside(path):
+    """Keep an unreadable data file under a new name instead of overwriting
+    it with a fresh start (interrupted save, disk error, manual edit).
+    Returns the new file name, or None if there was nothing to keep."""
+    from datetime import datetime
+    path = Path(path)
+    if not path.is_file() or path.is_symlink():
+        return None
+    target = path.with_name(f"{path.name}.unreadable-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    n = 1
+    while target.exists():
+        target = target.with_name(f"{target.name}-{n}")
+        n += 1
+    os.replace(path, target)
+    return target.name
+
+
 def atomic_write(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

@@ -200,6 +200,21 @@ async function main() {
     const calls = await js('window.__demoCalls.filter(c => c === "unlock" || c === "read_contents")');
     assert(JSON.stringify(calls) === '["unlock","read_contents"]', `exactly one unlock, then reading: ${calls}`);
   });
+  await test('reading: a key pulled out mid-read shows an error with the next step, never success', async () => {
+    await js(`(() => { const real = window.pywebview.api.call;
+      window.__realCall = real;
+      window.pywebview.api.call = async (m, a) => m === 'read_contents'
+        ? { ok: true, data: { sites: null, oath: null, openpgp: null, piv: null, failed: ['passkeys'], removed: true } }
+        : real(m, a); })()`);
+    await js('document.querySelectorAll("#toast-container .toast").forEach(t => t.remove())');
+    await js('selectToken("demo-yk5"); switchTab("overview")');
+    await click('#read-btn');                               // the key is still unlocked from the test above
+    await until('document.querySelector("#toast-container .toast")', 'a message');
+    const toast = await js('[...document.querySelectorAll("#toast-container .toast")].map(t => t.className + " | " + t.textContent)');
+    assert(toast.length === 1 && toast[0].includes('error') && /removed|abgezogen/.test(toast[0]), `message: ${toast}`);
+    assert(await js('!$("read-btn").disabled'), 'button usable again');
+    await js('window.pywebview.api.call = window.__realCall');
+  });
   await test('About dialog: Enter opens, Tab stays inside, Escape returns focus', async () => {
     await focus('#about-open');
     await press('Enter');

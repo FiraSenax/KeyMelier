@@ -493,15 +493,35 @@ async function readKey(tok) {
   }
 }
 
+const READ_PARTS = { passkeys: 'tile.passkeys', oath: 'tile.oath', openpgp: 'tab.openpgp', piv: 'tab.piv' };
+
 async function readContentsNow(tok) {
-  const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
+  let got;
+  try {
+    got = await call('read_contents', { token_id: tok.id });
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
+    return;
+  }
+  if (got.removed) {
+    // nothing that failed was recorded – the known state stays as it was
+    showToast(t('read.removed', { name: displayName(tok) }), 'error');
+    await loadHistory();
+    render();
+    return;
+  }
   const parts = [
     got.sites != null ? t('ql.got.sites', { n: got.sites }) : '',
     got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
     got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
     got.piv ? t('ql.got.piv', { n: got.piv }) : '',
   ].filter(Boolean);
-  showToast(t('ql.done', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
+  if (got.failed?.length) {
+    showToast(t('read.partial', { parts: got.failed.map(p => t(READ_PARTS[p] || p)).join(', ') })
+      + (parts.length ? ` – ${parts.join(', ')}` : ''), 'error');
+  } else {
+    showToast(t('ql.done', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
+  }
   await loadHistory();
   render();
 }
@@ -3980,6 +4000,8 @@ async function start() {
     appSettings = settings;
     SYSTEM_LANG = pickLanguage(settings.system_languages);
     changeLang(settings.lang || '', false);
+    // A data file could not be read at start: it was kept aside, not overwritten
+    for (const p of settings.problems || []) showToast(t(`problem.${p.code}`, { file: p.file }), 'error');
   } catch { /* defaults */ }
   loadMds();
   call('data_status').then(st => { dataStatus = st; renderDataStatus(); }).catch(() => {});

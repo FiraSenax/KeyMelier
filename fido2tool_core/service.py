@@ -12,7 +12,7 @@ import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, stateless
+from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, set_aside, stateless
 from fido2tool_core import sync as sync_mod
 
 from fido2tool_core import auth
@@ -86,6 +86,7 @@ class KeyService:
         self._exporter = exporter
         self._mds3 = mds3_client
         self._session_settings = {}
+        self._settings_problem = None   # settings file could not be read (kept aside)
         # History is on unless the user switched it off (websites stay opt-in)
         self.history = history or History(enabled=self._stored_settings().get("history_enabled") is not False)
         if not self._remember_contents():
@@ -275,15 +276,25 @@ class KeyService:
         if stateless():
             return self._session_settings
         try:
-            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-        except Exception:
+            data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("settings are not an object")
+            return data
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            # Never overwrite unreadable settings silently: keep them, use defaults
+            kept = set_aside(SETTINGS_FILE)
+            self._settings_problem = {"code": "settings_unreadable", "file": kept or ""}
+            logger.warning("Could not read settings (%s); kept as %s, using defaults", e, kept)
             return {}
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
         return {"history_enabled": not stateless(), "remember_sites": not stateless(), "personal_mode": True,
                 **self._stored_settings(),
-                "stateless": stateless(), "system_languages": system_languages()}
+                "stateless": stateless(), "system_languages": system_languages(),
+                "problems": [p for p in (self._settings_problem, self.history.load_problem) if p]}
 
     def set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()
@@ -452,14 +463,19 @@ class KeyService:
         """After an unlock: read what is on the key in one go (passkeys, and
         authenticator/OpenPGP/PIV where present) so the history and the
         account overview are current. Best effort – each part may fail."""
-        result = {"sites": None, "oath": None, "openpgp": None, "piv": None}
+        result = {"sites": None, "oath": None, "openpgp": None, "piv": None, "failed": [], "removed": False}
         try:
             data = self.passkeys(token_id)
             if data.get("unlocked"):
                 result["sites"] = len(data.get("rps", []))
         except Exception as e:
-            logger.debug("read_contents passkeys: %s", e)
-        apps = self.card_apps(token_id).get("apps", {})
+            logger.info("read_contents passkeys: %s", e)
+            result["failed"].append("passkeys")
+        try:
+            apps = self.card_apps(token_id).get("apps", {})
+        except Exception as e:
+            logger.info("read_contents card apps: %s", e)
+            apps = {}
         for app, reader in (("oath", self.oath), ("openpgp", self.openpgp), ("piv", self.piv)):
             if not apps.get(app):
                 continue
@@ -472,7 +488,14 @@ class KeyService:
                 else:
                     result["piv"] = sum(1 for s in data["slots"] if s["cert"])
             except Exception as e:
-                logger.debug("read_contents %s: %s", app, e)
+                logger.info("read_contents %s: %s", app, e)
+                result["failed"].append(app)
+        if result["failed"]:
+            # Nothing is written for a part that failed; say whether the key left
+            try:
+                self._scanner.get(token_id)
+            except DeviceNotFound:
+                result["removed"] = True
         return result
 
     def lock(self, token_id: str) -> dict:

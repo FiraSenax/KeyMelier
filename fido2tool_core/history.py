@@ -16,7 +16,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from fido2tool_core.storage import atomic_write, stateless, history_cipher
+from fido2tool_core.storage import atomic_write, set_aside, stateless, history_cipher
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ class History:
         self._forgotten: dict[str, str] = {}
         self.track_forgotten = False
         self.revision = 0   # bumped on every change (sync writes only when it moved)
+        self.load_problem: dict | None = None   # history file could not be read (kept aside)
         self._load()
 
     def _load(self):
@@ -79,7 +80,11 @@ class History:
             if self._encrypted:
                 self.enabled = False
                 raise RuntimeError("Encrypted history could not be opened; existing file preserved") from e
-            logger.warning("Could not read history (%s); starting fresh", e)
+            # Never overwrite what we could not read: keep it under another name
+            self._entries, self._forgotten = {}, {}
+            kept = set_aside(self._path)
+            self.load_problem = {"code": "history_unreadable", "file": kept or ""}
+            logger.warning("Could not read history (%s); kept as %s, starting fresh", e, kept)
 
     def _save(self):
         self.revision += 1
