@@ -1236,7 +1236,7 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .acc-tools input[type=search] { flex: 1; min-width: 180px; }
 .acc-table td.yes .pill { margin: 1px 2px; font-size: 0.72rem; }
 .acc-name { min-width: 260px; white-space: nowrap; }
-.acc-name > .pk-avatar { display: inline-flex; vertical-align: middle; margin-right: 10px; }
+.acc-name > .pk-avatar { display: inline-grid; place-items: center; vertical-align: middle; margin-right: 10px; }
 .acc-name > span:last-child { display: inline-block; vertical-align: middle; white-space: normal; }
 .acc-label { display: block; font-weight: 600; }
 .acc-name .pk-avatar { width: 26px; height: 26px; font-size: 0.8rem; }
