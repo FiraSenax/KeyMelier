@@ -5,6 +5,7 @@
     check_artifacts.py windows DIST [--signed true|false]
     check_artifacts.py linux   DIST --arch x86_64|aarch64
     check_artifacts.py release DIR --commit SHA --notes NOTES.md --mac-signed X --win-signed Y
+                              [--report REPORT.md --jobs "test=success,build-linux=success,…"]
     check_artifacts.py restore-exec DIR
 
 restore-exec (release job, right after downloading the artifacts): GitHub's
@@ -361,6 +362,24 @@ def run(argv: list[str]) -> Report:
     return r
 
 
+def write_report(path: Path, r: Report, folder: Path, commit: str, jobs: str) -> None:
+    """Markdown report: commit, version, every artifact with size and SHA-256, job results, checks."""
+    lines = ["# KeyMelier release check", "",
+             f"- Commit: `{commit}`", f"- Version: {app_version()}",
+             f"- Result: **{'passed' if not r.problems else 'FAILED'}** "
+             f"({len(r.passed)} checks passed, {len(r.problems)} failed)", ""]
+    if jobs:
+        lines += ["## Jobs", "", "| Job | Result |", "|---|---|"]
+        lines += [f"| {name} | {result} |" for name, _, result in
+                  (item.partition("=") for item in jobs.split(",") if item)]
+        lines.append("")
+    lines += ["## Artifacts", "", "| File | Size | SHA-256 |", "|---|---|---|"]
+    for f in sorted(p for p in folder.iterdir() if p.is_file()):
+        lines.append(f"| {f.name} | {f.stat().st_size:,} B | `{hashlib.sha256(f.read_bytes()).hexdigest()}` |")
+    lines += ["", "## Checks", ""] + [f"- FAIL {p}" for p in r.problems] + [f"- ok {p}" for p in r.passed]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print(__doc__)
@@ -372,6 +391,9 @@ def main() -> int:
         print("AppImages executable again" if not problems else "AppImages missing")
         return 1 if problems else 0
     r = run(sys.argv[1:])
+    opts = dict(zip(sys.argv[3::2], sys.argv[4::2]))
+    if opts.get("--report"):
+        write_report(Path(opts["--report"]), r, Path(sys.argv[2]), opts.get("--commit", ""), opts.get("--jobs", ""))
     for p in r.problems:
         print(f"FAIL {p}")
     print(f"{len(r.passed)} checks passed, {len(r.problems)} failed ({sys.argv[1]}, version {app_version()})")

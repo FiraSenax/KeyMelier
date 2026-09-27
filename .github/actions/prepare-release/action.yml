@@ -1,0 +1,56 @@
+name: Prepare release artifacts
+description: >-
+  Shared by the real release and the release rehearsal, so both run the same
+  steps: download the build artifacts of this run, restore the AppImages'
+  execute bit, attach source commit and dependency locks, compute checksums
+  (after every change to the files), write release notes with the actual
+  signing state and validate everything. Publishes nothing.
+inputs:
+  mac-signed:
+    description: build-macos output "signed"
+    required: true
+  win-signed:
+    description: build-windows output "signed"
+    required: true
+  jobs:
+    description: Job results for the report, "name=result,…"
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        pattern: KeyMelier-*
+        merge-multiple: true
+        path: artifacts
+    # The artifact transfer drops the execute bit; restore it on exactly the
+    # two AppImages (a missing one fails here)
+    - name: Make the AppImages executable again
+      shell: bash
+      run: python3 tools/check_artifacts.py restore-exec artifacts
+    - name: Tools for looking inside the AppImages
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools
+    - name: Attach source revision and dependency locks, then checksums
+      shell: bash
+      run: |
+        cp uv.lock requirements.txt requirements-build.txt artifacts/
+        printf '%s\n' "$GITHUB_SHA" > artifacts/SOURCE_COMMIT.txt
+        cd artifacts
+        sha256sum * > SHA256SUMS.txt
+    - name: Release notes with the actual signing state
+      shell: bash
+      env:
+        MAC_SIGNED: ${{ inputs.mac-signed }}
+        WIN_SIGNED: ${{ inputs.win-signed }}
+      run: python3 tools/release_notes.py > release-notes.md && cat release-notes.md
+    - name: Validate everything that will be published
+      shell: bash
+      env:
+        MAC_SIGNED: ${{ inputs.mac-signed }}
+        WIN_SIGNED: ${{ inputs.win-signed }}
+        JOBS: ${{ inputs.jobs }}
+      run: >-
+        python3 tools/check_artifacts.py release artifacts --commit "$GITHUB_SHA" --notes release-notes.md
+        --mac-signed "$MAC_SIGNED" --win-signed "$WIN_SIGNED" --report release-check.md --jobs "$JOBS"

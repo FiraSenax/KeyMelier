@@ -383,8 +383,46 @@ jobs:
             dist/THIRD_PARTY_LICENSES-Linux-${{ matrix.arch }}.txt
             dist/KeyMelier-Linux-${{ matrix.arch }}.cdx.json
           retention-days: 14
+  # The AppImages built above, unchanged, in clean containers of the supported
+  # distributions (tools/linux_compat.py): only the documented runtime
+  # packages, the packaged start test under Xvfb, the file's SHA-256 recorded
+  # first. Native on both architectures. A failing supported combination
+  # blocks the release. Not covered: USB/key access, Wayland, real desktops.
+  linux-compat:
+    needs: [build-linux]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        image: ['ubuntu:24.04', 'ubuntu:26.04', 'debian:13', 'fedora:43', 'opensuse/leap:16.0', 'archlinux:latest']
+        exclude:
+          - arch: aarch64
+            image: 'archlinux:latest'   # no official ARM64 image
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: KeyMelier-Linux-${{ matrix.arch }}
+          path: appimage
+      - name: Start test in ${{ matrix.image }}
+        run: python3 tools/linux_compat.py run "appimage/KeyMelier-Linux-${{ matrix.arch }}.AppImage" "${{ matrix.image }}" --out compat
+      - name: Result
+        if: always()
+        run: python3 tools/linux_compat.py report compat >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: linux-compat-${{ matrix.arch }}-${{ strategy.job-index }}
+          path: compat
+          retention-days: 14
+  # The real release (version tags only) and the rehearsal (manual runs) share
+  # every step up to publishing: .github/actions/prepare-release
   release:
-    needs: [build-macos, build-windows, build-linux]
+    needs: [build-macos, build-windows, build-linux, linux-compat]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -397,53 +435,10 @@ jobs:
         run: |
           version=$(python3 -c "from fido2tool_core.version import __version__; print(__version__)")
           test "v$version" = "$GITHUB_REF_NAME"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: ./.github/actions/prepare-release
         with:
-          pattern: KeyMelier-*
-          merge-multiple: true
-          path: artifacts
-      # The artifact transfer drops the execute bit; restore it on exactly the
-      # two AppImages (a missing one fails here)
-      - name: Make the AppImages executable again
-        run: python3 tools/check_artifacts.py restore-exec artifacts
-      - name: Tools for looking inside the AppImages
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools
-      - name: Attach source revision and dependency locks
-        run: |
-          cp uv.lock requirements.txt requirements-build.txt artifacts/
-          printf '%s\n' "$GITHUB_SHA" > artifacts/SOURCE_COMMIT.txt
-          cd artifacts
-          sha256sum * > SHA256SUMS.txt
-      - name: Release notes with the actual signing state
-        env:
-          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
-          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
-        run: |
-          {
-            echo "**Downloads**"
-            if [ "$MAC_SIGNED" = "true" ]; then
-              echo "- \`KeyMelier-macOS.dmg\` – **macOS** (recommended): open it and drag KeyMelier to Applications (replaces an older version). Developer ID signed and notarized."
-            else
-              echo "- \`KeyMelier-macOS.dmg\` – **macOS** (recommended): open it and drag KeyMelier to Applications (replaces an older version). **Not notarized** – first launch: open it, click *Done*, then *System Settings → Privacy & Security → Open Anyway*."
-            fi
-            if [ "$WIN_SIGNED" = "true" ]; then
-              echo "- \`KeyMelier-Windows-Setup.exe\` – **Windows** installer (recommended): installs or updates KeyMelier. Signed via SignPath Foundation."
-            else
-              echo "- \`KeyMelier-Windows-Setup.exe\` – **Windows** installer (recommended): installs or updates KeyMelier. **Not signed** – if SmartScreen appears: *More info* → *Run anyway*."
-            fi
-            echo "- \`KeyMelier-Linux-x86_64.AppImage\`, \`KeyMelier-Linux-aarch64.AppImage\` – **Linux** (x86-64 / ARM64): make it executable (\`chmod +x\`) and start it. **Unsigned** – compare the checksum. If your key does not appear, see *Linux* in the documentation (udev rules)."
-            echo "- \`KeyMelier-macOS.zip\`, \`KeyMelier-Windows.zip\` – the same apps without installer (portable)."
-            echo
-            echo "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no verified publisher – compare the checksums if in doubt."
-          } > release-notes.md
-          cat release-notes.md
-      - name: Validate everything that will be published
-        env:
-          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
-          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
-        run: >-
-          python3 tools/check_artifacts.py release artifacts --commit "$GITHUB_SHA" --notes release-notes.md
-          --mac-signed "$MAC_SIGNED" --win-signed "$WIN_SIGNED"
+          mac-signed: ${{ needs.build-macos.outputs.signed }}
+          win-signed: ${{ needs.build-windows.outputs.signed }}
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: KeyMelier ${{ github.ref_name }}
@@ -451,3 +446,37 @@ jobs:
           make_latest: 'true'
           body_path: release-notes.md
           files: artifacts/*
+  # Release rehearsal (Run workflow): the same builds, the real artifact
+  # transfer (upload in the build jobs, download here) and the same checks as
+  # the release – but no release, no tag and no write access. The checked
+  # packages and the report are kept as the artifact "release-rehearsal".
+  release-rehearsal:
+    needs: [test, ui, build-macos, build-windows, build-linux, linux-compat]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-release
+        with:
+          mac-signed: ${{ needs.build-macos.outputs.signed }}
+          win-signed: ${{ needs.build-windows.outputs.signed }}
+          jobs: >-
+            test=${{ needs.test.result }},ui=${{ needs.ui.result }},build-macos=${{ needs.build-macos.result }},build-windows=${{ needs.build-windows.result }},build-linux=${{ needs.build-linux.result }},linux-compat=${{ needs.linux-compat.result }}
+      - name: Report
+        if: always()
+        run: |
+          if [ -f release-check.md ]; then cat release-check.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report – the preparation failed before the checks (see the step log)." >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: release-rehearsal   # does not match KeyMelier-*: never picked up by a release
+          path: |
+            artifacts
+            release-notes.md
+            release-check.md
+          if-no-files-found: warn
+          retention-days: 7

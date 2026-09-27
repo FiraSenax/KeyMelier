@@ -1,6 +1,7 @@
 """Linux support that can be checked on every system: keyring choice, languages,
 page file, host programs without the AppImage's libraries, update asset per CPU."""
 
+import json
 import os
 import stat
 import sys
@@ -184,3 +185,42 @@ class UpdateAssetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompatReportTests(unittest.TestCase):
+    """tools/linux_compat.py report: every combination listed; one failure or no result blocks."""
+
+    def setUp(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("linux_compat", Path(__file__).resolve().parent.parent / "tools" / "linux_compat.py")
+        self.compat = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.compat)
+        self.dir = Path(tempfile.mkdtemp())
+
+    def result(self, name, **fields):
+        (self.dir / name).mkdir()
+        base = {"image": name, "distribution": name, "arch": "x86_64", "mode": "native", "glibc": "ldd 2.39",
+                "status": "passed", "checks": 46, "passed_checks": 46, "sha256": "ab" * 32, "missing_required": []}
+        (self.dir / name / "result.json").write_text(json.dumps({**base, **fields}), encoding="utf-8")
+
+    def test_all_passed(self):
+        self.result("ubuntu-24.04")
+        self.result("debian-13", mode="emulated")
+        text, ok = self.compat.report([self.dir])
+        self.assertTrue(ok)
+        self.assertIn("emulated", text)
+        self.assertIn("ab" * 32, text)
+        self.assertIn("no USB/key access, no Wayland", text)
+
+    def test_a_failure_or_no_result_blocks(self):
+        self.result("ubuntu-24.04")
+        self.result("fedora-43", status="failed", missing_required=["libfoo.so.1 (needed by x)"])
+        text, ok = self.compat.report([self.dir])
+        self.assertFalse(ok)
+        self.assertIn("libfoo.so.1", text)
+        self.assertFalse(self.compat.report([Path(tempfile.mkdtemp())])[1], "no results at all is not a pass")
+
+    def test_matrix_matches_the_workflow(self):
+        wf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        for image in set(self.compat.MATRIX["x86_64"]) | set(self.compat.MATRIX["aarch64"]):
+            self.assertIn(f"'{image}'", wf)

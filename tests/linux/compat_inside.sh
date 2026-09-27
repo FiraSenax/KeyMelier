@@ -41,7 +41,10 @@ case "$ID" in
       libxdamage libxtst libsm libice libglvnd mesa libdrm fontconfig freetype2 harfbuzz ttf-dejavu dbus alsa-lib
       glib2 wayland systemd-libs"
     HARNESS="python xorg-server-xvfb xorg-xauth gnome-keyring squashfs-tools"
-    install() { pacman -Sy --noconfirm --needed $RUNTIME $HARNESS; } ;;
+    # pacman's download sandbox cannot set up seccomp under QEMU emulation; only
+    # then (inside this throwaway container) retry without it
+    install() { pacman -Sy --noconfirm --needed $RUNTIME $HARNESS ||
+                { [ "$MODE" = emulated ] && pacman -Sy --noconfirm --needed --disable-sandbox $RUNTIME $HARNESS; }; } ;;
   *) echo "unsupported distribution $ID"; exit 2 ;;
 esac
 

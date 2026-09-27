@@ -84,7 +84,9 @@
   <p>Without installer: the <code>…-macOS.zip</code> and <code>…-Windows.zip</code> files contain the same apps.</p>
   <h3 id="linux">Linux</h3>
   <ol>
-    <li>Download <code>KeyMelier-Linux-x86_64.AppImage</code> (ARM64: <code>…-aarch64.AppImage</code>), make it executable – <code>chmod +x KeyMelier-Linux-x86_64.AppImage</code> or in the file manager under <i>Properties → Permissions</i> – and start it. It is built on Ubuntu 24.04; much older distributions may not start it. The AppImage is not signed – compare the SHA-256 checksum.</li>
+    <li>Download <code>KeyMelier-Linux-x86_64.AppImage</code> (ARM64: <code>…-aarch64.AppImage</code>), make it executable – <code>chmod +x KeyMelier-Linux-x86_64.AppImage</code> or in the file manager under <i>Properties → Permissions</i> – and start it. The AppImage is not signed – compare the SHA-256 checksum.</li>
+    <li><b>Requirements:</b> glibc 2.38 or newer (Ubuntu 22.04 and Debian 12 are too old) and the libraries a desktop installation already has – X11/xcb, OpenGL/EGL (Mesa), fontconfig with fonts, D-Bus, GLib, ALSA and the Wayland client libraries. Everything else, including Qt and its web engine, is inside the AppImage.</li>
+    <li><b>Automatically tested</b> (every release; the same file in clean containers with only these libraries, started under a virtual display): Ubuntu 24.04 and 26.04, Debian 13, Fedora 43 and openSUSE Leap 16.0 on x86-64 and ARM64, Arch Linux on x86-64. These tests cannot use a security key, USB, Wayland or a real desktop – see <a href="hardware.html">tested keys</a> for results with hardware.</li>
     <li>AppImages need FUSE, which desktop distributions include. Without it: start it with <code>--appimage-extract-and-run</code>.</li>
     <li><b>Access to the key:</b> distributions with systemd 244 or newer (practically all current ones) give the logged-in user access to FIDO keys automatically. If your key does not appear, install the udev rules that come with the AppImage:
       <pre>./KeyMelier-Linux-x86_64.AppImage --appimage-extract usr/share/keymelier/70-keymelier.rules
@@ -235,7 +237,7 @@ sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
     <li><b>Authenticator/OpenPGP/PIV missing</b> (OpenPGP and PIV are in the Advanced menu): the key has no smart card interface, it is disabled under Advanced → Key settings, or several keys of the same model are connected – plug in only one.</li>
     <li><b>Authenticity test "not performed"</b>: touch the key when it blinks right after plugging it in, or run the test again in the Key check tab (with PIN if asked).</li>
     <li><b>OTP slots cannot be read on macOS</b>: grant Input Monitoring (see <a href="#otp">OTP slots</a>).</li>
-    <li>Anything else: <a href="https://github.com/FiraSenax/KeyMelier/issues">open an issue</a>.</li>
+    <li>Anything else: <a href="https://github.com/FiraSenax/KeyMelier/issues">open an issue</a>. <b>About KeyMelier → Diagnostic report…</b> creates a report you can attach: version, system, settings switches, counts, data status and the codes of recent errors – no key names, serial numbers, accounts, paths, addresses or passwords. You see the full text before saving; it is only saved where you choose and never sent.</li>
   </ul>
 </main>
 </div>

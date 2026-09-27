@@ -62,7 +62,7 @@ Ready-made builds are attached to the [latest release](https://github.com/FiraSe
 
 - **macOS:** `KeyMelier-macOS.dmg` – open it and drag KeyMelier to Applications (also to update).
 - **Windows:** `KeyMelier-Windows-Setup.exe` – installs or updates KeyMelier.
-- **Linux:** `KeyMelier-Linux-x86_64.AppImage` (ARM64: `…-aarch64.AppImage`) – `chmod +x` and start it. Unsigned. Device access (udev rules), `pcscd` for the smart card functions and the keyring for sync: see [Linux](https://firasenax.github.io/KeyMelier/guide.html#linux) in the documentation.
+- **Linux:** `KeyMelier-Linux-x86_64.AppImage` (ARM64: `…-aarch64.AppImage`) – `chmod +x` and start it. Unsigned; needs glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39 or later). Device access (udev rules), `pcscd` for the smart card functions and the keyring for sync: see [Linux](https://firasenax.github.io/KeyMelier/guide.html#linux) in the documentation.
 - Portable alternatives: `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip`.
 
 When a newer version exists, KeyMelier offers to download it, verifies it against the release's SHA-256 checksums and opens it; installing stays with you.

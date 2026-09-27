@@ -167,15 +167,62 @@ class CheckArtifactsTests(unittest.TestCase):
         self.assertEqual(out.returncode, 1, out.stdout)
         self.assertIn("KeyMelier-Linux-aarch64.AppImage is missing", out.stdout)
 
-    def test_release_job_order(self):
-        """download → restore-exec → squashfs-tools → … → validate → publish."""
-        text = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
-        job = text[text.index("\n  release:"):]
-        order = [job.index(marker) for marker in (
+    def test_release_and_rehearsal_share_the_same_steps(self):
+        """download → restore-exec → squashfs-tools → locks + checksums → notes → validate, in one shared
+        action; the release publishes after it, the rehearsal only uploads and cannot write."""
+        wf = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        action = (ROOT / ".github" / "actions" / "prepare-release" / "action.yml").read_text(encoding="utf-8")
+        order = [action.index(marker) for marker in (
             "actions/download-artifact", "check_artifacts.py restore-exec artifacts",
             "install -y --no-install-recommends squashfs-tools", "sha256sum * > SHA256SUMS.txt",
-            "check_artifacts.py release artifacts", "action-gh-release")]
+            "tools/release_notes.py", "check_artifacts.py release artifacts")]
         self.assertEqual(order, sorted(order))
+        release = wf[wf.index("\n  release:"):wf.index("\n  release-rehearsal:")]
+        rehearsal = wf[wf.index("\n  release-rehearsal:"):]
+        for job in (release, rehearsal):
+            self.assertIn("uses: ./.github/actions/prepare-release", job)
+            self.assertIn("linux-compat", job.split("\n")[2], "blocked by the Linux compatibility tests")
+        self.assertLess(release.index("prepare-release"), release.index("action-gh-release"))
+        self.assertNotIn("action-gh-release", rehearsal)
+        self.assertNotIn("contents: write", rehearsal)
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", rehearsal)
+        import fnmatch
+        import re
+        uploaded = re.findall(r"^\s+name: ([\w.-]+)", rehearsal.split("upload-artifact")[1], re.M)
+        self.assertEqual(uploaded[:1], ["release-rehearsal"])
+        self.assertFalse(fnmatch.fnmatch(uploaded[0], "KeyMelier-*"), "never picked up as a release artifact")
+
+    def test_release_notes_state_the_signing_and_pass_the_check(self):
+        import release_notes
+        for mac, win in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(mac=mac, win=win):
+                notes = self.tmp / "notes.md"
+                notes.write_text(release_notes.notes(mac, win), encoding="utf-8")
+                r = ca.Report()
+                ca.check_notes(r, notes, mac, win)
+                self.assertEqual(r.problems, [])
+                r = ca.Report()
+                ca.check_notes(r, notes, not mac, win)
+                self.assertTrue(r.problems, "a wrong signing claim is found")
+
+    def test_report_names_commit_version_artifacts_and_jobs(self):
+        notes = make_release(self.dir)
+        r = ca.run(["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),
+                    "--mac-signed", "false", "--win-signed", "false"])
+        report = self.tmp / "report.md"
+        ca.write_report(report, r, self.dir, COMMIT, "test=success,build-linux=failure")
+        text = report.read_text(encoding="utf-8")
+        self.assertIn(COMMIT, text)
+        self.assertIn(VERSION, text)
+        self.assertIn("| build-linux | failure |", text)
+        for f in self.dir.iterdir():
+            self.assertIn(hashlib.sha256(f.read_bytes()).hexdigest(), text)
+        self.assertIn("**passed**", text)
+        (self.dir / "KeyMelier-Linux-x86_64.AppImage").write_bytes(b"broken")
+        r = ca.run(["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),
+                    "--mac-signed", "false", "--win-signed", "false"])
+        ca.write_report(report, r, self.dir, COMMIT, "")
+        self.assertIn("**FAILED**", report.read_text(encoding="utf-8"))
 
     def test_pe_reader(self):
         self.assertEqual(ca.pe_info(pe("1.7.1", signed=True)), {"file_version": (1, 7, 1, 0), "signed": True})

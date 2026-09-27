@@ -52,12 +52,12 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 | Windows 11 | 1.7.0 or newer | YubiKey 5 (FW 5.1/5.2, FIDO 2.0) | | Not tested | Not tested | Not tested | Not tested | |
 | Windows 11 | 1.7.0 or newer | Token2 (PIN+ / FIDO2.1) | | Not tested | Not tested | Not tested | Not tested | |
 | Windows 10 | 1.7.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | |
-| Ubuntu 24.04 container (aarch64, Xvfb, no USB) | development state after 1.7.1 | – | – | – | – | – | Passed (AppImage starts, self-test 46 checks) | 2026-09-27 – automated start test in Docker on macOS, not on a Linux desktop and without a key. Not a hardware result. |
-| Ubuntu 24.04 (GNOME, Wayland) | first release with Linux or newer | YubiKey 5 (FW 5.7) | | Not tested | Not tested | Not tested | Not tested | AppImage; check access without the udev rules (systemd) |
-| Ubuntu 24.04 (GNOME, Wayland) | first release with Linux or newer | Token2 (PIN+ / FIDO2.1) | | Not tested | Not tested | Not tested | Not tested | Authenticator/OpenPGP/PIV need pcscd |
-| Fedora (KDE Plasma) | first release with Linux or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | Sync with KWallet (Secret Service) |
-| Debian 12 / older distribution | first release with Linux or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | Does the AppImage start at all (built on Ubuntu 24.04)? Udev rules from the AppImage |
-| Raspberry Pi OS 64-bit (aarch64) | first release with Linux or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | ARM64 AppImage |
+| Ubuntu 24.04 container (aarch64, Xvfb, no USB) | 1.8.0 candidate | – | – | – | – | – | Passed (AppImage starts, self-test 46 checks) | 2026-09-27 – automated start test in Docker on macOS, not on a Linux desktop and without a key. Not a hardware result. |
+| Ubuntu 24.04 (GNOME, Wayland) | 1.8.0 or newer | YubiKey 5 (FW 5.7) | | Not tested | Not tested | Not tested | Not tested | AppImage; check access without the udev rules (systemd) |
+| Ubuntu 24.04 (GNOME, Wayland) | 1.8.0 or newer | Token2 (PIN+ / FIDO2.1) | | Not tested | Not tested | Not tested | Not tested | Authenticator/OpenPGP/PIV need pcscd |
+| Fedora (KDE Plasma) | 1.8.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | Sync with KWallet (Secret Service) |
+| Debian 12 / older distribution | 1.8.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | Does the AppImage start at all (built on Ubuntu 24.04)? Udev rules from the AppImage |
+| Raspberry Pi OS 64-bit (aarch64) | 1.8.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | ARM64 AppImage |
 
 Open combinations are all rows marked **Not tested**. Add rows for further
 models; for an update test write "update from x.y" in the notes (procedure

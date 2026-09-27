@@ -19,6 +19,8 @@ devices.
 | `python tools/sbom.py --check … --strict` | The shipped SBOM is complete: SPDX licenses, the SHA-256 of every installed file (from pip's report, allowed by the lock), bootloader, CPython, OpenSSL, Simple Icons | CI jobs `build-macos`, `build-windows`, `build-linux` (also at the end of `build-linux.sh`) |
 | `python tools/check_artifacts.py macos\|windows dist` | Packages exist and are not empty, ZIP/DMG structure, version in Info.plist and in the Windows version resources (app and installer), signing state as reported (ad-hoc / not signed while unsigned), SBOM, licence notices | CI jobs `build-macos`, `build-windows` |
 | `python tools/check_artifacts.py linux dist --arch …` | The AppImage is an executable type 2 AppImage for the architecture; its file system holds the app, the page, the signed advisories, the udev rules and the right version (read with `unsquashfs`); SBOM, licence notices | CI job `build-linux` |
+| `python tools/linux_compat.py run APPIMAGE IMAGE` | The built AppImage, unchanged (SHA-256 recorded first), starts in a clean container of a supported distribution with only the documented runtime libraries; missing host libraries are listed; packaged start test under Xvfb | CI job `linux-compat`: Ubuntu 24.04/26.04, Debian 13, Fedora 43, openSUSE Leap 16.0 on x86-64 and ARM64 (native runners), Arch Linux on x86-64 – blocks the release |
+| Release rehearsal (*Run workflow* on `Build`) | The same builds, the real upload/download of the artifacts and the same preparation and checks as a release (shared action `.github/actions/prepare-release`), without publishing; the checked packages, notes and a report (commit, version, every file with SHA-256, job results, checks) are kept as the artifact `release-rehearsal` | CI job `release-rehearsal` (manual runs only; read-only) |
 | `python tools/check_artifacts.py restore-exec artifacts` | After the artifact download (which drops the execute bit): exactly the two AppImages are executable again, no other file changes, a missing AppImage fails | CI job `release`, before the checksums |
 | `python tools/check_artifacts.py release artifacts …` | Everything to be published: no file missing or extra, source commit, locks equal the repository's, versions, SBOMs, `SHA256SUMS.txt` lists exactly the files and every hash verifies, release notes state the real signing state | CI job `release` before publishing |
 | `python -m unittest tests.test_release_metadata` | One version in `version.py`, `pyproject.toml`, `uv.lock`, app bundle and installer sources, and a changelog entry for it; the workflows are valid YAML | CI job `test` |
@@ -110,11 +112,12 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
   (macOS), WebView2 (Windows) and Qt WebEngine (Linux); the packaged start
   test covers loading, resources and the bridge there, but not every
   interaction.
-- **Linux:** built and start-tested in Ubuntu 24.04 containers (aarch64
-  natively, x86_64 emulated) on 2026-09-27; not yet run in CI or on a Linux
-  desktop, and no key has been used on Linux yet (containers on macOS get no
-  USB). Wayland sessions, other distributions and the udev rules are open
-  rows in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
+- **Linux:** the AppImages are start-tested in clean containers of the
+  distributions listed above (CI job `linux-compat`). Containers have no
+  USB, no Wayland session, no real desktop and no GPU driver, so these tests
+  prove that the package starts and its page and bridge work – not key access,
+  Wayland or every desktop. Those are open rows in
+  [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 - **Windows start test in CI** runs on the hosted runner (desktop session,
   WebView2, app with administrator rights) – first verified on 2026-09-27
   (43 checks, run 36321724829). If a future runner image cannot show

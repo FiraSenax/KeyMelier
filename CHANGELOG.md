@@ -1,23 +1,39 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-09-27
+
+The first release since 1.7.0 (1.7.1 was prepared but never published; its changes are included here).
+
+**New**
 
 - **Linux:** AppImage for x86-64 and ARM64 (`KeyMelier-Linux-<arch>.AppImage`, unsigned, in `SHA256SUMS.txt`). Qt web view (PySide6, LGPL-3.0) bundled; the sync passphrase goes to the desktop keyring (Secret Service – GNOME Keyring, KWallet, KeePassXC), and without one sync says so instead of failing; udev rules for key access on systems without systemd's own rule (inside the AppImage and in `packaging/linux/`); smart card functions via `pcscd`; clipboard via `wl-copy`/`xclip`/`xsel`; system language from `LANGUAGE`/`LANG`; update check offers the AppImage for your processor and opens its folder. The introduction and the empty screen explain device access on Linux. CI builds and start-tests both AppImages under Xvfb and checks their contents. See *Linux* in the documentation.
-- The build workflow is valid YAML again (three `printf` steps from the build-info change were plain scalars with `": "`); a test now checks every workflow.
 - **Additional advisory sources for organisations** (no setting in the app; machine-wide only: Windows `HKLM\SOFTWARE\Policies\KeyMelier`, macOS managed preferences, Linux `/etc/keymelier/policy.json`): signed with the organisation's own key, file or https URL. They can only add findings – the official database always stays active and official entries cannot be removed or changed. Each such finding shows *Source: company policy (name)*; the state of each source is listed under *Data freshness*. Unsigned or invalid sources are ignored and logged. Links in such findings (e.g. to the intranet) open in the browser – exactly those links, nothing else on that server. Every field of such a source is checked against a whitelist (ids, AAGUID format, firmware versions, CVSS, https links without quotes or brackets, no control characters; unreadable firmware bounds skip the entry instead of matching every firmware). See [ENTERPRISE.md](ENTERPRISE.md).
 - **All keys at once** (sidebar, with two or more keys): status table of every key; re-check all plugged-in keys; read them one after another; change the PIN on several keys – each key confirmed on its own, stop at the first error, never an automatic retry, the new PIN is not kept afterwards.
 - **Transparency about key support:** the overview says *What this key can do* (full, partly – e.g. passkeys by search only on FIDO 2.0 –, not, not checked yet); "this key cannot do that" errors now name the reason; a public [tested keys](https://firasenax.github.io/KeyMelier/hardware.html) page is generated from HARDWARE_TESTS.md; community reports through the *Tested with a security key* issue form.
 - **Inventory export** (Settings): keys with passkeys, authenticator, OpenPGP, PIV, OTP and the account rating as JSON or CSV, filterable by key and account category; names only, saved readable only by you, spreadsheet formulas in CSV neutralised.
 - **Account overview easier to read:** rows are tinted by risk with a coloured edge and a symbol (✕ ! ? i ✓, always with text), and cells where a key in use lacks a risky account are marked as backup gaps; a legend explains both.
 - **Introduction on first start:** what KeyMelier does; remember history or nothing at all; why Windows needs administrator rights; what the warnings for unsigned / not yet notarized builds mean (from the real build state) and how to check the checksum; how to begin. Skippable, reopen under About.
+- **Diagnostic report** (About → *Diagnostic report…*): for bug reports, built only from a fixed list of technical fields (version, build, system, GUI, settings switches, counts, data status, recent operation names with error codes) – no key names, serial numbers, accounts, paths, URLs, host names, sync ids, passwords or error texts. Shown in full before saving; saved only where you choose; never sent.
 
-## 1.7.1 — 2026-09-27
+**Fixed**
 
+- **Windows sync:** writing the sync file no longer fails while another program (a cloud sync client, the other computer, a virus scanner) is reading it at that moment – the replace is retried for up to two seconds.
+- **Account overview:** the window no longer scrolls sideways (hidden screen-reader texts in the table widened the page); at the minimum window size long key names in the table header take at most two lines, so the matrix stays usable; buttons reached with the keyboard are no longer hidden under the fixed header and first column.
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.
 - **Unreadable data files are never overwritten:** a damaged `history.json` or `settings.json` (e.g. after an interrupted save) is kept as `*.unreadable-<time>`; KeyMelier starts with defaults and says so.
 - The lock/search icons in the sidebar now work with Enter and Space.
+
+**Quality and release checks**
+
 - **SBOM complete and checked:** also lists the PyInstaller bootloader, both OpenSSL builds and the Simple Icons data; SPDX licenses for every component; the SHA-256 of each file actually installed (pip report, checked against the lock). Every CI build rejects an incomplete SBOM.
 - Quality: UI tests with real keyboard input in CI, a start test of the packaged app on macOS and Windows, upgrade tests with data written by earlier releases, failure-case tests, `app.js` split into view modules, [TESTING.md](TESTING.md) and a hardware test matrix.
+- Release checks: the release job restores the AppImages' execute bit after the artifact transfer; a manual **release rehearsal** in CI runs the same builds, transfer and checks as a release without publishing, and keeps the checked packages and a report. The AppImages are start-tested unchanged in clean containers of the supported distributions on x86-64 and ARM64. UI load tests with 12 keys and 300+ accounts (search/filter speed, focus, sticky headers, dialogs at 1280×800 and 820×560, light/dark). The build workflow is valid YAML again and checked by a test.
+
+**Known limitations**
+
+- **Unsigned:** macOS builds are not notarized, Windows builds are not code-signed, the Linux AppImages are unsigned – compare the checksums in `SHA256SUMS.txt`.
+- **Linux:** needs glibc 2.38 or newer. The AppImages are start-tested automatically in containers (Ubuntu 24.04 and 26.04, Debian 13, Fedora 43, openSUSE Leap 16.0 on x86-64 and ARM64, Arch Linux on x86-64) – without a security key, USB, Wayland or a real desktop. Key access on Linux has not been tested with hardware yet.
+- **Automated tests** use demo data and synthetic keys; UI tests run in Chrome, not in each platform's web view. Results with real keys are recorded in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 
 ## 1.7.0 — 2026-09-27
 
