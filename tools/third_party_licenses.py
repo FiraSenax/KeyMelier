@@ -131,6 +131,10 @@ def build() -> str:
         for filename, text in texts:
             out += ["", f"--- {filename} ---", "", text]
         out.append("")
+    out += [rule, "Simple Icons – service logos (static/service-icons.js)", "https://simpleicons.org", rule, "",
+            "Icon data: CC0 1.0 Universal (public domain dedication). The logos are trademarks of",
+            "their respective owners; KeyMelier shows them unmodified and only to identify the",
+            "service. Brands that restrict such use are not included.", ""]
     out += [rule, f"Python {sys.version.split()[0]} – PSF License", rule, "", python_license(), ""]
     if missing:
         print("Note: no license file shipped by: " + ", ".join(missing), file=sys.stderr)

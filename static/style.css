@@ -1266,3 +1266,6 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 #accounts-view .backup-content { max-width: none; }
 .acc-table { width: 100%; }
 .acc-table th.acc-key, .acc-table td.yes, .acc-table td.no { text-align: center; }
+/* Service logos (bundled, Simple Icons) */
+.pk-avatar.svc-logo { background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.pk-avatar.svc-logo svg { width: 60%; height: 60%; }

@@ -601,6 +601,21 @@ function serviceKey(value) {
   return v.replace(/[^a-z0-9]/g, '');
 }
 
+// Logo for a service where the brand allows it (static/service-icons.js),
+// otherwise the first letter. Bundled – nothing is loaded from the network.
+function serviceAvatar(...names) {
+  const icons = typeof SERVICE_ICONS === 'object' ? SERVICE_ICONS : {};
+  for (const n of names) {
+    const ic = icons[serviceKey(n)];
+    if (ic) {
+      return `<span class="pk-avatar svc-logo" title="${escHtml(ic.title)}"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#${escHtml(ic.hex)}" d="${escHtml(ic.path)}"/></svg></span>`;
+    }
+  }
+  const first = String(names.find(Boolean) || '?').replace(/^www\./, '');
+  return `<span class="pk-avatar">${escHtml((first[0] || '?').toUpperCase())}</span>`;
+}
+
 let accFilter = '';
 let accOnlyProblems = false;
 
@@ -708,7 +723,7 @@ function renderAccountsView() {
       h.codes ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
     return `<td class="yes${k.lost_since ? ' lost' : ''}">${tags}</td>`;
   }).join('');
-  const avatar = r => `<span class="pk-avatar">${escHtml((r.label[0] || '?').toUpperCase())}</span>`;
+  const avatar = r => serviceAvatar(r.key, r.label);
   const body = shown.map(r => {
     if (!r.split) {
       const a = r.accounts[0];
@@ -1574,7 +1589,7 @@ function probedPasskeysHtml(token) {
   const entry = historyKeys.get(token.history_id);
   const sites = entry?.sites || [];
   const list = sites.length ? `<section class="card"><ul class="pk-list">${sites.map(s => `<li class="pk-item probe-item">
-      <span class="pk-avatar">${escHtml((s.rp_id[0] || '?').toUpperCase())}</span>
+      ${serviceAvatar(s.rp_id, s.name)}
       <div class="pk-user"><div class="pk-user-name">${escHtml(s.rp_id)}</div>
         <div class="pk-user-sub">${escHtml(t('probe.accounts', { n: s.count }))}</div>
         ${(s.users || []).some(u => u.name || u.display) ? `<ul class="probe-users">${s.users.map(u => `<li>${escHtml(u.name || u.display || t('probe.unnamed'))}</li>`).join('')}</ul>` : ''}
@@ -1609,10 +1624,9 @@ function renderPasskeys() {
 
   for (const rp of st.rps) {
     const name = rp.rp_id || rp.rp_name || t('pk.unknownSite');
-    const letter = (name.replace(/^www\./, '')[0] || '?').toUpperCase();
     html += `<section class="card pk-rp">
       <header class="pk-rp-head">
-        <span class="pk-avatar">${escHtml(letter)}</span>
+        ${serviceAvatar(rp.rp_id, rp.rp_name)}
         <div class="pk-rp-text">
           <div class="pk-rp-name">${escHtml(name)}</div>
           ${rp.rp_name && rp.rp_name !== name ? `<div class="pk-rp-sub">${escHtml(rp.rp_name)}</div>` : ''}
@@ -2039,7 +2053,6 @@ function formatCode(code) {
 
 function oathAccountHtml(a, st) {
   const label = a.issuer || a.name;
-  const letter = (label[0] || '?').toUpperCase();
   if (oathEdit === a.id) {
     return `<li class="pk-item"><form class="oath-rename-form pk-rename-form" data-id="${escHtml(a.id)}">
       <input type="text" class="oath-rename-issuer" value="${escHtml(a.issuer)}" placeholder="${escHtml(t('oath.issuer'))}" maxlength="60">
@@ -2065,7 +2078,7 @@ function oathAccountHtml(a, st) {
     : `${st.can_rename ? `<button type="button" class="btn-icon" data-act="edit" data-id="${escHtml(a.id)}" title="${escHtml(t('fp.rename'))}">${icon('pencil', 16)}</button>` : ''}
        <button type="button" class="btn-icon danger" data-act="ask-delete" data-id="${escHtml(a.id)}" title="${escHtml(t('pk.delete.do'))}">${icon('trash', 16)}</button>`;
   return `<li class="pk-item oath-item">
-    <span class="pk-avatar">${escHtml(letter)}</span>
+    ${serviceAvatar(a.issuer, label)}
     <div class="pk-user"><div class="pk-user-name">${escHtml(label)}</div>
       ${a.issuer ? `<div class="pk-user-sub">${escHtml(a.name)}</div>` : ''}</div>
     <div class="oath-code-wrap">${codeHtml}</div>

@@ -300,7 +300,7 @@ def build_html() -> str:
     html = html.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
     html = html.replace('src="icon.svg"', f'src="data:image/svg+xml;base64,{icon}"')
     hashes = []
-    for name in ("i18n.js", "app.js"):
+    for name in ("i18n.js", "service-icons.js", "app.js"):
         js = (STATIC_DIR / name).read_text(encoding="utf-8").replace("</script", "<\\/script")
         body = f"\n{js}\n"
         hashes.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'")
