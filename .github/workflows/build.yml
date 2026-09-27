@@ -78,7 +78,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
-      - run: python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt
+      - name: Install (hash-pinned; the report records which files were installed, for the SBOM)
+        shell: bash
+        run: |
+          mkdir -p build
+          python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt --report build/pip-report.json
       - name: Import Developer ID
         if: env.SIGN_MAC == 'true'
         env:
@@ -143,6 +147,7 @@ jobs:
           ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
           cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt
           cp build/keymelier-sbom.cdx.json dist/KeyMelier-macOS.cdx.json
+          python tools/sbom.py --check dist/KeyMelier-macOS.cdx.json --strict
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
@@ -170,7 +175,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
-      - run: python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt
+      - name: Install (hash-pinned; the report records which files were installed, for the SBOM)
+        shell: bash
+        run: |
+          mkdir -p build
+          python -m pip install --require-hashes -r requirements.txt -r requirements-build.txt --report build/pip-report.json
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico
@@ -264,6 +273,8 @@ jobs:
           Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
           Copy-Item build\THIRD_PARTY_LICENSES.txt dist\THIRD_PARTY_LICENSES-Windows.txt
           Copy-Item build\keymelier-sbom.cdx.json dist\KeyMelier-Windows.cdx.json
+          python tools/sbom.py --check dist\KeyMelier-Windows.cdx.json --strict
+          if ($LASTEXITCODE -ne 0) { throw "SBOM check failed" }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Windows

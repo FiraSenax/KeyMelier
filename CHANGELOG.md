@@ -5,6 +5,7 @@
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.
 - **Unreadable data files are never overwritten:** a damaged `history.json` or `settings.json` (e.g. after an interrupted save) is kept as `*.unreadable-<time>`; KeyMelier starts with defaults and says so.
 - The lock/search icons in the sidebar now work with Enter and Space.
+- **SBOM complete and checked:** also lists the PyInstaller bootloader, both OpenSSL builds and the Simple Icons data; SPDX licenses for every component; the SHA-256 of each file actually installed (pip report, checked against the lock). Every CI build rejects an incomplete SBOM.
 - Quality: UI tests with real keyboard input in CI, a start test of the packaged app on macOS and Windows, upgrade tests with data written by earlier releases, failure-case tests, `app.js` split into view modules, [TESTING.md](TESTING.md) and a hardware test matrix.
 
 ## 1.7.0 — 2026-09-27

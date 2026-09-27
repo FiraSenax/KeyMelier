@@ -13,9 +13,11 @@ if not exist "build-venv\Scripts\python.exe" (
 )
 
 echo Installing dependencies...
-build-venv\Scripts\pip install --require-hashes -q -r requirements.txt
+if not exist build mkdir build
+rem The reports record which files pip installed (SBOM hashes, tools/sbom.py)
+build-venv\Scripts\pip install --require-hashes -q -r requirements.txt --report build\pip-report-runtime.json
 if errorlevel 1 exit /b 1
-build-venv\Scripts\pip install --require-hashes -q -r requirements-build.txt
+build-venv\Scripts\pip install --require-hashes -q -r requirements-build.txt --report build\pip-report-build.json
 if errorlevel 1 exit /b 1
 
 echo Running PyInstaller...

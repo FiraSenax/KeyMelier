@@ -19,8 +19,10 @@ if [ ! -f "$PYTHON" ]; then
 fi
 
 echo "Installing dependencies..."
-"$PIP" install --require-hashes -q -r requirements.txt
-"$PIP" install --require-hashes -q -r requirements-build.txt
+mkdir -p build
+# The reports record which files pip installed (SBOM hashes, tools/sbom.py)
+"$PIP" install --require-hashes -q -r requirements.txt --report build/pip-report-runtime.json
+"$PIP" install --require-hashes -q -r requirements-build.txt --report build/pip-report-build.json
 
 echo "Using committed app icon..."
 # Use the reviewed, committed icons; regeneration is a separate design task.

@@ -54,7 +54,7 @@ Releases are currently **unsigned** (each release's notes say so). Signing is be
 
 ## License
 
-KeyMelier is MIT licensed (see `LICENSE`). The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build. A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component with version, package URL, license and lock-file hashes.
+KeyMelier is MIT licensed (see `LICENSE`). The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build. A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component – Python packages, the PyInstaller bootloader, CPython, the OpenSSL builds and the Simple Icons data – with version, package URL, SPDX license and the SHA-256 of the file that was actually installed (checked against the lock file). Every build validates it (`tools/sbom.py --check --strict`); other native libraries inside CPython are covered by the CPython entry.
 
 ## Download
 
