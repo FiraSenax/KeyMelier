@@ -341,7 +341,34 @@ class KeyService:
     def unlock(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
         with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
             auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv")
-        return {"unlocked": True}
+        return {"unlocked": True, "ttl": auth.TOKEN_TTL}
+
+    def read_contents(self, token_id: str) -> dict:
+        """After an unlock: read what is on the key in one go (passkeys, and
+        authenticator/OpenPGP/PIV where present) so the history and the
+        account overview are current. Best effort – each part may fail."""
+        result = {"sites": None, "oath": None, "openpgp": None, "piv": None}
+        try:
+            data = self.passkeys(token_id)
+            if data.get("unlocked"):
+                result["sites"] = len(data.get("rps", []))
+        except Exception as e:
+            logger.debug("read_contents passkeys: %s", e)
+        apps = self.card_apps(token_id).get("apps", {})
+        for app, reader in (("oath", self.oath), ("openpgp", self.openpgp), ("piv", self.piv)):
+            if not apps.get(app):
+                continue
+            try:
+                data = reader(token_id)
+                if app == "oath":
+                    result["oath"] = len(data["accounts"]) if data.get("unlocked") else None
+                elif app == "openpgp":
+                    result["openpgp"] = sum(1 for k in data["keys"] if k["present"])
+                else:
+                    result["piv"] = sum(1 for s in data["slots"] if s["cert"])
+            except Exception as e:
+                logger.debug("read_contents %s: %s", app, e)
+        return result
 
     def lock(self, token_id: str) -> dict:
         auth.forget(token_id)

@@ -180,6 +180,7 @@ button { font: inherit; color: inherit; }
 .key-item-text { min-width: 0; flex: 1; }
 
 .key-item-name {
+  display: block;
   font-weight: 600;
   font-size: 0.88rem;
   white-space: nowrap;
@@ -188,6 +189,7 @@ button { font: inherit; color: inherit; }
 }
 
 .key-item-sub {
+  display: block;
   font-size: 0.76rem;
   color: var(--text-3);
   white-space: nowrap;
@@ -1241,3 +1243,12 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 #acc-search { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text); font: inherit; outline: none; }
 #acc-search:focus { border-color: var(--accent); }
+
+/* Quick unlock from the sidebar */
+.quick-lock { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px;
+  color: var(--text-2); flex: none; margin-left: auto; margin-right: 0; transition: background var(--ease), color var(--ease); }
+.quick-lock:hover { background: var(--surface-2); color: var(--accent); }
+.quick-lock.open { color: var(--ok); }
+.ql-overlay { position: fixed; inset: 0; background: rgba(8, 10, 16, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.ql-overlay.hidden { display: none; }
+.ql-dialog { width: min(420px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }

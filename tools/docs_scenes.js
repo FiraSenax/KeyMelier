@@ -14,6 +14,8 @@
     history: () => switchTab('history'),
     details: () => switchTab('details'),
     accounts: () => showAccountsView(),
+    unlock: () => { quickLockToggle('demo-yk5'); },
+    'unlock-done': () => { quickLockToggle('demo-yk5'); setTimeout(() => { document.querySelector('.ql-pin').value = '123456'; quickUnlockSubmit(); }, 300); },
     shared: () => { appSettings.personal_mode = false; lostKid = 'c3c3c3c3c3c3c3c3'; showBackupView(); },
     backup: () => showBackupView(),
     lost: () => { showBackupView(); lostKid = 'c3c3c3c3c3c3c3c3'; renderBackupView(); document.querySelector('#bk-lost-select')?.scrollIntoView(); },

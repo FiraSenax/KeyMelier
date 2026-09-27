@@ -4426,6 +4426,38 @@ const ACC_STRINGS = {
 };
 for (const [code, strings] of Object.entries(ACC_STRINGS)) Object.assign(STRINGS[code], strings);
 
+// Serial number label
+const SN_STRINGS = {
+  de: {"key.sn": "SN {n}"},
+  en: {"key.sn": "SN {n}"},
+  es: {"key.sn": "N.º de serie {n}"},
+  fr: {"key.sn": "N° de série {n}"},
+  it: {"key.sn": "S/N {n}"},
+  nl: {"key.sn": "SN {n}"},
+  pl: {"key.sn": "Nr ser. {n}"},
+  pt: {"key.sn": "N.º série {n}"},
+  ja: {"key.sn": "シリアル {n}"},
+  ko: {"key.sn": "S/N {n}"},
+  zh: {"key.sn": "序列号 {n}"},
+};
+for (const [code, strings] of Object.entries(SN_STRINGS)) Object.assign(STRINGS[code], strings);
+
+// Quick unlock from the sidebar
+const QL_STRINGS = {
+  de: {"ql.unlock": "Entsperren und Inhalt lesen", "ql.lock": "Wieder sperren", "ql.title": "{name} entsperren", "ql.text": "Mit der PIN liest KeyMelier, was auf dem Schlüssel ist, und aktualisiert die Übersicht. Die Entsperrung gilt nur ein paar Minuten.", "ql.do": "Entsperren", "ql.reading": "Wird gelesen …", "ql.done": "{name} entsperrt", "ql.got.sites": "{n} Websites", "ql.got.oath": "{n} Authenticator-Konten", "ql.got.pgp": "{n} OpenPGP-Schlüssel", "ql.got.piv": "{n} Zertifikate"},
+  en: {"ql.unlock": "Unlock and read contents", "ql.lock": "Lock again", "ql.title": "Unlock {name}", "ql.text": "With the PIN, KeyMelier reads what is on the key and updates the overview. The unlock lasts only a few minutes.", "ql.do": "Unlock", "ql.reading": "Reading …", "ql.done": "{name} unlocked", "ql.got.sites": "{n} websites", "ql.got.oath": "{n} authenticator accounts", "ql.got.pgp": "{n} OpenPGP keys", "ql.got.piv": "{n} certificates"},
+  es: {"ql.unlock": "Desbloquear y leer contenido", "ql.lock": "Volver a bloquear", "ql.title": "Desbloquear {name}", "ql.text": "Con el PIN, KeyMelier lee lo que hay en la llave y actualiza el resumen. El desbloqueo dura solo unos minutos.", "ql.do": "Desbloquear", "ql.reading": "Leyendo…", "ql.done": "{name} desbloqueada", "ql.got.sites": "{n} sitios web", "ql.got.oath": "{n} cuentas del autenticador", "ql.got.pgp": "{n} claves OpenPGP", "ql.got.piv": "{n} certificados"},
+  fr: {"ql.unlock": "Déverrouiller et lire le contenu", "ql.lock": "Reverrouiller", "ql.title": "Déverrouiller {name}", "ql.text": "Avec le PIN, KeyMelier lit le contenu de la clé et met à jour la vue d'ensemble. Le déverrouillage ne dure que quelques minutes.", "ql.do": "Déverrouiller", "ql.reading": "Lecture…", "ql.done": "{name} déverrouillée", "ql.got.sites": "{n} sites web", "ql.got.oath": "{n} comptes d'authentificateur", "ql.got.pgp": "{n} clés OpenPGP", "ql.got.piv": "{n} certificats"},
+  it: {"ql.unlock": "Sblocca e leggi il contenuto", "ql.lock": "Blocca di nuovo", "ql.title": "Sblocca {name}", "ql.text": "Con il PIN, KeyMelier legge il contenuto della chiave e aggiorna la panoramica. Lo sblocco dura solo pochi minuti.", "ql.do": "Sblocca", "ql.reading": "Lettura…", "ql.done": "{name} sbloccata", "ql.got.sites": "{n} siti web", "ql.got.oath": "{n} account dell'autenticatore", "ql.got.pgp": "{n} chiavi OpenPGP", "ql.got.piv": "{n} certificati"},
+  nl: {"ql.unlock": "Ontgrendelen en inhoud lezen", "ql.lock": "Weer vergrendelen", "ql.title": "{name} ontgrendelen", "ql.text": "Met de pincode leest KeyMelier wat er op de sleutel staat en werkt het overzicht bij. De ontgrendeling geldt maar een paar minuten.", "ql.do": "Ontgrendelen", "ql.reading": "Bezig met lezen …", "ql.done": "{name} ontgrendeld", "ql.got.sites": "{n} websites", "ql.got.oath": "{n} authenticator-accounts", "ql.got.pgp": "{n} OpenPGP-sleutels", "ql.got.piv": "{n} certificaten"},
+  pl: {"ql.unlock": "Odblokuj i odczytaj zawartość", "ql.lock": "Zablokuj ponownie", "ql.title": "Odblokuj {name}", "ql.text": "Z PIN-em KeyMelier odczyta zawartość klucza i zaktualizuje przegląd. Odblokowanie trwa tylko kilka minut.", "ql.do": "Odblokuj", "ql.reading": "Odczytywanie…", "ql.done": "Odblokowano {name}", "ql.got.sites": "witryny: {n}", "ql.got.oath": "konta uwierzytelniacza: {n}", "ql.got.pgp": "klucze OpenPGP: {n}", "ql.got.piv": "certyfikaty: {n}"},
+  pt: {"ql.unlock": "Desbloquear e ler conteúdo", "ql.lock": "Bloquear novamente", "ql.title": "Desbloquear {name}", "ql.text": "Com o PIN, o KeyMelier lê o que está na chave e atualiza o resumo. O desbloqueio dura só alguns minutos.", "ql.do": "Desbloquear", "ql.reading": "A ler…", "ql.done": "{name} desbloqueada", "ql.got.sites": "{n} sites", "ql.got.oath": "{n} contas do autenticador", "ql.got.pgp": "{n} chaves OpenPGP", "ql.got.piv": "{n} certificados"},
+  ja: {"ql.unlock": "ロック解除して中身を読み取る", "ql.lock": "再びロック", "ql.title": "{name} のロックを解除", "ql.text": "PIN を入力すると、KeyMelier がキーの中身を読み取り一覧を更新します。ロック解除は数分間だけ有効です。", "ql.do": "ロック解除", "ql.reading": "読み取り中…", "ql.done": "{name} のロックを解除しました", "ql.got.sites": "Web サイト {n} 件", "ql.got.oath": "認証アカウント {n} 件", "ql.got.pgp": "OpenPGP 鍵 {n} 個", "ql.got.piv": "証明書 {n} 件"},
+  ko: {"ql.unlock": "잠금 해제 후 내용 읽기", "ql.lock": "다시 잠그기", "ql.title": "{name} 잠금 해제", "ql.text": "PIN을 입력하면 KeyMelier가 키의 내용을 읽고 개요를 업데이트합니다. 잠금 해제는 몇 분만 유지됩니다.", "ql.do": "잠금 해제", "ql.reading": "읽는 중…", "ql.done": "{name} 잠금 해제됨", "ql.got.sites": "웹사이트 {n}개", "ql.got.oath": "인증기 계정 {n}개", "ql.got.pgp": "OpenPGP 키 {n}개", "ql.got.piv": "인증서 {n}개"},
+  zh: {"ql.unlock": "解锁并读取内容", "ql.lock": "重新锁定", "ql.title": "解锁 {name}", "ql.text": "输入 PIN 后，KeyMelier 会读取密钥上的内容并更新总览。解锁只持续几分钟。", "ql.do": "解锁", "ql.reading": "正在读取…", "ql.done": "{name} 已解锁", "ql.got.sites": "{n} 个网站", "ql.got.oath": "{n} 个身份验证器账户", "ql.got.pgp": "{n} 个 OpenPGP 密钥", "ql.got.piv": "{n} 个证书"},
+};
+for (const [code, strings] of Object.entries(QL_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

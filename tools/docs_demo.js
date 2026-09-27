@@ -141,6 +141,9 @@
       name: 'Erika Mustermann', url: 'https://example.com/erika.asc', can_touch: true, algorithms: ['ed25519', 'p256', 'rsa2048', 'rsa4096'] }),
     piv: () => piv,
     otp: () => ({ slots: [{ slot: 1, configured: true, touch: true }, { slot: 2, configured: true, touch: false }], led_inverted: false, input_monitoring: true }),
+    unlock: () => ({ unlocked: true, ttl: 300 }),
+    read_contents: () => ({ sites: 5, oath: 4, openpgp: 3, piv: 1 }),
+    lock: () => ({ unlocked: false }),
     interfaces: () => ({ locked: false, transports: {
       usb: { OTP: true, U2F: true, FIDO2: true, OATH: true, PIV: true, OPENPGP: true, HSMAUTH: false },
       nfc: { OTP: false, U2F: true, FIDO2: true, OATH: true, PIV: false, OPENPGP: false, HSMAUTH: false } } }),

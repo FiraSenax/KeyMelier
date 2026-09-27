@@ -77,6 +77,7 @@ const ICONS = {
   key: '<rect x="7" y="2" width="10" height="15" rx="3"/><path d="M10 17v4h4v-4"/><circle cx="12" cy="8" r="2"/>',
   fingerprint: '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  lockOpen: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
   plug: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
@@ -218,6 +219,11 @@ function attestationSummary(att, token) {
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────
 
+// "SN 31415926" – the serial is usually printed or engraved on the key
+function serialLabel(tok) {
+  return tok?.serial_number ? t('key.sn', { n: tok.serial_number }) : '';
+}
+
 function renderSidebar() {
   const list = $('key-list');
   $('key-list-empty').classList.toggle('hidden', tokens.size > 0);
@@ -230,9 +236,9 @@ function renderSidebar() {
       <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub">${escHtml(e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen))}</span>
+        <span class="key-item-sub">${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}</span>
       </span>
-      <span class="status-dot ${escHtml(tok.security_status || '')}"></span>
+      <span class="status-dot ${escHtml(tok.security_status || '')}" title="${escHtml(t(`status.${tok.security_status || 'UNKNOWN'}`))}"></span>
     </button>`;
   }).join('');
   list.innerHTML = [...tokens.values()].map(tok => `
@@ -240,9 +246,11 @@ function renderSidebar() {
       <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub">${escHtml(tok.manufacturer || '')} · ${escHtml(t(`status.${tok.security_status}`))}</span>
+        <span class="key-item-sub">${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}</span>
       </span>
-      <span class="status-dot ${escHtml(tok.security_status)}"></span>
+      ${tok.options?.clientPin || tok.options?.uv ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
+        title="${escHtml(t(isUnlocked(tok.id) ? 'ql.lock' : 'ql.unlock'))}">${icon(isUnlocked(tok.id) ? 'lockOpen' : 'lock', 15)}</span>` : ''}
+      <span class="status-dot ${escHtml(tok.security_status)}" title="${escHtml(t(`status.${tok.security_status}`))}"></span>
     </button>`).join('');
 }
 
@@ -302,6 +310,7 @@ function renderKeyView(token) {
   sub.push(token.manufacturer);
   if (!token.offline && token.mds_description && token.product_name) sub.push(token.product_name);
   if (firmwareKnown(token)) sub.push(t('header.fw', { v: token.firmware_version_str }));
+  sub.push(serialLabel(token));
   $('key-subtitle').textContent = sub.filter(Boolean).join(' · ');
   $('key-view').classList.toggle('offline', !!token.offline);
   $('export-btn').classList.toggle('hidden', !!token.offline);
@@ -656,6 +665,7 @@ function renderAccountsView() {
   const head = keys.map(k => {
     const free = k.snapshot?.remaining_disc_creds;
     return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
+      <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
       <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
   }).join('');
   el.innerHTML = `
@@ -1330,6 +1340,83 @@ function loadManagement(token) {
   if (activeTab === 'settings') return loadConfig(token);
 }
 
+// ── Quick unlock from the sidebar ───────────────────────────────────────────
+
+const unlockedUntil = new Map();   // token id -> ms timestamp (mirrors the server-side TTL)
+let quickUnlock = null;            // { id, busy, error }
+
+function isUnlocked(id) {
+  return (unlockedUntil.get(id) || 0) > Date.now();
+}
+
+function markUnlocked(id, ttlSeconds) {
+  unlockedUntil.set(id, Date.now() + (ttlSeconds || 300) * 1000);
+  setTimeout(() => { if (!isUnlocked(id)) renderSidebar(); }, (ttlSeconds || 300) * 1000 + 200);
+  renderSidebar();
+}
+
+function renderQuickUnlock() {
+  const el = $('quick-unlock');
+  const tok = quickUnlock && tokens.get(quickUnlock.id);
+  el.classList.toggle('hidden', !tok);
+  if (!tok) { el.innerHTML = ''; return; }
+  const uv = tok.options?.uv === true;
+  el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
+    <h2>${escHtml(t('ql.title', { name: displayName(tok) }))}</h2>
+    <p class="card-text">${escHtml(t('ql.text'))}</p>
+    ${tok.options?.clientPin ? `<label class="field"><span>${escHtml(t('pin.form.current'))}</span>
+      <input type="password" class="ql-pin" autocomplete="off" spellcheck="false" ${quickUnlock.busy ? 'disabled' : ''}></label>` : ''}
+    ${quickUnlock.error ? `<p class="field-error">${escHtml(quickUnlock.error)}</p>` : ''}
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-ql="cancel">${escHtml(t('pk.delete.cancel'))}</button>
+      ${uv ? `<button type="button" class="btn btn-secondary" data-ql="uv" ${quickUnlock.busy ? 'disabled' : ''}>${icon('fingerprint', 15)} ${escHtml(t('sec.att.withUv'))}</button>` : ''}
+      ${tok.options?.clientPin ? `<button type="submit" class="btn btn-primary" ${quickUnlock.busy ? 'disabled' : ''}>${quickUnlock.busy ? `<span class="spinner"></span>${escHtml(t('ql.reading'))}` : escHtml(t('ql.do'))}</button>` : ''}
+    </div></form>`;
+  el.querySelector('.ql-pin')?.focus();
+}
+
+async function quickUnlockSubmit(method) {
+  const tok = quickUnlock && tokens.get(quickUnlock.id);
+  if (!tok) return;
+  const pin = $('quick-unlock').querySelector('.ql-pin')?.value || '';
+  if (method !== 'uv' && !pin) { quickUnlock.error = t('pin.v.current'); return renderQuickUnlock(); }
+  quickUnlock = { ...quickUnlock, busy: true, error: null };
+  renderQuickUnlock();
+  try {
+    const res = await call('unlock', method === 'uv' ? { token_id: tok.id, method: 'uv' } : { token_id: tok.id, pin });
+    markUnlocked(tok.id, res.ttl);
+    const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
+    const parts = [
+      got.sites != null ? t('ql.got.sites', { n: got.sites }) : '',
+      got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
+      got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
+      got.piv ? t('ql.got.piv', { n: got.piv }) : '',
+    ].filter(Boolean);
+    showToast(t('ql.done', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
+    quickUnlock = null;
+    renderQuickUnlock();
+    await loadHistory();
+    render();
+    if (selectedId === tok.id && ['passkeys', 'fingerprints', 'settings'].includes(activeTab)) loadManagement(tok);
+  } catch (e) {
+    quickUnlock = { ...quickUnlock, busy: false, error: errorMessage(e) };
+    renderQuickUnlock();
+  }
+}
+
+async function quickLockToggle(id) {
+  if (isUnlocked(id)) {
+    await call('lock', { token_id: id }).catch(() => {});
+    unlockedUntil.delete(id);
+    renderSidebar();
+    const tok = tokens.get(id);
+    if (tok && selectedId === id) loadManagement(tok);
+    return;
+  }
+  quickUnlock = { id, busy: false, error: null };
+  renderQuickUnlock();
+}
+
 async function unlockKey(method) {
   const token = tokens.get(selectedId);
   if (!token) return;
@@ -1339,7 +1426,8 @@ async function unlockKey(method) {
   unlockError = null;
   renderManagement();
   try {
-    await call('unlock', method === 'uv' ? { token_id: token.id, method: 'uv' } : { token_id: token.id, pin });
+    const res = await call('unlock', method === 'uv' ? { token_id: token.id, method: 'uv' } : { token_id: token.id, pin });
+    markUnlocked(token.id, res.ttl);
     unlockBusy = null;
     if (selectedId === token.id) await loadManagement(token);
   } catch (e) {
@@ -1352,6 +1440,8 @@ async function lockKey() {
   const token = tokens.get(selectedId);
   if (!token) return;
   await call('lock', { token_id: token.id }).catch(() => {});
+  unlockedUntil.delete(token.id);
+  renderSidebar();
   loadManagement(token);
 }
 
@@ -3085,6 +3175,8 @@ function onTokenConnected(token) {
 }
 
 function onTokenDisconnected(data) {
+  unlockedUntil.delete(data.id);
+  if (quickUnlock?.id === data.id) { quickUnlock = null; renderQuickUnlock(); }
   cardApps.delete(data.id);
   cardRetries.delete(data.id);
   const token = tokens.get(data.id);
@@ -3197,12 +3289,23 @@ async function start() {
 
 function init() {
   $('key-list').addEventListener('click', ev => {
+    const lockBtn = ev.target.closest('[data-unlock]');
+    if (lockBtn) { ev.stopPropagation(); quickLockToggle(lockBtn.dataset.unlock); return; }
     const item = ev.target.closest('.key-item');
     if (item) selectToken(item.dataset.id);
   });
   $('nav-backup').addEventListener('click', showBackupView);
   $('nav-backup-icon').innerHTML = icon('shield', 18);
   $('nav-accounts').addEventListener('click', showAccountsView);
+  $('quick-unlock').addEventListener('submit', ev => { ev.preventDefault(); quickUnlockSubmit(); });
+  $('quick-unlock').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-ql]');
+    if (ev.target.id === 'quick-unlock' || b?.dataset.ql === 'cancel') { quickUnlock = null; renderQuickUnlock(); return; }
+    if (b?.dataset.ql === 'uv') quickUnlockSubmit('uv');
+  });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && quickUnlock && !quickUnlock.busy) { quickUnlock = null; renderQuickUnlock(); }
+  });
   $('nav-accounts-icon').innerHTML = icon('passkey', 18);
   $('accounts-content').addEventListener('input', ev => {
     if (ev.target.id === 'acc-search') {
