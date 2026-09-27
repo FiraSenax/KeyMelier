@@ -612,7 +612,8 @@ function serviceAvatar(...names) {
         <path fill="#${escHtml(ic.hex)}" d="${escHtml(ic.path)}"/></svg></span>`;
     }
   }
-  const first = String(names.find(Boolean) || '?').replace(/^www\./, '');
+  // Letter: prefer a service name ("Microsoft") over a domain ("login.microsoft.com")
+  const first = String(names.find(n => n && !String(n).includes('.')) || serviceKey(names.find(Boolean)) || '?');
   return `<span class="pk-avatar">${escHtml((first[0] || '?').toUpperCase())}</span>`;
 }
 
