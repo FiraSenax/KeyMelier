@@ -128,7 +128,10 @@ class SecurityTests(unittest.TestCase):
                     CSVExporter().export(record())
 
     def test_default_service_does_not_export_or_store_sites(self):
+        # Content recording is on by default (maintainer decision); turning it
+        # off must keep site and account details out of history events.
         with tempfile.TemporaryDirectory() as tmp, patch('fido2tool_core.service.SETTINGS_FILE', Path(tmp)/'settings.json'):
+            (Path(tmp)/'settings.json').write_text('{"remember_sites": false}')
             exporter = Mock()
             service = KeyService(TokenScanner(), exporter, history=History(Path(tmp)/'history.json'))
             r = record()

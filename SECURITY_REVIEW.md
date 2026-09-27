@@ -34,4 +34,4 @@ Old plaintext files/exports/backups are preserved and are not automatically eras
 |---|---|---|
 | Release signing | Optional: sign/notarize when credentials are configured, otherwise publish unsigned builds | Release notes state the actual signing state per platform; checksums, locks and source commit attached; first-launch steps documented |
 | MDS revocation offline | Verified CRLs are persisted in `~/.keymelier/crl/` and re-validated (issuer, signature, validity) on every use. If revocation status cannot be established, signature- and path-verified metadata is used for display only | `is_current()` stays false without revocation evidence, so no "no known findings" assessment and no attestation chain verification; a CRL that lists the signer as revoked is never soft-failed (`RevokedError`) |
-| Key history | On by default; websites remain opt-in | Stateless mode still disables all storage; turning history off keeps existing files |
+| Key history | On by default; contents (websites, authenticator accounts, OpenPGP fingerprints) remembered by default, names only | Stateless mode still disables all storage; turning history off keeps existing files |

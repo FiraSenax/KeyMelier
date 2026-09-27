@@ -43,6 +43,18 @@ a = Analysis(
         # YubiKey serial/firmware/form factor via the management application
         'yubikit.management',
         'yubikit.core.fido',
+        # Smart card applications (OATH, OpenPGP) over PC/SC
+        'yubikit.core.smartcard',
+        'yubikit.oath',
+        'yubikit.openpgp',
+        'ykman.pcsc',
+        'smartcard',
+        'smartcard.System',
+        'smartcard.pcsc',
+        'smartcard.pcsc.PCSCReader',
+        'smartcard.pcsc.PCSCContext',
+        'smartcard.CardConnection',
+        'smartcard.ExclusiveConnectCardConnection',
         # Native window
         'webview',
         # Cryptography

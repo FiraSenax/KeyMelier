@@ -1164,3 +1164,40 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 
 .status-dot.UNKNOWN { background: var(--neutral); }
 .status-pill.UNKNOWN { background: var(--neutral-soft); color: var(--neutral); }
+
+/* Authenticator (OATH) */
+.oath-item { align-items: center; }
+.oath-code-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 120px; }
+.oath-code {
+  font-family: var(--mono); font-size: 1.25rem; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--text); background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 6px;
+}
+.oath-code:hover { background: var(--accent-soft); color: var(--accent); }
+.oath-bar { width: 100%; height: 3px; border-radius: 2px; background: var(--neutral-soft); overflow: hidden; }
+.oath-bar > div { height: 100%; background: var(--accent); transition: width 0.5s linear; }
+.oath-get { padding: 5px 10px; font-size: 0.8rem; }
+.oath-wait { display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 0.82rem; }
+.oath-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.oath-grid .oath-wide { grid-column: 1 / -1; }
+.oath-grid select { width: 100%; min-width: 0; }
+
+/* History: what was on the key */
+.inv-section { padding: 10px 0; border-top: 1px solid var(--border); }
+.inv-section:first-of-type { border-top: none; }
+.inv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.inv-title { font-weight: 600; }
+.inv-updated { font-size: 0.78rem; }
+.inv-list { margin: 0; padding-left: 18px; font-size: 0.88rem; }
+.inv-list li { padding: 1px 0; overflow-wrap: anywhere; }
+
+/* OpenPGP */
+.pgp-keys { list-style: none; margin: 0 0 8px; padding: 0; }
+.pgp-key { padding: 10px 0; border-top: 1px solid var(--border); }
+.pgp-key:first-child { border-top: none; }
+.pgp-key-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pgp-slot { font-weight: 600; min-width: 130px; }
+.pgp-touch-btn { margin-left: auto; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
+.pgp-fp { font-family: var(--mono); font-size: 0.8rem; margin-top: 4px; overflow-wrap: anywhere; }
+.pgp-meta { font-size: 0.78rem; margin-top: 2px; }
+.warn-text { color: var(--warn); font-weight: 600; }
+.bad-text { color: var(--crit); font-weight: 600; }

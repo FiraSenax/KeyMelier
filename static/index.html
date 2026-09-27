@@ -95,6 +95,8 @@
           <button type="button" class="tab" data-tab="pin" role="tab" data-i18n="tab.pin"></button>
           <button type="button" class="tab" data-tab="passkeys" role="tab" data-i18n="tab.passkeys"></button>
           <button type="button" class="tab" data-tab="fingerprints" role="tab" data-i18n="tab.fingerprints"></button>
+          <button type="button" class="tab hidden" data-tab="oath" role="tab" data-i18n="tab.oath"></button>
+          <button type="button" class="tab hidden" data-tab="openpgp" role="tab" data-i18n="tab.openpgp"></button>
           <button type="button" class="tab" data-tab="history" role="tab" data-i18n="tab.history"></button>
           <button type="button" class="tab" data-tab="security" role="tab" data-i18n="tab.security"></button>
           <button type="button" class="tab" data-tab="settings" role="tab" data-i18n="tab.settings"></button>
@@ -146,6 +148,20 @@
             <div class="pane-narrow">
               <div id="pk-content" class="pane-stack"></div>
               <p class="muted" data-i18n="pk.scopeNote"></p>
+            </div>
+          </div>
+
+          <!-- Authenticator (OATH) -->
+          <div class="tab-pane hidden" data-pane="oath">
+            <div class="pane-narrow">
+              <div id="oath-content" class="pane-stack"></div>
+            </div>
+          </div>
+
+          <!-- OpenPGP -->
+          <div class="tab-pane hidden" data-pane="openpgp">
+            <div class="pane-narrow">
+              <div id="pgp-content" class="pane-stack"></div>
             </div>
           </div>
 

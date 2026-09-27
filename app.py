@@ -58,6 +58,10 @@ ALLOWED = {
     "fingerprint_enroll", "fingerprint_enroll_cancel",
     "reset_arm", "reset_disarm", "config", "config_update",
     "function_test", "function_test_info",
+    "card_apps", "oath", "oath_unlock", "oath_code", "oath_add", "oath_rename", "oath_delete",
+    "oath_password", "oath_reset",
+    "openpgp", "openpgp_change_pin", "openpgp_unblock_pin", "openpgp_touch", "openpgp_signature_pin",
+    "openpgp_cardholder", "openpgp_reset",
     "export_all",
 }
 
@@ -81,6 +85,20 @@ class Api:
         """The page tells the menu bar which language and texts it shows."""
         if self._menubar is not None:
             self._menubar.set_language(str(lang)[:5], texts if isinstance(texts, dict) else None)
+
+    def copy_text(self, text):
+        """Put a code on the system clipboard (the web view's clipboard API is unreliable)."""
+        text = str(text)[:256]
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["pbcopy"], input=text.encode(), check=True)
+            elif sys.platform == "win32":
+                subprocess.run(["clip"], input=text.encode("utf-16-le"), check=True,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            return True
+        except Exception as e:
+            logger.debug("Clipboard failed: %s", e)
+            return False
 
     def client_log(self, message):
         logger.info("UI: %s", str(message)[:500])

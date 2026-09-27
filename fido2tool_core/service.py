@@ -9,12 +9,16 @@ import dataclasses
 import json
 import logging
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from fido2tool_core.storage import atomic_write, stateless
 
 from fido2tool_core import auth
 from fido2tool_core import fingerprints as fingerprints_mod
 from fido2tool_core import key_config
+from fido2tool_core import oath_app
+from fido2tool_core import openpgp_app
+from fido2tool_core.cards import Cards, CardError
 from fido2tool_core import passkeys as passkeys_mod
 from fido2tool_core import pin as pin_mod
 from fido2tool_core import reset as reset_mod
@@ -65,13 +69,16 @@ class KeyService:
         self._scanner = scanner
         self._advisories = advisories
         self._last_update_check = None
+        self._cards = Cards()
+        self._reader_tokens: dict[str, str] = {}  # PC/SC reader -> FIDO token id
+        self._cards.hold = self._hold_reader
         self._app_update = None
         self._exporter = exporter
         self._mds3 = mds3_client
         self._session_settings = {}
         # History is on unless the user switched it off (websites stay opt-in)
         self.history = history or History(enabled=self._stored_settings().get("history_enabled") is not False)
-        if self._stored_settings().get("remember_sites") is not True:
+        if not self._remember_contents():
             self.history.clear_sites()
         self.emit = lambda name, payload: None
         self._attestation_logged: set[str] = set()
@@ -92,7 +99,7 @@ class KeyService:
         return d
 
     def _log(self, record, kind, **detail):
-        if self._stored_settings().get("remember_sites") is not True:
+        if not self._remember_contents():
             detail = {k: v for k, v in detail.items() if k not in {"site", "user", "rp_id"}}
         summary = self.history.add_event(record, kind, **detail)
         self.emit("history_updated", summary)
@@ -194,6 +201,10 @@ class KeyService:
 
     # ── Settings ─────────────────────────────────────────────────────────────
 
+    def _remember_contents(self) -> bool:
+        """Record what is on each key (site names, account labels, ...)? On unless turned off."""
+        return not stateless() and self._stored_settings().get("remember_sites") is not False
+
     def _stored_settings(self) -> dict:
         if stateless():
             return self._session_settings
@@ -204,7 +215,7 @@ class KeyService:
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
-        return {"history_enabled": not stateless(), "remember_sites": False, **self._stored_settings(),
+        return {"history_enabled": not stateless(), "remember_sites": not stateless(), **self._stored_settings(),
                 "stateless": stateless(), "system_languages": system_languages()}
 
     def set_settings(self, values: dict) -> dict:
@@ -220,7 +231,7 @@ class KeyService:
                     raise PinError("Expected a boolean", "invalid_input")
                 settings[key] = value and not stateless()
                 self.history.set_enabled(settings[key])
-                if settings.get("remember_sites") is not True:
+                if settings.get("remember_sites") is False:
                     self.history.clear_sites()
             elif key == "remember_sites":
                 settings["remember_sites"] = value is True and not stateless()
@@ -283,7 +294,7 @@ class KeyService:
 
     def _remember_sites(self, token_id, rps):
         """Store the website names for the backup check (unless disabled)."""
-        if self._stored_settings().get("remember_sites") is not True:
+        if not self._remember_contents():
             return
         try:
             record = self._scanner.get(token_id)
@@ -406,6 +417,155 @@ class KeyService:
                                        on_touch=lambda: self.emit("test_touch", {"id": token_id}))
         self._log(record, "function_test", passed=bool(result["ok"]))
         return result
+
+    # ── Smart card applications ──────────────────────────────────────────────
+
+    def _card(self, token_id: str):
+        record = self._scanner.get(token_id)
+        reader = self._cards.find_reader(record)
+        if reader:
+            self._reader_tokens[reader] = token_id
+        if not reader:
+            raise CardError("KeyMelier cannot reach this key's smart card interface.", "no_card", status=404)
+        return record, reader
+
+    @contextmanager
+    def _hold_reader(self, reader: str):
+        token_id = self._reader_tokens.get(reader)
+        if token_id is None:
+            yield
+            return
+        try:
+            cm = self._scanner.hold(token_id)
+            cm.__enter__()
+        except DeviceNotFound:
+            yield  # FIDO side already gone; the card call reports it
+            return
+        except DeviceBusy:
+            raise CardError("The key is busy. Try again in a moment.", "busy", status=409) from None
+        try:
+            yield
+        finally:
+            cm.__exit__(None, None, None)
+
+    def card_apps(self, token_id: str) -> dict:
+        """Which non-FIDO applications (OATH, PIV, OpenPGP) the key offers."""
+        try:
+            _record, reader = self._card(token_id)
+            return {"reader": True, "apps": self._cards.applets(reader)}
+        except CardError as e:
+            return {"reader": e.code not in ("no_card", "not_found"), "apps": {}, "code": e.code}
+
+    def _remember_inventory(self, record, section, items):
+        if self._remember_contents():
+            self.emit("history_updated", self.history.set_inventory(record, section, items))
+
+    # ── OATH (authenticator codes) ───────────────────────────────────────────
+
+    def oath(self, token_id: str) -> dict:
+        record, reader = self._card(token_id)
+
+        def read(conn):
+            st = oath_app.status(conn)
+            major, minor, patch = (list(map(int, st["version"].split("."))) + [0, 0, 0])[:3]
+            st["can_rename"] = (major, minor, patch) >= (5, 3, 1)
+            return st, (oath_app.list_accounts(conn) if st["unlocked"] else None)
+
+        st, accounts = self._cards.read(reader, read)
+        if accounts is None:
+            return st
+        self._remember_inventory(record, "oath", [{"issuer": a["issuer"], "name": a["name"]} for a in accounts])
+        return {**st, "accounts": accounts}
+
+    def oath_unlock(self, token_id: str, password: str) -> dict:
+        _record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            oath_app.unlock(conn, password)
+        return self.oath(token_id)
+
+    def oath_code(self, token_id: str, account_id: str) -> dict:
+        _record, reader = self._card(token_id)
+        with self._cards.connect(reader, timeout=30.0) as conn:
+            return oath_app.calculate(conn, account_id)
+
+    def oath_add(self, token_id: str, **fields) -> dict:
+        record, reader = self._card(token_id)
+        allowed = {"uri", "issuer", "name", "secret", "oath_type", "digits", "period", "algorithm", "touch"}
+        with self._cards.connect(reader) as conn:
+            account = oath_app.add(conn, **{k: v for k, v in fields.items() if k in allowed})
+        self._log(record, "oath_added", site=account["issuer"], user=account["name"])
+        return self.oath(token_id)
+
+    def oath_rename(self, token_id: str, account_id: str, issuer: str = "", name: str = "") -> dict:
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            oath_app.rename(conn, account_id, issuer, name)
+        self._log(record, "oath_renamed", site=issuer, user=name)
+        return self.oath(token_id)
+
+    def oath_delete(self, token_id: str, account_id: str, label: str = "") -> dict:
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            oath_app.delete(conn, account_id)
+        self._log(record, "oath_deleted", site=str(label)[:120])
+        return self.oath(token_id)
+
+    def oath_password(self, token_id: str, password: str | None = None) -> dict:
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            oath_app.set_password(conn, password or None)
+        self._log(record, "oath_password_set" if password else "oath_password_removed")
+        return self.oath(token_id)
+
+    def oath_reset(self, token_id: str, confirm: bool = False) -> dict:
+        if confirm is not True:
+            raise CardError("Please confirm the reset.", "invalid_input")
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            oath_app.reset(conn)
+        self._log(record, "oath_reset")
+        return self.oath(token_id)
+
+    # ── OpenPGP ──────────────────────────────────────────────────────────────
+
+    def openpgp(self, token_id: str) -> dict:
+        record, reader = self._card(token_id)
+        data = self._cards.read(reader, openpgp_app.info)
+        self._remember_inventory(record, "openpgp", [
+            {"slot": k["slot"], "algorithm": k["algorithm"], "fingerprint": k["fingerprint"]}
+            for k in data["keys"] if k["present"]])
+        return data
+
+    def _openpgp_do(self, token_id, fn, *args, event=None, **detail) -> dict:
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            fn(conn, *args)
+        if event:
+            self._log(record, event, **detail)
+        return self.openpgp(token_id)
+
+    def openpgp_change_pin(self, token_id: str, which: str, current: str, new: str) -> dict:
+        which = "admin" if which == "admin" else "user"
+        return self._openpgp_do(token_id, openpgp_app.change_pin, which, current, new,
+                                event=f"pgp_{which}_pin_changed")
+
+    def openpgp_unblock_pin(self, token_id: str, admin_pin: str, new_pin: str) -> dict:
+        return self._openpgp_do(token_id, openpgp_app.unblock_pin, admin_pin, new_pin, event="pgp_pin_unblocked")
+
+    def openpgp_touch(self, token_id: str, slot: str, policy: str, admin_pin: str) -> dict:
+        return self._openpgp_do(token_id, openpgp_app.set_touch, slot, policy, admin_pin,
+                                event="pgp_touch_changed", slot=slot, policy=policy)
+
+    def openpgp_signature_pin(self, token_id: str, every_time: bool, admin_pin: str) -> dict:
+        return self._openpgp_do(token_id, openpgp_app.set_signature_pin, every_time is True, admin_pin)
+
+    def openpgp_cardholder(self, token_id: str, name: str, url: str, admin_pin: str) -> dict:
+        return self._openpgp_do(token_id, openpgp_app.set_cardholder, name, url, admin_pin)
+
+    def openpgp_reset(self, token_id: str, confirm: bool = False) -> dict:
+        if confirm is not True:
+            raise CardError("Please confirm the reset.", "invalid_input")
+        return self._openpgp_do(token_id, openpgp_app.reset, event="pgp_reset")
 
     # ── Key settings (authenticatorConfig) ───────────────────────────────────
 

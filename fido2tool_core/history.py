@@ -171,11 +171,25 @@ class History:
             self._save()
             return self._summary(entry)
 
+    def set_inventory(self, record, section: str, items: list[dict]) -> dict:
+        """Remember what a key holds in one area (e.g. "oath", "piv", "openpgp").
+
+        Only descriptive labels are stored (account names, certificate
+        subjects, key fingerprints) – never secrets or codes.
+        """
+        with self._lock:
+            entry = self._entry_for(record)
+            inventory = entry.setdefault("inventory", {})
+            inventory[section] = {"items": items, "updated": _now()}
+            self._save()
+            return self._summary(entry)
+
     def clear_sites(self) -> None:
         with self._lock:
             for entry in self._entries.values():
                 entry.pop("sites", None)
                 entry.pop("sites_updated", None)
+                entry.pop("inventory", None)
                 entry.pop("lost_done", None)
                 for event in entry.get("events", []):
                     for field in ("site", "user", "rp_id"):

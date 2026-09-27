@@ -143,6 +143,22 @@ class TokenScanner:
         with self._lock:
             return self._device_locks.setdefault(path_key, threading.Lock())
 
+    @contextmanager
+    def hold(self, token_id: str, timeout: float = 10.0):
+        """Keep the poll loop off a key's FIDO interface (without opening it).
+
+        Some keys (e.g. Token2) reject smart card commands while FIDO traffic
+        runs, and the poll loop talks to every key once per second.
+        """
+        record = self.get(token_id)
+        lock = self._device_lock(record.path)
+        if not lock.acquire(timeout=timeout):
+            raise DeviceBusy(record.path)
+        try:
+            yield record
+        finally:
+            lock.release()
+
     def _enumerate_devices(self) -> tuple[dict[str, TokenRecord], set[str]]:
         """Return (records of idle devices, paths of devices currently locked)."""
         result = {}
