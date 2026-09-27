@@ -27,6 +27,7 @@ if sys.platform.startswith("linux"):
 
 import webview
 
+from fido2tool_core import diagnostics
 from fido2tool_core.advisories import AdvisoryChecker
 from fido2tool_core.desktop import host_env, linux_copy, open_with_system, private_page_file
 from fido2tool_core.exporter import CSVExporter
@@ -56,7 +57,7 @@ ALLOWED = {
     "history_list", "history_get", "history_rename", "history_forget",
     "history_set_lost", "history_lost_done", "history_replace", "history_replace_done",
     "sync_status", "sync_enable", "sync_disable", "sync_now",
-    "get_settings", "set_settings",
+    "get_settings", "set_settings", "diagnostics",
     "pin_status", "pin_update", "attestation_rerun",
     "unlock", "lock",
     "passkeys", "passkey_delete", "passkey_rename",
@@ -261,6 +262,7 @@ class Api:
     def client_error(self, message):
         """JavaScript errors from the page, so they show up in the terminal."""
         logger.error("UI: %s", str(message)[:500])
+        self._service.error_log.ui_errors += 1
         if self._selftest is not None:
             self._selftest.ui_errors.append(str(message)[:300])
 
@@ -288,16 +290,21 @@ class Api:
             return {"ok": True, "data": getattr(self._service, method)(**(kwargs or {}))}
         except PinError as e:
             logger.warning("%s -> %s: %s", method, e.code, e.message)
+            self._service.error_log.record(method, e.code, e.extra.get("reason"))
             return {"ok": False, "error": e.message, "code": e.code, "status": e.status, **e.extra}
         except DeviceBusy:
+            self._service.error_log.record(method, "busy")
             return {"ok": False, "error": "The key is busy.", "code": "busy", "status": 409}
         except DeviceNotFound:
+            self._service.error_log.record(method, "not_found")
             return {"ok": False, "error": "The key is no longer connected.", "code": "not_found", "status": 404}
         except TypeError as e:
             logger.warning("%s: bad arguments (%s)", method, e)
+            self._service.error_log.record(method, "invalid_input")
             return {"ok": False, "error": "Invalid request.", "code": "invalid_input", "status": 400}
         except Exception as e:
             logger.exception("%s failed", method)
+            self._service.error_log.record(method, "error")   # the message stays in the log, not in the report
             return {"ok": False, "error": str(e), "code": "error", "status": 500}
 
 
@@ -431,6 +438,8 @@ def main():
         threading.Thread(target=service.run_update_loop, daemon=True, name="updates").start()
 
     dark = sys.platform == "darwin" and _macos_dark_mode()
+    service.error_log = diagnostics.ErrorLog(ALLOWED)
+    service.gui_backend = lambda: getattr(webview, "renderer", None)   # set by pywebview once the window runs
     api = Api(service)
     # Linux (Qt): the page is too large for setHtml, so it is loaded from a private file
     page_url, remove_page = None, None

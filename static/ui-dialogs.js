@@ -88,6 +88,7 @@ const ABOUT_LINKS = [['about.site', 'https://firasenax.github.io/KeyMelier/'],
   ['about.issues', 'https://github.com/FiraSenax/KeyMelier/issues']];
 
 function openAbout(open = true) {
+  diagText = null;
   const el = $('about-dialog');
   el.classList.toggle('hidden', !open);
   if (!open) { el.innerHTML = ''; $('about-open').focus(); return; }
@@ -104,9 +105,48 @@ function openAbout(open = true) {
       <button type="button" class="btn btn-secondary" data-about="licenses">${escHtml(t('about.licenses'))}</button>
       <button type="button" class="btn btn-secondary" data-about="updates">${escHtml(t('upd.check'))}</button>
       <button type="button" class="btn btn-secondary" data-about="intro">${escHtml(t('ob.open'))}</button>
+      <button type="button" class="btn btn-secondary" data-about="diag">${escHtml(t('diag.open'))}</button>
       <button type="button" class="btn btn-primary" data-about="close">${escHtml(t('about.close'))}</button>
     </div>
     <p class="field-hint">© 2026 Sven Frank · MIT License</p>
   </div>`;
   el.querySelector('[data-about="close"]').focus();
+}
+
+// Diagnostic report: built by the backend from a fixed list of fields (no
+// names, serials, paths, URLs or messages – fido2tool_core/diagnostics.py).
+// The user reads exactly the text that would be saved; nothing is saved
+// without clicking Save, nothing is sent anywhere.
+let diagText = null;
+
+async function openDiagnostics() {
+  const el = $('about-dialog');
+  let report;
+  try {
+    report = await call('diagnostics');
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
+    return;
+  }
+  diagText = JSON.stringify(report, null, 2) + '\n';
+  el.innerHTML = `<div class="ql-dialog card diag-dialog">
+    <h2 id="about-title">${escHtml(t('diag.title'))}</h2>
+    <p class="card-text">${escHtml(t('diag.text'))}</p>
+    <pre class="diag-preview" id="diag-preview" tabindex="0" aria-label="${escHtml(t('diag.title'))}">${escHtml(diagText)}</pre>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-about="diag-cancel">${escHtml(t('diag.cancel'))}</button>
+      <button type="button" class="btn btn-primary" data-about="diag-save">${escHtml(t('diag.save'))}</button>
+    </div>
+  </div>`;
+  el.querySelector('[data-about="diag-save"]').focus();
+}
+
+async function saveDiagnostics() {
+  const text = diagText;
+  if (!text) return;
+  const date = new Date().toISOString().slice(0, 10);
+  const path = await window.pywebview?.api?.save_text(`keymelier-diagnostics-${date}.json`, text, true);
+  if (!path) return;   // cancelled in the file dialog: nothing written, preview stays
+  showToast(t('diag.saved'), 'info');
+  openAbout(false);
 }

@@ -346,26 +346,39 @@ class OverlapAndAccessTests(unittest.TestCase):
         a_h.update_snapshot(record("1"))
         b_h.update_snapshot(record("2"))
         rounds = 25
-        barrier = threading.Barrier(3)
-        seen_errors = []
+        # A timeout on the barrier and daemon threads: if one thread fails, the
+        # others stop too and the test fails instead of hanging the test run
+        barrier = threading.Barrier(3, timeout=30)
+        seen_errors, crashed = [], []
 
         def writer(h, s, serial):
-            for i in range(rounds):
-                h.rename(h.list()[0]["key_id"], f"{serial}-{i}")
-                barrier.wait()
-                s._folder.write(h.sync_state(), force=True)
+            try:
+                for i in range(rounds):
+                    h.rename(h.list()[0]["key_id"], f"{serial}-{i}")
+                    barrier.wait()
+                    s._folder.write(h.sync_state(), force=True)
+            except Exception as e:
+                crashed.append(f"writer {serial}: {e!r}")
+                barrier.abort()
 
         def reader():
-            for _ in range(rounds):
-                barrier.wait()
-                _found, errors = c_s._folder.read_others(only_new=False)
-                seen_errors.extend(errors)
-        threads = [threading.Thread(target=writer, args=(a_h, a_s, "a")),
-                   threading.Thread(target=writer, args=(b_h, b_s, "b")), threading.Thread(target=reader)]
+            try:
+                for _ in range(rounds):
+                    barrier.wait()
+                    _found, errors = c_s._folder.read_others(only_new=False)
+                    seen_errors.extend(errors)
+            except Exception as e:
+                crashed.append(f"reader: {e!r}")
+                barrier.abort()
+        threads = [threading.Thread(target=writer, args=(a_h, a_s, "a"), daemon=True),
+                   threading.Thread(target=writer, args=(b_h, b_s, "b"), daemon=True),
+                   threading.Thread(target=reader, daemon=True)]
         for t in threads:
             t.start()
         for t in threads:
             t.join(60)
+        self.assertFalse(any(t.is_alive() for t in threads), "threads finished")
+        self.assertEqual(crashed, [], "no writer or reader failed (Windows: a reader must not block the replace)")
         self.assertEqual(seen_errors, [], "an atomic replace never shows a half-written file")
         c_s.run_once(full=True)
         self.assertEqual(sorted(e["label"] for e in c_h.list()), [f"a-{rounds - 1}", f"b-{rounds - 1}"])

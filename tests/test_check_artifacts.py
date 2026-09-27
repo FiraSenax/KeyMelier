@@ -96,7 +96,7 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
     for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json", *ca.LINUX_FILES[1::3]):
         (folder / name).write_text("{}")
     for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *ca.LINUX_FILES[2::3]):
-        (folder / name).write_text(LICENSES)
+        (folder / name).write_text(LICENSES, encoding="utf-8")
     for lock in ca.LOCKS:
         shutil.copy(ROOT / lock, folder / lock)
     (folder / "SOURCE_COMMIT.txt").write_text(COMMIT + "\n")
@@ -104,7 +104,8 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
     (folder / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
     notes = folder.parent / "notes.md"
     notes.write_text("macOS … **Not notarized** …\nWindows … **Not signed** …\n"
-                     "Linux: KeyMelier-Linux-x86_64.AppImage, KeyMelier-Linux-aarch64.AppImage (unsigned)\n")
+                     "Linux: KeyMelier-Linux-x86_64.AppImage, KeyMelier-Linux-aarch64.AppImage (unsigned)\n",
+                     encoding="utf-8")
     return notes
 
 
@@ -131,7 +132,7 @@ class CheckArtifactsTests(unittest.TestCase):
         out = self.tmp / "linux"
         out.mkdir()
         for name, content in zip(ca.linux_files("x86_64"), (appimage(), "{}", LICENSES)):
-            (out / name).write_bytes(content) if isinstance(content, bytes) else (out / name).write_text(content)
+            (out / name).write_bytes(content) if isinstance(content, bytes) else (out / name).write_text(content, encoding="utf-8")
         (out / "KeyMelier-Linux-x86_64.AppImage").chmod(0o755)
         self.assertEqual(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, [])
         with patch.object(ca, "squashfs_contents", fake_squashfs(version="0.0.1")):

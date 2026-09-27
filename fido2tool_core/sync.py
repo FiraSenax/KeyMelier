@@ -46,6 +46,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from fido2tool_core.storage import replace_file
+
 logger = logging.getLogger(__name__)
 
 FORMAT = "keymelier-sync"
@@ -211,7 +213,7 @@ class SyncFolder:
                 f.write(data)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp, self.own_path)
+            replace_file(tmp, self.own_path)   # retries while a reader has it open (Windows)
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)

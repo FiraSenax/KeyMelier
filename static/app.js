@@ -3612,6 +3612,9 @@ function init() {
     if (act === 'licenses') window.pywebview?.api?.open_licenses();
     if (act === 'updates') { openAbout(false); checkForUpdates(); }
     if (act === 'intro') { openAbout(false); openOnboarding(); }
+    if (act === 'diag') openDiagnostics();
+    if (act === 'diag-save') saveDiagnostics();
+    if (act === 'diag-cancel') openAbout();
   });
   trapFocus($('quick-unlock'));
   initOnboarding();

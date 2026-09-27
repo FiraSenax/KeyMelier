@@ -1350,6 +1350,10 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .about-dialog img { margin-top: 4px; }
 .about-dialog h2 { margin: 0; }
 .about-dialog p { margin: 0; }
+.diag-dialog { display: flex; flex-direction: column; gap: 10px; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+.diag-dialog h2 { margin: 0; }
+.diag-preview { flex: 1 1 auto; min-height: 120px; overflow: auto; margin: 0; padding: 10px 12px; font-size: 0.78rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; white-space: pre; }
 .about-lead { font-weight: 600; }
 .about-links { font-size: 0.88rem; }
 .about-actions { justify-content: center; flex-wrap: wrap; margin-top: 6px; }

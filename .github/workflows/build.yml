@@ -14,6 +14,7 @@ jobs:
       matrix:
         os: [macos-14, windows-2022, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15   # a hanging test fails the run instead of blocking a runner for hours
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

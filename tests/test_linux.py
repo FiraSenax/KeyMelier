@@ -7,7 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
 from fido2tool_core import app_update, desktop, storage
@@ -50,6 +50,34 @@ class KeyringTests(unittest.TestCase):
             with self.assertRaises(PinError) as ctx:
                 svc.sync_enable(str(tmp / "sync"), "a long enough passphrase")
             self.assertEqual(ctx.exception.code, "sync_no_keyring")
+
+
+class ReplaceFileTests(unittest.TestCase):
+    """Windows refuses to replace a file another process has open for a moment."""
+
+    def test_retries_a_sharing_violation_on_windows(self):
+        calls = []
+
+        def replace(src, dst):
+            calls.append(src)
+            if len(calls) < 3:
+                raise PermissionError(13, "The process cannot access the file")
+        with patch.object(storage.os, "name", "nt"), patch.object(storage.os, "replace", replace), \
+                patch("time.sleep"):
+            storage.replace_file("a", "b")
+        self.assertEqual(len(calls), 3)
+
+    def test_gives_up_after_the_limit_and_never_retries_on_posix(self):
+        def always(src, dst):
+            raise PermissionError(13, "denied")
+        with patch.object(storage.os, "name", "nt"), patch.object(storage.os, "replace", always), \
+                patch("time.sleep") as sleep, self.assertRaises(PermissionError):
+            storage.replace_file("a", "b", attempts=5)
+        self.assertEqual(sleep.call_count, 4)
+        with patch.object(storage.os, "name", "posix"), patch.object(storage.os, "replace", always), \
+                patch("time.sleep") as sleep, self.assertRaises(PermissionError):
+            storage.replace_file("a", "b")
+        sleep.assert_not_called()
 
 
 class LanguageTests(unittest.TestCase):
@@ -125,12 +153,12 @@ class NavigationLockTests(unittest.TestCase):
         return window.loaded
 
     def test_own_page_file_is_kept_even_as_qt_reports_it(self):
-        page = Path("/run/user/1000/keymelier-a b/keymelier.html").as_uri()
+        page = PurePosixPath("/run/user/1000/keymelier-a b/keymelier.html").as_uri()
         self.assertEqual(self.visit("file:///run/user/1000/keymelier-a b/keymelier.html", page), [])
         self.assertEqual(self.visit(page + "#section", page), [])
 
     def test_other_documents_are_reverted(self):
-        page = Path("/run/user/1000/keymelier-x/keymelier.html").as_uri()
+        page = PurePosixPath("/run/user/1000/keymelier-x/keymelier.html").as_uri()
         for url in ("file:///etc/passwd", "https://example.com/", "file:///run/user/1000/keymelier-x/other.html"):
             with self.subTest(url):
                 self.assertEqual(self.visit(url, page), [page])

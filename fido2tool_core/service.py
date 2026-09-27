@@ -14,7 +14,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, set_aside, stateless
-from fido2tool_core import build_info
+from fido2tool_core import build_info, diagnostics
 from fido2tool_core import sync as sync_mod
 
 from fido2tool_core import auth
@@ -92,6 +92,8 @@ class KeyService:
                  advisories=None):
         self._scanner = scanner
         self._advisories = advisories
+        self.error_log = diagnostics.ErrorLog(())   # app.py replaces it with the bridge's operation list
+        self.gui_backend = lambda: None
         self._last_update_check = None
         self._cards = Cards()
         self._reader_tokens: dict[str, str] = {}  # PC/SC reader -> FIDO token id
@@ -234,6 +236,18 @@ class KeyService:
         status = self.data_status()
         self.emit("data_status", status)
         return status
+
+    def diagnostics(self) -> dict:
+        """Privacy-preserving report for bug reports (fido2tool_core/diagnostics.py)."""
+        try:
+            import keyring
+            backend = type(keyring.get_keyring()).__module__
+        except Exception:
+            backend = None
+        return diagnostics.build(
+            settings=self.get_settings(), data_status=self.data_status(), sync_status=self.sync_status(),
+            connected=len(self._scanner.get_all()), in_history=len(self.history.list()),
+            keyring=backend, gui=self.gui_backend(), errors=self.error_log)
 
     def link_allowed(self, url: str) -> bool:
         """A reference of a signed company advisory source (ENTERPRISE.md) – exact URL only."""

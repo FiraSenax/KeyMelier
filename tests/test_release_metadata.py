@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def app_version() -> str:
     ns: dict = {}
-    exec((ROOT / "fido2tool_core" / "version.py").read_text(), ns)
+    exec((ROOT / "fido2tool_core" / "version.py").read_text(encoding="utf-8"), ns)
     return ns["__version__"]
 
 
@@ -20,22 +20,22 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertRegex(app_version(), r"^\d+\.\d+\.\d+$")
 
     def test_package_configuration_matches(self):
-        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertEqual(pyproject["project"]["version"], app_version())
-        lock = (ROOT / "uv.lock").read_text()
+        lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
         m = re.search(r'\[\[package\]\]\nname = "keymelier"\nversion = "([^"]+)"', lock)
         self.assertIsNotNone(m, "keymelier entry in uv.lock")
         self.assertEqual(m.group(1), app_version())
 
     def test_app_bundle_and_installer_take_the_version_from_version_py(self):
-        spec = (ROOT / "fido2tool.spec").read_text()
+        spec = (ROOT / "fido2tool.spec").read_text(encoding="utf-8")
         self.assertIn("fido2tool_core/version.py", spec)
         self.assertIn("'CFBundleShortVersionString': APP_VERSION", spec)
         self.assertIn("'CFBundleVersion': APP_VERSION", spec)
-        iss = (ROOT / "packaging" / "keymelier.iss").read_text()
+        iss = (ROOT / "packaging" / "keymelier.iss").read_text(encoding="utf-8")
         for field in ("AppVersion={#AppVersion}", "VersionInfoVersion={#AppVersion}", "VersionInfoProductVersion={#AppVersion}"):
             self.assertIn(field, iss)
-        workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text()
+        workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         self.assertIn("from fido2tool_core.version import __version__", workflow)
         self.assertIn('"/DAppVersion=$version"', workflow)
 
@@ -61,7 +61,7 @@ class ReleaseMetadataTests(unittest.TestCase):
                 self.assertIn("jobs", yaml.safe_load(wf.read_text(encoding="utf-8")))
 
     def test_changelog_has_an_entry_for_this_version(self):
-        headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(), re.M)
+        headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
         versions = [h.split(" ")[0] for h in headings if h != "Unreleased"]
         self.assertEqual(len(versions), len(set(versions)), "no version twice")
         first = headings[0]

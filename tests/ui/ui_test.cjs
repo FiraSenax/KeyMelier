@@ -443,6 +443,32 @@ async function main() {
     assert(text.includes('Contoso') && text.includes('3') && text.includes('Lab'), text);
     assert(await js('!document.querySelector("input[name*=policy], [data-act*=policy]")'), 'no settings for the sources');
   });
+  await test('diagnostic report: preview first, Back saves nothing, Save writes exactly the preview (privately)', async () => {
+    await js('window.__lastSave = null; window.__demoCalls.length = 0; openAbout();');
+    await until('!!document.querySelector("#about-dialog [data-about=diag]")', 'about dialog');
+    await focus('#about-dialog [data-about=diag]'); await press('Enter');
+    await until('!!$("diag-preview")', 'preview');
+    const preview = await js('$("diag-preview").textContent');
+    const report = JSON.parse(preview);
+    assert(report.format === 'keymelier-diagnostics' && Array.isArray(report.recent_errors), preview.slice(0, 120));
+    assert(await js('(() => { const r = document.querySelector(".diag-dialog").getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth; })()'), 'dialog fits the window');
+    await click('#about-dialog [data-about=diag-cancel]');
+    await until('!!document.querySelector("#about-dialog [data-about=diag]")', 'back in About');
+    assert(await js('window.__lastSave === null'), 'Back writes nothing');
+    await click('#about-dialog [data-about=diag]');
+    await until('!!$("diag-preview")', 'preview again');
+    const shown = await js('$("diag-preview").textContent');
+    await click('#about-dialog [data-about=diag-save]');
+    await until('window.__lastSave !== null', 'saved');
+    assert(await js('window.__lastSave.text') === shown, 'saved text equals the preview');
+    assert(await js('window.__lastSave.priv === true && /^keymelier-diagnostics-\\d{4}-\\d{2}-\\d{2}\\.json$/.test(window.__lastSave.name)'), 'private file, dated name');
+    assert(await js('$("about-dialog").classList.contains("hidden")'), 'closes after saving');
+    await js('tokens.clear(); render();');
+    await js('openAbout(); openDiagnostics();');
+    await until('!!$("diag-preview")', 'works without a key');
+    await press('Escape');
+    await js('location.hash = ""');
+  });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));
   });
