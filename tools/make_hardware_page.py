@@ -4,7 +4,7 @@
     python3 tools/make_hardware_page.py --check  exit 1 if the page is out of date
 
 HARDWARE_TESTS.md stays the single source; this only renders its matrix for
-the website (English headings, result words translated, notes as written).
+the website.
 """
 
 import html
@@ -18,9 +18,6 @@ TARGET = ROOT / "docs" / "hardware.html"
 
 HEADERS = ["Operating system", "KeyMelier", "Key model", "Firmware", "Detection", "Read functions",
            "Cancel & reconnect", "Result", "Date, notes"]
-WORDS = {"Bestanden": "Passed", "Fehlgeschlagen": "Failed", "Nicht unterstützt": "Not supported",
-         "Nicht getestet": "Not tested", "nicht erfasst": "not recorded", "oder neuer": "or newer",
-         "Version nicht erfasst": "version not recorded", "Versionen nicht erfasst": "versions not recorded"}
 STATUS = {"Passed": "ok", "Failed": "fail", "Not supported": "none", "Not tested": "open"}
 ISSUE = "https://github.com/FiraSenax/KeyMelier/issues/new?template=tested-with.yml"
 SOURCE_URL = "https://github.com/FiraSenax/KeyMelier/blob/main/HARDWARE_TESTS.md"
@@ -33,14 +30,8 @@ def matrix_rows(md: str) -> list[list[str]]:
     return [r for r in rows if len(r) == len(HEADERS)]
 
 
-def translate(text: str) -> str:
-    for de, en in sorted(WORDS.items(), key=lambda kv: -len(kv[0])):
-        text = text.replace(de, en)
-    return text
-
-
 def cell(text: str) -> str:
-    text = translate(re.sub(r"\*\*(.+?)\*\*", r"\1", text))
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     status = next((cls for word, cls in STATUS.items() if text.startswith(word)), None)
     body = html.escape(text) or "–"
     return f'<td><span class="st {status}">{body}</span></td>' if status else f"<td>{body}</td>"
@@ -48,7 +39,7 @@ def cell(text: str) -> str:
 
 def render() -> str:
     rows = matrix_rows(SOURCE.read_text(encoding="utf-8"))
-    results = [translate(r[7]) for r in rows]
+    results = [r[7] for r in rows]
     tested = sum(1 for r in results if not r.startswith("Not tested"))
     body = "\n".join("<tr>" + "".join(cell(c) for c in r) + "</tr>" for r in rows)
     return f"""<!doctype html>
