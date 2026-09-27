@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-09-27
 
 **Security review** (details in SECURITY_REVIEW.md):
 - Critical: the page no longer receives a Python object through the pywebview bridge – only 11 wrapper functions – closing a path from page script to code execution.
@@ -10,7 +10,7 @@
 - Hardened history import, PIN-before-change for PIV generation, server-side confirmation for overwrites, fresher advisory requirement, safer file writes, workflow hardening.
 - SBOM (CycloneDX 1.6) for each platform, in the app and attached to releases.
 
-
+**New:**
 - **OpenPGP key generation on the card:** signature, encryption and authentication keys (Ed25519/Cv25519, NIST P-256, RSA 2048/4096) are generated on the security key and self-signed by it; KeyMelier writes the OpenPGP public key and a revocation certificate (saved where you choose) and can import the key into GnuPG. Verified against Sequoia-PGP, including decrypting with the card.
 - **Quantum safety** section per key: signature algorithms from getInfo, automatic detection of ML-DSA (COSE -48/-49/-50, RFC 9964), and what classical cryptography means for logins and for encryption.
 - **History export and import** (JSON) to back up or move KeyMelier's knowledge about your keys; imports are validated and merged.
