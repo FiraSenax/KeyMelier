@@ -26,6 +26,7 @@ let lostKid = null;       // key selected in the lost-key assistant
 let replaceOld = null;    // key being replaced (replace view)
 let replaceStep = 1;      // 1 choose · 2 compare · 3 test & confirm · 4 summary
 let replaceOpenOnly = false;
+let replaceCancelAsk = false;   // backup page: confirm cancelling a running replacement
 let syncState = null;     // sync_status from the service
 let syncForm = { folder: '', error: null, busy: false, confirmOff: false };
 
@@ -556,10 +557,20 @@ function renderBackupView() {
     const open = replacePlanItems(plan).filter(i => !(i.check === 'found' && done.has(i.id))).length;
     runningText = t('rp.inProgress', { old: keyLabel(running), new: keyLabel(historyKeys.get(running.replace.new)), n: open });
   }
+  const cancel = running && replaceCancelAsk ? `<div class="rp-cancel" role="group" aria-label="${escHtml(t('rp.cancel'))}">
+      <p class="card-text">${escHtml(t('rp.cancel.confirm'))}</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" data-act="rp-cancel-no">${escHtml(t('rp.cancel.keep'))}</button>
+        <button type="button" class="btn btn-danger" data-act="rp-cancel-yes" data-kid="${escHtml(running.key_id)}">${escHtml(t('rp.cancel'))}</button>
+      </div></div>` : '';
   parts.push(`<section class="card bk-card">
     <div class="check-head"><h2>${escHtml(t('rp.title'))}</h2>
-      <button type="button" class="btn btn-secondary" data-act="open-replace" ${running ? `data-kid="${escHtml(running.key_id)}"` : ''}>${escHtml(t(running ? 'rp.continue' : 'rp.start'))}</button></div>
+      <div class="form-actions bk-actions">
+        ${running && !replaceCancelAsk ? `<button type="button" class="btn btn-secondary" data-act="rp-cancel-ask">${escHtml(t('rp.cancel'))}</button>` : ''}
+        <button type="button" class="btn btn-secondary" data-act="open-replace" ${running ? `data-kid="${escHtml(running.key_id)}"` : ''}>${escHtml(t(running ? 'rp.continue' : 'rp.start'))}</button>
+      </div></div>
     <p class="card-text">${escHtml(runningText || t('rp.short'))}</p>
+    ${cancel}
   </section>`);
 
   // Sync: status only; configuration lives in the app settings
@@ -4091,6 +4102,21 @@ function init() {
     const b = ev.target.closest('[data-act]');
     if (b?.dataset.act === 'open-settings') return showSettingsView();
     if (b?.dataset.act === 'open-replace') return showReplaceView(b.dataset.kid);
+    if (b?.dataset.act === 'rp-cancel-ask' || b?.dataset.act === 'rp-cancel-no') {
+      replaceCancelAsk = b.dataset.act === 'rp-cancel-ask';
+      renderPanel();
+      document.querySelector(replaceCancelAsk ? '[data-act="rp-cancel-no"]' : '[data-act="rp-cancel-ask"]')?.focus();
+      return;
+    }
+    if (b?.dataset.act === 'rp-cancel-yes') {
+      // forgets the progress only – nothing happens on either key
+      const summary = await call('history_replace', { kid: b.dataset.kid, new_kid: null }).catch(e => { showToast(errorMessage(e), 'error'); return null; });
+      if (summary) historyKeys.set(summary.key_id, summary);
+      replaceCancelAsk = false;
+      replaceStep = 1;
+      if (summary) showToast(t('rp.cancel.done'), 'success');
+      return renderPanel();
+    }
     if (b?.dataset.act === 'open-accounts') return showAccountsView();
     if (b?.dataset.act === 'hist-export') return exportHistory();
     if (b?.dataset.act === 'hist-import') return importHistory();

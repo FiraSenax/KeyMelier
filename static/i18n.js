@@ -4673,6 +4673,21 @@ const UI2_STRINGS = {
 };
 for (const [code, strings] of Object.entries(UI2_STRINGS)) Object.assign(STRINGS[code], strings);
 
+const RPCANCEL_STRINGS = {
+  de: {"rp.cancel": "Wechsel abbrechen", "rp.cancel.confirm": "Schlüsselwechsel wirklich abbrechen? Deine Haken gehen verloren. An den Schlüsseln und bei den Diensten ändert sich nichts.", "rp.cancel.keep": "Weitermachen", "rp.cancel.done": "Schlüsselwechsel abgebrochen"},
+  en: {"rp.cancel": "Cancel replacement", "rp.cancel.confirm": "Really cancel the key replacement? Your ticks are discarded. Nothing changes on the keys or at the services.", "rp.cancel.keep": "Keep going", "rp.cancel.done": "Key replacement cancelled"},
+  es: {"rp.cancel": "Cancelar sustitución", "rp.cancel.confirm": "¿Seguro que quieres cancelar la sustitución? Se perderán tus marcas. No cambia nada en las llaves ni en los servicios.", "rp.cancel.keep": "Continuar", "rp.cancel.done": "Sustitución cancelada"},
+  fr: {"rp.cancel": "Annuler le remplacement", "rp.cancel.confirm": "Voulez-vous vraiment annuler le remplacement ? Vos coches seront perdues. Rien ne change sur les clés ni auprès des services.", "rp.cancel.keep": "Continuer", "rp.cancel.done": "Remplacement annulé"},
+  it: {"rp.cancel": "Annulla sostituzione", "rp.cancel.confirm": "Vuoi davvero annullare la sostituzione? Le tue spunte andranno perse. Nulla cambia sulle chiavi né presso i servizi.", "rp.cancel.keep": "Continua", "rp.cancel.done": "Sostituzione annullata"},
+  nl: {"rp.cancel": "Vervanging annuleren", "rp.cancel.confirm": "Vervanging echt annuleren? Je vinkjes gaan verloren. Op de sleutels en bij de diensten verandert niets.", "rp.cancel.keep": "Doorgaan", "rp.cancel.done": "Vervanging geannuleerd"},
+  pl: {"rp.cancel": "Anuluj wymianę", "rp.cancel.confirm": "Na pewno anulować wymianę klucza? Twoje zaznaczenia przepadną. Na kluczach i w usługach nic się nie zmieni.", "rp.cancel.keep": "Kontynuuj", "rp.cancel.done": "Wymiana anulowana"},
+  pt: {"rp.cancel": "Cancelar substituição", "rp.cancel.confirm": "Queres mesmo cancelar a substituição? As tuas marcas perdem-se. Nada muda nas chaves nem nos serviços.", "rp.cancel.keep": "Continuar", "rp.cancel.done": "Substituição cancelada"},
+  ja: {"rp.cancel": "置き換えを中止", "rp.cancel.confirm": "キーの置き換えを中止しますか？チェックは破棄されます。キーやサービス側には何も変更されません。", "rp.cancel.keep": "続ける", "rp.cancel.done": "置き換えを中止しました"},
+  ko: {"rp.cancel": "교체 취소", "rp.cancel.confirm": "키 교체를 정말 취소할까요? 체크 표시는 사라집니다. 키와 서비스에는 아무것도 바뀌지 않습니다.", "rp.cancel.keep": "계속하기", "rp.cancel.done": "키 교체를 취소했습니다"},
+  zh: {"rp.cancel": "取消替换", "rp.cancel.confirm": "确定要取消密钥替换吗？你的勾选将被丢弃。密钥和服务上都不会有任何更改。", "rp.cancel.keep": "继续", "rp.cancel.done": "已取消密钥替换"},
+};
+for (const [code, strings] of Object.entries(RPCANCEL_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

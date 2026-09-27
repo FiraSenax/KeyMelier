@@ -1458,3 +1458,6 @@ button.status-pill { border: none; font: inherit; cursor: pointer; }
 .btn-link { padding: 4px 2px; min-height: 28px; }
 .quick-lock { width: 30px; height: 30px; }
 summary { min-height: 28px; display: list-item; }
+
+.bk-actions { margin: 0; }
+.rp-cancel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }

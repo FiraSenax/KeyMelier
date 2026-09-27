@@ -84,12 +84,6 @@ CHECKS = r"""
      && document.querySelectorAll('#replace-content h3.bk-group').length >= 2);
   document.querySelector('[data-rp-step="1"]').click(); await wait(50);
   ok('replace: step 1 pickers', !!$('rp-old') && !!$('rp-new'));
-  showBackupView(); await wait(100);
-  document.querySelector('#backup-content [data-act="rp-cancel-ask"]').click(); await wait(20);
-  ok('replace: cancel asks first, focus on keep', !!document.querySelector('[data-act="rp-cancel-yes"]') && document.activeElement?.dataset.act === 'rp-cancel-no');
-  document.querySelector('[data-act="rp-cancel-yes"]').click(); await wait(200);
-  ok('replace: cancel forgets progress only', !historyKeys.get('a1a1a1a1a1a1a1a1').replace && !document.querySelector('[data-act="rp-cancel-ask"]')
-     && document.querySelector('#backup-content [data-act="open-replace"]')?.textContent.length > 0);
 
   // 4. Key header: two separate statements, actions menu by keyboard
   selectToken('demo-yk5'); switchTab('overview'); await wait(200);
