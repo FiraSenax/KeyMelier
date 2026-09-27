@@ -249,7 +249,7 @@ class Api:
 
     def self_test_report(self, page_json):
         """Only exposed with --self-test: the page's check results."""
-        return self._selftest.report(str(page_json)[:200_000]) if self._selftest is not None else None
+        return self._selftest.report(str(page_json)[:1_000_000]) if self._selftest is not None else None
 
     def open_url(self, url):
         """Open advisory links in the default browser (never inside the app)."""

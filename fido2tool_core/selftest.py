@@ -65,7 +65,10 @@ PAGE_CHECKS = r"""
   } catch (e) {
     ok('page: checks ran without exception', false, e?.stack || e);
   }
-  await window.pywebview.api.self_test_report(JSON.stringify(out));
+  // on failure: what the page showed (visible text and markup), for the CI artifacts
+  const snapshot = out.every(c => c.ok) ? null
+    : { text: (document.body?.innerText || '').slice(0, 20000), html: (document.body?.outerHTML || '').slice(0, 150000) };
+  await window.pywebview.api.self_test_report(JSON.stringify({ checks: out, snapshot }));
 })();
 """
 
@@ -155,10 +158,15 @@ class SelfTest:
 
     def report(self, page_json: str):
         """Called from the page through the bridge."""
+        snapshot = None
         try:
-            page = json.loads(page_json)
-        except ValueError:
+            data = json.loads(page_json)
+            page, snapshot = (data["checks"], data.get("snapshot")) if isinstance(data, dict) else (data, None)
+        except (ValueError, KeyError, TypeError):
             page = [{"name": "page: report readable", "ok": False, "info": str(page_json)[:200]}]
+        if snapshot:
+            self.result_path.with_name("page-snapshot.txt").write_text(snapshot.get("text", ""), encoding="utf-8")
+            self.result_path.with_name("page-snapshot.html").write_text(snapshot.get("html", ""), encoding="utf-8")
         checks = backend_checks(self.root, self.data_dir, self.static_dir, self.advisories) + page
         checks.append({"name": "page: no JavaScript errors", "ok": not self.ui_errors, "info": "; ".join(self.ui_errors)[:300]})
         self.passed = all(c["ok"] for c in checks)

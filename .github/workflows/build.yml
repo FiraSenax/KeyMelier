@@ -152,6 +152,10 @@ jobs:
           cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt
           cp build/keymelier-sbom.cdx.json dist/KeyMelier-macOS.cdx.json
           python tools/sbom.py --check dist/KeyMelier-macOS.cdx.json --strict
+      - name: Validate the macOS artifacts (structure, version, signing state, SBOM, licences)
+        env:
+          SIGNED: ${{ steps.build.outputs.signed }}
+        run: python tools/check_artifacts.py macos dist --signed "$SIGNED" --strict-sbom 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
@@ -283,6 +287,11 @@ jobs:
           Copy-Item build\keymelier-sbom.cdx.json dist\KeyMelier-Windows.cdx.json
           python tools/sbom.py --check dist\KeyMelier-Windows.cdx.json --strict
           if ($LASTEXITCODE -ne 0) { throw "SBOM check failed" }
+      - name: Validate the Windows artifacts (structure, versions, signing state, SBOM, licences)
+        shell: pwsh
+        run: |
+          python tools/check_artifacts.py windows dist --signed "$env:SIGN_WIN" --strict-sbom 1
+          if ($LASTEXITCODE -ne 0) { throw "Artifact check failed" }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Windows
@@ -339,6 +348,13 @@ jobs:
             echo "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no verified publisher – compare the checksums if in doubt."
           } > release-notes.md
           cat release-notes.md
+      - name: Validate everything that will be published
+        env:
+          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
+          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
+        run: >-
+          python3 tools/check_artifacts.py release artifacts --commit "$GITHUB_SHA" --notes release-notes.md
+          --mac-signed "$MAC_SIGNED" --win-signed "$WIN_SIGNED"
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: KeyMelier ${{ github.ref_name }}

@@ -15,6 +15,10 @@ devices.
 | `node --check static/*.js` | Every UI script parses | CI job `test` |
 | `node tests/ui/ui_test.cjs` | The real UI page on demo data in headless Chrome, driven with **real keyboard and mouse input** (DevTools protocol): navigation, filters, search, menus, dialogs and focus, guided replacement, error message when a key is pulled out while reading, no page errors | CI job `ui` (Ubuntu) – required for the builds |
 | `python tools/smoke_packaged.py` | The **built app** from `dist/` starts its real window in a temporary home (no key access, no network) and checks runtime libraries, bundled data, translations, icons, CSS and the page ↔ backend bridge (43 checks) | CI jobs `build-macos`, `build-windows` after building/signing |
+| `python tools/sbom.py --check … --strict` | The shipped SBOM is complete: SPDX licenses, the SHA-256 of every installed file (from pip's report, allowed by the lock), bootloader, CPython, OpenSSL, Simple Icons | CI jobs `build-macos`, `build-windows` |
+| `python tools/check_artifacts.py macos\|windows dist` | Packages exist and are not empty, ZIP/DMG structure, version in Info.plist and in the Windows version resources (app and installer), signing state as reported (ad-hoc / not signed while unsigned), SBOM, licence notices | CI jobs `build-macos`, `build-windows` |
+| `python tools/check_artifacts.py release artifacts …` | Everything to be published: no file missing or extra, source commit, locks equal the repository's, versions, SBOMs, `SHA256SUMS.txt` lists exactly the files and every hash verifies, release notes state the real signing state | CI job `release` before publishing |
+| `python -m unittest tests.test_release_metadata` | One version in `version.py`, `pyproject.toml`, `uv.lock`, app bundle and installer sources, and a changelog entry for it | CI job `test` |
 | `python tools/advisories_sign.py verify` | The bundled vulnerability database is validly signed | CI job `test`, daily *Advisory watch* |
 
 A failure in any of these stops the release: the builds need `test` and
@@ -22,7 +26,8 @@ A failure in any of these stops the release: the builds need `test` and
 
 On failure CI keeps evidence as artifacts: `ui-test-artifacts`
 (screenshot, browser log, failed checks) and `smoke-artifacts-macos` /
-`smoke-artifacts-windows` (self-test report, app log, output).
+`smoke-artifacts-windows` (self-test report, app log, output, the page's
+text and markup when page checks fail, a screenshot when the start hangs).
 
 ## Running them locally
 
@@ -44,7 +49,7 @@ Useful switches: `UI_TIMEOUT_MS`, `UI_ARTIFACTS`, `SMOKE_TIMEOUT`,
 ## Upgrade compatibility
 
 `tests/fixtures/compat/<tag>/` holds `history.json` and `settings.json`
-written **by the code of that release** (v1.5.0, v1.6.1, v1.7.0) with
+written **by the code of that release** (v1.4.0, v1.5.0, v1.6.0, v1.6.1, v1.7.0) with
 fictional keys: labels, listed and searched passkeys, authenticator
 accounts, a lost key with a ticked service, a running key replacement with
 progress, settings and (1.6+) a sync id. `tests/test_upgrade_compat.py`

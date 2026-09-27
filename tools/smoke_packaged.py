@@ -34,6 +34,22 @@ def default_app() -> Path:
     return ROOT / "dist" / "KeyMelier" / "KeyMelier"
 
 
+def screenshot(target: Path) -> None:
+    """Best effort: the whole screen, for a hung start (CI artifact)."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["screencapture", "-x", str(target)], timeout=20, check=False)
+        elif sys.platform == "win32":
+            ps = ("Add-Type -AssemblyName System.Windows.Forms,System.Drawing;"
+                  "$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds;"
+                  "$i=New-Object System.Drawing.Bitmap $b.Width,$b.Height;"
+                  "[System.Drawing.Graphics]::FromImage($i).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size);"
+                  f"$i.Save('{target}')")
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps], timeout=30, check=False)
+    except Exception as e:  # a missing screenshot must not hide the real failure
+        print(f"(no screenshot: {e})")
+
+
 def main() -> int:
     app = Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()
     if app.suffix == ".app":
@@ -49,15 +65,19 @@ def main() -> int:
            "APPDATA": str(home / "AppData" / "Roaming"), "LOCALAPPDATA": str(home / "AppData" / "Local")}
     env.pop("KEYMELIER_STATELESS", None)
     print(f"Starting {app} (temporary home {home})")
+    proc = subprocess.Popen([str(app), "--self-test", str(result)], env=env, cwd=home,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
-        proc = subprocess.run([str(app), "--self-test", str(result)], env=env, cwd=home,
-                              capture_output=True, text=True, timeout=TIMEOUT)
-        code, output = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-    except subprocess.TimeoutExpired as e:
-        code, output = None, f"{e.stdout or ''}{e.stderr or ''}"
+        output, _ = proc.communicate(timeout=TIMEOUT)
+        code = proc.returncode
+    except subprocess.TimeoutExpired:
+        screenshot(artifacts / "timeout-screen.png")   # what the hung app shows
+        proc.kill()
+        output, _ = proc.communicate()
+        code = None
     (artifacts / "app-output.log").write_text(output if isinstance(output, str) else output.decode("utf-8", "replace"),
                                               encoding="utf-8")
-    for f in (result, result.with_suffix(".log")):
+    for f in (result, result.with_suffix(".log"), home / "page-snapshot.txt", home / "page-snapshot.html"):
         if f.exists():
             shutil.copy(f, artifacts / f.name)
 
