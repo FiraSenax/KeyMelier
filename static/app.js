@@ -1549,7 +1549,6 @@ let updateChecking = false;
 async function checkForUpdates() {
   if (updateChecking) return;
   updateChecking = true;
-  $('version-check').disabled = true;
   showToast(t('upd.checking'), 'info');
   try {
     dataStatus = await call('check_updates');
@@ -1562,7 +1561,6 @@ async function checkForUpdates() {
     showToast(errorMessage(e), 'error');
   } finally {
     updateChecking = false;
-    $('version-check').disabled = false;
   }
 }
 window.__kmCheckUpdates = () => checkForUpdates();
@@ -4155,7 +4153,6 @@ function init() {
   $('tab-more-menu').addEventListener('keydown', tabMenuKey);
   document.addEventListener('click', ev => { if (!ev.target.closest('#tab-more')) setTabMenu(false); });
   $('lang-select').addEventListener('change', ev => changeLang(ev.target.value));
-  $('version-check').addEventListener('click', checkForUpdates);
   $('about-open').addEventListener('click', () => openAbout());
   $('about-dialog').addEventListener('click', ev => {
     if (ev.target.id === 'about-dialog') return openAbout(false);   // backdrop
