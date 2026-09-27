@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Display names no longer match accounts:** a passkey is assigned to an account only by the account name the service stored; entries with only a display name (e.g. "Administrator") stay "assignment unclear" and are never counted as each other's backup – in the account overview, backup rating, lost-key assistant and key replacement. The display name is still shown.
+- **"About KeyMelier" says more** (macOS): what KeyMelier does, that everything stays on the Mac, and links to the website, source code and issue tracker – in all 11 languages.
 - **Search coverage per website:** a passkey search now records its result and time for every website it asked. "Not there" is shown only for a website the key explicitly answered "no credentials" for; websites not asked, errors, unsupported or PIN-required answers and incompletely listed accounts stay "unknown". A finished search is no longer treated like a complete list of the key. Older or imported search data without per-site results is treated as unknown.
 
 ## 1.5.0 — 2026-09-27

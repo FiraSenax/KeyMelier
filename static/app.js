@@ -3340,6 +3340,9 @@ function changeLang(choice, persist = true) {
   window.pywebview?.api?.set_ui_language?.(LANG, {
     open: t('menu.open'), quit: t('menu.quit'), none: t('sidebar.none'),
     OK: t('status.OK'), WARNING: t('status.WARNING'), CRITICAL: t('status.CRITICAL'), PENDING: t('status.PENDING'),
+    // "About KeyMelier" panel (macOS)
+    'about.lead': t('app.tagline'), 'about.what': t('about.what'), 'about.privacy': t('about.privacy'),
+    'about.site': t('about.site'), 'about.source': t('about.source'), 'about.issues': t('about.issues'),
   });
   if (persist) call('set_settings', { values: { lang: LANG_CHOICE || null } }).catch(() => {});
   renderLangSelect();

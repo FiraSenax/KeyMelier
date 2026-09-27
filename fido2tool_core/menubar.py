@@ -3,6 +3,8 @@
 Shows a template icon in the menu bar. When a key is plugged in, its name and
 status appear next to the icon for a few seconds. The menu lists connected
 keys (click opens the app on that key), plus "Open KeyMelier" and "Quit".
+It also replaces the bare standard "About KeyMelier" panel with one that
+says what KeyMelier does, how it treats your data, and where to find more.
 All AppKit calls run on the main thread via PyObjCTools.AppHelper.
 """
 
@@ -21,6 +23,26 @@ TEXTS = {
            "UNKNOWN": "unknown", "OK": "no known findings", "WARNING": "warning", "CRITICAL": "critical", "PENDING": "checking"},
 }
 
+# "About KeyMelier" panel (the page sends all UI languages via set_language)
+ABOUT_TEXTS = {
+    "de": {
+        "about.lead": "Der Sommelier für deine Sicherheitsschlüssel",
+        "about.what": "Prüft FIDO2-Schlüssel auf Echtheit und bekannte Schwachstellen, verwaltet Passkeys, PIN, Codes, OpenPGP und PIV – und zeigt, welche Konten auf welchem Schlüssel liegen.",
+        "about.privacy": "Alles bleibt auf diesem Mac: kein Konto, keine Telemetrie.",
+        "about.site": "Webseite", "about.source": "Quellcode", "about.issues": "Fehler melden",
+    },
+    "en": {
+        "about.lead": "The sommelier for your security keys",
+        "about.what": "Checks FIDO2 keys for authenticity and known vulnerabilities, manages passkeys, PIN, codes, OpenPGP and PIV – and shows which accounts are on which key.",
+        "about.privacy": "Everything stays on this Mac: no account, no telemetry.",
+        "about.site": "Website", "about.source": "Source code", "about.issues": "Report a problem",
+    },
+}
+ABOUT_LINKS = (("about.site", "https://firasenax.github.io/KeyMelier/"),
+               ("about.source", "https://github.com/FiraSenax/KeyMelier"),
+               ("about.issues", "https://github.com/FiraSenax/KeyMelier/issues"))
+COPYRIGHT = "© 2026 Sven Frank · MIT License"
+
 STATUS_MARK = {"UNKNOWN": "○", "OK": "●", "WARNING": "▲", "CRITICAL": "✕", "PENDING": "…"}
 
 
@@ -32,6 +54,7 @@ class MenuBar:
         self._item = None
         self._target = None
         self._lang = "en"
+        self._about_hooked = False
         # Kept up to date from the event payloads. Never query the scanner
         # here: its callbacks fire while it holds its own lock.
         self._tokens: dict[str, dict] = {}
@@ -58,6 +81,9 @@ class MenuBar:
             def quitApp_(self, _sender):
                 menubar._quit()
 
+            def showAbout_(self, _sender):
+                menubar._show_about()
+
         self._target = _Target.alloc().init()
         self._item = NSStatusBar.systemStatusBar().statusItemWithLength_(NSVariableStatusItemLength)
         image = NSImage.alloc().initWithContentsOfFile_(str(self._icon_path))
@@ -77,6 +103,9 @@ class MenuBar:
         """Use the page's own translations when given (all UI languages)."""
         if texts:
             TEXTS[lang] = {k: str(v)[:60] for k, v in texts.items() if k in TEXTS["en"]}
+            about = {k: str(v)[:600] for k, v in texts.items() if k in ABOUT_TEXTS["en"] and isinstance(v, str)}
+            if about:
+                ABOUT_TEXTS[lang] = about
         self._lang = lang if lang in TEXTS else "en"
         self._refresh()
 
@@ -118,6 +147,7 @@ class MenuBar:
     def _rebuild(self):
         from AppKit import NSMenu, NSMenuItem
 
+        self._hook_about()
         if self._item is None:
             return
         menu = NSMenu.alloc().init()
@@ -142,6 +172,62 @@ class MenuBar:
         quit_item.setTarget_(self._target)
         menu.addItem_(quit_item)
         self._item.setMenu_(menu)
+
+    # ── About panel ──────────────────────────────────────────────────────────
+
+    def _about_t(self, key: str) -> str:
+        return ABOUT_TEXTS.get(self._lang, {}).get(key) or ABOUT_TEXTS["en"][key]
+
+    def _hook_about(self):
+        """Point the app menu's "About KeyMelier" at our panel (once the menu exists)."""
+        if self._about_hooked or self._target is None:
+            return
+        from AppKit import NSApp
+        menu = NSApp.mainMenu()
+        app_menu = menu.itemAtIndex_(0).submenu() if menu is not None and menu.numberOfItems() else None
+        for item in (app_menu.itemArray() if app_menu is not None else []):
+            if item.action() == "orderFrontStandardAboutPanel:":
+                item.setTarget_(self._target)
+                item.setAction_("showAbout:")
+                self._about_hooked = True
+                return
+
+    def about_credits(self):
+        """The panel's text: lead, what it does, privacy, links (fits without scrolling)."""
+        from AppKit import (NSColor, NSFont, NSFontAttributeName, NSForegroundColorAttributeName,
+                            NSLinkAttributeName, NSMutableParagraphStyle, NSParagraphStyleAttributeName)
+        from Foundation import NSAttributedString, NSMutableAttributedString, NSURL
+
+        para = NSMutableParagraphStyle.alloc().init()
+        para.setAlignment_(1)  # centred, like the rest of the panel
+        para.setParagraphSpacing_(6)
+        base = {NSFontAttributeName: NSFont.systemFontOfSize_(11), NSParagraphStyleAttributeName: para,
+                NSForegroundColorAttributeName: NSColor.labelColor()}
+        muted = {**base, NSForegroundColorAttributeName: NSColor.secondaryLabelColor()}
+        lead = {**base, NSFontAttributeName: NSFont.boldSystemFontOfSize_(12)}
+
+        text = NSMutableAttributedString.alloc().init()
+
+        def add(s, attrs):
+            text.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(s, attrs))
+
+        add(self._about_t("about.lead") + "\n", lead)
+        add(self._about_t("about.what") + "\n", base)
+        add(self._about_t("about.privacy") + "\n", muted)
+        for i, (key, url) in enumerate(ABOUT_LINKS):
+            if i:
+                add(" · ", muted)
+            add(self._about_t(key), {**base, NSLinkAttributeName: NSURL.URLWithString_(url)})
+        return text
+
+    def _show_about(self):
+        from AppKit import NSApp
+        from fido2tool_core.version import __version__
+        NSApp.activateIgnoringOtherApps_(True)
+        NSApp.orderFrontStandardAboutPanelWithOptions_({
+            "ApplicationName": "KeyMelier", "ApplicationVersion": __version__, "Version": "",
+            "Credits": self.about_credits(), "Copyright": COPYRIGHT,
+        })
 
     def _open(self, token_id=None):
         import json
