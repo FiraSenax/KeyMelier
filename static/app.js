@@ -410,14 +410,21 @@ function renderSecurityCheck(token) {
     </ul>`;
 }
 
-// Which of this key's websites exist on no other (non-lost) key.
-// null = nothing known yet (passkeys never listed / remembering disabled)
+// One model for account overview, backup view, lost-key assistant and the
+// security check (static/accounts.js) – so they can never disagree.
+function accountModel() {
+  return buildAccountModel([...historyKeys.values()]);
+}
+
+// Accounts whose only protection is this key (null = nothing known yet)
 function backupStatus(token) {
   const entry = historyKeys.get(token.history_id);
-  if (!entry?.sites?.length) return null;
-  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since);
-  const onlyHere = entry.sites.filter(s => !others.some(o => o.sites.some(x => x.rp_id === s.rp_id)));
-  return { onlyHere, othersKnown: others.length };
+  if (!entry?.sites?.length && !entry?.inventory?.oath) return null;
+  const m = accountModel();
+  const onlyHere = rowsOfKey(m, entry.key_id)
+    .filter(r => r.kind !== 'unknown' && r.activeKeys.length === 1 && r.activeKeys[0] === entry.key_id
+      && !(r.codeKeys || []).length);
+  return { onlyHere, othersKnown: m.keys.length - 1 };
 }
 
 // ── Backup & loss view ──────────────────────────────────────────────────────
@@ -430,7 +437,6 @@ function renderBackupView() {
   $('backup-avatar').innerHTML = icon('shield', 30);
   const el = $('backup-content');
   const entries = [...historyKeys.values()];
-  const withSites = entries.filter(e => e.sites);
   const remember = appSettings.remember_sites !== false;
   const parts = [];
 
@@ -463,55 +469,19 @@ function renderBackupView() {
     <p class="field-hint bk-hint">${escHtml(t(personalMode() ? 'acc.mode.on' : 'acc.mode.off'))}</p>
   </section>`);
 
-  // Coverage matrix: websites x keys (only meaningful if all keys are one person's)
-  if (!personalMode()) {
-    // skip cross-key matrices
-  } else if (!withSites.length) {
-    parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('bk.empty.title'))}</div>
+  // Coverage (one person's keys only): summary of the shared account model
+  if (personalMode()) {
+    const m = accountModel();
+    const rows = m.rows.filter(r => !(r.kind === 'code' && r.linkedTo));
+    const count = lvl => rows.filter(r => r.level === lvl).length;
+    parts.push(rows.length ? `<section class="card">
+      <div class="check-head"><h2>${escHtml(t('bk.coverage'))}</h2>
+        <button type="button" class="btn btn-secondary" data-act="open-accounts">${escHtml(t('bk.openAccounts'))}</button></div>
+      <div class="acc-summary">${accSummaryHtml(rows)}</div>
+      ${count('crit') + count('warn') ? `<p class="card-text">${escHtml(t('bk.coverageText', { n: count('crit') + count('warn') }))}</p>` : ''}
+      <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
+    </section>` : `<div class="callout"><div class="callout-title">${escHtml(t('bk.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('bk.empty.text'))}</div></div>`);
-  } else {
-    const sites = [...new Map(withSites.flatMap(e => e.sites).map(s => [s.rp_id, s])).values()]
-      .sort((a, b) => a.rp_id.localeCompare(b.rp_id));
-    const holders = s => withSites.filter(e => !e.lost_since && e.sites.some(x => x.rp_id === s.rp_id));
-    if (!sites.length) {
-      parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('bk.noPasskeys.title'))}</div>
-        <div class="callout-text">${escHtml(t('bk.noPasskeys.text', { names: withSites.map(keyLabel).join(', ') }))}</div></div>`);
-    }
-    const single = sites.filter(s => holders(s).length <= 1).length;
-    if (sites.length) parts.push(`<section class="card">
-      <div class="check-head"><h2>${escHtml(t('bk.matrix'))}</h2>
-        <span class="check-score">${escHtml(single ? t('bk.single', { n: single }) : t('bk.allCovered'))}</span></div>
-      <div class="bk-table-wrap"><table class="bk-table">
-        <thead><tr><th>${escHtml(t('bk.site'))}</th>${withSites.map(e => `<th class="${e.lost_since ? 'lost' : ''}">${escHtml(keyLabel(e))}</th>`).join('')}</tr></thead>
-        <tbody>${sites.map(s => `<tr class="${holders(s).length <= 1 ? 'single' : ''}">
-          <td>${escHtml(s.rp_id)}</td>
-          ${withSites.map(e => { const hit = e.sites.find(x => x.rp_id === s.rp_id); return `<td class="${hit ? 'yes' : 'no'}${e.lost_since ? ' lost' : ''}">${hit ? '✓' : '–'}</td>`; }).join('')}
-        </tr>`).join('')}</tbody>
-      </table></div>
-      ${entries.length > withSites.length ? `<p class="field-hint bk-hint">${escHtml(t('bk.unknownKeys', { names: entries.filter(e => !e.sites).map(keyLabel).join(', ') }))}</p>` : ''}
-    </section>`);
-  }
-
-  // Coverage matrix: authenticator accounts x keys
-  const withOath = personalMode() ? entries.filter(e => e.inventory?.oath) : [];
-  const oathId = a => `${a.issuer || ''}\u0000${a.name || ''}`;
-  const accounts = [...new Map(withOath.flatMap(e => e.inventory.oath.items || []).map(a => [oathId(a), a])).values()]
-    .sort((a, b) => inventoryLabel(a).localeCompare(inventoryLabel(b)));
-  if (accounts.length) {
-    const has = (e, a) => (e.inventory.oath.items || []).some(x => oathId(x) === oathId(a));
-    const holders = a => withOath.filter(e => !e.lost_since && has(e, a));
-    const single = accounts.filter(a => holders(a).length <= 1).length;
-    parts.push(`<section class="card">
-      <div class="check-head"><h2>${escHtml(t('bk.matrix.oath'))}</h2>
-        <span class="check-score">${escHtml(single ? t('bk.singleAccounts', { n: single }) : t('bk.allCovered'))}</span></div>
-      <div class="bk-table-wrap"><table class="bk-table">
-        <thead><tr><th>${escHtml(t('bk.account'))}</th>${withOath.map(e => `<th class="${e.lost_since ? 'lost' : ''}">${escHtml(keyLabel(e))}</th>`).join('')}</tr></thead>
-        <tbody>${accounts.map(a => `<tr class="${holders(a).length <= 1 ? 'single' : ''}">
-          <td>${escHtml(inventoryLabel(a))}</td>
-          ${withOath.map(e => `<td class="${has(e, a) ? 'yes' : 'no'}${e.lost_since ? ' lost' : ''}">${has(e, a) ? '✓' : '–'}</td>`).join('')}
-        </tr>`).join('')}</tbody>
-      </table></div>
-    </section>`);
   }
 
   // Lost-key assistant
@@ -529,76 +499,57 @@ function renderBackupView() {
 }
 
 function lostAssistantHtml(entry) {
-  const others = personalMode()
-    ? [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since) : [];
   const done = new Set(entry.lost_done || []);
-  const sites = entry.sites || [];
   const toggle = entry.lost_since
     ? `<button type="button" class="btn btn-secondary" data-act="unlost">${escHtml(t('bk.lost.unmark'))}</button>`
     : `<button type="button" class="btn btn-danger" data-act="lost">${escHtml(t('bk.lost.mark'))}</button>`;
-  const list = !entry.lost_since ? '' : sites.length ? `
+  const m = accountModel();
+  const mine = rowsOfKey(m, entry.key_id);
+  const backupHtml = r => {
+    if (!personalMode()) return '';
+    if (r.kind === 'unknown') return `<span class="bk-backup warn">${escHtml(t('bk.lost.unknownAccount'))}</span>`;
+    const others = r.activeKeys.filter(k => k !== entry.key_id).map(k => keyLabel(historyKeys.get(k)));
+    const codes = (r.codeKeys || []).map(k => keyLabel(historyKeys.get(k)));
+    if (others.length) return `<span class="bk-backup ok">${escHtml(t('bk.lost.backupOn', { names: others.join(', ') }))}</span>`;
+    if (codes.length) return `<span class="bk-backup warn">${escHtml(t('bk.lost.codeOn', { names: codes.join(', ') }))}</span>`;
+    return `<span class="bk-backup warn">${escHtml(t('bk.lost.noBackup'))}</span>`;
+  };
+  const item = (id, label, r) => `<li class="${done.has(id) ? 'done' : ''}">
+      <label><input type="checkbox" data-site="${escHtml(id)}" ${done.has(id) ? 'checked' : ''}>
+        <span class="bk-site">${escHtml(label)}</span></label>${backupHtml(r)}</li>`;
+  const passkeys = mine.filter(r => r.kind !== 'code');
+  const list = !entry.lost_since ? '' : passkeys.length ? `
     <p class="card-text bk-steps">${escHtml(t('bk.lost.steps'))}</p>
-    <ul class="bk-lost-list">${sites.map(s => {
-      const backups = others.filter(o => o.sites.some(x => x.rp_id === s.rp_id)).map(keyLabel);
-      return `<li class="${done.has(s.rp_id) ? 'done' : ''}">
-        <label><input type="checkbox" data-site="${escHtml(s.rp_id)}" ${done.has(s.rp_id) ? 'checked' : ''}>
-          <span class="bk-site">${escHtml(s.rp_id)}</span></label>
-        ${personalMode() ? `<span class="bk-backup ${backups.length ? 'ok' : 'warn'}">${escHtml(backups.length ? t('bk.lost.backupOn', { names: backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
-      </li>`;
-    }).join('')}</ul>
+    <ul class="bk-lost-list">${passkeys.map(r => item(r.kind === 'unknown' ? r.rpId : `${r.rpId}|${r.account}`,
+      r.kind === 'unknown' ? `${r.rpId} · ${t(r.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: r.count })}` : `${r.rpId} · ${r.account}`, r)).join('')}</ul>
     <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t(entry.sites ? 'bk.lost.emptyKey' : 'bk.lost.notRecorded'))}</p>
     <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>`;
+  const codes = mine.filter(r => r.kind === 'code');
+  const inv = entry.inventory || {};
+  const extra = [];
+  if (codes.length) extra.push(`<h3 class="bk-group">${escHtml(t('hist.contents.oath'))}</h3>
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.oathHint'))}</p>
+    <ul class="bk-lost-list">${codes.map(r => item(`oath:${r.issuer}:${r.account}`, [r.issuer, r.account].filter(Boolean).join(' · '), r)).join('')}</ul>`);
+  const pgp = inv.openpgp?.items || [];
+  if (pgp.length) extra.push(`<h3 class="bk-group">${escHtml(t('hist.contents.openpgp'))}</h3>
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.pgpHint'))}</p>
+    <ul class="bk-lost-list">${pgp.map(k => item(`pgp:${k.fingerprint}`, inventoryLabel(k), { kind: 'none' }).replace(/<span class="bk-backup[^"]*">[^<]*<\/span>/, '')).join('')}</ul>`);
+  const piv = inv.piv?.items || [];
+  if (piv.length) extra.push(`<h3 class="bk-group">${escHtml(t('hist.contents.piv'))}</h3>
+    <p class="field-hint bk-hint">${escHtml(t('bk.lost.pivHint'))}</p>
+    <ul class="bk-lost-list">${piv.map(c => item(`piv:${c.label}`, c.label, { kind: 'none' }).replace(/<span class="bk-backup[^"]*">[^<]*<\/span>/, '')).join('')}</ul>`);
   return `<div class="bk-lost">
     <div class="form-actions bk-lost-actions">${toggle}</div>
     ${entry.lost_since ? `<p class="bk-lost-since">${escHtml(t('bk.lost.since', { when: new Date(entry.lost_since).toLocaleDateString(LANG) }))}</p>` : ''}
     ${list}
-    ${entry.lost_since ? lostInventoryHtml(entry, done) : ''}
+    ${entry.lost_since ? extra.join('') : ''}
   </div>`;
-}
-
-// Authenticator accounts, OpenPGP keys and PIV certificates of a lost key
-function lostInventoryHtml(entry, done) {
-  const inv = entry.inventory || {};
-  const others = personalMode() ? [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && !e.lost_since) : [];
-  const groups = [];
-  const oath = inv.oath?.items || [];
-  if (oath.length) {
-    groups.push({ title: t('hist.contents.oath'), hint: t('bk.lost.oathHint'), items: oath.map(a => {
-      const backups = others.filter(o => (o.inventory?.oath?.items || []).some(x => x.issuer === a.issuer && x.name === a.name)).map(keyLabel);
-      return { id: `oath:${a.issuer}:${a.name}`, label: inventoryLabel(a), backups };
-    }) });
-  }
-  const pgp = inv.openpgp?.items || [];
-  if (pgp.length) groups.push({ title: t('hist.contents.openpgp'), hint: t('bk.lost.pgpHint'),
-    items: pgp.map(k => ({ id: `pgp:${k.fingerprint}`, label: inventoryLabel(k) })) });
-  const piv = inv.piv?.items || [];
-  if (piv.length) groups.push({ title: t('hist.contents.piv'), hint: t('bk.lost.pivHint'),
-    items: piv.map(c => ({ id: `piv:${c.label}`, label: c.label })) });
-  return groups.map(g => `<h3 class="bk-group">${escHtml(g.title)}</h3>
-    <p class="field-hint bk-hint">${escHtml(g.hint)}</p>
-    <ul class="bk-lost-list">${g.items.map(i => `<li class="${done.has(i.id) ? 'done' : ''}">
-      <label><input type="checkbox" data-site="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''}>
-        <span class="bk-site">${escHtml(i.label)}</span></label>
-      ${i.backups && personalMode() ? `<span class="bk-backup ${i.backups.length ? 'ok' : 'warn'}">${escHtml(i.backups.length ? t('bk.lost.backupOn', { names: i.backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
-    </li>`).join('')}</ul>`).join('');
 }
 
 // ── Accounts overview (personal mode) ───────────────────────────────────────
 
 function personalMode() {
   return appSettings.personal_mode !== false;
-}
-
-// "login.microsoft.com" / "Microsoft" / "GitHub" -> "microsoft" / "github"
-const MULTI_TLD = new Set(['co.uk', 'com.au', 'co.jp', 'co.nz', 'com.br', 'co.za', 'com.tr']);
-function serviceKey(value) {
-  let v = String(value || '').toLowerCase().trim();
-  if (v.includes('.')) {
-    const parts = v.replace(/^https?:\/\//, '').split('/')[0].split('.');
-    const tail2 = parts.slice(-2).join('.');
-    v = parts.length >= 3 && MULTI_TLD.has(tail2) ? parts[parts.length - 3] : parts[parts.length - 2] || parts[0];
-  }
-  return v.replace(/[^a-z0-9]/g, '');
 }
 
 // Logo for a service where the brand allows it (static/service-icons.js),
@@ -620,132 +571,84 @@ function serviceAvatar(...names) {
 let accFilter = '';
 let accOnlyProblems = false;
 
-function accountsModel() {
-  const keys = [...historyKeys.values()].sort((a, b) => (a.lost_since ? 1 : 0) - (b.lost_since ? 1 : 0));
-  const services = new Map();
-  const alias = new Map();   // name- or domain-derived key -> service
-  // A service is known by several spellings ("AWS" code, "aws.amazon.com"
-  // passkey named "AWS"): any shared spelling joins them
-  const get = (candidates, label) => {
-    const keysFor = [...new Set(candidates.filter(Boolean))];
-    let svc = keysFor.map(k => alias.get(k)).find(Boolean);
-    if (!svc) {
-      svc = { key: keysFor[0] || serviceKey(label), label, accounts: new Map() };
-      services.set(svc.key, svc);
-    }
-    keysFor.forEach(k => alias.set(k, svc));
-    return svc;
-  };
-  // One account per user name (UPN); accounts without a known name are grouped
-  const hitFor = (svc, userName, keyId) => {
-    const id = String(userName || '').trim().toLowerCase();
-    if (!svc.accounts.has(id)) svc.accounts.set(id, { id, label: userName || '', hits: new Map() });
-    const acc = svc.accounts.get(id);
-    if (!acc.hits.has(keyId)) acc.hits.set(keyId, { passkey: 0, codes: 0 });
-    return acc.hits.get(keyId);
-  };
-  for (const e of keys) {
-    for (const s of e.sites || []) {
-      const svc = get([serviceKey(s.name), serviceKey(s.rp_id)], s.name || s.rp_id);
-      const users = (s.users || []).filter(u => u.name || u.display);
-      if (users.length) users.forEach(u => { hitFor(svc, u.name || u.display, e.key_id).passkey += 1; });
-      const unnamed = (s.count || 1) - users.length;
-      if (unnamed > 0) hitFor(svc, '', e.key_id).passkey += unnamed;
-    }
-    for (const a of e.inventory?.oath?.items || []) {
-      const issuer = a.issuer || String(a.name || '').split(':')[0];
-      // the account name (often an e-mail address) never identifies the service
-      const svc = get([serviceKey(issuer)], issuer || a.name);
-      hitFor(svc, a.issuer ? a.name : '', e.key_id).codes += 1;
-    }
-  }
-  // Entries without a name (older history, keys read without PIN) belong to
-  // the only named account if there is exactly one; otherwise they stay apart
-  for (const svc of services.values()) {
-    const unnamed = svc.accounts.get('');
-    const named = [...svc.accounts.values()].filter(acc => acc.id);
-    if (unnamed && named.length === 1) {
-      for (const [keyId, h] of unnamed.hits) {
-        const target = named[0].hits.get(keyId) || { passkey: 0, codes: 0 };
-        named[0].hits.set(keyId, { passkey: target.passkey + h.passkey, codes: target.codes + h.codes });
-      }
-      svc.accounts.delete('');
-    }
-  }
-  const rank = { crit: 0, warn: 1, info: 2, ok: 3 };
-  const assess = hits => {
-    const holders = keys.filter(k => hits.has(k.key_id));
-    const active = holders.filter(k => !k.lost_since);
-    const hasPasskey = holders.some(k => hits.get(k.key_id).passkey);
-    if (!active.length) return { level: 'crit', note: t('acc.st.lostOnly') };
-    if (active.length === 1) return { level: 'warn', note: t('acc.st.single', { key: keyLabel(active[0]) }) };
-    if (!hasPasskey) return { level: 'info', note: t('acc.st.codesOnly', { n: active.length }) };
-    return { level: 'ok', note: t('acc.st.ok', { n: active.length }) };
-  };
-  const rows = [...services.values()].map(svc => {
-    const accounts = [...svc.accounts.values()].map(acc => ({ ...acc, ...assess(acc.hits) }))
-      .sort((a, b) => rank[a.level] - rank[b.level] || a.label.localeCompare(b.label));
-    const named = accounts.filter(a => a.id);
-    const worst = accounts.reduce((w, a) => (rank[a.level] < rank[w] ? a.level : w), 'ok');
-    return { ...svc, accounts, split: named.length > 1 || (named.length && accounts.length > 1), level: worst,
-             note: accounts.length === 1 ? accounts[0].note : '' };
-  });
-  rows.sort((a, b) => rank[a.level] - rank[b.level] || a.label.localeCompare(b.label));
-  return { keys, rows };
+const STATUS_TEXT = {
+  passkey_multi: r => t('acc.st.passkeyMulti', { n: r.activeKeys.length }),
+  passkey_code: r => t('acc.st.passkeyCode', { key: keyLabel(historyKeys.get(r.activeKeys[0])) }),
+  passkey_single: r => t('acc.st.single', { key: keyLabel(historyKeys.get(r.activeKeys[0])) }),
+  passkey_lost_code: r => t('acc.st.passkeyLostCode', { key: r.codeKeys.map(k => keyLabel(historyKeys.get(k))).join(', ') }),
+  codes_multi: r => t('acc.st.codesOnly', { n: r.activeKeys.length }),
+  code_single: r => t('acc.st.single', { key: keyLabel(historyKeys.get(r.activeKeys[0])) }),
+  lost_only: () => t('acc.st.lostOnly'),
+  unclear: r => t('acc.st.unclear', { key: keyLabel(historyKeys.get([...r.holders.keys()][0])) }),
+  unclear_lost: () => t('acc.st.unclearLost'),
+  linked: () => '',
+};
+
+function accSummaryHtml(rows) {
+  const count = lvl => rows.filter(r => r.level === lvl).length;
+  return [['', rows.length, 'acc.sum.accounts'], ['crit', count('crit'), 'acc.sum.lost'], ['warn', count('warn'), 'acc.sum.single'],
+    ['unclear', count('unclear'), 'acc.sum.unclear'], ['info', count('info'), 'acc.sum.codes'], ['ok', count('ok'), 'acc.sum.ok']]
+    .map(([cls, n, key]) => `<div class="acc-stat ${cls}"><b>${n}</b><span>${escHtml(t(key))}</span></div>`).join('');
+}
+
+function keyFreshness(info) {
+  if (!info.passkeysKnown && !info.codesKnown) return t('acc.fresh.never');
+  const src = info.probeIncomplete ? t('acc.src.probeIncomplete') : info.sitesSource ? t(`acc.src.${info.sitesSource}`) : '';
+  const when = info.checked || info.codesChecked;
+  return [src, when ? t(info.stale ? 'acc.fresh.stale' : 'acc.fresh.read', { when: relTime(when) }) : ''].filter(Boolean).join(' · ');
 }
 
 function renderAccountsView() {
   $('accounts-avatar').innerHTML = icon('passkey', 30);
   const el = $('accounts-content');
-  const { keys, rows } = accountsModel();
-  const unread = keys.filter(k => !k.sites && !k.inventory?.oath);
-  if (!rows.length) {
+  const m = accountModel();
+  const visible = m.rows.filter(r => !(r.kind === 'code' && r.linkedTo));
+  if (!visible.length) {
     el.innerHTML = `<div class="callout"><div class="callout-title">${escHtml(t('acc.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('acc.empty.text'))}</div></div>`;
     return;
   }
-  const accountRows = rows.flatMap(r => r.accounts);
-  const count = lvl => accountRows.filter(a => a.level === lvl).length;
-  const q = serviceKey(accFilter);
-  const matches = r => !q || r.key.includes(q) || serviceKey(r.label).includes(q)
-    || r.accounts.some(a => a.id.replace(/[^a-z0-9]/g, '').includes(q));
-  const shown = rows.filter(r => (!accOnlyProblems || r.level !== 'ok') && matches(r));
-  const head = keys.map(k => {
+  const q = String(accFilter || '').toLowerCase().trim();
+  const rowMatches = r => !q || [r.rpId, r.issuer, r.account, r.domain].some(v => String(v || '').toLowerCase().includes(q));
+  const head = m.keys.map(k => {
+    const info = m.keyInfo.get(k.key_id);
     const free = k.snapshot?.remaining_disc_creds;
-    const noList = k.snapshot?.options && !canManage(k.snapshot) && !k.sites_probed;
     return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
       <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
-      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : noList ? t('acc.noList') : k.sites_probed ? t('acc.probed') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
+      <span class="acc-sub${info.stale || info.probeIncomplete ? ' warn-text' : ''}">${escHtml(k.lost_since ? t('bk.lostBadge') : keyFreshness(info))}</span>
+      ${!k.lost_since && free != null ? `<span class="acc-sub">${escHtml(t('acc.free', { n: free }))}</span>` : ''}</th>`;
   }).join('');
-  const cells = hits => keys.map(k => {
-    const h = hits.get(k.key_id);
-    if (!h) return `<td class="no${k.lost_since ? ' lost' : ''}">–</td>`;
-    const tags = [h.passkey ? `<span class="pill on">${escHtml(h.passkey > 1 ? `${t('acc.passkey')} ×${h.passkey}` : t('acc.passkey'))}</span>` : '',
-      h.codes ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
-    return `<td class="yes${k.lost_since ? ' lost' : ''}">${tags}</td>`;
-  }).join('');
-  const avatar = r => serviceAvatar(r.key, r.label);
-  const body = shown.map(r => {
-    if (!r.split) {
-      const a = r.accounts[0];
-      return `<tr class="acc-${a.level}"><td class="acc-name">${avatar(r)}
-        <span><span class="acc-label">${escHtml(r.label)}</span>${a.label ? `<span class="acc-upn">${escHtml(a.label)}</span>` : ''}
-        <span class="acc-note">${escHtml(a.note)}</span></span></td>${cells(a.hits)}</tr>`;
+  const cells = r => m.keys.map(k => {
+    const c = cellState(m, r, k.key_id);
+    const lost = k.lost_since ? ' lost' : '';
+    if (c.absent) {
+      return c.unknown ? `<td class="unknown${lost}" title="${escHtml(t('acc.cell.unknown'))}">?</td>`
+        : `<td class="no${lost}" title="${escHtml(t('acc.cell.absent'))}">–</td>`;
     }
-    const accounts = r.accounts.filter(a => !accOnlyProblems || a.level !== 'ok');
-    return `<tr class="acc-group acc-${r.level}"><td class="acc-name" colspan="${keys.length + 1}">${avatar(r)}
-        <span><span class="acc-label">${escHtml(r.label)}</span><span class="acc-note">${escHtml(t('acc.accounts', { n: r.accounts.length }))}</span></span></td></tr>`
-      + accounts.map(a => `<tr class="acc-sub-row acc-${a.level}"><td class="acc-name acc-indent">
-        <span><span class="acc-upn">${escHtml(a.label || t('acc.unnamed'))}</span><span class="acc-note">${escHtml(a.note)}</span></span></td>${cells(a.hits)}</tr>`).join('');
+    const tags = [c.passkey ? `<span class="pill on">${escHtml(c.passkey > 1 ? `${t('acc.passkey')} ×${c.passkey}` : t('acc.passkey'))}</span>` : '',
+      c.code ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
+    const src = t(`acc.src.${c.source || 'list'}`) + (c.checked ? ` · ${relTime(c.checked)}` : '');
+    return `<td class="yes${lost}" title="${escHtml(src)}">${tags}${c.source && c.source !== 'list' ? `<span class="acc-src">${escHtml(t(`acc.src.${c.source}`))}</span>` : ''}</td>`;
+  }).join('');
+  const rowHtml = (r, g) => {
+    const label = r.kind === 'unknown' ? t(r.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: r.count })
+      : r.account || r.issuer;
+    const sub = r.kind === 'code' ? t('acc.kind.code') : r.rpId !== g.domain ? r.rpId : '';
+    const link = r.kind === 'passkey' && r.links.length ? `<span class="acc-note">${escHtml(t('acc.linkedByName'))}</span>` : '';
+    return `<tr class="acc-sub-row acc-${r.level}"><td class="acc-name acc-indent">
+      <span><span class="acc-upn">${escHtml(label)}</span>${sub ? `<span class="acc-note">${escHtml(sub)}</span>` : ''}
+      <span class="acc-note acc-status">${escHtml(STATUS_TEXT[r.status](r))}</span>${link}</span></td>${cells(r)}</tr>`;
+  };
+  const body = m.groups.map(g => {
+    const rows = g.rows.filter(r => !(r.kind === 'code' && r.linkedTo))
+      .filter(r => (!accOnlyProblems || r.level !== 'ok') && (rowMatches(r) || serviceKey(g.label).includes(serviceKey(q))));
+    if (!rows.length) return '';
+    return `<tr class="acc-group acc-${g.level}"><td class="acc-name" colspan="${m.keys.length + 1}">${serviceAvatar(g.domain, g.label)}
+        <span><span class="acc-label">${escHtml(g.label)}</span>${g.domain && g.domain !== g.label ? `<span class="acc-note">${escHtml(g.domain)}</span>` : ''}</span></td></tr>`
+      + rows.map(r => rowHtml(r, g)).join('');
   }).join('');
   el.innerHTML = `
-    <div class="acc-summary">
-      <div class="acc-stat"><b>${rows.length}</b><span>${escHtml(t('acc.sum.services'))}</span></div>
-      <div class="acc-stat crit"><b>${count('crit')}</b><span>${escHtml(t('acc.sum.lost'))}</span></div>
-      <div class="acc-stat warn"><b>${count('warn')}</b><span>${escHtml(t('acc.sum.single'))}</span></div>
-      <div class="acc-stat info"><b>${count('info')}</b><span>${escHtml(t('acc.sum.codes'))}</span></div>
-      <div class="acc-stat ok"><b>${count('ok')}</b><span>${escHtml(t('acc.sum.ok'))}</span></div>
-    </div>
+    <div class="acc-summary">${accSummaryHtml(visible)}</div>
     <section class="card">
       <div class="acc-tools">
         <input type="search" id="acc-search" placeholder="${escHtml(t('acc.search'))}" value="${escHtml(accFilter)}" spellcheck="false">
@@ -753,10 +656,10 @@ function renderAccountsView() {
       </div>
       <div class="bk-table-wrap"><table class="bk-table acc-table">
         <thead><tr><th>${escHtml(t('acc.service'))}</th>${head}</tr></thead>
-        <tbody>${body || `<tr><td colspan="${keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
+        <tbody>${body || `<tr><td colspan="${m.keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
       </table></div>
-      ${unread.length ? `<p class="field-hint bk-hint">${escHtml(t('acc.unread', { names: unread.map(keyLabel).join(', ') }))}</p>` : ''}
-      <p class="field-hint bk-hint">${escHtml(t('acc.hint'))}</p>
+      <p class="field-hint bk-hint">${escHtml(t('acc.legend'))}</p>
+      <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
     </section>`;
 }
 
@@ -1441,7 +1344,8 @@ function renderProbeDialog(el, tok) {
     ${q.error ? `<p class="field-error">${escHtml(q.error)}</p>` : ''}
     <p class="field-hint">${escHtml(t('probe.note'))}</p>
     <div class="form-actions">
-      <button type="button" class="btn btn-secondary" data-ql="cancel" ${q.busy ? 'disabled' : ''}>${escHtml(t('pk.delete.cancel'))}</button>
+      ${q.busy ? `<button type="button" class="btn btn-secondary" data-ql="stop" ${q.stopping ? 'disabled' : ''}>${escHtml(t('probe.stop'))}</button>`
+        : `<button type="button" class="btn btn-secondary" data-ql="cancel">${escHtml(t('pk.delete.cancel'))}</button>`}
       <button type="submit" class="btn btn-primary" ${q.busy ? 'disabled' : ''}>${escHtml(t('probe.start'))}</button>
     </div></form>`;
   el.querySelector('.ql-pin')?.focus();
@@ -1460,9 +1364,10 @@ async function probeSubmit() {
     const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
     const accounts = res.found.reduce((n, f) => n + f.count, 0);
     const parts = [t('probe.found', { n: accounts, sites: res.found.length }),
+      res.complete ? '' : t('probe.sum.stoppedShort'),
       got.oath != null ? t('ql.got.oath', { n: got.oath }) : '', got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
       got.piv ? t('ql.got.piv', { n: got.piv }) : ''].filter(Boolean);
-    showToast(`${displayName(tok)}: ${parts.join(', ')}`, 'success');
+    showToast(`${displayName(tok)}: ${parts.filter(Boolean).join(', ')}`, res.complete ? 'success' : 'info');
     quickUnlock = null;
     renderQuickUnlock();
     await loadHistory();
@@ -1586,19 +1491,31 @@ function credProtectLabel(level) {
   return level === 3 ? t('pk.protect3') : null;
 }
 
+function probeSummaryHtml(entry) {
+  const p = entry?.probe;
+  if (!p) return '';
+  const c = p.counts || {};
+  const parts = ['found', 'none', 'unsupported', 'uv_required', 'error'].filter(k => c[k])
+    .map(k => `<li class="probe-${k}"><b>${c[k]}</b> ${escHtml(t(`probe.st.${k}`))}</li>`).join('');
+  return `<div class="callout ${p.complete ? '' : 'warn'}">
+    <div class="callout-title">${escHtml(t(p.complete ? 'probe.sum.complete' : 'probe.sum.partial', { asked: p.asked, when: relTime(p.at) }))}</div>
+    <ul class="probe-counts">${parts}</ul>
+    <div class="callout-text">${escHtml(t('probe.notLogin'))}</div></div>`;
+}
+
 function probedPasskeysHtml(token) {
   const entry = historyKeys.get(token.history_id);
   const sites = entry?.sites || [];
   const list = sites.length ? `<section class="card"><ul class="pk-list">${sites.map(s => `<li class="pk-item probe-item">
       ${serviceAvatar(s.rp_id, s.name)}
       <div class="pk-user"><div class="pk-user-name">${escHtml(s.rp_id)}</div>
-        <div class="pk-user-sub">${escHtml(t('probe.accounts', { n: s.count }))}</div>
+        <div class="pk-user-sub">${escHtml(t('probe.accounts', { n: s.count }))}${s.partial ? ` · ${escHtml(t('probe.partialNames'))}` : ''}${s.source === 'probe' ? ` · ${escHtml(t('acc.src.probe'))}` : s.source === 'import' ? ` · ${escHtml(t('acc.src.import'))}` : ''}</div>
         ${(s.users || []).some(u => u.name || u.display) ? `<ul class="probe-users">${s.users.map(u => `<li>${escHtml(u.name || u.display || t('probe.unnamed'))}</li>`).join('')}</ul>` : ''}
       </div></li>`).join('')}</ul>
       <p class="field-hint">${escHtml(t('probe.checked', { n: entry.sites_probed || 0, when: relTime(entry.sites_updated) }))}</p></section>` : '';
   return `<div class="callout"><div class="callout-title">${escHtml(t('probe.title'))}</div>
       <div class="callout-text">${escHtml(t('probe.intro'))}</div>
-      <div class="form-actions att-actions"><button type="button" class="btn btn-primary" data-act="probe">${escHtml(t(sites.length ? 'probe.again' : 'probe.start'))}</button></div></div>${list}`;
+      <div class="form-actions att-actions"><button type="button" class="btn btn-primary" data-act="probe">${escHtml(t(sites.length ? 'probe.again' : 'probe.start'))}</button></div></div>${probeSummaryHtml(entry)}${list}`;
 }
 
 function renderPasskeys() {
@@ -3454,8 +3371,13 @@ function init() {
   });
   $('quick-unlock').addEventListener('click', ev => {
     const b = ev.target.closest('[data-ql]');
-    if (ev.target.id === 'quick-unlock' || b?.dataset.ql === 'cancel') { quickUnlock = null; renderQuickUnlock(); return; }
+    if ((ev.target.id === 'quick-unlock' && !quickUnlock?.busy) || b?.dataset.ql === 'cancel') { quickUnlock = null; renderQuickUnlock(); return; }
     if (b?.dataset.ql === 'uv') quickUnlockSubmit('uv');
+    if (b?.dataset.ql === 'stop' && quickUnlock) {
+      quickUnlock = { ...quickUnlock, stopping: true };
+      call('passkeys_probe_cancel', { token_id: quickUnlock.id }).catch(() => {});
+      renderQuickUnlock();
+    }
   });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && quickUnlock && !quickUnlock.busy) { quickUnlock = null; renderQuickUnlock(); }
@@ -3499,6 +3421,7 @@ function init() {
   });
   $('backup-content').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-act]');
+    if (b?.dataset.act === 'open-accounts') return showAccountsView();
     if (b?.dataset.act === 'hist-export') return exportHistory();
     if (b?.dataset.act === 'hist-import') return importHistory();
     if (!b || !lostKid) return;

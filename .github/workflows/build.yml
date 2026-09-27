@@ -27,6 +27,7 @@ jobs:
       - run: node --check static/app.js
       - run: node --check static/i18n.js
       - run: node tests/ui_security.cjs
+      - run: node tests/accounts_model.cjs
   # Signing is used when the credentials are configured as secrets; without
   # them the builds are published unsigned and clearly labelled as such.
   build-macos:

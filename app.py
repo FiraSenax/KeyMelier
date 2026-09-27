@@ -68,7 +68,7 @@ ALLOWED = {
     "piv_protect_management_key", "piv_reset",
     "otp", "otp_swap", "otp_delete", "otp_static", "otp_hmac", "interfaces", "interfaces_set",
     "open_privacy_settings",
-    "export_all", "history_export", "history_import", "update_download", "update_open", "read_contents", "passkeys_probe",
+    "export_all", "history_export", "history_import", "update_download", "update_open", "read_contents", "passkeys_probe", "passkeys_probe_cancel",
 }
 
 
@@ -300,7 +300,7 @@ def build_html() -> str:
     html = html.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
     html = html.replace('src="icon.svg"', f'src="data:image/svg+xml;base64,{icon}"')
     hashes = []
-    for name in ("i18n.js", "service-icons.js", "app.js"):
+    for name in ("i18n.js", "service-icons.js", "accounts.js", "app.js"):
         js = (STATIC_DIR / name).read_text(encoding="utf-8").replace("</script", "<\\/script")
         body = f"\n{js}\n"
         hashes.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'")

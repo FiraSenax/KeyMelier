@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Account ratings are strict:** accounts are identical only with the same service (rpId) and the same account name; nameless passkeys are never assigned to a named account ("assignment unclear"); only keys not marked as lost count; "passkey on two keys", "passkey plus code", "codes only" and "unclear" are distinguished. Account overview, backup view, lost-key assistant and security check share one model (`static/accounts.js`).
+- **Passkey search results per site:** found, no credentials, not supported, PIN required, technical error; a stopped or failed search never removes known entries, partial results are marked, the search can be cancelled, a wrong PIN stops it at once without retrying, and a hit is explained as "credentials on the key", not a sign-in.
+- **Provenance and freshness:** every entry shows whether it was read directly, found by search or imported, and when; keys that were not (fully) read show "?" instead of "not there"; stale data is flagged; the limits of the rating are explained.
+- Regression tests for the account model and the passkey search.
+
 ## 1.4.0 — 2026-09-27
 
 - Service logos in the account overview, passkey and authenticator lists for brands that allow it (bundled from Simple Icons, CC0 icon data; nothing is fetched from the network). Brands that restrict logo use keep the letter.

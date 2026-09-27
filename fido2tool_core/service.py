@@ -80,6 +80,7 @@ class KeyService:
         self._reader_tokens: dict[str, str] = {}  # PC/SC reader -> FIDO token id
         self._cards.hold = self._hold_reader
         self._otp_lock = threading.Lock()
+        self._probe_cancel: set[str] = set()
         self._app_update = None
         self._exporter = exporter
         self._mds3 = mds3_client
@@ -424,13 +425,26 @@ class KeyService:
         known = [s["rp_id"] for e in self.history.list() for s in (e.get("sites") or [])]
         extra = [str(x) for x in (extra or [])][:50]
         rp_ids = passkey_probe.candidates(known, extra)
+        self._probe_cancel.discard(token_id)
         with self._scanner.session(token_id, timeout=10.0, refresh=False) as (_record, ctap2):
-            found = passkey_probe.probe(ctap2, rp_ids, pin=pin or None,
-                                        progress=lambda i, n: self.emit("probe_progress", {"id": token_id, "done": i, "total": n}))
+            scan = passkey_probe.probe(
+                ctap2, rp_ids, pin=pin or None,
+                progress=lambda i, n: self.emit("probe_progress", {"id": token_id, "done": i, "total": n}),
+                cancelled=lambda: token_id in self._probe_cancel)
+        self._probe_cancel.discard(token_id)
         if self._remember_contents():
-            sites = [{"rp_id": f["rp_id"], "name": "", "count": f["count"], "users": f["users"]} for f in found]
-            self.emit("history_updated", self.history.set_sites(record, sites, probed=len(rp_ids)))
-        return {"found": found, "checked": len(rp_ids), "names": bool(pin)}
+            self.emit("history_updated",
+                      self.history.merge_probe(record, scan["results"], scan["complete"], len(rp_ids)))
+        counts: dict[str, int] = {}
+        for r in scan["results"]:
+            counts[r["status"]] = counts.get(r["status"], 0) + 1
+        return {"found": [r for r in scan["results"] if r["status"] == "found"], "counts": counts,
+                "complete": scan["complete"], "asked": len(scan["results"]), "candidates": len(rp_ids),
+                "names": bool(pin)}
+
+    def passkeys_probe_cancel(self, token_id: str) -> dict:
+        self._probe_cancel.add(str(token_id))
+        return {"cancelling": True}
 
     def passkey_rename(self, token_id: str, credential_id: str, user_id: str, name: str = "",
                        display_name: str = "", site: str = "") -> dict:
