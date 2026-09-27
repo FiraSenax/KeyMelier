@@ -25,23 +25,26 @@ def set_aside(path):
     return target.name
 
 
-def replace_file(src, dst, attempts=40, delay=0.05):
-    """os.replace that tolerates a reader for a moment (Windows).
+def retry_sharing(action, attempts=40, delay=0.05):
+    """Run action(), retrying for up to ~2 s while Windows reports a sharing violation.
 
-    Windows refuses to replace a file that another process – a second
-    KeyMelier, a cloud sync client, a virus scanner – has open just then
-    (PermissionError, sharing violation). Retry for up to ~2 s; POSIX never
-    needs it. Readers never see a partial file either way.
+    Windows refuses to open or replace a file that another process – a second
+    KeyMelier, a cloud sync client, a virus scanner – is replacing or holding
+    open just then (PermissionError). POSIX never needs it; there it raises at once.
     """
     import time
     for attempt in range(attempts):
         try:
-            os.replace(src, dst)
-            return
+            return action()
         except PermissionError:
             if os.name != "nt" or attempt == attempts - 1:
                 raise
             time.sleep(delay)
+
+
+def replace_file(src, dst, attempts=40, delay=0.05):
+    """os.replace that tolerates a reader for a moment (Windows); readers never see a partial file."""
+    retry_sharing(lambda: os.replace(src, dst), attempts, delay)
 
 
 def atomic_write(path, data):

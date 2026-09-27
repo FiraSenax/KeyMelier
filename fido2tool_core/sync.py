@@ -46,7 +46,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fido2tool_core.storage import replace_file
+from fido2tool_core.storage import replace_file, retry_sharing
 
 logger = logging.getLogger(__name__)
 
@@ -160,8 +160,18 @@ def unseal(data: bytes, passphrase: str) -> tuple[str, dict]:
 
 # ── The folder ───────────────────────────────────────────────────────────────
 
+class FileInTransit(Exception):
+    """The file vanished between listing and opening (renamed or removed) – look again next round."""
+
+
 def _read_regular(path: Path) -> bytes | None:
-    """Read a plain file (no symlink, no device, not too large)."""
+    """Read a plain file (no symlink, no device, not too large).
+
+    None for anything that is not such a file. Opening is retried for a moment
+    while Windows reports a sharing violation (another process is replacing
+    the file); a file that stays locked raises PermissionError and is reported
+    by the sync round once it lasts. FileInTransit: it vanished meanwhile.
+    """
     import stat
     try:
         st = os.lstat(path)
@@ -169,7 +179,10 @@ def _read_regular(path: Path) -> bytes | None:
         return None
     if not stat.S_ISREG(st.st_mode) or st.st_size > MAX_FILE:
         return None
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        fd = retry_sharing(lambda: os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)))
+    except FileNotFoundError as e:
+        raise FileInTransit(path.name) from e
     with os.fdopen(fd, "rb") as f:
         return f.read(MAX_FILE + 1)
 
@@ -234,8 +247,8 @@ class SyncFolder:
     def read_own(self) -> tuple[str, str | None, dict | None]:
         """Read the file at our path: ("ok", None, payload) or ("unreadable", code, None)."""
         st = os.lstat(self.own_path)
+        data = _read_regular(self.own_path)   # FileInTransit: the stamp stays old, so it is read again
         self._own_stamp = (st.st_mtime_ns, st.st_size)
-        data = _read_regular(self.own_path)
         if data is None:
             return "unreadable", "sync_damaged", None
         try:
@@ -266,7 +279,10 @@ class SyncFolder:
             stamp = (st.st_mtime_ns, st.st_size)
             if only_new and self._seen.get(path.name) == stamp:
                 continue
-            data = _read_regular(path)
+            try:
+                data = _read_regular(path)
+            except FileInTransit:
+                continue   # not marked as seen: read again next round
             if data is None:
                 errors.append({"file": path.name, "code": "sync_damaged"})
                 continue
@@ -367,6 +383,8 @@ class Syncer:
                     folder.write(self._history.sync_state(), force=full)
                     self._last_revision = self._history.revision   # a failed write is retried next round
                 self.last_sync = datetime.now(timezone.utc).isoformat()
+            except FileInTransit as e:
+                logger.info("Sync file %s vanished while reading; next round", e)   # not an error
             except SyncError as e:
                 problems.append({"file": "", "code": e.code})
             except OSError as e:

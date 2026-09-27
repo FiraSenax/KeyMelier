@@ -17,7 +17,7 @@ The first release since 1.7.0 (1.7.1 was prepared but never published; its chang
 
 **Fixed**
 
-- **Windows sync:** writing the sync file no longer fails while another program (a cloud sync client, the other computer, a virus scanner) is reading it at that moment – the replace is retried for up to two seconds.
+- **Windows sync:** writing or reading a sync file no longer fails while another program (a cloud sync client, the other computer, a virus scanner) is using it at that moment – Windows' sharing violation is retried for up to two seconds; a file that stays locked is still reported, one that was just renamed is read in the next round.
 - **Account overview:** the window no longer scrolls sideways (hidden screen-reader texts in the table widened the page); at the minimum window size long key names in the table header take at most two lines, so the matrix stays usable; buttons reached with the keyboard are no longer hidden under the fixed header and first column.
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.
 - **Unreadable data files are never overwritten:** a damaged `history.json` or `settings.json` (e.g. after an interrupted save) is kept as `*.unreadable-<time>`; KeyMelier starts with defaults and says so.

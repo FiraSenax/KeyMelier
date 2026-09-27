@@ -5,6 +5,7 @@ import threading
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fido2tool_core import sync
 from fido2tool_core.history import History
@@ -402,6 +403,34 @@ class OverlapAndAccessTests(unittest.TestCase):
         self.assertEqual(list(self.dir.glob("*.tmp")), [])
 
     @unittest.skipIf(sys.platform == "win32" or os.geteuid() == 0, "POSIX permissions (not as root)")
+    def test_windows_sharing_violation_while_opening_is_retried(self):
+        """Windows: opening fails for a moment while another process replaces the file."""
+        (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
+        b_h.update_snapshot(record("2"))
+        b_s.run_once()
+        real_open, attempts = os.open, []
+
+        def flaky_open(path, flags, *args):
+            if str(path).endswith(".kmsync") and len(attempts) < 2:
+                attempts.append(path)
+                raise PermissionError(13, "The process cannot access the file")
+            return real_open(path, flags, *args)
+        with patch.object(sync.os, "name", "nt"), patch.object(sync.os, "open", flaky_open), patch("time.sleep"):
+            found, errors = a_s._folder.read_others(only_new=False)
+        self.assertEqual((len(found), errors, len(attempts)), (1, [], 2))
+
+    def test_a_file_that_vanishes_while_reading_is_looked_at_again(self):
+        (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
+        b_h.update_snapshot(record("2"))
+        b_s.run_once()
+
+        def gone(*args):
+            raise FileNotFoundError(2, "renamed meanwhile")
+        with patch.object(sync.os, "open", gone):
+            self.assertEqual(a_s._folder.read_others(), ([], []), "no error for a file in transit")
+        found, _ = a_s._folder.read_others()
+        self.assertEqual(len(found), 1, "not marked as seen: read in the next round")
+
     def test_a_file_that_cannot_be_read_for_a_while(self):
         (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
         b_h.update_snapshot(record("2"))
