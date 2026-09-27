@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fido2tool_core import policy
 from fido2tool_core.advisories import AdvisoryChecker
+from fido2tool_core.service import KeyService
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -230,6 +231,29 @@ class TestManagedSources(unittest.TestCase):
             c = self.checker("https://intra.example/advisories.json")
             read.assert_not_called()
             self.assertEqual(c.info()["policy"][0]["status"], "pending")
+
+    def test_company_links_can_be_opened_exactly(self):
+        """References of a signed company source may be opened – only those URLs, nothing else on the host."""
+        import app
+
+        link = "https://intra.example/keys/replace?id=1"
+        adv = corp(references=[link, "https://intra.example/a b", "https://intra.example/\x1bx"])
+        c = self.checker(write_source(self.dir, self.priv, [adv]))
+        self.assertEqual(c.policy_links(), {link})
+        svc = KeyService.__new__(KeyService)
+        svc._advisories = c
+        api = app.Api(svc)
+        opened = []
+        with patch("webbrowser.open", opened.append), patch.object(app, "open_with_system", opened.append):
+            api.open_url(link)
+            api.open_url("https://intra.example/other")           # same host, not listed
+            api.open_url("http://intra.example/keys/replace?id=1")  # not https
+            api.open_url("https://github.com/FiraSenax/KeyMelier")  # fixed host still works
+        self.assertEqual(opened, [link, "https://github.com/FiraSenax/KeyMelier"])
+        # A source with an invalid signature contributes no links
+        _, other = keypair()
+        bad = self.checker(write_source(self.dir, self.priv, [adv], name="bad.json"), other)
+        self.assertEqual(bad.policy_links(), set())
 
     def test_scanner_passes_origin_to_ui(self):
         from fido2tool_core.scanner import TokenRecord, TokenScanner

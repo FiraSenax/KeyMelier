@@ -235,6 +235,10 @@ class KeyService:
         self.emit("data_status", status)
         return status
 
+    def link_allowed(self, url: str) -> bool:
+        """A reference of a signed company advisory source (ENTERPRISE.md) – exact URL only."""
+        return bool(self._advisories) and url in self._advisories.policy_links()
+
     def data_status(self) -> dict:
         return {
             "advisories": self._advisories.info() if self._advisories else None,

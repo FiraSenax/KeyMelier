@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -46,7 +47,9 @@ def _clean_entry(adv, origin: str) -> Optional[dict]:
             entry[key] = adv[key][:2000]
     if isinstance(adv.get("cvss"), (int, float, str)) and not isinstance(adv.get("cvss"), bool):
         entry["cvss"] = adv["cvss"]
-    entry["references"] = [u for u in adv.get("references") or [] if isinstance(u, str) and u.startswith("https://")][:10]
+    # Only plain https links (no spaces or control characters); the app may open exactly these
+    entry["references"] = [u for u in adv.get("references") or []
+                           if isinstance(u, str) and len(u) <= 2000 and re.fullmatch(r"https://[^\s\x00-\x1f\x7f]+", u)][:10]
     return entry
 
 
@@ -132,6 +135,10 @@ class AdvisoryChecker:
                 logger.warning("Advisory source %s: %d entries skipped (malformed or official id)",
                                src["name"], state["dropped"])
         self._advisories = merged
+
+    def policy_links(self) -> set[str]:
+        """Reference URLs (https) of the loaded company advisories – the app may open exactly these."""
+        return {u for a in self._advisories if a.get("origin") for u in a.get("references", [])}
 
     def check_for_update(self) -> bool:
         """Fetch a newer signed advisory file and reload managed sources.

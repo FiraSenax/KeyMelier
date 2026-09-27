@@ -272,7 +272,9 @@ class Api:
         """Open advisory links in the default browser (never inside the app)."""
         from urllib.parse import urlparse
         parsed = urlparse(str(url))
-        if parsed.scheme == "https" and parsed.hostname in ALLOWED_LINK_HOSTS:
+        # Fixed hosts, or exactly a link from a signed company advisory source
+        if parsed.scheme == "https" and (parsed.hostname in ALLOWED_LINK_HOSTS
+                                         or self._service.link_allowed(str(url))):
             if sys.platform.startswith("linux"):
                 open_with_system(parsed.geturl())   # host browser, without the AppImage's libraries
             else:

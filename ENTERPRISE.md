@@ -68,7 +68,9 @@ The document has the same format as the official
 `severity` is one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (other values count
 as `MEDIUM`; `CRITICAL` marks the key as critical, all others as a warning).
 `firmware_min_inclusive` / `firmware_max_exclusive` are optional. Only
-`https://` references are shown.
+`https://` references are shown (at most 10, without spaces). KeyMelier opens
+exactly these links in the browser – for example an intranet page – but no
+other address on the same server.
 
 Sign it with the tool from this repository (Python 3 with `cryptography`):
 
