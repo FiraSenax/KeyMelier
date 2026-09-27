@@ -184,6 +184,7 @@
       client_log: async () => true, client_error: async () => true, set_ui_language: async () => true,
       copy_text: async () => true, open_url: async () => true, gpg_available: async () => false,
       open_licenses: async () => true, choose_folder: async () => null,
+      save_text: async (name, text, priv) => { window.__lastSave = { name, text, priv }; return `/tmp/${name}`; },
     },
   };
 

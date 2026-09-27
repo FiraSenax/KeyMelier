@@ -312,6 +312,80 @@ function replacePlanItems(plan) {
   return plan ? [...plan.passkeys, ...plan.codes, ...plan.openpgp, ...plan.piv, ...plan.otp] : [];
 }
 
+// ── Inventory export ─────────────────────────────────────────────────────
+// Everything KeyMelier knows about the keys and accounts, for backups and
+// further processing – names and metadata only (the history never holds
+// secrets). Filters: one key, and/or one account category (level).
+
+function buildInventory(model, { keyId = '', level = '', exported = new Date().toISOString(), appVersion = '' } = {}) {
+  const keyName = e => e.label || e.snapshot?.mds_description || e.snapshot?.product_name || e.key_id;
+  const keys = model.keys.filter(e => !keyId || e.key_id === keyId).map(e => {
+    const info = model.keyInfo.get(e.key_id) || {};
+    const inv = e.inventory || {};
+    return {
+      key_id: e.key_id, label: keyName(e),
+      model: e.snapshot?.mds_description || e.snapshot?.product_name || '', manufacturer: e.snapshot?.manufacturer || '',
+      serial: e.snapshot?.serial_number || '', firmware: e.snapshot?.firmware_version_str || '',
+      lost_since: e.lost_since || null, first_seen: e.first_seen || null, last_seen: e.last_seen || null,
+      passkeys: {
+        known: info.coverage || 'none', read: info.checked || null,
+        sites: (e.sites || []).map(site => ({ rp_id: site.rp_id, name: site.name || '', count: site.count || 1,
+          accounts: (site.users || []).map(u => u.name || '').filter(Boolean),
+          display_names: (site.users || []).filter(u => !u.name && u.display).map(u => u.display),
+          source: site.source || info.sitesSource || 'list', checked: site.checked || info.checked || null })),
+      },
+      oath: inv.oath ? { read: inv.oath.updated || null, accounts: inv.oath.items.map(i => ({ issuer: i.issuer || '', name: i.name || '' })) } : null,
+      openpgp: inv.openpgp ? { read: inv.openpgp.updated || null, keys: inv.openpgp.items.map(i => ({ slot: i.slot, algorithm: i.algorithm || '', fingerprint: i.fingerprint || '' })) } : null,
+      piv: inv.piv ? { read: inv.piv.updated || null, certificates: inv.piv.items.map(i => ({ slot: i.slot || '', label: i.label || '' })) } : null,
+      otp: inv.otp ? { read: inv.otp.updated || null, slots: inv.otp.items.map(i => i.otp_slot) } : null,
+    };
+  });
+  const byId = new Map(model.keys.map(e => [e.key_id, keyName(e)]));
+  const accounts = overviewRows(model)
+    .filter(r => (!level || r.level === level) && (!keyId || r.holders.has(keyId) || r.links.some(c => c.holders.has(keyId))))
+    .map(r => ({
+      service: r.groupLabel || r.domain || r.issuer || '', kind: r.kind, rp_id: r.rpId || null, issuer: r.issuer || null,
+      account: r.account || null, unnamed: r.kind === 'unknown' ? r.count : undefined,
+      status: r.status, level: r.level,
+      passkey_on: [...r.holders].filter(([, h]) => h.passkey > 0).map(([k]) => byId.get(k)),
+      code_on: [...new Set([...(r.kind === 'code' ? [r] : r.links)].flatMap(c => [...c.holders].filter(([, h]) => h.code > 0).map(([k]) => byId.get(k))))],
+    }));
+  return { format: 'keymelier-inventory', version: 1, exported, app_version: appVersion,
+    filter: { key: keyId || null, level: level || null }, keys, accounts };
+}
+
+// A cell a spreadsheet would run as a formula is prefixed with ' (CSV injection)
+function csvCell(value) {
+  let v = value == null ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  return `"${v.replace(/"/g, '""')}"`;
+}
+
+// One row per item on a key: passkey account, code, OpenPGP key, certificate, OTP slot
+function inventoryCsv(inv) {
+  const header = ['key', 'serial', 'key_lost', 'type', 'service', 'account', 'detail', 'account_status', 'source', 'read'];
+  const status = new Map();
+  for (const a of inv.accounts) status.set(`${a.kind}|${a.rp_id || a.issuer || ''}|${(a.account || '').toLowerCase()}`, a.status);
+  const rows = [];
+  for (const k of inv.keys) {
+    const base = [k.label, k.serial, k.lost_since ? 'yes' : 'no'];
+    for (const site of k.passkeys.sites) {
+      const names = site.accounts.length ? site.accounts : [''];
+      for (const name of names) {
+        rows.push([...base, 'passkey', site.rp_id, name, name ? '' : `${site.count} unnamed`,
+          status.get(`${name ? 'passkey' : 'unknown'}|${site.rp_id}|${name.toLowerCase()}`) || '', site.source, site.checked || '']);
+      }
+    }
+    for (const a of k.oath?.accounts || []) {
+      rows.push([...base, 'code', a.issuer, a.name, '', status.get(`code|${a.issuer}|${a.name.toLowerCase()}`) || 'linked', 'list', k.oath.read || '']);
+    }
+    for (const p of k.openpgp?.keys || []) rows.push([...base, 'openpgp', p.slot, '', `${p.algorithm} ${p.fingerprint}`.trim(), '', 'list', k.openpgp.read || '']);
+    for (const c of k.piv?.certificates || []) rows.push([...base, 'piv', c.slot, '', c.label, '', 'list', k.piv.read || '']);
+    for (const slot of k.otp?.slots || []) rows.push([...base, 'otp', `slot ${slot}`, '', '', '', 'list', k.otp.read || '']);
+  }
+  return '\ufeff' + [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
+  module.exports = { buildInventory, inventoryCsv, csvCell, buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
 }

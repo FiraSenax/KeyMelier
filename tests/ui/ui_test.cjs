@@ -344,6 +344,20 @@ async function main() {
     await press('Escape');
     await js('appSettings.platform = "darwin"; appSettings.build = { signed: false, notarized: false };');
   });
+  await test('inventory export: JSON and CSV with filters, saved privately', async () => {
+    await js('showSettingsView()');
+    await until('!!$("inventory-card")', 'export card');
+    await click('#inventory-card [data-act=inv-export]');
+    await until('window.__lastSave?.name?.endsWith(".json")', 'JSON saved');
+    const json = await js('JSON.parse(window.__lastSave.text)');
+    assert(json.format === 'keymelier-inventory' && json.keys.length >= 3 && json.accounts.length > 0, 'complete JSON');
+    assert(await js('window.__lastSave.priv === true'), 'saved readable only by the user');
+    await js('$("inv-format").value = "csv"; $("inv-key").value = "b2b2b2b2b2b2b2b2"; $("inv-level").value = "warn";');
+    await click('#inventory-card [data-act=inv-export]');
+    await until('window.__lastSave?.name?.endsWith(".csv")', 'CSV saved');
+    const csv = await js('window.__lastSave.text');
+    assert(csv.startsWith('\ufeff"key"') && csv.split('\r\n').slice(1, -1).every(l => l.startsWith('"Backup key"')), 'only the chosen key');
+  });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));
   });

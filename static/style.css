@@ -1504,3 +1504,6 @@ code.nowrap { white-space: nowrap; font-size: 0.95em; }
 .acc-table .acc-sub-row.acc-unclear > th { background: color-mix(in srgb, var(--text-3) 10%, var(--surface)); }
 .acc-table .acc-sub-row.acc-info > th { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
 .acc-table .acc-sub-row.acc-ok > th { background: color-mix(in srgb, var(--ok) 7%, var(--surface)); }
+
+.inv-options { display: flex; flex-wrap: wrap; gap: 12px 18px; margin: 10px 0; }
+.inv-options label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--text-2); }

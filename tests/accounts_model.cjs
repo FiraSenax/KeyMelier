@@ -1,7 +1,7 @@
 // Regression tests for static/accounts.js – each case is a misclassification
 // that must not happen again (node tests/accounts_model.cjs).
 const assert = require('node:assert/strict');
-const { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
+const { buildInventory, inventoryCsv, buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
 
 const NOW = Date.parse('2026-09-27T12:00:00Z');
 const day = n => new Date(NOW - n * 86400e3).toISOString();
@@ -280,6 +280,44 @@ const find = (m, pred) => m.rows.find(pred);
   assert.ok(filterAccountRows(m, { query: 'MICROSOFT' }).length === 2);
   assert.ok(filterAccountRows(m, { query: 'aws' }).some(r => r.issuer === 'AWS'));
   assert.equal(JSON.stringify(m.rows.map(r => [r.id, r.status, r.level])), before, 'filtering never changes ratings');
+}
+
+// 11. Inventory export: complete, filterable, no secrets, safe CSV
+{
+  const entries = [
+    key('A', { label: 'Everyday', snapshot: { serial_number: '111', mds_description: 'YubiKey 5C' },
+      sites: [site('github.com', ['erika']), site('evil.example', ['=HYPERLINK("http://x")'])], sites_updated: day(1),
+      inventory: { oath: { items: [{ issuer: 'AWS', name: 'root' }], updated: day(1) },
+        openpgp: { items: [{ slot: 'sig', algorithm: 'Ed25519', fingerprint: 'AAAA' }], updated: day(1) },
+        piv: { items: [{ slot: '9a', label: '9A: CN=Erika "E"' }], updated: day(1) }, otp: { items: [{ otp_slot: 1 }], updated: day(1) } } }),
+    key('B', { label: 'Backup', sites: [site('github.com', ['erika']), site('webauthn.io', [], { count: 2 })], sites_updated: day(1) }),
+    key('L', { label: 'Lost', lost_since: day(2), sites: [site('lost.com', ['erika'])], sites_updated: day(9) }),
+  ];
+  const m = buildAccountModel(entries, NOW);
+  const inv = buildInventory(m, { exported: 'T', appVersion: '9.9.9' });
+  assert.equal(inv.format, 'keymelier-inventory');
+  assert.equal(inv.keys.length, 3);
+  assert.equal(inv.accounts.length, overviewRows(m).length, 'every account of the overview');
+  const a = inv.keys.find(k => k.key_id === 'A');
+  assert.deepEqual([a.oath.accounts.length, a.openpgp.keys.length, a.piv.certificates.length, a.otp.slots], [1, 1, 1, [1]]);
+  assert.equal(inv.accounts.find(x => x.account === 'erika' && x.rp_id === 'github.com').passkey_on.sort().join(), 'Backup,Everyday');
+  const text = JSON.stringify(inv).toLowerCase();
+  for (const word of ['"pin"', 'secret', 'password', 'credential_id']) assert.ok(!text.includes(word), `no ${word}`);
+  const onlyB = buildInventory(m, { keyId: 'B' });
+  assert.deepEqual(onlyB.keys.map(k => k.key_id), ['B']);
+  assert.ok(onlyB.accounts.every(x => x.passkey_on.includes('Backup') || x.code_on.includes('Backup')));
+  const crit = buildInventory(m, { level: 'crit' });
+  assert.ok(crit.accounts.length > 0 && crit.accounts.every(x => x.level === 'crit'));
+  assert.equal(crit.keys.length, 3, 'a level filter selects accounts, keys stay complete');
+  const csv = inventoryCsv(inv);
+  assert.ok(csv.startsWith('﻿"key","serial"'), 'BOM and header');
+  const lines = csv.trim().split('\r\n');
+  assert.ok(lines.some(l => l.includes('"passkey","github.com","erika"')));
+  assert.ok(lines.some(l => l.includes(`"'=HYPERLINK(""http://x"")"`)), 'formula neutralised, quotes escaped');
+  assert.ok(lines.some(l => l.includes('"passkey","webauthn.io","","2 unnamed"')));
+  assert.ok(lines.some(l => l.includes('"openpgp","sig","","Ed25519 AAAA"')));
+  assert.ok(lines.some(l => l.includes('"piv","9a","","9A: CN=Erika ""E"""')));
+  assert.ok(lines.some(l => l.startsWith('"Lost","","yes","passkey","lost.com","erika"')), 'lost key marked');
 }
 
 console.log('Account model tests passed');

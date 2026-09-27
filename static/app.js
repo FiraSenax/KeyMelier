@@ -620,7 +620,39 @@ function renderSettingsView() {
         <button type="button" class="btn btn-secondary" data-act="hist-import">${escHtml(t('histx.import'))}</button>
       </div>
     </section>
+    <section class="card" id="inventory-card">
+      <h2>${escHtml(t('inv.title'))}</h2>
+      <p class="card-text">${escHtml(t('inv.text'))}</p>
+      <div class="inv-options">
+        <label><span>${escHtml(t('inv.format'))}</span>
+          <select id="inv-format" class="bk-select"><option value="json">JSON</option><option value="csv">CSV</option></select></label>
+        <label><span>${escHtml(t('inv.key'))}</span>
+          <select id="inv-key" class="bk-select"><option value="">${escHtml(t('inv.allKeys'))}</option>
+          ${[...historyKeys.values()].map(e => `<option value="${escHtml(e.key_id)}">${escHtml(keyLabel(e))}</option>`).join('')}</select></label>
+        <label><span>${escHtml(t('inv.status'))}</span>
+          <select id="inv-level" class="bk-select">${ACC_CARDS.map(([lvl, k]) => `<option value="${lvl}">${escHtml(t(k))}</option>`).join('')}</select></label>
+      </div>
+      <p class="field-hint">${escHtml(t('inv.privacy'))}</p>
+      <div class="form-actions att-actions">
+        <button type="button" class="btn btn-secondary" data-act="inv-export" ${historyKeys.size ? '' : 'disabled'}>${escHtml(t('inv.export'))}</button>
+      </div>
+    </section>
     ${syncCardHtml()}`;
+}
+
+// Everything known about keys and accounts as JSON or CSV (names only, no secrets)
+async function exportInventory() {
+  const format = $('inv-format').value;
+  const inv = buildInventory(accountModel(), { keyId: $('inv-key').value, level: $('inv-level').value,
+    appVersion: dataStatus?.app?.current || '' });
+  const text = format === 'csv' ? inventoryCsv(inv) : JSON.stringify(inv, null, 2);
+  const name = `keymelier-inventory-${new Date().toISOString().slice(0, 10)}.${format}`;
+  try {
+    const path = await window.pywebview.api.save_text(name, text, true);
+    if (path) showToast(t('inv.saved', { n: inv.accounts.length }), 'success');
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
+  }
 }
 
 function showSettingsView() {
@@ -3454,6 +3486,7 @@ function init() {
     }
     if (b?.dataset.act === 'open-accounts') return showAccountsView();
     if (b?.dataset.act === 'hist-export') return exportHistory();
+    if (b?.dataset.act === 'inv-export') return exportInventory();
     if (b?.dataset.act === 'hist-import') return importHistory();
     if (b?.dataset.act?.startsWith('sync-')) return syncAction(b.dataset.act);
     if (b?.dataset.act === 'rp-open-new') {
