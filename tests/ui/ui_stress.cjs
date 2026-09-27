@@ -279,10 +279,12 @@ async function main() {
         const w = wrap.getBoundingClientRect();
         const head = wrap.querySelector('thead th.acc-key:last-child').getBoundingClientRect();
         const corner = wrap.querySelector('thead .acc-corner').getBoundingClientRect();
-        // a row that is visible in the middle of the scrolled area
+        // a row visible below the header in the scrolled area – it need not fit
+        // completely: with wider fonts (e.g. DejaVu on Linux) long advice texts
+        // wrap into rows taller than the visible part of the box
         const rows = [...wrap.querySelectorAll('tr.acc-sub-row')];
-        const row = rows.find(tr => { const b = tr.getBoundingClientRect(); return b.top > head.bottom + 5 && b.bottom < w.bottom - 5; });
-        if (!row) return { noRow: 'no account row fits below the header: header ' + Math.round(head.height) + 'px of a ' + Math.round(w.height) + 'px box' };
+        const row = rows.find(tr => { const b = tr.getBoundingClientRect(); return b.bottom > head.bottom + 20 && b.top < w.bottom - 20; });
+        if (!row) return { noRow: 'no account row visible below the header: header ' + Math.round(head.height) + 'px of a ' + Math.round(w.height) + 'px box' };
         const name = row.querySelector('th.acc-name').getBoundingClientRect();
         const cell = row.querySelector('td:last-child').getBoundingClientRect();
         return { wTop: w.top, wLeft: w.left, headTop: head.top, cornerLeft: corner.left, nameLeft: name.left,
