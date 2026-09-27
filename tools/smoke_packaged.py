@@ -1,0 +1,90 @@
+"""Start test of the packaged app – the real build in dist/, not app.py.
+
+    python tools/smoke_packaged.py [path-to-app]      (default: the build in dist/)
+
+Starts the app with --self-test and a temporary home directory (no real
+user data, no lock conflict with a running KeyMelier), waits for it to quit
+and checks its report: backend libraries and bundled data, page loaded with
+translations/icons/CSS, bridge round trips. Crashes, missing resources,
+failed checks and timeouts exit 1. The report and the app's log are copied
+to build/smoke-artifacts/ (SMOKE_ARTIFACTS to change).
+
+The app opens a real window, so it needs a desktop session (macOS runners
+and Windows runners have one).
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TIMEOUT = int(os.environ.get("SMOKE_TIMEOUT", "150"))
+MIN_CHECKS = 30   # a report with fewer checks is not a real pass
+
+
+def default_app() -> Path:
+    if sys.platform == "darwin":
+        return ROOT / "dist" / "KeyMelier.app" / "Contents" / "MacOS" / "KeyMelier"
+    if sys.platform == "win32":
+        return ROOT / "dist" / "KeyMelier" / "KeyMelier.exe"
+    return ROOT / "dist" / "KeyMelier" / "KeyMelier"
+
+
+def main() -> int:
+    app = Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()
+    if app.suffix == ".app":
+        app = app / "Contents" / "MacOS" / "KeyMelier"
+    if not app.is_file():
+        print(f"FAIL: no packaged app at {app}")
+        return 1
+    artifacts = Path(os.environ.get("SMOKE_ARTIFACTS", ROOT / "build" / "smoke-artifacts"))
+    artifacts.mkdir(parents=True, exist_ok=True)
+    home = Path(tempfile.mkdtemp(prefix="km-smoke-home-"))
+    result = home / "self-test.json"
+    env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home),
+           "APPDATA": str(home / "AppData" / "Roaming"), "LOCALAPPDATA": str(home / "AppData" / "Local")}
+    env.pop("KEYMELIER_STATELESS", None)
+    print(f"Starting {app} (temporary home {home})")
+    try:
+        proc = subprocess.run([str(app), "--self-test", str(result)], env=env, cwd=home,
+                              capture_output=True, text=True, timeout=TIMEOUT)
+        code, output = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    except subprocess.TimeoutExpired as e:
+        code, output = None, f"{e.stdout or ''}{e.stderr or ''}"
+    (artifacts / "app-output.log").write_text(output if isinstance(output, str) else output.decode("utf-8", "replace"),
+                                              encoding="utf-8")
+    for f in (result, result.with_suffix(".log")):
+        if f.exists():
+            shutil.copy(f, artifacts / f.name)
+
+    failures = []
+    if code is None:
+        failures.append(f"timed out after {TIMEOUT}s")
+    elif code != 0:
+        failures.append(f"exit code {code}")
+    report = json.loads(result.read_text(encoding="utf-8")) if result.exists() else None
+    if report is None:
+        failures.append("no self-test report written")
+    else:
+        for c in report["checks"]:
+            print(f"{'ok  ' if c['ok'] else 'FAIL'} {c['name']}{'' if c['ok'] or not c['info'] else '  – ' + c['info']}")
+        if not report.get("passed"):
+            failures.append("failed checks")
+        if len(report["checks"]) < MIN_CHECKS:
+            failures.append(f"only {len(report['checks'])} checks reported (expected ≥ {MIN_CHECKS})")
+    if not (home / "keymelier").is_dir():
+        failures.append("the app did not use the temporary home (isolation not proven)")
+    shutil.rmtree(home, ignore_errors=True)
+    if failures:
+        print("FAIL: " + "; ".join(failures) + f"  (logs: {artifacts})")
+        return 1
+    print(f"Packaged app start test passed ({len(report['checks'])} checks)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

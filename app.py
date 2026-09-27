@@ -111,7 +111,7 @@ def _lock_navigation(window):
     window.events.loaded += on_loaded
 
 
-def _expose_bridge(window, api):
+def _expose_bridge(window, api, extra=()):
     def wrap(name):
         method = getattr(api, name)
 
@@ -121,7 +121,7 @@ def _expose_bridge(window, api):
         bridge.__qualname__ = name
         return bridge
 
-    window.expose(*(wrap(name) for name in BRIDGE))
+    window.expose(*(wrap(name) for name in (*BRIDGE, *extra)))
 
 
 class Api:
@@ -135,6 +135,7 @@ class Api:
         self._service = service
         self._menubar = None  # private: pywebview only exposes public members
         self._window = None
+        self._selftest = None  # set by --self-test
 
     def set_ui_language(self, lang, texts=None):
         """The page tells the menu bar which language and texts it shows."""
@@ -243,6 +244,12 @@ class Api:
     def client_error(self, message):
         """JavaScript errors from the page, so they show up in the terminal."""
         logger.error("UI: %s", str(message)[:500])
+        if self._selftest is not None:
+            self._selftest.ui_errors.append(str(message)[:300])
+
+    def self_test_report(self, page_json):
+        """Only exposed with --self-test: the page's check results."""
+        return self._selftest.report(str(page_json)[:200_000]) if self._selftest is not None else None
 
     def open_url(self, url):
         """Open advisory links in the default browser (never inside the app)."""
@@ -357,6 +364,14 @@ def main():
         logger.error("KeyMelier is already running.")
         sys.exit(1)
 
+    selftest = None
+    if "--self-test" in sys.argv:
+        # Start test of the packaged app: real window, no key access, no network
+        from fido2tool_core.selftest import SelfTest
+        idx = sys.argv.index("--self-test")
+        result = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "keymelier-self-test.json"
+        selftest = True
+
     mds3 = MDS3Client()
     advisories = AdvisoryChecker(DATA_DIR)
     scanner = TokenScanner(
@@ -375,7 +390,13 @@ def main():
 
     service.emit = emit
 
+    if selftest:
+        selftest = SelfTest(result, ROOT_DIR, DATA_DIR, STATIC_DIR, advisories)
+
     def background_start():
+        if selftest:
+            logger.info("Self-test: scanner, metadata download and update checks are off")
+            return
         # Metadata first (downloads on first run, then cached 24h) so the
         # scanner can enrich keys; the window is already visible meanwhile.
         logger.info("Loading FIDO Alliance MDS3 metadata...")
@@ -401,7 +422,10 @@ def main():
     )
     pump.attach(window)
     api._window = window
-    _expose_bridge(window, api)
+    if selftest:
+        api._selftest = selftest
+        selftest.start(window)
+    _expose_bridge(window, api, extra=("self_test_report",) if selftest else ())
     _lock_navigation(window)
 
     if sys.platform == "darwin":
@@ -415,6 +439,8 @@ def main():
     service.sync_flush()
     scanner.stop()
     logger.info("Window closed, exiting.")
+    if selftest:
+        sys.exit(selftest.exit_code())
 
 
 

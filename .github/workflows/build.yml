@@ -108,6 +108,20 @@ jobs:
       - name: Remove temporary signing keychain
         if: always() && env.SIGN_MAC == 'true'
         run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
+      # The built app itself (not app.py): real window, temporary home, no
+      # key access, no network; checks libraries, bundled data, translations,
+      # icons and the page <-> backend bridge. Failure stops the build.
+      - name: Start test of the packaged app
+        env:
+          SMOKE_ARTIFACTS: build/smoke-artifacts
+        run: python tools/smoke_packaged.py
+      - name: Keep start test logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: smoke-artifacts-macos
+          path: build/smoke-artifacts
+          if-no-files-found: ignore
       - name: Disk image
         env:
           KEYMELIER_SIGN_IDENTITY: ${{ env.SIGN_MAC == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
@@ -193,6 +207,20 @@ jobs:
           Write-Host "Signed by: $($sig.SignerCertificate.Subject)"
           Remove-Item -Recurse -Force dist\KeyMelier
           Move-Item dist\KeyMelier-signed dist\KeyMelier
+      # The built app itself (not app.py): real window, temporary home, no
+      # key access, no network; checks libraries, bundled data, translations,
+      # icons and the page <-> backend bridge. Failure stops the build.
+      - name: Start test of the packaged app
+        env:
+          SMOKE_ARTIFACTS: build/smoke-artifacts
+        run: python tools/smoke_packaged.py
+      - name: Keep start test logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: smoke-artifacts-windows
+          path: build/smoke-artifacts
+          if-no-files-found: ignore
       - name: Installer
         shell: pwsh
         run: |
