@@ -4,7 +4,7 @@ import unittest.mock
 from contextlib import contextmanager
 from pathlib import Path
 
-from fido2tool_core import cards, openpgp_app
+from fido2tool_core import cards, openpgp_app, piv_app, yubikey_apps
 from fido2tool_core.cards import CardError, Cards
 from fido2tool_core.history import History
 from fido2tool_core.scanner import TokenRecord
@@ -86,6 +86,35 @@ class CardTests(unittest.TestCase):
         with self.assertRaises(CardError):
             openpgp_app._check_pin('x' * 128, openpgp_app.MIN_ADMIN_PIN, 'pgp_admin_short')
         openpgp_app._check_pin('12345678', openpgp_app.MIN_ADMIN_PIN, 'pgp_admin_short')
+
+
+    def test_piv_pin_length_and_otp_access_code(self):
+        for bad in ('12345', '123456789'):
+            with self.assertRaises(CardError):
+                piv_app._check_pin(bad, 'piv_pin_length')
+        piv_app._check_pin('123456', 'piv_pin_length')
+        self.assertIsNone(yubikey_apps._access_code(''))
+        self.assertEqual(yubikey_apps._access_code('010203040506'), bytes.fromhex('010203040506'))
+        for bad in ('0102', 'zz0203040506'):
+            with self.assertRaises(CardError):
+                yubikey_apps._access_code(bad)
+
+    def test_fido2_over_usb_cannot_be_turned_off(self):
+        from yubikit.management import CAPABILITY, TRANSPORT
+        all_caps = CAPABILITY.FIDO2 | CAPABILITY.OATH | CAPABILITY.PIV
+        info = unittest.mock.Mock(is_locked=False, supported_capabilities={TRANSPORT.USB: all_caps})
+        info.config.enabled_capabilities = {TRANSPORT.USB: all_caps}
+        session = unittest.mock.Mock()
+        session.read_device_info.return_value = info
+        with unittest.mock.patch('yubikit.management.ManagementSession', return_value=session):
+            with self.assertRaises(CardError) as e:
+                yubikey_apps.set_interfaces(object(), 'usb', {'FIDO2': False})
+            self.assertEqual(e.exception.code, 'usb_fido2_required')
+            session.write_device_config.assert_not_called()
+            yubikey_apps.set_interfaces(object(), 'usb', {'OATH': False})
+            written = session.write_device_config.call_args[0][0].enabled_capabilities[TRANSPORT.USB]
+            self.assertFalse(written & CAPABILITY.OATH)
+            self.assertTrue(written & CAPABILITY.FIDO2)
 
 
 if __name__ == '__main__':

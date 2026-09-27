@@ -161,7 +161,7 @@ function offlineToken(entry) {
 
 // Tabs that make sense for a token (management needs the key plugged in)
 const OFFLINE_TABS = ['overview', 'history', 'security', 'details'];
-const CARD_TABS = { oath: 'oath', piv: 'piv', openpgp: 'openpgp' };
+const CARD_TABS = { oath: 'oath', piv: 'piv', openpgp: 'openpgp', otp: 'otp' };
 function tabAllowed(token, tab) {
   if (tab === 'fingerprints' && !isBio(token)) return false;
   if (CARD_TABS[tab]) return !token.offline && !!cardApps.get(token.id)?.[CARD_TABS[tab]];
@@ -447,6 +447,28 @@ function renderBackupView() {
     </section>`);
   }
 
+  // Coverage matrix: authenticator accounts x keys
+  const withOath = entries.filter(e => e.inventory?.oath);
+  const oathId = a => `${a.issuer || ''}\u0000${a.name || ''}`;
+  const accounts = [...new Map(withOath.flatMap(e => e.inventory.oath.items || []).map(a => [oathId(a), a])).values()]
+    .sort((a, b) => inventoryLabel(a).localeCompare(inventoryLabel(b)));
+  if (accounts.length) {
+    const has = (e, a) => (e.inventory.oath.items || []).some(x => oathId(x) === oathId(a));
+    const holders = a => withOath.filter(e => !e.lost_since && has(e, a));
+    const single = accounts.filter(a => holders(a).length <= 1).length;
+    parts.push(`<section class="card">
+      <div class="check-head"><h2>${escHtml(t('bk.matrix.oath'))}</h2>
+        <span class="check-score">${escHtml(single ? t('bk.singleAccounts', { n: single }) : t('bk.allCovered'))}</span></div>
+      <div class="bk-table-wrap"><table class="bk-table">
+        <thead><tr><th>${escHtml(t('bk.account'))}</th>${withOath.map(e => `<th class="${e.lost_since ? 'lost' : ''}">${escHtml(keyLabel(e))}</th>`).join('')}</tr></thead>
+        <tbody>${accounts.map(a => `<tr class="${holders(a).length <= 1 ? 'single' : ''}">
+          <td>${escHtml(inventoryLabel(a))}</td>
+          ${withOath.map(e => `<td class="${has(e, a) ? 'yes' : 'no'}${e.lost_since ? ' lost' : ''}">${has(e, a) ? '✓' : '–'}</td>`).join('')}
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </section>`);
+  }
+
   // Lost-key assistant
   const lost = lostKid && historyKeys.get(lostKid);
   parts.push(`<section class="card">
@@ -484,7 +506,35 @@ function lostAssistantHtml(entry) {
     <div class="form-actions bk-lost-actions">${toggle}</div>
     ${entry.lost_since ? `<p class="bk-lost-since">${escHtml(t('bk.lost.since', { when: new Date(entry.lost_since).toLocaleDateString(LANG) }))}</p>` : ''}
     ${list}
+    ${entry.lost_since ? lostInventoryHtml(entry, done) : ''}
   </div>`;
+}
+
+// Authenticator accounts, OpenPGP keys and PIV certificates of a lost key
+function lostInventoryHtml(entry, done) {
+  const inv = entry.inventory || {};
+  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && !e.lost_since);
+  const groups = [];
+  const oath = inv.oath?.items || [];
+  if (oath.length) {
+    groups.push({ title: t('hist.contents.oath'), hint: t('bk.lost.oathHint'), items: oath.map(a => {
+      const backups = others.filter(o => (o.inventory?.oath?.items || []).some(x => x.issuer === a.issuer && x.name === a.name)).map(keyLabel);
+      return { id: `oath:${a.issuer}:${a.name}`, label: inventoryLabel(a), backups };
+    }) });
+  }
+  const pgp = inv.openpgp?.items || [];
+  if (pgp.length) groups.push({ title: t('hist.contents.openpgp'), hint: t('bk.lost.pgpHint'),
+    items: pgp.map(k => ({ id: `pgp:${k.fingerprint}`, label: inventoryLabel(k) })) });
+  const piv = inv.piv?.items || [];
+  if (piv.length) groups.push({ title: t('hist.contents.piv'), hint: t('bk.lost.pivHint'),
+    items: piv.map(c => ({ id: `piv:${c.label}`, label: c.label })) });
+  return groups.map(g => `<h3 class="bk-group">${escHtml(g.title)}</h3>
+    <p class="field-hint bk-hint">${escHtml(g.hint)}</p>
+    <ul class="bk-lost-list">${g.items.map(i => `<li class="${done.has(i.id) ? 'done' : ''}">
+      <label><input type="checkbox" data-site="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''}>
+        <span class="bk-site">${escHtml(i.label)}</span></label>
+      ${i.backups ? `<span class="bk-backup ${i.backups.length ? 'ok' : 'warn'}">${escHtml(i.backups.length ? t('bk.lost.backupOn', { names: i.backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
+    </li>`).join('')}</ul>`).join('');
 }
 
 function showBackupView() {
@@ -710,6 +760,9 @@ function switchTab(tab) {
   if (tab === 'settings' && token) loadConfig(token);
   if (tab === 'oath' && token) loadOath(token);
   if (tab === 'openpgp' && token) loadPgp(token);
+  if (tab === 'piv' && token) loadPiv(token);
+  if (tab === 'otp' && token) loadOtp(token);
+  if (tab === 'settings' && token) loadInterfaces(token);
   if (tab !== 'oath') stopOathTimer();
   if (tab === 'security') { if (token) loadFunctionTest(token); else renderFunctionTest(); }
 }
@@ -770,6 +823,9 @@ const EVENT_ICONS = {
   passkey_deleted: 'passkey', passkey_renamed: 'passkey', fingerprint_enrolled: 'fingerprint', fingerprint_renamed: 'fingerprint',
   fingerprint_removed: 'fingerprint', reset: 'trash',
   function_test: 'key', config_min_pin: 'lock',
+  piv_pin_changed: 'lock', piv_puk_changed: 'lock', piv_pin_unblocked: 'lock', piv_generated: 'key', piv_imported: 'key',
+  piv_deleted: 'trash', piv_mgmt_protected: 'lock', piv_reset: 'trash', otp_swapped: 'key', otp_deleted: 'trash',
+  otp_programmed: 'key', interfaces_changed: 'key',
   pgp_user_pin_changed: 'lock', pgp_admin_pin_changed: 'lock', pgp_pin_unblocked: 'lock', pgp_touch_changed: 'key', pgp_reset: 'trash',
   oath_added: 'lock', oath_renamed: 'lock', oath_deleted: 'trash', oath_password_set: 'lock', oath_password_removed: 'lock', oath_reset: 'trash', config_always_uv: 'lock', config_force_pin: 'lock',
 };
@@ -780,7 +836,11 @@ function eventText(ev) {
   if (ev.type === 'pgp_touch_changed' && ev.slot) {
     return `${t('ev.pgp_touch_changed')}: ${t(`pgp.slot.${ev.slot}`)} → ${t(`pgp.touch.${ev.policy}`)}`;
   }
-  if (ev.type.startsWith('oath_') || ev.type.startsWith('pgp_')) {
+  if (/^(piv|otp)_/.test(ev.type) && (ev.slot != null)) {
+    const slot = ev.type.startsWith('otp_') ? t(`otp.slot${ev.slot}`) : String(ev.slot).toUpperCase();
+    return `${t(`ev.${ev.type}`)}: ${slot}`;
+  }
+  if (/^(oath|pgp|piv|otp|interfaces)_/.test(ev.type)) {
     const base = t(`ev.${ev.type}`);
     return ev.site || ev.user ? `${base}: ${[ev.site, ev.user].filter(Boolean).join(' · ')}` : base;
   }
@@ -796,9 +856,10 @@ function eventText(ev) {
 }
 
 // "What was on this key": passkey sites and the smart card inventories
-const INVENTORY_SECTIONS = ['oath', 'openpgp', 'piv'];
+const INVENTORY_SECTIONS = ['oath', 'openpgp', 'piv', 'otp'];
 function inventoryLabel(item) {
-  if (item.slot) return `${t(`pgp.slot.${item.slot}`)}: ${item.algorithm || '?'} · ${item.fingerprint}`;
+  if (item.otp_slot) return t(`otp.slot${item.otp_slot}`);
+  if (item.slot && item.fingerprint) return `${t(`pgp.slot.${item.slot}`)}: ${item.algorithm || '?'} · ${item.fingerprint}`;
   return item.label || [item.issuer, item.name].filter(Boolean).join(' · ');
 }
 function contentsCardHtml(entry) {
@@ -1911,6 +1972,397 @@ function initPgpPane() {
   });
 }
 
+// ── Shared form helpers (PIV, OTP) ──────────────────────────────────────────
+
+function fieldHtml(cls, label, type = 'password', value = '', extra = '') {
+  return `<label class="field"><span>${escHtml(label)}</span>
+    <input type="${type}" class="${cls}" value="${escHtml(value)}" autocomplete="off" spellcheck="false" ${extra}></label>`;
+}
+
+function formCardHtml(id, title, text, fields, error, submitKey = 'fp.save') {
+  return `<form class="card form-card app-form" data-form="${escHtml(id)}" autocomplete="off">
+    <h2>${escHtml(title)}</h2>${text ? `<p class="card-text">${escHtml(text)}</p>` : ''}${fields}
+    ${error ? `<p class="field-error">${escHtml(error)}</p>` : ''}
+    <div class="form-actions"><button type="button" class="btn btn-secondary" data-act="hide-form">${escHtml(t('pk.delete.cancel'))}</button>
+      <button type="submit" class="btn btn-primary">${escHtml(t(submitKey))}</button></div></form>`;
+}
+
+function wrongSecretMessage(e) {
+  const code = e.data?.code || '';
+  if (e.data?.retries != null && code.endsWith('_invalid')) return t('pgp.wrongPin', { n: e.data.retries });
+  return errorMessage(e);
+}
+
+async function copyText(text) {
+  const ok = await window.pywebview?.api?.copy_text(text);
+  showToast(t(ok ? 'oath.copied' : 'oath.copyFailed'), ok ? 'success' : 'error');
+}
+
+// ── PIV tab ─────────────────────────────────────────────────────────────────
+
+let pivState = null;
+let pivForm = null;        // 'pin' | 'puk' | 'unblock' | 'protect' | 'gen:<slot>' | 'import:<slot>' | 'delete:<slot>'
+let pivError = null;
+let pivConfirmReset = false;
+
+function pivNeedsMgmtKey(st) {
+  return st.management_key.protected === false && st.management_key.default === false;
+}
+
+function pivAuthFields(st, withPin = true) {
+  return (withPin || st.management_key.protected ? fieldHtml('piv-pin', t('piv.pin')) : '') +
+    (pivNeedsMgmtKey(st) ? fieldHtml('piv-mgmt', t('piv.mgmt.key'), 'password', '', 'placeholder="010203…"') : '');
+}
+
+function pivFormHtml(st) {
+  const [kind, slot] = (pivForm || '').split(':');
+  if (kind === 'pin') return formCardHtml(pivForm, t('piv.pin.change'), t('piv.pin.hint'),
+    fieldHtml('piv-current', t('pgp.pin.current')) + fieldHtml('piv-new', t('pin.form.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
+  if (kind === 'puk') return formCardHtml(pivForm, t('piv.puk.change'), t('piv.puk.hint'),
+    fieldHtml('piv-current', t('piv.puk.current')) + fieldHtml('piv-new', t('piv.puk.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
+  if (kind === 'unblock') return formCardHtml(pivForm, t('pgp.unblock'), t('piv.unblock.text'),
+    fieldHtml('piv-puk', t('piv.puk')) + fieldHtml('piv-new', t('pin.form.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
+  if (kind === 'protect') return formCardHtml(pivForm, t('piv.mgmt.protect'), t('piv.mgmt.protectText'), pivAuthFields(st), pivError);
+  if (kind === 'gen') return formCardHtml(pivForm, t('piv.gen.title', { slot: slotName(slot) }), t('piv.gen.text'),
+    fieldHtml('piv-subject', t('piv.gen.subject'), 'text', '', 'placeholder="Erika Mustermann"') +
+    `<div class="oath-grid">
+      <label class="field"><span>${escHtml(t('piv.gen.type'))}</span><select class="piv-type bk-select">${st.key_types.map(k => `<option>${k}</option>`).join('')}</select></label>
+      <label class="field"><span>${escHtml(t('piv.gen.days'))}</span><input type="number" class="piv-days" value="365" min="1" max="3650"></label>
+      <label class="field"><span>${escHtml(t('piv.gen.pinPolicy'))}</span><select class="piv-pinpol bk-select">
+        ${['default', 'once', 'always', 'never'].map(p => `<option value="${p}">${escHtml(t(`piv.policy.${p}`))}</option>`).join('')}</select></label>
+      <label class="field"><span>${escHtml(t('piv.gen.touchPolicy'))}</span><select class="piv-touchpol bk-select">
+        ${['default', 'never', 'always', 'cached'].map(p => `<option value="${p}">${escHtml(t(`piv.touch.${p}`))}</option>`).join('')}</select></label>
+    </div>` + pivAuthFields(st), pivError, 'piv.gen.do');
+  if (kind === 'import') return formCardHtml(pivForm, t('piv.import.title', { slot: slotName(slot) }), t('piv.import.text'),
+    `<label class="field"><span>PEM</span><textarea class="piv-pem" rows="6" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>` +
+    pivAuthFields(st, false), pivError, 'piv.import.do');
+  if (kind === 'delete') return formCardHtml(pivForm, t('piv.delete.title', { slot: slotName(slot) }), t('piv.delete.text'),
+    (st.can_delete_key ? `<label class="check"><input type="checkbox" class="piv-delkey"><span>${escHtml(t('piv.delete.key'))}</span></label>` : '') +
+    pivAuthFields(st, false), pivError, 'pk.delete.do');
+  return '';
+}
+
+function slotName(slot) {
+  const key = `piv.slot.${slot}`;
+  const name = STRINGS[LANG][key] || STRINGS.en[key];
+  return name ? `${name} (${slot.toUpperCase()})` : t('piv.slot.retired', { slot: slot.toUpperCase() });
+}
+
+function renderPiv() {
+  const el = $('piv-content');
+  if (!el) return;
+  const st = pivState;
+  if (!st) {
+    el.innerHTML = `<div class="callout"><div class="loading"><span class="spinner"></span>${escHtml(t('mg.loading'))}</div></div>`;
+    return;
+  }
+  if (st.error) {
+    el.innerHTML = `<div class="callout crit"><div class="callout-text">${escHtml(st.error)}</div>
+      <button type="button" class="btn-link" data-act="reload">${escHtml(t('pin.retry'))}</button></div>`;
+    return;
+  }
+  const parts = [];
+  if (pivForm) parts.push(pivFormHtml(st));
+  else if (pivError) parts.push(`<p class="field-error">${escHtml(pivError)}</p>`);
+  const warn = [];
+  if (st.pin.default) warn.push(t('piv.warn.pin'));
+  if (st.pin.puk_default) warn.push(t('piv.warn.puk'));
+  if (st.management_key.default) warn.push(t('piv.warn.mgmt'));
+  if (warn.length) parts.push(`<div class="callout warn"><div class="callout-title">${escHtml(t('piv.warn.title'))}</div>
+    <ul class="callout-list">${warn.map(w => `<li>${escHtml(w)}</li>`).join('')}</ul></div>`);
+  parts.push(`<section class="card"><h2>${escHtml(t('piv.slots'))}</h2>
+    <ul class="pgp-keys">${st.slots.map(s => {
+      const c = s.cert;
+      const k = s.key;
+      const status = c ? (c.expired ? `<span class="pill bad">${escHtml(t('piv.expired'))}</span>` : c.expires_soon ? `<span class="pill warn">${escHtml(t('piv.expiresSoon'))}</span>` : '') : '';
+      return `<li class="pgp-key${c || k ? '' : ' empty'}">
+        <div class="pgp-key-head"><span class="pgp-slot">${escHtml(slotName(s.slot))}</span>
+          ${c ? `<span class="pill">${escHtml(c.algorithm)}</span>` : k ? `<span class="pill">${escHtml(k.type)}</span>` : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}
+          ${status}</div>
+        ${c ? `<div class="piv-subject">${escHtml(c.subject)}</div>
+          <div class="muted pgp-meta">${escHtml([c.self_signed ? t('piv.selfSigned') : t('piv.issuer', { name: c.issuer }),
+            t('piv.validUntil', { date: new Date(c.not_after).toLocaleDateString(LANG) })].join(' · '))}</div>` : ''}
+        ${k ? `<div class="muted pgp-meta">${escHtml([t(k.generated ? 'pgp.origin.generated' : 'pgp.origin.imported'),
+            `${t('piv.gen.pinPolicy')}: ${t(`piv.policy.${k.pin_policy}`) || k.pin_policy}`,
+            `${t('piv.gen.touchPolicy')}: ${t(`piv.touch.${k.touch_policy}`) || k.touch_policy}`].join(' · '))}</div>` : ''}
+        <div class="piv-actions">
+          <button type="button" class="btn-link" data-act="form" data-form="gen:${s.slot}">${escHtml(t('piv.gen.short'))}</button>
+          <button type="button" class="btn-link" data-act="form" data-form="import:${s.slot}">${escHtml(t('piv.import.short'))}</button>
+          ${c ? `<button type="button" class="btn-link" data-act="export" data-slot="${s.slot}">${escHtml(t('piv.export'))}</button>` : ''}
+          ${c || k ? `<button type="button" class="btn-link danger-link" data-act="form" data-form="delete:${s.slot}">${escHtml(t('pk.delete.do'))}</button>` : ''}
+        </div>
+      </li>`;
+    }).join('')}</ul>
+    <p class="field-hint">${escHtml(t('piv.hint'))}</p></section>`);
+  const tries = n => n == null ? '–' : `<span class="${n === 0 ? 'bad-text' : n < 3 ? 'warn-text' : ''}">${escHtml(t('pgp.tries', { n }))}</span>`;
+  parts.push(`<section class="card"><h2>${escHtml(t('pgp.pins'))}</h2>
+    <dl class="kv"><dt>${escHtml(t('piv.pin'))}</dt><dd>${tries(st.pin.attempts)}</dd>
+      ${st.pin.puk_attempts != null ? `<dt>${escHtml(t('piv.puk'))}</dt><dd>${tries(st.pin.puk_attempts)}</dd>` : ''}</dl>
+    <p class="field-hint">${escHtml(t('piv.defaults'))}</p>
+    <div class="form-actions att-actions">
+      <button type="button" class="btn btn-secondary" data-act="form" data-form="pin">${escHtml(t('piv.pin.change'))}</button>
+      <button type="button" class="btn btn-secondary" data-act="form" data-form="puk">${escHtml(t('piv.puk.change'))}</button>
+      <button type="button" class="btn btn-secondary" data-act="form" data-form="unblock">${escHtml(t('pgp.unblock'))}</button>
+    </div></section>`);
+  const m = st.management_key;
+  parts.push(`<section class="card"><h2>${escHtml(t('piv.mgmt.title'))}</h2>
+    <p class="card-text">${escHtml(t(m.protected ? 'piv.mgmt.protected' : m.default ? 'piv.mgmt.default' : m.default === false ? 'piv.mgmt.custom' : 'piv.mgmt.unknown'))}</p>
+    ${m.protected ? '' : `<div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="form" data-form="protect">${escHtml(t('piv.mgmt.protect'))}</button></div>`}
+  </section>`);
+  parts.push(`<section class="card danger-card"><h2>${escHtml(t('piv.reset.title'))}</h2>
+    <p class="card-text">${escHtml(t('piv.reset.text'))}</p>
+    <div class="form-actions att-actions">${pivConfirmReset
+      ? `<button type="button" class="btn btn-secondary" data-act="reset-cancel">${escHtml(t('pk.delete.cancel'))}</button>
+         <button type="button" class="btn btn-danger" data-act="reset">${escHtml(t('piv.reset.do'))}</button>`
+      : `<button type="button" class="btn btn-secondary" data-act="reset-ask">${escHtml(t('piv.reset.do'))}</button>`}</div>
+  </section>`);
+  el.innerHTML = parts.join('');
+  el.querySelector('.app-form input, .app-form textarea')?.focus();
+}
+
+async function loadPiv(token) {
+  pivState = null; pivError = null; pivForm = null; pivConfirmReset = false;
+  renderPiv();
+  try {
+    const st = await call('piv', { token_id: token.id });
+    if (selectedId !== token.id) return;
+    pivState = st;
+  } catch (e) {
+    if (selectedId !== token.id) return;
+    pivState = { error: isBusy(e) ? t('err.busy') : errorMessage(e) };
+  }
+  renderPiv();
+}
+
+async function pivCall(method, args, doneKey) {
+  const token = tokens.get(selectedId);
+  if (!token) return;
+  pivError = null;
+  const busy = $('piv-content').querySelector('.app-form button[type=submit]');
+  if (busy) { busy.disabled = true; busy.innerHTML = `<span class="spinner"></span>${escHtml(t('piv.working'))}`; }
+  try {
+    pivState = await call(method, { token_id: token.id, ...args });
+    pivForm = null; pivConfirmReset = false;
+    showToast(t(doneKey), 'success');
+  } catch (e) {
+    pivError = wrongSecretMessage(e);
+    try { pivState = await call('piv', { token_id: token.id }); } catch { /* keep old */ }
+  }
+  renderPiv();
+}
+
+function initPivPane() {
+  const el = $('piv-content');
+  el.addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act;
+    const token = tokens.get(selectedId);
+    if (act === 'reload' && token) return loadPiv(token);
+    if (act === 'form') { pivForm = b.dataset.form; pivError = null; return renderPiv(); }
+    if (act === 'hide-form') { pivForm = null; pivError = null; return renderPiv(); }
+    if (act === 'reset-ask') { pivConfirmReset = true; return renderPiv(); }
+    if (act === 'reset-cancel') { pivConfirmReset = false; return renderPiv(); }
+    if (act === 'reset') return pivCall('piv_reset', { confirm: true }, 'piv.reset.done');
+    if (act === 'export' && token) {
+      try { const res = await call('piv_export', { token_id: token.id, slot: b.dataset.slot }); copyText(res.pem); }
+      catch (e) { showToast(errorMessage(e), 'error'); }
+    }
+  });
+  el.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+    const [kind, slot] = (f.dataset.form || '').split(':');
+    const auth = { pin: val('piv-pin') || null, management_key: val('piv-mgmt') || null };
+    if (['pin', 'puk', 'unblock'].includes(kind) && val('piv-new') !== val('piv-confirm')) {
+      pivError = t('pin.v.mismatch'); return renderPiv();
+    }
+    if (kind === 'pin' || kind === 'puk') return pivCall('piv_change_pin', { which: kind, current: val('piv-current'), new: val('piv-new') }, 'pgp.saved');
+    if (kind === 'unblock') return pivCall('piv_unblock_pin', { puk: val('piv-puk'), new_pin: val('piv-new') }, 'pgp.saved');
+    if (kind === 'protect') return pivCall('piv_protect_management_key', { pin: val('piv-pin'), management_key: auth.management_key }, 'pgp.saved');
+    if (kind === 'gen') {
+      return pivCall('piv_generate', { slot, key_type: val('piv-type'), subject: val('piv-subject'), days: Number(val('piv-days')) || 365,
+        pin: val('piv-pin'), management_key: auth.management_key, pin_policy: val('piv-pinpol'), touch_policy: val('piv-touchpol') }, 'piv.gen.done');
+    }
+    if (kind === 'import') return pivCall('piv_import', { slot, pem: val('piv-pem'), ...auth }, 'piv.import.done');
+    if (kind === 'delete') return pivCall('piv_delete', { slot, key: !!f.querySelector('.piv-delkey')?.checked, ...auth }, 'piv.deleted');
+  });
+}
+
+// ── OTP tab (YubiKey slots) ─────────────────────────────────────────────────
+
+let otpState = null;
+let otpForm = null;        // 'static:<n>' | 'hmac:<n>' | 'delete:<n>'
+let otpError = null;
+let otpSecret = null;      // challenge-response secret to show once
+
+function renderOtp() {
+  const el = $('otp-content');
+  if (!el) return;
+  const st = otpState;
+  if (!st) {
+    el.innerHTML = `<div class="callout"><div class="loading"><span class="spinner"></span>${escHtml(t('mg.loading'))}</div></div>`;
+    return;
+  }
+  if (st.error) {
+    el.innerHTML = `<div class="callout ${st.code === 'otp_permission' ? 'warn' : 'crit'}">
+      <div class="callout-title">${escHtml(t(st.code === 'otp_permission' ? 'otp.perm.title' : 'otp.error'))}</div>
+      <div class="callout-text">${escHtml(st.code === 'otp_permission' ? t('otp.perm.text') : st.error)}</div>
+      <div class="form-actions att-actions">
+        ${st.code === 'otp_permission' ? `<button type="button" class="btn btn-secondary" data-act="privacy">${escHtml(t('otp.perm.open'))}</button>` : ''}
+        <button type="button" class="btn-link" data-act="reload">${escHtml(t('pin.retry'))}</button></div></div>`;
+    return;
+  }
+  const access = `<details class="otp-access"><summary>${escHtml(t('otp.access'))}</summary>${fieldHtml('otp-acc', t('otp.accessCode'), 'password', '', 'placeholder="000000000000"')}</details>`;
+  const parts = [];
+  if (otpSecret) {
+    parts.push(`<div class="callout warn"><div class="callout-title">${escHtml(t('otp.secret.title'))}</div>
+      <div class="callout-text">${escHtml(t('otp.secret.text'))}</div>
+      <div class="pgp-fp">${escHtml(otpSecret.match(/.{1,4}/g).join(' '))}</div>
+      <div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="copy-secret">${escHtml(t('otp.secret.copy'))}</button>
+        <button type="button" class="btn btn-primary" data-act="secret-done">${escHtml(t('otp.secret.done'))}</button></div></div>`);
+  }
+  const [kind, n] = (otpForm || '').split(':');
+  if (kind === 'static') parts.push(formCardHtml(otpForm, t('otp.static.title', { slot: t(`otp.slot${n}`) }), t('otp.static.text'),
+    fieldHtml('otp-pw', t('otp.static.password'), 'password', '', 'maxlength="38"') + access, otpError));
+  if (kind === 'hmac') parts.push(formCardHtml(otpForm, t('otp.hmac.title', { slot: t(`otp.slot${n}`) }), t('otp.hmac.text'),
+    fieldHtml('otp-secret', t('otp.hmac.secret'), 'text', '', `placeholder="${escHtml(t('otp.hmac.random'))}"`) +
+    `<label class="check"><input type="checkbox" class="otp-touch" checked><span>${escHtml(t('oath.requireTouch'))}</span></label>` + access, otpError));
+  if (kind === 'delete') parts.push(formCardHtml(otpForm, t('otp.delete.title', { slot: t(`otp.slot${n}`) }),
+    t(n === '1' ? 'otp.delete.text1' : 'otp.delete.text'), access, otpError, 'pk.delete.do'));
+  if (!otpForm && otpError) parts.push(`<p class="field-error">${escHtml(otpError)}</p>`);
+  parts.push(`<section class="card"><h2>${escHtml(t('otp.slots'))}</h2><p class="card-text">${escHtml(t('otp.intro'))}</p>
+    <ul class="pgp-keys">${st.slots.map(s => `<li class="pgp-key${s.configured ? '' : ' empty'}">
+      <div class="pgp-key-head"><span class="pgp-slot">${escHtml(t(`otp.slot${s.slot}`))}</span>
+        ${s.configured ? `<span class="pill on">${escHtml(t('otp.configured'))}</span>${s.touch === false ? `<span class="muted">${escHtml(t('otp.noTouch'))}</span>` : ''}`
+          : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}</div>
+      <div class="piv-actions">
+        <button type="button" class="btn-link" data-act="form" data-form="static:${s.slot}">${escHtml(t('otp.static.short'))}</button>
+        <button type="button" class="btn-link" data-act="form" data-form="hmac:${s.slot}">${escHtml(t('otp.hmac.short'))}</button>
+        ${s.configured ? `<button type="button" class="btn-link danger-link" data-act="form" data-form="delete:${s.slot}">${escHtml(t('pk.delete.do'))}</button>` : ''}
+      </div></li>`).join('')}</ul>
+    <div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="swap">${escHtml(t('otp.swap'))}</button></div>
+    <p class="field-hint">${escHtml(t('otp.hint'))}</p></section>`);
+  el.innerHTML = parts.join('');
+  el.querySelector('.app-form input')?.focus();
+}
+
+async function loadOtp(token) {
+  otpState = null; otpError = null; otpForm = null;
+  renderOtp();
+  try {
+    const st = await call('otp', { token_id: token.id });
+    if (selectedId !== token.id) return;
+    otpState = st;
+  } catch (e) {
+    if (selectedId !== token.id) return;
+    otpState = { error: isBusy(e) ? t('err.busy') : errorMessage(e), code: e.data?.code };
+  }
+  renderOtp();
+}
+
+async function otpCall(method, args, doneKey) {
+  const token = tokens.get(selectedId);
+  if (!token) return;
+  otpError = null;
+  try {
+    const st = await call(method, { token_id: token.id, ...args });
+    if (st.secret) otpSecret = st.secret;
+    otpState = st; otpForm = null;
+    showToast(t(doneKey), 'success');
+  } catch (e) {
+    otpError = errorMessage(e);
+  }
+  renderOtp();
+}
+
+function initOtpPane() {
+  const el = $('otp-content');
+  el.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act;
+    const token = tokens.get(selectedId);
+    if (act === 'reload' && token) return loadOtp(token);
+    if (act === 'privacy') return call('open_privacy_settings', {}).catch(() => {});
+    if (act === 'form') { otpForm = b.dataset.form; otpError = null; return renderOtp(); }
+    if (act === 'hide-form') { otpForm = null; otpError = null; return renderOtp(); }
+    if (act === 'swap') return otpCall('otp_swap', {}, 'otp.swapped');
+    if (act === 'copy-secret') return copyText(otpSecret);
+    if (act === 'secret-done') { otpSecret = null; return renderOtp(); }
+  });
+  el.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+    const [kind, n] = (f.dataset.form || '').split(':');
+    const access_code = val('otp-acc').trim() || null;
+    const slot = Number(n);
+    if (kind === 'static') return otpCall('otp_static', { slot, password: val('otp-pw'), access_code }, 'otp.programmed');
+    if (kind === 'hmac') return otpCall('otp_hmac', { slot, secret: val('otp-secret').trim() || null, touch: f.querySelector('.otp-touch').checked, access_code }, 'otp.programmed');
+    if (kind === 'delete') return otpCall('otp_delete', { slot, access_code }, 'otp.deleted');
+  });
+}
+
+// ── Applications per USB/NFC (YubiKey, settings tab) ────────────────────────
+
+let ifState = null;
+
+function renderInterfaces() {
+  const el = $('if-content');
+  if (!el) return;
+  const token = currentToken();
+  if (!token || token.offline || !cardApps.get(token.id)?.interfaces) { el.innerHTML = ''; return; }
+  const st = ifState;
+  if (!st || st.error) {
+    el.innerHTML = st?.error ? `<div class="callout"><div class="callout-text">${escHtml(st.error)}</div></div>` : '';
+    return;
+  }
+  el.innerHTML = `<section class="card"><h2>${escHtml(t('if.title'))}</h2>
+    <p class="card-text">${escHtml(t(st.locked ? 'if.locked' : 'if.text'))}</p>
+    ${Object.entries(st.transports).map(([tr, apps]) => `<form class="if-form" data-transport="${tr}">
+      <h3 class="if-head">${escHtml(t(`if.${tr}`))}</h3>
+      <div class="if-grid">${Object.entries(apps).map(([app, on]) => {
+        const locked = st.locked || (tr === 'usb' && app === 'FIDO2');
+        return `<label class="check"><input type="checkbox" data-app="${app}" ${on ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+          <span>${escHtml(t(`if.app.${app}`))}</span></label>`;
+      }).join('')}</div>
+      ${st.locked ? '' : `<div class="form-actions att-actions"><button type="submit" class="btn btn-secondary">${escHtml(t('if.apply'))}</button></div>`}
+    </form>`).join('')}
+    <p class="field-hint">${escHtml(t('if.hint'))}</p>
+  </section>`;
+}
+
+async function loadInterfaces(token) {
+  ifState = null;
+  renderInterfaces();
+  if (!cardApps.get(token.id)?.interfaces) return;
+  try {
+    ifState = await call('interfaces', { token_id: token.id });
+  } catch (e) {
+    ifState = { error: errorMessage(e) };
+  }
+  if (selectedId === token.id) renderInterfaces();
+}
+
+function initInterfacesPane() {
+  $('if-content').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const token = tokens.get(selectedId);
+    if (!token) return;
+    const apps = {};
+    f.querySelectorAll('input[data-app]:not(:disabled)').forEach(i => { apps[i.dataset.app] = i.checked; });
+    try {
+      await call('interfaces_set', { token_id: token.id, transport: f.dataset.transport, apps });
+      showToast(t('if.restarting'), 'success');
+    } catch (e) {
+      showToast(errorMessage(e), 'error');
+    }
+  });
+}
+
 // ── Settings tab / key configuration ────────────────────────────────────────
 
 let cfgState = null;
@@ -2455,6 +2907,9 @@ function init() {
   $('rs-ov-primary').addEventListener('click', () => closeReset(true));
   initOathPane();
   initPgpPane();
+  initPivPane();
+  initOtpPane();
+  initInterfacesPane();
   initManagementPane('pk-content', passkeyAction);
   initManagementPane('fp-content', fingerprintAction);
   initManagementPane('cfg-content', configAction);

@@ -62,6 +62,10 @@ ALLOWED = {
     "oath_password", "oath_reset",
     "openpgp", "openpgp_change_pin", "openpgp_unblock_pin", "openpgp_touch", "openpgp_signature_pin",
     "openpgp_cardholder", "openpgp_reset",
+    "piv", "piv_change_pin", "piv_unblock_pin", "piv_generate", "piv_import", "piv_export", "piv_delete",
+    "piv_protect_management_key", "piv_reset",
+    "otp", "otp_swap", "otp_delete", "otp_static", "otp_hmac", "interfaces", "interfaces_set",
+    "open_privacy_settings",
     "export_all",
 }
 

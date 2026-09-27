@@ -97,6 +97,8 @@
           <button type="button" class="tab" data-tab="fingerprints" role="tab" data-i18n="tab.fingerprints"></button>
           <button type="button" class="tab hidden" data-tab="oath" role="tab" data-i18n="tab.oath"></button>
           <button type="button" class="tab hidden" data-tab="openpgp" role="tab" data-i18n="tab.openpgp"></button>
+          <button type="button" class="tab hidden" data-tab="piv" role="tab" data-i18n="tab.piv"></button>
+          <button type="button" class="tab hidden" data-tab="otp" role="tab" data-i18n="tab.otp"></button>
           <button type="button" class="tab" data-tab="history" role="tab" data-i18n="tab.history"></button>
           <button type="button" class="tab" data-tab="security" role="tab" data-i18n="tab.security"></button>
           <button type="button" class="tab" data-tab="settings" role="tab" data-i18n="tab.settings"></button>
@@ -165,6 +167,20 @@
             </div>
           </div>
 
+          <!-- PIV -->
+          <div class="tab-pane hidden" data-pane="piv">
+            <div class="pane-narrow">
+              <div id="piv-content" class="pane-stack"></div>
+            </div>
+          </div>
+
+          <!-- OTP slots -->
+          <div class="tab-pane hidden" data-pane="otp">
+            <div class="pane-narrow">
+              <div id="otp-content" class="pane-stack"></div>
+            </div>
+          </div>
+
           <!-- Fingerprints -->
           <div class="tab-pane hidden" data-pane="fingerprints">
             <div class="pane-narrow">
@@ -209,6 +225,7 @@
           <div class="tab-pane hidden" data-pane="settings">
             <div class="pane-narrow">
               <div id="cfg-content" class="pane-stack"></div>
+              <div id="if-content" class="pane-stack"></div>
               <section class="card danger-card">
                 <h2 data-i18n="rs.title"></h2>
                 <p class="card-text" data-i18n="rs.text"></p>

@@ -8,7 +8,7 @@ KeyMelier is a desktop app (macOS + Windows) that **checks, rates and keeps trac
 - **What is on which key – and what if one is lost?** KeyMelier remembers every key it has seen and what was on it, shows which accounts exist on only one key, and walks you through a lost key.
 - **Does it actually work?** A function test registers, signs in and verifies a signature like a real website, without storing anything on the key.
 
-And of course it manages the key: PIN, passkeys, fingerprints, key settings and factory reset.
+And it manages everything on the key: PIN, passkeys, fingerprints and key settings – plus authenticator codes (OATH), OpenPGP, PIV certificates, YubiKey OTP slots and which applications are enabled over USB/NFC.
 
 ## What makes it different
 
@@ -20,6 +20,7 @@ And of course it manages the key: PIN, passkeys, fingerprints, key settings and 
 | Remembers keys and what was on them; backup overview across keys | ✓ | – | – |
 | Lost-key assistant | ✓ | – | – |
 | PIN, passkeys, fingerprints, reset | ✓ | ✓ | ✓ |
+| Authenticator codes, OpenPGP, PIV, OTP slots | ✓ | – | ✓ (own keys) |
 
 ## Features
 
@@ -28,12 +29,17 @@ And of course it manages the key: PIN, passkeys, fingerprints, key settings and 
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
 - **Passkeys:** list discoverable credentials per website, rename and delete them
-- **Backup & loss:** which websites are on which key, sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
+- **Backup & loss:** which websites and authenticator accounts are on which key, those without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from, the authenticator accounts to re-enroll, the OpenPGP keys to revoke and the PIV certificates to have revoked
 - **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
+- **Authenticator (OATH):** TOTP/HOTP codes with countdown and copy, add via `otpauth://` link or by hand, rename, delete, password, reset
+- **OpenPGP:** keys per slot with fingerprint and algorithm, signature counter, cardholder data, PIN/admin PIN (change, unblock, retries), signature PIN policy, touch policies, reset – YubiKey and other OpenPGP cards (e.g. Token2)
+- **PIV:** certificates per slot with validity, generate a key with a self-signed certificate, import/copy/delete certificates, PIN/PUK, protect the management key with the PIN, warnings for factory defaults, reset
+- **YubiKey OTP slots:** see which slots are used, static password, HMAC-SHA1 challenge-response (e.g. KeePassXC), swap, delete. On macOS this needs the "Input Monitoring" permission for KeyMelier
+- **Applications per USB/NFC** (YubiKey): turn off what you don't use
 - **Factory reset:** guided flow (re-plug, touch)
-- **History:** keys seen before stay in the sidebar with their last known state, a custom name and an activity timeline
+- **History:** keys seen before stay in the sidebar with their last known state, serial number, AAGUID, a custom name, what was on them and an activity timeline
 - **Languages:** 11 languages following the OS (de, en, es, fr, it, nl, pl, pt, ja, ko, zh), light and dark mode
 - **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
 - Explicit CSV export of connected keys to `~/keymelier/exports/`

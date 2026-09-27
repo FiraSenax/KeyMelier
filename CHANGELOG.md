@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-09-27
 
 - **Authenticator (OATH):** show TOTP/HOTP codes with countdown and one-click copy, add accounts from an otpauth:// link or by hand, rename, delete, set/remove the password, reset. Touch-protected accounts show their code after touching the key.
 - **OpenPGP:** keys per slot (algorithm, fingerprint, creation date, generated/imported), signature counter, cardholder name and URL, PIN/admin PIN retries, change PIN/admin PIN, unblock PIN, signature PIN policy, touch policies (YubiKey), reset. Works with YubiKeys and other OpenPGP cards such as Token2.
 - **What's on it:** the history remembers per key which passkey websites, authenticator accounts and OpenPGP keys it held (names only, never secrets) and when they were last read – on by default.
+- **PIV:** certificates per slot with validity and expiry warnings, generate a key with a self-signed certificate, import, copy and delete certificates, change PIN/PUK, unblock the PIN, protect the management key with the PIN, warnings for factory defaults, reset.
+- **YubiKey OTP slots:** which slots are used, static password, HMAC-SHA1 challenge-response (secret shown once for a backup key), swap, delete. On macOS KeyMelier asks for the Input Monitoring permission.
+- **Applications per USB/NFC** for YubiKeys (FIDO2 over USB stays on so KeyMelier can always find the key again).
+- Backup check and lost-key assistant include authenticator accounts, OpenPGP keys and PIV certificates.
 - History shows the serial number and AAGUID of every key.
 - Tabs for smart card applications only appear when the key offers them; while a key's smart card interface is in use, FIDO polling pauses for that key (fixes spurious errors on Token2).
 

@@ -18,6 +18,8 @@ from fido2tool_core import fingerprints as fingerprints_mod
 from fido2tool_core import key_config
 from fido2tool_core import oath_app
 from fido2tool_core import openpgp_app
+from fido2tool_core import piv_app
+from fido2tool_core import yubikey_apps
 from fido2tool_core.cards import Cards, CardError
 from fido2tool_core import passkeys as passkeys_mod
 from fido2tool_core import pin as pin_mod
@@ -63,6 +65,10 @@ def system_languages() -> list[str]:
     return langs
 
 
+def _is_yubikey(record) -> bool:
+    return record.vendor_id == 0x1050 or "yubi" in (record.product_name or "").lower()
+
+
 class KeyService:
     def __init__(self, scanner, exporter, mds3_client=None, history: History | None = None,
                  advisories=None):
@@ -72,6 +78,7 @@ class KeyService:
         self._cards = Cards()
         self._reader_tokens: dict[str, str] = {}  # PC/SC reader -> FIDO token id
         self._cards.hold = self._hold_reader
+        self._otp_lock = threading.Lock()
         self._app_update = None
         self._exporter = exporter
         self._mds3 = mds3_client
@@ -451,8 +458,13 @@ class KeyService:
     def card_apps(self, token_id: str) -> dict:
         """Which non-FIDO applications (OATH, PIV, OpenPGP) the key offers."""
         try:
-            _record, reader = self._card(token_id)
-            return {"reader": True, "apps": self._cards.applets(reader)}
+            record, reader = self._card(token_id)
+            apps = self._cards.applets(reader)
+            if _is_yubikey(record):
+                # OTP lives on the keyboard interface, not the smart card
+                apps["otp"] = True
+                apps["interfaces"] = True
+            return {"reader": True, "apps": apps}
         except CardError as e:
             return {"reader": e.code not in ("no_card", "not_found"), "apps": {}, "code": e.code}
 
@@ -566,6 +578,142 @@ class KeyService:
         if confirm is not True:
             raise CardError("Please confirm the reset.", "invalid_input")
         return self._openpgp_do(token_id, openpgp_app.reset, event="pgp_reset")
+
+    # ── PIV ──────────────────────────────────────────────────────────────────
+
+    def piv(self, token_id: str) -> dict:
+        record, reader = self._card(token_id)
+        data = self._cards.read(reader, piv_app.info)
+        self._remember_inventory(record, "piv", [
+            {"slot": s["slot"], "label": f'{s["slot"].upper()}: {s["cert"]["subject"]}'}
+            for s in data["slots"] if s["cert"]])
+        return data
+
+    def _piv_do(self, token_id, fn, *args, event=None, detail=None, **kwargs):
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            result = fn(conn, *args, **kwargs)
+        if event:
+            self._log(record, event, **(detail or {}))
+        return result
+
+    def piv_change_pin(self, token_id: str, which: str, current: str, new: str) -> dict:
+        which = "puk" if which == "puk" else "pin"
+        self._piv_do(token_id, piv_app.change_pin, which, current, new, event=f"piv_{which}_changed")
+        return self.piv(token_id)
+
+    def piv_unblock_pin(self, token_id: str, puk: str, new_pin: str) -> dict:
+        self._piv_do(token_id, piv_app.unblock_pin, puk, new_pin, event="piv_pin_unblocked")
+        return self.piv(token_id)
+
+    def piv_generate(self, token_id: str, slot: str, key_type: str, subject: str, days: int, pin: str,
+                     management_key: str | None = None, pin_policy: str = "default",
+                     touch_policy: str = "default") -> dict:
+        self._piv_do(token_id, piv_app.generate, slot, key_type, subject, days, pin, management_key,
+                     pin_policy, touch_policy, event="piv_generated", detail={"slot": slot})
+        return self.piv(token_id)
+
+    def piv_import(self, token_id: str, slot: str, pem: str, pin: str | None = None,
+                   management_key: str | None = None) -> dict:
+        self._piv_do(token_id, piv_app.import_certificate, slot, pem, pin, management_key,
+                     event="piv_imported", detail={"slot": slot})
+        return self.piv(token_id)
+
+    def piv_export(self, token_id: str, slot: str) -> dict:
+        return {"pem": self._piv_do(token_id, piv_app.export_certificate, slot)}
+
+    def piv_delete(self, token_id: str, slot: str, pin: str | None = None,
+                   management_key: str | None = None, key: bool = False) -> dict:
+        self._piv_do(token_id, piv_app.delete, slot, pin, management_key, key is True,
+                     event="piv_deleted", detail={"slot": slot})
+        return self.piv(token_id)
+
+    def piv_protect_management_key(self, token_id: str, pin: str, management_key: str | None = None) -> dict:
+        self._piv_do(token_id, piv_app.protect_management_key, pin, management_key, event="piv_mgmt_protected")
+        return self.piv(token_id)
+
+    def piv_reset(self, token_id: str, confirm: bool = False) -> dict:
+        if confirm is not True:
+            raise CardError("Please confirm the reset.", "invalid_input")
+        self._piv_do(token_id, piv_app.reset, event="piv_reset")
+        return self.piv(token_id)
+
+    # ── YubiKey OTP slots and interfaces ─────────────────────────────────────
+
+    def _yubikey(self, token_id):
+        record = self._scanner.get(token_id)
+        if not _is_yubikey(record):
+            raise CardError("Only available for YubiKeys.", "unsupported")
+        return record
+
+    @contextmanager
+    def _otp_hold(self, token_id):
+        """Pause FIDO polling: the YubiKey answers only one interface at a time."""
+        try:
+            with self._scanner.hold(token_id):
+                yield
+        except DeviceBusy:
+            raise CardError("The key is busy. Try again in a moment.", "busy", status=409) from None
+
+    def otp(self, token_id: str) -> dict:
+        record = self._yubikey(token_id)
+        with self._otp_lock, self._otp_hold(token_id):
+            data = yubikey_apps.otp_status(record.serial_number)
+        data["input_monitoring"] = yubikey_apps.platform_needs_input_monitoring()
+        self._remember_inventory(record, "otp", [
+            {"otp_slot": s["slot"]} for s in data["slots"] if s["configured"]])
+        return data
+
+    def otp_swap(self, token_id: str) -> dict:
+        record = self._yubikey(token_id)
+        with self._otp_lock, self._otp_hold(token_id):
+            yubikey_apps.otp_swap(record.serial_number)
+        self._log(record, "otp_swapped")
+        return self.otp(token_id)
+
+    def otp_delete(self, token_id: str, slot: int, access_code: str | None = None) -> dict:
+        record = self._yubikey(token_id)
+        with self._otp_lock, self._otp_hold(token_id):
+            yubikey_apps.otp_delete(record.serial_number, int(slot), access_code)
+        self._log(record, "otp_deleted", slot=int(slot))
+        return self.otp(token_id)
+
+    def otp_static(self, token_id: str, slot: int, password: str, access_code: str | None = None) -> dict:
+        record = self._yubikey(token_id)
+        with self._otp_lock, self._otp_hold(token_id):
+            yubikey_apps.otp_static_password(record.serial_number, int(slot), password, access_code)
+        self._log(record, "otp_programmed", slot=int(slot))
+        return self.otp(token_id)
+
+    def otp_hmac(self, token_id: str, slot: int, secret: str | None = None, touch: bool = False,
+                 access_code: str | None = None) -> dict:
+        record = self._yubikey(token_id)
+        with self._otp_lock, self._otp_hold(token_id):
+            key = yubikey_apps.otp_challenge_response(record.serial_number, int(slot), secret,
+                                                     touch is True, access_code)
+        self._log(record, "otp_programmed", slot=int(slot))
+        return {**self.otp(token_id), "secret": key}
+
+    def open_privacy_settings(self) -> dict:
+        """macOS: open Privacy & Security › Input Monitoring (for the OTP slots)."""
+        import subprocess
+        import sys
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"])
+        return {}
+
+    def interfaces(self, token_id: str) -> dict:
+        self._yubikey(token_id)
+        _record, reader = self._card(token_id)
+        return self._cards.read(reader, yubikey_apps.interfaces)
+
+    def interfaces_set(self, token_id: str, transport: str, apps: dict) -> dict:
+        record = self._yubikey(token_id)
+        _record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            yubikey_apps.set_interfaces(conn, transport, apps)
+        self._log(record, "interfaces_changed", transport=str(transport))
+        return {"restarting": True}
 
     # ── Key settings (authenticatorConfig) ───────────────────────────────────
 
