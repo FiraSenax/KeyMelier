@@ -418,6 +418,11 @@ function renderBackupView() {
       <span>${escHtml(t('privacy.history'))}</span>
     </label>
     <p class="field-hint bk-hint">${escHtml(t('privacy.hint'))}</p>
+    <div class="form-actions att-actions">
+      <button type="button" class="btn btn-secondary" data-act="hist-export" ${historyKeys.size ? '' : 'disabled'}>${escHtml(t('histx.export'))}</button>
+      <button type="button" class="btn btn-secondary" data-act="hist-import">${escHtml(t('histx.import'))}</button>
+    </div>
+    <p class="field-hint bk-hint">${escHtml(t('histx.hint'))}</p>
   </section>`);
 
   // Coverage matrix: websites x keys
@@ -593,7 +598,33 @@ function renderTiles(token) {
   $('tiles').innerHTML = tiles.join('');
 }
 
+// ── Quantum readiness ───────────────────────────────────────────────────────
+
+// COSE algorithm IDs (IANA); ML-DSA per RFC 9964
+const COSE_ALGS = { '-7': 'ES256', '-8': 'EdDSA', '-19': 'Ed25519', '-35': 'ES384', '-36': 'ES512', '-257': 'RS256',
+  '-47': 'ES256K', '-48': 'ML-DSA-44', '-49': 'ML-DSA-65', '-50': 'ML-DSA-87' };
+const PQ_ALGS = new Set([-48, -49, -50]);
+
+function renderQuantum(token) {
+  const el = $('pq-card');
+  if (!el) return;
+  const algs = token.algorithms || [];
+  const pq = algs.filter(a => PQ_ALGS.has(a));
+  const names = algs.map(a => COSE_ALGS[a] || `COSE ${a}`).join(', ') || '—';
+  const card = cardApps.get(token.id) || {};
+  const encApps = ['openpgp', 'piv'].filter(a => card[a]).map(a => t(`hist.contents.${a}`));
+  el.innerHTML = `<h2>${escHtml(t('pq.title'))}</h2>
+    <div class="att-summary ${pq.length ? 'pass' : 'partial'}">${escHtml(pq.length
+      ? t('pq.fido.yes', { algs: pq.map(a => COSE_ALGS[a]).join(', ') })
+      : t('pq.fido.no'))}</div>
+    <dl class="kv">${buildKv([[t('pq.algorithms'), names]])}</dl>
+    <p class="card-text">${escHtml(t(pq.length ? 'pq.fido.yesText' : 'pq.fido.noText'))}</p>
+    ${encApps.length ? `<p class="card-text"><strong>${escHtml(encApps.join(', '))}:</strong> ${escHtml(t('pq.enc'))}</p>` : ''}
+    <p class="field-hint">${escHtml(t('pq.watch'))}</p>`;
+}
+
 function renderSecurity(token) {
+  renderQuantum(token);
   const advs = token.advisories?.length ? token.advisories : (token.cve_ids || []).map(id => ({ id }));
   $('sec-advisories').innerHTML = advs.length
     ? advs.map(a => `<div class="advisory">
@@ -995,6 +1026,29 @@ function onHistoryUpdated(summary) {
     if (activeTab === 'history') loadHistoryDetail(summary.key_id);
   } else {
     renderSidebar();
+  }
+}
+
+async function exportHistory() {
+  try {
+    const res = await call('history_export');
+    const path = await window.pywebview.api.save_text(res.filename, res.text, true);
+    if (path) showToast(t('pgp.res.saved', { path }), 'success');
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
+  }
+}
+
+async function importHistory() {
+  const text = await window.pywebview.api.open_text('json');
+  if (!text) return;
+  try {
+    const res = await call('history_import', { text });
+    await loadHistory();
+    render();
+    showToast(t(res.saved ? 'histx.imported' : 'histx.importedSession', { added: res.added, merged: res.merged }), 'success');
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
   }
 }
 
@@ -1805,6 +1859,8 @@ let pgpState = null;
 let pgpForm = null;       // null | 'pin' | 'admin' | 'unblock' | 'holder' | 'sigpin' | 'touch:<slot>'
 let pgpConfirmReset = false;
 let pgpError = null;
+let pgpResult = null;     // freshly generated public key + revocation certificate
+let gpgAvailable = null;
 
 function pgpField(cls, label, type = 'password', value = '', extra = '') {
   return `<label class="field"><span>${escHtml(label)}</span>
@@ -1829,6 +1885,26 @@ function pgpFormHtml(st) {
     pgpField('pgp-url', t('pgp.url'), 'url', st.url, 'maxlength="254" placeholder="https://…"') + admin);
   if (pgpForm === 'sigpin') return wrap(t('pgp.sigpin.title'), t('pgp.sigpin.text'),
     `<label class="check"><input type="checkbox" class="pgp-sigpin" ${st.pin.sign_every_time ? 'checked' : ''}><span>${escHtml(t('pgp.sigpin.every'))}</span></label>` + admin);
+  if (pgpForm === 'generate') {
+    const replacing = st.keys.some(k => k.present);
+    const algos = st.algorithms || ['rsa2048'];
+    return `<form class="card form-card pgp-form" data-form="generate" autocomplete="off">
+      <h2>${escHtml(t('pgp.gen.title'))}</h2>
+      <p class="card-text">${escHtml(t('pgp.gen.text'))}</p>
+      ${replacing ? `<div class="callout crit"><div class="callout-text">${escHtml(t('pgp.gen.replace'))}</div></div>` : ''}
+      <div class="oath-grid">
+        ${pgpField('pgp-gname', t('pgp.gen.name'), 'text', st.name || '', 'maxlength="100"')}
+        ${pgpField('pgp-gemail', t('pgp.gen.email'), 'email', '', 'maxlength="120"')}
+        <label class="field"><span>${escHtml(t('pgp.gen.algorithm'))}</span><select class="pgp-galgo bk-select">
+          ${algos.map(a => `<option value="${a}">${escHtml(t(`pgp.gen.algo.${a}`))}</option>`).join('')}</select></label>
+        <label class="field"><span>${escHtml(t('pgp.gen.validity'))}</span><select class="pgp-gexpire bk-select">
+          ${[[730, 'pgp.gen.years2'], [365, 'pgp.gen.years1'], [1825, 'pgp.gen.years5'], [0, 'pgp.gen.never']].map(([d, k]) => `<option value="${d}">${escHtml(t(k))}</option>`).join('')}</select></label>
+      </div>
+      ${pgpField('pgp-guser', t('pgp.userPin'))}${pgpField('pgp-admin', t('pgp.adminPin'))}
+      ${replacing ? `<label class="check"><input type="checkbox" class="pgp-gconfirm"><span>${escHtml(t('pgp.gen.confirm'))}</span></label>` : ''}
+      ${err}
+      <div class="form-actions">${cancel}<button type="submit" class="btn btn-primary">${escHtml(t('pgp.gen.do'))}</button></div></form>`;
+  }
   if (pgpForm?.startsWith('touch:')) {
     const slot = pgpForm.slice(6);
     const cur = st.keys.find(k => k.slot === slot)?.touch;
@@ -1854,6 +1930,7 @@ function renderPgp() {
     return;
   }
   const parts = [];
+  if (pgpResult) parts.push(pgpResultHtml(pgpResult));
   if (pgpForm) parts.push(pgpFormHtml(st));
   else if (pgpError) parts.push(`<p class="field-error">${escHtml(pgpError)}</p>`);
   const anyKey = st.keys.some(k => k.present);
@@ -1868,6 +1945,7 @@ function renderPgp() {
         <div class="muted pgp-meta">${escHtml([k.created ? t('pgp.created', { date: new Date(k.created).toLocaleDateString(LANG) }) : '',
           k.origin ? t(`pgp.origin.${k.origin}`) : ''].filter(Boolean).join(' · '))}</div>` : ''}
     </li>`).join('')}</ul>
+    <div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="form" data-form="generate">${escHtml(t('pgp.gen.title'))}</button></div>
     <p class="field-hint">${escHtml(t('pgp.gpgHint'))}</p>
   </section>`);
   parts.push(`<section class="card"><h2>${escHtml(t('pgp.card'))}</h2>
@@ -1906,6 +1984,25 @@ function renderPgp() {
   el.querySelector('.pgp-form input')?.focus();
 }
 
+function pgpResultHtml(r) {
+  return `<section class="card pgp-result">
+    <h2>${escHtml(t('pgp.res.title'))}</h2>
+    <p class="card-text">${escHtml(r.user_id)}</p>
+    <div class="pgp-fp">${escHtml(r.fingerprint)}</div>
+    <div class="callout warn"><div class="callout-title">${escHtml(t('pgp.res.revTitle'))}</div>
+      <div class="callout-text">${escHtml(t('pgp.res.revText'))}</div>
+      <div class="form-actions att-actions"><button type="button" class="btn btn-primary" data-act="save-rev">${escHtml(t('pgp.res.saveRev'))}</button></div></div>
+    <p class="card-text">${escHtml(t('pgp.res.pubText'))}</p>
+    <div class="form-actions att-actions">
+      <button type="button" class="btn btn-secondary" data-act="save-pub">${escHtml(t('pgp.res.savePub'))}</button>
+      <button type="button" class="btn btn-secondary" data-act="copy-pub">${escHtml(t('pgp.res.copyPub'))}</button>
+      ${gpgAvailable ? `<button type="button" class="btn btn-secondary" data-act="gpg-import">${escHtml(t('pgp.res.gpgImport'))}</button>` : ''}
+      <button type="button" class="btn-link" data-act="result-done">${escHtml(t('otp.secret.done'))}</button>
+    </div>
+    <p class="field-hint">${escHtml(t(gpgAvailable ? 'pgp.res.hintGpg' : 'pgp.res.hintNoGpg'))}</p>
+  </section>`;
+}
+
 async function loadPgp(token) {
   pgpState = null; pgpError = null; pgpForm = null; pgpConfirmReset = false;
   renderPgp();
@@ -1937,6 +2034,31 @@ async function pgpCall(method, args, doneKey) {
   renderPgp();
 }
 
+async function pgpGenerate(f) {
+  const token = tokens.get(selectedId);
+  if (!token) return;
+  const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+  const confirm = f.querySelector('.pgp-gconfirm');
+  if (confirm && !confirm.checked) { pgpError = t('pgp.gen.confirmNeeded'); return renderPgp(); }
+  pgpError = null;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>${escHtml(t(val('pgp-galgo').startsWith('rsa') ? 'pgp.gen.workingRsa' : 'piv.working'))}`;
+  try {
+    const res = await call('openpgp_generate', { token_id: token.id, algorithm: val('pgp-galgo'), name: val('pgp-gname'),
+      email: val('pgp-gemail'), expire_days: Number(val('pgp-gexpire')), admin_pin: val('pgp-admin'), user_pin: val('pgp-guser') });
+    pgpState = res.state;
+    pgpResult = res;
+    pgpForm = null;
+    if (gpgAvailable === null) gpgAvailable = await window.pywebview.api.gpg_available().catch(() => false);
+    showToast(t('pgp.res.title'), 'success');
+  } catch (e) {
+    pgpError = wrongSecretMessage(e);
+    try { pgpState = await call('openpgp', { token_id: token.id }); } catch { /* keep */ }
+  }
+  renderPgp();
+}
+
 function initPgpPane() {
   const el = $('pgp-content');
   el.addEventListener('click', ev => {
@@ -1951,6 +2073,23 @@ function initPgpPane() {
     if (act === 'reset-ask') { pgpConfirmReset = true; return renderPgp(); }
     if (act === 'reset-cancel') { pgpConfirmReset = false; return renderPgp(); }
     if (act === 'reset') return pgpCall('openpgp_reset', { confirm: true }, 'pgp.reset.done');
+    if (act === 'save-pub' || act === 'save-rev') {
+      const rev = act === 'save-rev';
+      const name = `${pgpResult.filename}${rev ? '-revocation' : ''}.asc`;
+      window.pywebview.api.save_text(name, rev ? pgpResult.revocation : pgpResult.public_key, rev)
+        .then(path => { if (path) showToast(t('pgp.res.saved', { path }), 'success'); });
+      return;
+    }
+    if (act === 'copy-pub') return copyText(pgpResult.public_key);
+    if (act === 'gpg-import') {
+      b.disabled = true;
+      window.pywebview.api.gpg_import(pgpResult.public_key).then(res => {
+        b.disabled = false;
+        showToast(t(res?.ok ? 'pgp.res.gpgDone' : 'pgp.res.gpgFailed'), res?.ok ? 'success' : 'error');
+      });
+      return;
+    }
+    if (act === 'result-done') { pgpResult = null; return renderPgp(); }
   });
   el.addEventListener('submit', ev => {
     ev.preventDefault();
@@ -1966,6 +2105,7 @@ function initPgpPane() {
     if (form === 'unblock') return pgpCall('openpgp_unblock_pin', { admin_pin: val('pgp-admin'), new_pin: val('pgp-new') }, 'pgp.saved');
     if (form === 'holder') return pgpCall('openpgp_cardholder', { name: val('pgp-name'), url: val('pgp-url'), admin_pin: val('pgp-admin') }, 'pgp.saved');
     if (form === 'sigpin') return pgpCall('openpgp_signature_pin', { every_time: f.querySelector('.pgp-sigpin').checked, admin_pin: val('pgp-admin') }, 'pgp.saved');
+    if (form === 'generate') return pgpGenerate(f);
     if (form?.startsWith('touch:')) {
       return pgpCall('openpgp_touch', { slot: form.slice(6), policy: val('pgp-touch'), admin_pin: val('pgp-admin') }, 'pgp.saved');
     }
@@ -2801,6 +2941,7 @@ const EVENT_HANDLERS = {
   reset_progress: p => onResetProgress(p),
   reset_done: p => onResetDone(p),
   history_updated: p => onHistoryUpdated(p),
+  history_reloaded: () => loadHistory().then(render),
   mds_ready: p => { mdsInfo = p; renderMds(); },
   data_status: p => { dataStatus = p; mdsInfo = p.mds; renderMds(); renderDataStatus(); },
   app_update: p => { dataStatus = { ...(dataStatus || {}), app: p }; renderDataStatus(); },
@@ -2870,6 +3011,8 @@ function init() {
   });
   $('backup-content').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-act]');
+    if (b?.dataset.act === 'hist-export') return exportHistory();
+    if (b?.dataset.act === 'hist-import') return importHistory();
     if (!b || !lostKid) return;
     const summary = await call('history_set_lost', { kid: lostKid, lost: b.dataset.act === 'lost' }).catch(() => null);
     if (summary) { historyKeys.set(summary.key_id, summary); render(); }

@@ -51,6 +51,7 @@ class TokenRecord:
     mds_authenticator_version: Optional[int] = None
     mds_icon: Optional[str] = None  # vendor icon from MDS3 (data:image/... URL)
     attestation: Optional[dict] = None  # serialised AttestationResult
+    algorithms: list = field(default_factory=list)  # COSE algorithm IDs from getInfo
 
 
 from fido2tool_core.firmware import decode_firmware as _decode_firmware
@@ -112,6 +113,12 @@ def _apply_info(record: "TokenRecord", info) -> None:
     record.min_pin_length = getattr(info, "min_pin_length", 4) or 4
     record.force_pin_change = bool(getattr(info, "force_pin_change", False))
     record.remaining_disc_creds = getattr(info, "remaining_disc_creds", None)
+    algs = []
+    for entry in getattr(info, "algorithms", None) or []:
+        alg = entry.get("alg") if isinstance(entry, dict) else getattr(entry, "alg", None)
+        if isinstance(alg, int):
+            algs.append(alg)
+    record.algorithms = algs
 
 
 class TokenScanner:

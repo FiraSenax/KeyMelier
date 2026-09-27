@@ -61,17 +61,30 @@ ALLOWED = {
     "card_apps", "oath", "oath_unlock", "oath_code", "oath_add", "oath_rename", "oath_delete",
     "oath_password", "oath_reset",
     "openpgp", "openpgp_change_pin", "openpgp_unblock_pin", "openpgp_touch", "openpgp_signature_pin",
-    "openpgp_cardholder", "openpgp_reset",
+    "openpgp_cardholder", "openpgp_reset", "openpgp_generate",
     "piv", "piv_change_pin", "piv_unblock_pin", "piv_generate", "piv_import", "piv_export", "piv_delete",
     "piv_protect_management_key", "piv_reset",
     "otp", "otp_swap", "otp_delete", "otp_static", "otp_hmac", "interfaces", "interfaces_set",
     "open_privacy_settings",
-    "export_all",
+    "export_all", "history_export", "history_import",
 }
 
 
 # Hosts the UI may open in the external browser (advisory references)
 ALLOWED_LINK_HOSTS = {"github.com", "www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
+
+
+def _gpg():
+    """Path of a GnuPG binary (PATH is minimal when started from Finder)."""
+    import shutil
+    found = shutil.which("gpg") or shutil.which("gpg2")
+    if found:
+        return found
+    for candidate in ("/opt/homebrew/bin/gpg", "/usr/local/bin/gpg", "/usr/local/MacGPG2/bin/gpg2",
+                      r"C:\Program Files (x86)\GnuPG\bin\gpg.exe", r"C:\Program Files\GnuPG\bin\gpg.exe"):
+        if Path(candidate).exists():
+            return candidate
+    return None
 
 
 class Api:
@@ -84,11 +97,64 @@ class Api:
     def __init__(self, service: KeyService):
         self._service = service
         self._menubar = None  # private: pywebview only exposes public members
+        self._window = None
 
     def set_ui_language(self, lang, texts=None):
         """The page tells the menu bar which language and texts it shows."""
         if self._menubar is not None:
             self._menubar.set_language(str(lang)[:5], texts if isinstance(texts, dict) else None)
+
+    def save_text(self, filename, text, private=False):
+        """Save generated text (OpenPGP public key, revocation certificate)
+        where the user chooses. Returns the path or None if cancelled."""
+        name = Path(str(filename)).name[:120] or "keymelier.txt"
+        text = str(text)
+        if self._window is None or len(text) > 1_000_000:
+            return None
+        chosen = self._window.create_file_dialog(
+            webview.FileDialog.SAVE, directory=str(Path.home() / "Documents"), save_filename=name)
+        if not chosen:
+            return None
+        path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if private else 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        return str(path)
+
+    def open_text(self, kind="json"):
+        """Let the user pick a file to import; returns its text (or None)."""
+        if self._window is None:
+            return None
+        chosen = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, directory=str(Path.home() / "Documents"),
+            file_types=("KeyMelier (*.json)", "All files (*.*)"))
+        if not chosen:
+            return None
+        path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+        if path.stat().st_size > 20_000_000:
+            return None
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    def gpg_available(self):
+        return _gpg() is not None
+
+    def gpg_import(self, public_key):
+        """Import the public key into GnuPG and let it link the card
+        (`gpg --card-status`), then release the card for KeyMelier again."""
+        gpg = _gpg()
+        text = str(public_key)
+        if gpg is None or not text.startswith("-----BEGIN PGP PUBLIC KEY BLOCK-----"):
+            return {"ok": False}
+        try:
+            imp = subprocess.run([gpg, "--batch", "--import"], input=text.encode(), capture_output=True, timeout=60)
+            subprocess.run([gpg, "--batch", "--card-status"], capture_output=True, timeout=60)
+            gpgconf = Path(gpg).with_name("gpgconf")
+            if gpgconf.exists():
+                subprocess.run([str(gpgconf), "--kill", "scdaemon"], capture_output=True, timeout=30)
+            return {"ok": imp.returncode == 0, "output": imp.stderr.decode(errors="replace")[-600:]}
+        except Exception as e:
+            logger.warning("gpg import failed: %s", e)
+            return {"ok": False, "output": str(e)}
 
     def open_licenses(self):
         """Show the bundled third-party licenses in the system text viewer."""
@@ -297,6 +363,7 @@ def main():
         text_select=True,
     )
     pump.attach(window)
+    api._window = window
 
     if sys.platform == "darwin":
         _macos_app_identity()

@@ -155,6 +155,7 @@ def info(conn) -> dict:
         "name": name,
         "url": url,
         "can_touch": not session._generic,
+        "algorithms": algorithms_for(session),
     }
 
 
@@ -277,3 +278,124 @@ def reset(conn) -> None:
     except Exception as e:
         raise map_card_error(e) from None
     logger.info("OpenPGP application reset")
+
+
+# ── Key generation ───────────────────────────────────────────────────────────
+
+SHA256_DIGEST_INFO = bytes.fromhex("3031300D060960864801650304020105000420")
+
+ALGORITHMS = {
+    # name: (primary/auth, encryption) – "ed25519" means Ed25519 + Cv25519
+    "ed25519": ("Ed25519", "X25519"),
+    "p256": ("SECP256R1", "SECP256R1"),
+    "rsa2048": (2048, 2048),
+    "rsa4096": (4096, 4096),
+}
+
+
+def algorithms_for(session) -> list[str]:
+    if session._generic:
+        return ["rsa2048"]  # other cards: keep their default attributes
+    if session.version >= (5, 2, 0):
+        return ["ed25519", "p256", "rsa2048", "rsa4096"]
+    return ["rsa2048", "rsa4096"]
+
+
+def _check_user_id(name: str, email: str) -> str:
+    import re
+    name = (name or "").strip()
+    email = (email or "").strip()
+    if not name or len(name) > 100:
+        raise CardError("Please enter a name.", "invalid_input")
+    if any(c in name for c in "<>\n\r"):
+        raise CardError("The name must not contain < or >.", "invalid_input")
+    if email and not re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", email):
+        raise CardError("The e-mail address is not valid.", "pgp_email_invalid")
+    return f"{name} <{email}>" if email else name
+
+
+def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
+                  admin_pin: str, user_pin: str) -> dict:
+    """Generate signature, encryption and authentication keys on the card and
+    return the OpenPGP public key and a revocation certificate (armored).
+
+    Existing OpenPGP keys on the card are replaced.
+    """
+    import time
+
+    from cryptography.hazmat.primitives import hashes
+    from yubikit.core.smartcard import ApduError
+    from yubikit.openpgp import KEY_REF, OID, RSA_SIZE, Prehashed
+
+    from fido2tool_core import pgp_packets as P
+
+    user_id = _check_user_id(name, email)
+    session = _session(conn)
+    if algorithm not in algorithms_for(session):
+        raise CardError("This key does not support that algorithm.", "unsupported")
+    expire_days = int(expire_days or 0)
+    if expire_days < 0 or expire_days > 3650 * 2:
+        raise CardError("Invalid validity.", "invalid_input")
+    try:
+        session.verify_pin(user_pin or "")  # check early: nothing is changed yet
+    except Exception as e:
+        raise _pin_error(e, "user") from None
+    _verify_admin(session, admin_pin)
+
+    main, enc = ALGORITHMS[algorithm]
+    created = int(time.time())
+
+    def gen(ref, spec):
+        if isinstance(spec, int):
+            return session.generate_rsa_key(ref, RSA_SIZE(spec))
+        return session.generate_ec_key(ref, OID[spec])
+
+    try:
+        keys = {}
+        for ref, spec, encryption in ((KEY_REF.SIG, main, False), (KEY_REF.DEC, enc, True), (KEY_REF.AUT, main, False)):
+            keys[ref] = P.public_key(gen(ref, spec), created, encryption=encryption)
+        for ref, key in keys.items():
+            session.set_fingerprint(ref, key.fingerprint)
+            session.set_generation_time(ref, created)
+    except CardError:
+        raise
+    except ApduError as e:
+        raise map_card_error(e) from None
+    except Exception as e:
+        raise CardError(f"Key generation failed: {e}", "card_error") from None
+
+    primary = keys[KEY_REF.SIG]
+
+    def signer(digest: bytes) -> bytes:
+        # Re-verify: the signature PIN may be valid for a single signature only
+        try:
+            session.verify_pin(user_pin)
+        except Exception as e:
+            raise _pin_error(e, "user") from None
+        if primary.algorithm == P.RSA:
+            # yubikit's sign() cannot take a precomputed hash for RSA: send
+            # PSO:COMPUTE DIGITAL SIGNATURE with the SHA-256 DigestInfo ourselves
+            raw = session.protocol.send_apdu(0, 0x2A, 0x9E, 0x9A, SHA256_DIGEST_INFO + digest)
+        else:
+            raw = session.sign(digest, Prehashed(hashes.SHA256()))
+        return P.signature_mpis(primary.algorithm, raw)
+
+    try:
+        body = P.transferable_key(
+            primary, user_id,
+            [(keys[KEY_REF.DEC], P.FLAG_ENCRYPT), (keys[KEY_REF.AUT], P.FLAG_AUTH)],
+            signer, created, expire_days * 86400 if expire_days else None)
+        revocation = P.revocation(primary, signer, created)
+    except CardError:
+        raise
+    except Exception as e:
+        raise CardError(f"Signing on the key failed: {e}", "card_error") from None
+    fingerprint = primary.fingerprint.hex().upper()
+    logger.info("OpenPGP keys generated on the card")
+    return {
+        "fingerprint": _fingerprint(primary.fingerprint),
+        "user_id": user_id,
+        "public_key": P.armor(body, comment=f"{fingerprint[-16:]} – created on a security key with KeyMelier"),
+        "revocation": P.armor(revocation, comment="Revocation certificate – import it only if the key is lost"),
+        "filename": f"{fingerprint[-16:]}",
+    }

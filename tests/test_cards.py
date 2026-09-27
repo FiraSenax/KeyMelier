@@ -130,5 +130,33 @@ class CardTests(unittest.TestCase):
         self.assertIn('PSF License', text)
 
 
+    def test_history_export_import_roundtrip_and_merge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = History(Path(tmp) / 'a.json', enabled=True)
+            a.add_event(record(), 'connected')
+            a.set_inventory(record(), 'oath', [{'issuer': 'GitHub', 'name': 'me'}])
+            exported = a.export()
+            kid = exported['keys'][0]['key_id']
+
+            b = History(Path(tmp) / 'b.json', enabled=True)
+            b.add_event(record(), 'pin_changed')
+            self.assertEqual(b.import_(exported), {'added': 0, 'merged': 1})
+            entry = b.get(kid)
+            self.assertEqual({e['type'] for e in entry['events']}, {'connected', 'pin_changed'})
+            self.assertEqual(entry['inventory']['oath']['items'][0]['issuer'], 'GitHub')
+            self.assertEqual(b.import_(exported), {'added': 0, 'merged': 1})
+            self.assertEqual(len(b.get(kid)['events']), 2)  # no duplicates
+
+            c = History(Path(tmp) / 'c.json', enabled=True)
+            evil = dict(exported)
+            evil['keys'] = exported['keys'] + [{'key_id': '../etc'}, {'key_id': 'ab' * 8, 'events': 'x', 'label': 5,
+                                                                       'unknown': 'dropped'}]
+            self.assertEqual(c.import_(evil), {'added': 2, 'merged': 0})
+            self.assertNotIn('unknown', c.get('ab' * 8))
+            self.assertEqual(c.get('ab' * 8)['events'], [])
+            with self.assertRaises(ValueError):
+                c.import_({'keys': []})
+
+
 if __name__ == '__main__':
     unittest.main()

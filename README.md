@@ -25,6 +25,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 ## Features
 
 - **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions; for YubiKeys also serial number, real firmware and form factor (via Yubico's yubikit)
+- **Quantum safety:** shows which signature algorithms a key offers and detects ML-DSA (RFC 9964) automatically once keys support it; explains where classical cryptography is a real risk (encryption) and where not yet (logins)
 - **Security check:** per-key checklist with direct links to fix issues (PIN, vulnerabilities, authenticity, fingerprints, backups)
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
@@ -34,12 +35,12 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
 - **Authenticator (OATH):** TOTP/HOTP codes with countdown and copy, add via `otpauth://` link or by hand, rename, delete, password, reset
-- **OpenPGP:** keys per slot with fingerprint and algorithm, signature counter, cardholder data, PIN/admin PIN (change, unblock, retries), signature PIN policy, touch policies, reset – YubiKey and other OpenPGP cards (e.g. Token2)
+- **OpenPGP:** generate keys directly on the security key (Ed25519/Cv25519, NIST P-256, RSA 2048/4096) with the public key for GnuPG and a revocation certificate, optional import into GnuPG; keys per slot with fingerprint and algorithm, signature counter, cardholder data, PIN/admin PIN (change, unblock, retries), signature PIN policy, touch policies, reset – YubiKey and other OpenPGP cards (e.g. Token2)
 - **PIV:** certificates per slot with validity, generate a key with a self-signed certificate, import/copy/delete certificates, PIN/PUK, protect the management key with the PIN, warnings for factory defaults, reset
 - **YubiKey OTP slots:** see which slots are used, static password, HMAC-SHA1 challenge-response (e.g. KeePassXC), swap, delete. On macOS this needs the "Input Monitoring" permission for KeyMelier
 - **Applications per USB/NFC** (YubiKey): turn off what you don't use
 - **Factory reset:** guided flow (re-plug, touch)
-- **History:** keys seen before stay in the sidebar with their last known state, serial number, AAGUID, a custom name, what was on them and an activity timeline
+- **History:** keys seen before stay in the sidebar with their last known state, serial number, AAGUID, a custom name, what was on them and an activity timeline; export and import (backup, move to another computer; imports are merged)
 - **Languages:** 11 languages following the OS (de, en, es, fr, it, nl, pl, pt, ja, ko, zh), light and dark mode
 - **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
 - Explicit CSV export of connected keys to `~/keymelier/exports/`

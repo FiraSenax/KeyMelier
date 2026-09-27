@@ -203,6 +203,21 @@ class KeyService:
         self.emit("history_updated", summary)
         return summary
 
+    def history_export(self) -> dict:
+        from datetime import date
+        return {"text": json.dumps(self.history.export(), indent=1, ensure_ascii=False),
+                "filename": f"keymelier-history-{date.today().isoformat()}.json"}
+
+    def history_import(self, text: str) -> dict:
+        if not isinstance(text, str) or len(text) > 20_000_000:
+            raise PinError("The file is too large.", "invalid_input")
+        try:
+            result = self.history.import_(json.loads(text))
+        except (ValueError, TypeError):
+            raise PinError("This is not a KeyMelier history export.", "history_invalid") from None
+        self.emit("history_reloaded", {})
+        return {**result, "saved": self.history.enabled}
+
     def history_forget(self, kid: str) -> dict:
         return {"removed": self.history.forget(kid)}
 
@@ -573,6 +588,14 @@ class KeyService:
 
     def openpgp_cardholder(self, token_id: str, name: str, url: str, admin_pin: str) -> dict:
         return self._openpgp_do(token_id, openpgp_app.set_cardholder, name, url, admin_pin)
+
+    def openpgp_generate(self, token_id: str, algorithm: str, name: str, email: str = "",
+                         expire_days: int = 0, admin_pin: str = "", user_pin: str = "") -> dict:
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader, timeout=30.0) as conn:
+            result = openpgp_app.generate_keys(conn, algorithm, name, email, expire_days, admin_pin, user_pin)
+        self._log(record, "pgp_generated", site=result["user_id"] if self._remember_contents() else None)
+        return {**result, "state": self.openpgp(token_id)}
 
     def openpgp_reset(self, token_id: str, confirm: bool = False) -> dict:
         if confirm is not True:

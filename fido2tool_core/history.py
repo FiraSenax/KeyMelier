@@ -239,9 +239,103 @@ class History:
             self._save()
             return self._summary(entry)
 
+    # ── Export / import ──────────────────────────────────────────────────────
+
+    def export(self) -> dict:
+        """Everything KeyMelier knows about the keys (for backup or another
+        computer). Contains website/account names – the caller warns."""
+        with self._lock:
+            return json.loads(json.dumps({
+                "format": "keymelier-history", "version": 1, "exported": _now(),
+                "keys": list(self._entries.values()),
+            }))
+
+    def import_(self, data: dict) -> dict:
+        """Merge an export into this history. Existing keys keep their data
+        and gain missing events/contents; unknown keys are added."""
+        if not isinstance(data, dict) or data.get("format") != "keymelier-history" \
+                or not isinstance(data.get("keys"), list):
+            raise ValueError("not a KeyMelier history export")
+        added = merged = 0
+        with self._lock:
+            for raw in data["keys"][:500]:
+                entry = _clean_entry(raw)
+                if entry is None:
+                    continue
+                current = self._entries.get(entry["key_id"])
+                if current is None:
+                    self._entries[entry["key_id"]] = entry
+                    added += 1
+                    continue
+                _merge_entry(current, entry)
+                merged += 1
+            self._save()
+        return {"added": added, "merged": merged}
+
     def forget(self, kid: str) -> bool:
         with self._lock:
             removed = self._entries.pop(kid, None) is not None
             if removed:
                 self._save()
             return removed
+
+
+# ── Import helpers ───────────────────────────────────────────────────────────
+
+_ID = __import__("re").compile(r"^[0-9a-f]{16}$")
+
+
+def _clean_entry(raw) -> dict | None:
+    """Validate an imported entry; keep only known fields of the right type."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("key_id"), str) or not _ID.match(raw["key_id"]):
+        return None
+
+    def text(v, n=200):
+        return v[:n] if isinstance(v, str) else ""
+
+    entry = {
+        "key_id": raw["key_id"],
+        "first_seen": text(raw.get("first_seen"), 40) or _now(),
+        "last_seen": text(raw.get("last_seen"), 40) or _now(),
+        "connect_count": raw.get("connect_count") if isinstance(raw.get("connect_count"), int) else 0,
+        "label": text(raw.get("label"), 60),
+        "snapshot": raw.get("snapshot") if isinstance(raw.get("snapshot"), dict) else {},
+        "events": [e for e in raw.get("events", []) if isinstance(e, dict) and isinstance(e.get("type"), str)
+                   and isinstance(e.get("ts"), str)][-MAX_EVENTS:] if isinstance(raw.get("events"), list) else [],
+    }
+    entry["snapshot"]["security_status"] = "UNKNOWN"  # re-evaluated when the key is plugged in
+    for field, kind in (("sites", list), ("inventory", dict), ("lost_done", list)):
+        if isinstance(raw.get(field), kind):
+            entry[field] = raw[field]
+    for field in ("sites_updated", "lost_since"):
+        if isinstance(raw.get(field), str):
+            entry[field] = raw[field][:40]
+    if isinstance(entry.get("sites"), list):
+        entry["sites"] = [{"rp_id": text(s.get("rp_id"), 253), "name": text(s.get("name")),
+                           "count": s.get("count") if isinstance(s.get("count"), int) else 1}
+                          for s in entry["sites"] if isinstance(s, dict) and s.get("rp_id")]
+    return json.loads(json.dumps(entry))
+
+
+def _merge_entry(current: dict, other: dict) -> None:
+    current["first_seen"] = min(current.get("first_seen", other["first_seen"]), other["first_seen"])
+    if other["last_seen"] > current.get("last_seen", ""):
+        current["last_seen"] = other["last_seen"]
+        if other.get("snapshot"):
+            current["snapshot"] = {**other["snapshot"], **current.get("snapshot", {})}
+    current["connect_count"] = max(current.get("connect_count", 0), other.get("connect_count", 0))
+    if not current.get("label") and other.get("label"):
+        current["label"] = other["label"]
+    seen = {(e.get("ts"), e.get("type")) for e in current.get("events", [])}
+    events = current.get("events", []) + [e for e in other["events"] if (e["ts"], e["type"]) not in seen]
+    current["events"] = sorted(events, key=lambda e: e.get("ts", ""))[-MAX_EVENTS:]
+    if other.get("sites") is not None and other.get("sites_updated", "") > current.get("sites_updated", ""):
+        current["sites"], current["sites_updated"] = other["sites"], other["sites_updated"]
+    for section, inv in (other.get("inventory") or {}).items():
+        mine = current.setdefault("inventory", {}).get(section)
+        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > mine.get("updated", "")):
+            current["inventory"][section] = inv
+    if other.get("lost_since") and not current.get("lost_since"):
+        current["lost_since"] = other["lost_since"]
+    if other.get("lost_done"):
+        current["lost_done"] = sorted(set(current.get("lost_done", [])) | set(other["lost_done"]))
