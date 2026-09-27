@@ -124,7 +124,8 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
     check("data: signed advisory database loaded", lambda: advisories.info().get("count", 0) > 0 and advisories.info())
     for name in ("advisories.json", "advisories.json.sig"):
         check(f"data: {name}", lambda n=name: (data_dir / n).is_file())
-    for name in ("index.html", "style.css", "app.js", "i18n.js", "accounts.js", "service-icons.js", "icon.svg", "icon.png", "menubar.png"):
+    from fido2tool_core.page import SCRIPTS
+    for name in ("index.html", "style.css", *SCRIPTS, "icon.svg", "icon.png", "menubar.png"):
         check(f"resource: static/{name}", lambda n=name: (static_dir / n).is_file() and (static_dir / n).stat().st_size > 0)
     for name in ("LICENSE", "THIRD_PARTY_LICENSES.txt", "keymelier-sbom.cdx.json"):
         check(f"resource: {name}", lambda n=name: (root / n).is_file())

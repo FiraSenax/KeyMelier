@@ -13,7 +13,8 @@ ROOT_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent)
 STATIC_DIR = ROOT_DIR / "static"
 
 # Loaded in this order (classic scripts sharing one global scope)
-SCRIPTS = ("i18n.js", "service-icons.js", "accounts.js", "app.js")
+SCRIPTS = ("i18n.js", "service-icons.js", "accounts.js", "ui-dialogs.js", "view-accounts.js", "view-sync.js",
+           "view-replace.js", "app.js")
 
 
 def build_html(static_dir: Path = STATIC_DIR) -> str:
