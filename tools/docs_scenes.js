@@ -21,13 +21,14 @@
     shared: () => { appSettings.personal_mode = false; lostKid = 'c3c3c3c3c3c3c3c3'; showBackupView(); },
     backup: () => showBackupView(),
     about: () => setTimeout(() => openAbout(), 300),
-    sync: () => { showBackupView(); setTimeout(() => document.getElementById('sync-card')?.scrollIntoView(), 400); },
+    sync: () => { showSettingsView(); setTimeout(() => document.getElementById('sync-card')?.scrollIntoView(), 400); },
+    settings_app: () => showSettingsView(),
     replace: () => {
       const old = historyKeys.get('a1a1a1a1a1a1a1a1');
-      old.replace = { new: 'b2b2b2b2b2b2b2b2', since: new Date().toISOString(), done: ['pk:github.com|erika', 'oath:hetzner|erika@example.com'] };
-      replaceOld = old.key_id;
-      showBackupView();
-      document.getElementById('rp-card')?.scrollIntoView();
+      old.replace = { new: 'b2b2b2b2b2b2b2b2', since: new Date().toISOString(), done: ['pk:github.com|erika', 'oath:hetzner|erika@example.com', 'pk:bitwarden.com|erika@example.com'] };
+      showReplaceView(old.key_id);
+      replaceStep = 3;
+      renderPanel();
     },
     lost: () => { showBackupView(); lostKid = 'c3c3c3c3c3c3c3c3'; renderBackupView(); document.querySelector('#bk-lost-select')?.scrollIntoView(); },
   };

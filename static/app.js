@@ -329,11 +329,22 @@ function renderKeyView(token) {
   sub.push(serialLabel(token));
   $('key-subtitle').textContent = sub.filter(Boolean).join(' · ');
   $('key-view').classList.toggle('offline', !!token.offline);
-  $('export-btn').classList.toggle('hidden', !!token.offline);
+  $('read-btn').classList.toggle('hidden', !!token.offline);
+  $('key-actions-btn').closest('.menu-wrap').classList.toggle('hidden', !!token.offline);
+  $('key-actions-btn').innerHTML = icon('more', 18);
+  $('key-actions-btn').setAttribute('aria-label', t('actions.more'));
 
+  // Two separate statements: the device itself, and the accounts that depend on it
   const pill = $('key-status');
   pill.className = `status-pill ${token.security_status}`;
-  pill.textContent = t(`status.${token.security_status}`);
+  pill.textContent = t('keycheck.pill', { s: t(`status.${token.security_status}`) });
+  const acc = accountCheck(token);
+  const accPill = $('acc-status');
+  accPill.classList.toggle('hidden', !acc);
+  if (acc) {
+    accPill.className = `status-pill acc-pill ${acc.cls}`;
+    accPill.textContent = t('acccheck.pill', { s: acc.text });
+  }
 
   $('touch-banner').classList.toggle('hidden', !!token.attestation || !!token.offline);
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('hidden', !tabAllowed(token, b.dataset.tab)));
@@ -347,10 +358,11 @@ function renderKeyView(token) {
   renderDetails(token);
 }
 
-function tileHtml({ cls, iconName, label, value, sub, tab }) {
-  const tag = tab ? 'button' : 'div';
+function tileHtml({ cls, iconName, label, value, sub, tab, view, primary }) {
+  const target = tab || view;
+  const tag = target ? 'button' : 'div';
   return `
-    <${tag} ${tab ? `type="button" data-goto="${tab}"` : ''} class="tile ${cls}">
+    <${tag} ${tab ? `type="button" data-goto="${tab}"` : view ? `type="button" data-view="${view}"` : ''} class="tile ${cls}${primary ? ' primary' : ''}">
       <div class="tile-head">
         <span class="tile-icon">${icon(iconName)}</span>
         <span class="tile-label">${escHtml(label)}</span>
@@ -366,7 +378,7 @@ function tileHtml({ cls, iconName, label, value, sub, tab }) {
 function securityChecks(token) {
   const o = token.options || {};
   const checks = [];
-  const add = (level, key, vars = {}, tab = null) => checks.push({ level, text: t(key, vars), tab });
+  const add = (level, key, vars = {}, tab = null, group = 'device') => checks.push({ level, text: t(key, vars), tab, group });
 
   const revoked = ['REVOKED', 'ATTESTATION_KEY_COMPROMISE', 'USER_KEY_REMOTE_COMPROMISE', 'USER_KEY_PHYSICAL_COMPROMISE'];
   if (revoked.includes(token.mds_status)) add('crit', 'chk.mdsRevoked', { s: token.mds_status }, 'security');
@@ -397,8 +409,9 @@ function securityChecks(token) {
   }
 
   const backup = personalMode() ? backupStatus(token) : null;
-  if (backup && backup.onlyHere.length) add('warn', 'chk.noBackup', { n: backup.onlyHere.length }, 'history');
-  else if (backup) add('ok', 'chk.backupOk');
+  if (backup && backup.onlyHere.length) add('warn', 'chk.noBackup', { n: backup.onlyHere.length }, 'accounts', 'accounts');
+  else if (backup) add('ok', 'chk.backupOk', {}, null, 'accounts');
+  else if (personalMode()) add('info', 'acccheck.unreadLong', {}, null, 'accounts');
 
   const order = { crit: 0, warn: 1, info: 2, ok: 3 };
   return checks.sort((a, b) => order[a.level] - order[b.level]);
@@ -407,20 +420,25 @@ function securityChecks(token) {
 function renderSecurityCheck(token) {
   const el = $('check');
   const checks = securityChecks(token);
-  const ok = checks.filter(c => c.level === 'ok').length;
   const icons = { crit: '✕', warn: '!', info: 'i', ok: '✓' };
-  el.innerHTML = `
-    <div class="check-head">
-      <h2>${escHtml(t('chk.title'))}</h2>
-      <span class="check-score">${escHtml(t('chk.score', { ok, n: checks.length }))}</span>
-    </div>
-    <ul class="check-list">${checks.map(c => `
-      <li class="check-item ${c.level}">
-        <span class="check-icon">${icons[c.level]}</span>
-        <span class="check-text">${escHtml(c.text)}</span>
-        ${c.tab && tabAllowed(token, c.tab) ? `<button type="button" class="btn-link" data-goto="${c.tab}">${escHtml(t('chk.fix'))}</button>` : ''}
-      </li>`).join('')}
-    </ul>`;
+  const list = (group, title) => {
+    const items = checks.filter(c => c.group === group);
+    if (!items.length) return '';
+    const ok = items.filter(c => c.level === 'ok').length;
+    return `<div class="check-head">
+        <h2>${escHtml(t(title))}</h2>
+        <span class="check-score">${escHtml(t('chk.score', { ok, n: items.length }))}</span>
+      </div>
+      <ul class="check-list">${items.map(c => `
+        <li class="check-item ${c.level}">
+          <span class="check-icon" aria-hidden="true">${icons[c.level]}</span>
+          <span class="check-text">${escHtml(c.text)}</span>
+          ${c.tab === 'accounts' ? `<button type="button" class="btn-link" data-view="accounts">${escHtml(t('bk.review'))}</button>`
+            : c.tab && tabAllowed(token, c.tab) ? `<button type="button" class="btn-link" data-goto="${c.tab}">${escHtml(t('chk.fix'))}</button>` : ''}
+        </li>`).join('')}
+      </ul>`;
+  };
+  el.innerHTML = list('device', 'keycheck.title') + list('accounts', 'acccheck.title');
 }
 
 // One model for account overview, backup view, lost-key assistant and the
@@ -438,6 +456,53 @@ function backupStatus(token) {
     .filter(r => r.kind !== 'unknown' && r.activeKeys.length === 1 && r.activeKeys[0] === entry.key_id
       && !(r.codeKeys || []).length);
   return { onlyHere, othersKnown: m.keys.length - 1 };
+}
+
+// Account coverage as seen from one key (personal mode): accounts of this
+// key that need attention – not a statement about the device.
+function accountCheck(token) {
+  if (!personalMode()) return null;
+  const entry = historyKeys.get(token.history_id);
+  if (!entry) return null;
+  const m = accountModel();
+  const info = m.keyInfo.get(entry.key_id);
+  if (!info || (info.coverage === 'none' && !info.codesKnown)) {
+    return { cls: 'UNKNOWN', text: t('acccheck.unread'), n: null };
+  }
+  const rows = rowsOfKey(m, entry.key_id).filter(r => ['crit', 'warn', 'unclear'].includes(r.level));
+  const stale = info.stale ? ` · ${t('acccheck.stale')}` : '';
+  return rows.length
+    ? { cls: 'WARNING', text: t(rows.length === 1 ? 'acccheck.review1' : 'acccheck.review', { n: rows.length }) + stale, n: rows.length }
+    : { cls: info.stale || info.coverage === 'probe' ? 'UNKNOWN' : 'OK', text: t('acccheck.ok') + stale, n: 0 };
+}
+
+// "Read key": the existing flows, never an automatic PIN attempt.
+// Managed keys: unlock dialog (PIN/fingerprint) that reads afterwards, or
+// read right away while still unlocked. FIDO 2.0 keys: the passkey search.
+async function readKey(tok) {
+  if (!tok || tok.offline) return;
+  if (!canManage(tok)) return openProbe(tok.id);
+  if (!tok.options?.clientPin && !tok.options?.uv) { showToast(t('read.needPin'), 'info'); return switchTab('pin'); }
+  if (!isUnlocked(tok.id)) return quickLockToggle(tok.id);
+  $('read-btn').disabled = true;
+  try {
+    await readContentsNow(tok);
+  } finally {
+    $('read-btn').disabled = false;
+  }
+}
+
+async function readContentsNow(tok) {
+  const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
+  const parts = [
+    got.sites != null ? t('ql.got.sites', { n: got.sites }) : '',
+    got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
+    got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
+    got.piv ? t('ql.got.piv', { n: got.piv }) : '',
+  ].filter(Boolean);
+  showToast(t('ql.done', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
+  await loadHistory();
+  render();
 }
 
 // ── Backup & loss view ──────────────────────────────────────────────────────
@@ -771,7 +836,7 @@ function renderReplaceView() {
   const pair = `<p class="rp-pair">${escHtml(keyLabel(old))} → ${escHtml(keyLabel(historyKeys.get(newId)))}</p>`;
   const notesHtml = notes.map(n => `<p class="field-hint bk-hint warn-text">${escHtml(n)}</p>`).join('');
 
-  const itemHtml = (i, withTick) => {
+  const itemHtml = (i, withTick, strike = withTick) => {
     const [cls, key] = RP_CHECK[i.check];
     const src = [i.source ? t(`acc.src.${i.source}`) : '', i.checked ? relTime(i.checked) : ''].filter(Boolean).join(' · ');
     const chips = `<span class="rp-state">
@@ -780,7 +845,7 @@ function renderReplaceView() {
         ${done.has(i.id) && i.check !== 'found' ? `<span class="rp-chip warn">${escHtml(t('rp.notProven'))}</span>` : ''}
       </span>`;
     const label = `<span class="bk-site">${escHtml(replaceItemLabel(i))}</span>`;
-    return `<li class="${done.has(i.id) ? 'done' : ''}">${withTick
+    return `<li class="${strike && done.has(i.id) ? 'done' : ''}">${withTick
       ? `<label><input type="checkbox" data-rp-item="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''} ${remember ? '' : 'disabled'}>${label}</label>`
       : label}${chips}</li>`;
   };
@@ -1069,11 +1134,43 @@ function showBackupView() {
 function renderTiles(token) {
   const o = token.options || {};
   const tiles = [];
+  const notes = [];   // optional hardware or functions the key does not have – one compact line
   const tile = spec => tileHtml({ ...spec, tab: spec.tab && tabAllowed(token, spec.tab) ? spec.tab : null });
+  const entry = historyKeys.get(token.history_id);
+  const m = accountModel();
+  const info = entry && m.keyInfo.get(entry.key_id);
+
+  // Passkeys on the key: what is known (never "0" for "not read")
+  const known = info && info.coverage !== 'none';
+  const count = (entry?.sites || []).reduce((n, site) => n + (site.count || 1), 0);
+  const free = token.remaining_disc_creds != null ? t('tile.passkeys.free', { n: token.remaining_disc_creds }) : '';
+  if (!known) {
+    tiles.push(tile({ cls: 'neutral', iconName: 'passkey', label: t('tile.passkeys'), primary: true,
+      value: t('tile.notRead'), sub: [t(canManage(token) ? 'tile.readHint' : 'tile.searchHint'), free].filter(Boolean).join(' · '), tab: 'passkeys' }));
+  } else {
+    const how = info.coverage === 'probe' ? t('tile.passkeys.bySearch', { n: info.probedCount }) : t('acc.fresh.read', { when: relTime(info.checked) });
+    tiles.push(tile({ cls: 'info', iconName: 'passkey', label: t('tile.passkeys'), primary: true,
+      value: t(count === 1 ? 'tile.passkeys.count1' : 'tile.passkeys.count', { n: count }), sub: [how, free].filter(Boolean).join(' · '), tab: 'passkeys' }));
+  }
+
+  // Authenticator accounts (only keys with the OATH application)
+  const oath = entry?.inventory?.oath;
+  if (tabAllowed(token, 'oath') || oath) {
+    tiles.push(tile({ cls: oath ? 'info' : 'neutral', iconName: 'key', label: t('tile.oath'), primary: true,
+      value: oath ? t(oath.items.length === 1 ? 'tile.oath.count1' : 'tile.oath.count', { n: oath.items.length }) : t('tile.notRead'),
+      sub: oath ? t('acc.fresh.read', { when: relTime(oath.updated) }) : t('tile.readHint'), tab: 'oath' }));
+  }
+
+  // Open tasks: accounts that depend on this key (personal mode)
+  const acc = accountCheck(token);
+  if (acc) {
+    tiles.push(tileHtml({ cls: acc.n ? 'warn' : acc.n === 0 ? 'ok' : 'neutral', iconName: 'shield', label: t('tile.accounts'), primary: true,
+      value: acc.text, sub: t('tile.accounts.sub'), view: 'accounts' }));
+  }
 
   // PIN
   if (!('clientPin' in o)) {
-    tiles.push(tile({ cls: 'neutral', iconName: 'lock', label: t('tile.pin'), value: t('tile.pin.unsupported') }));
+    notes.push(t('tile.pin.unsupportedNote'));
   } else if (!o.clientPin) {
     tiles.push(tile({ cls: 'warn', iconName: 'lock', label: t('tile.pin'), value: t('tile.pin.notSet'),
       sub: t('tile.pin.notSetHint'), tab: 'pin' }));
@@ -1083,38 +1180,25 @@ function renderTiles(token) {
       sub: t('tile.pin.minLen', { n: token.min_pin_length }), tab: 'pin' }));
   }
 
-  // Passkeys
-  if (o.credMgmt || o.credentialMgmtPreview) {
-    tiles.push(tile({ cls: 'info', iconName: 'passkey', label: t('tile.passkeys'),
-      value: token.remaining_disc_creds != null
-        ? t('tile.passkeys.free', { n: token.remaining_disc_creds })
-        : t('tile.passkeys.supported'),
-      sub: t('tile.passkeys.open'), tab: 'passkeys' }));
-  } else {
-    tiles.push(tile({ cls: 'neutral', iconName: 'passkey', label: t('tile.passkeys'),
-      value: t('tile.passkeys.unsupported') }));
-  }
+  // Key check (the device – not the accounts)
+  const secCls = { OK: 'ok', WARNING: 'warn', CRITICAL: 'crit' }[token.security_status] || 'neutral';
+  const cves = token.cve_ids || [];
+  const att = attestationSummary(token.attestation, token);
+  tiles.push(tile({ cls: secCls, iconName: 'shield', label: t('tile.keycheck'),
+    value: t(`status.${token.security_status}`),
+    sub: `${cves.length ? t('tile.security.cves', { n: cves.length }) : t('tile.security.noCves')} · ${att.short}`,
+    tab: 'security' }));
 
-  // Fingerprint
+  // Fingerprint: a tile only when the key has a sensor
   if (isBio(token)) {
     const enrolled = (o.bioEnroll ?? o.userVerificationMgmtPreview ?? o.uv) === true;
     tiles.push(tile({ cls: enrolled ? 'ok' : 'info', iconName: 'fingerprint', label: t('tile.bio'),
       value: enrolled ? t('tile.bio.enrolled') : t('tile.bio.none'), sub: t('tile.passkeys.open'), tab: 'fingerprints' }));
   } else {
-    tiles.push(tile({ cls: 'neutral', iconName: 'fingerprint', label: t('tile.bio'),
-      value: t('tile.bio.noSensor'), sub: t('tile.bio.noSensorHint') }));
+    notes.push(t('tile.bio.noSensorNote'));
   }
 
-  // Security
-  const secCls = { OK: 'ok', WARNING: 'warn', CRITICAL: 'crit' }[token.security_status] || 'neutral';
-  const cves = token.cve_ids || [];
-  const att = attestationSummary(token.attestation, token);
-  tiles.push(tile({ cls: secCls, iconName: 'shield', label: t('tile.security'),
-    value: t(`status.${token.security_status}`),
-    sub: `${cves.length ? t('tile.security.cves', { n: cves.length }) : t('tile.security.noCves')} · ${att.short}`,
-    tab: 'security' }));
-
-  $('tiles').innerHTML = tiles.join('');
+  $('tiles').innerHTML = tiles.join('') + (notes.length ? `<p class="tile-notes">${notes.map(n => `<span>${escHtml(n)}</span>`).join('')}</p>` : '');
 }
 
 // ── Quantum readiness ───────────────────────────────────────────────────────
@@ -1327,6 +1411,38 @@ function tabMenuKey(ev) {
   else if (ev.key === 'End') go(items.length - 1);
   else if (ev.key === 'Escape') { ev.preventDefault(); setTabMenu(false); $('tab-more-btn').focus(); }
   else if (ev.key === 'Tab') setTabMenu(false);
+}
+
+// A button that opens a menu: arrows, Home/End move, Esc closes and returns focus
+function closeMenu(menuId) {
+  const menu = $(menuId);
+  if (!menu || menu.classList.contains('hidden')) return;
+  menu.classList.add('hidden');
+  document.querySelector(`[aria-controls="${menuId}"]`)?.setAttribute('aria-expanded', 'false');
+}
+
+function setupMenu(btnId, menuId) {
+  const btn = $(btnId), menu = $(menuId);
+  const items = () => [...menu.querySelectorAll('[role="menuitem"]:not(.hidden):not(:disabled)')];
+  const open = first => {
+    menu.classList.remove('hidden');
+    btn.setAttribute('aria-expanded', 'true');
+    (first ? items()[0] : items()[0])?.focus();
+  };
+  btn.addEventListener('click', () => (menu.classList.contains('hidden') ? open(true) : closeMenu(menuId)));
+  btn.addEventListener('keydown', ev => { if (ev.key === 'ArrowDown') { ev.preventDefault(); open(true); } });
+  menu.addEventListener('keydown', ev => {
+    const list = items();
+    const i = list.indexOf(document.activeElement);
+    const go = n => { ev.preventDefault(); list[(n + list.length) % list.length]?.focus(); };
+    if (ev.key === 'ArrowDown') go(i + 1);
+    else if (ev.key === 'ArrowUp') go(i - 1);
+    else if (ev.key === 'Home') go(0);
+    else if (ev.key === 'End') go(list.length - 1);
+    else if (ev.key === 'Escape') { ev.preventDefault(); closeMenu(menuId); btn.focus(); }
+    else if (ev.key === 'Tab') closeMenu(menuId);
+  });
+  document.addEventListener('click', ev => { if (!ev.target.closest(`#${btnId}`) && !ev.target.closest(`#${menuId}`)) closeMenu(menuId); });
 }
 
 function switchTab(tab) {
@@ -1891,18 +2007,9 @@ async function quickUnlockSubmit(method) {
   try {
     const res = await call('unlock', method === 'uv' ? { token_id: tok.id, method: 'uv' } : { token_id: tok.id, pin });
     markUnlocked(tok.id, res.ttl);
-    const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
-    const parts = [
-      got.sites != null ? t('ql.got.sites', { n: got.sites }) : '',
-      got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
-      got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
-      got.piv ? t('ql.got.piv', { n: got.piv }) : '',
-    ].filter(Boolean);
-    showToast(t('ql.done', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
     quickUnlock = null;
     renderQuickUnlock();
-    await loadHistory();
-    render();
+    await readContentsNow(tok);
     if (selectedId === tok.id && ['passkeys', 'fingerprints', 'settings'].includes(activeTab)) loadManagement(tok);
   } catch (e) {
     quickUnlock = { ...quickUnlock, busy: false, error: errorMessage(e) };
@@ -3986,7 +4093,14 @@ function init() {
   $('tiles').addEventListener('click', ev => {
     const tileEl = ev.target.closest('[data-goto]');
     if (tileEl) switchTab(tileEl.dataset.goto);
+    if (ev.target.closest('[data-view="accounts"]')) showAccountsView();
   });
+  $('check').addEventListener('click', ev => {
+    if (ev.target.closest('[data-view="accounts"]')) showAccountsView();
+  });
+  $('acc-status').addEventListener('click', showAccountsView);
+  $('read-btn').addEventListener('click', () => readKey(currentToken()));
+  setupMenu('key-actions-btn', 'key-actions-menu');
   $('ft-card').addEventListener('submit', ev => {
     ev.preventDefault();
     runFunctionTest(ev.target.querySelector('.ft-pin')?.value);
@@ -4044,7 +4158,7 @@ function init() {
     if (ev.target.classList.contains('cfg-alwaysuv')) updateConfig({ always_uv: ev.target.checked }, 'cfg.saved');
   });
   $('pin-show').addEventListener('change', ev => setPinVisible(ev.target.checked));
-  $('export-btn').addEventListener('click', exportTokens);
+  $('export-btn').addEventListener('click', () => { closeMenu('key-actions-menu'); exportTokens(); });
   $('data-check').addEventListener('click', checkDataNow);
   $('licenses-open').addEventListener('click', () => window.pywebview?.api?.open_licenses());
   $('update-btn').addEventListener('click', onUpdateButton);

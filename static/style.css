@@ -1405,3 +1405,20 @@ button.acc-stat { display: flex; flex-direction: column; justify-content: flex-s
 .field-hint + .switch-row { margin-top: 16px; }
 .acc-group td.acc-name > .acc-group-label { display: inline-flex; align-items: center; vertical-align: middle; }
 .acc-table thead th.lost { opacity: 1; color: var(--text-3); }
+
+/* Key header: device check and account coverage side by side, actions */
+.key-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+button.status-pill { border: none; font: inherit; cursor: pointer; }
+.acc-pill.WARNING { background: var(--warn-soft); color: var(--warn); }
+.acc-pill.OK { background: var(--ok-soft); color: var(--ok); }
+.acc-pill.UNKNOWN { background: var(--neutral-soft); color: var(--text-2); }
+.key-actions { display: flex; gap: 8px; align-items: center; }
+.menu-wrap { position: relative; }
+.btn-more { min-width: 40px; padding-left: 10px; padding-right: 10px; }
+.menu-right { left: auto; right: 0; }
+
+/* Overview: what is on the key first */
+.tile.primary .tile-value { font-size: 1.3rem; }
+.tile-notes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 0.82rem; color: var(--text-2); }
+.tile-notes span { padding: 4px 10px; border-radius: 999px; background: var(--neutral-soft); }
+#check .check-head + .check-list + .check-head { margin-top: 18px; }

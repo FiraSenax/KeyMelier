@@ -127,11 +127,19 @@
             <h1 id="key-title"></h1>
             <p id="key-subtitle"></p>
           </div>
-          <span id="key-status" class="status-pill"></span>
-          <button type="button" id="export-btn" class="btn btn-secondary">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span data-i18n="action.export"></span>
-          </button>
+          <div class="key-pills">
+            <span id="key-status" class="status-pill"></span>
+            <button type="button" id="acc-status" class="status-pill acc-pill hidden"></button>
+          </div>
+          <div class="key-actions">
+            <button type="button" id="read-btn" class="btn btn-secondary" data-i18n="read.action"></button>
+            <div class="menu-wrap">
+              <button type="button" id="key-actions-btn" class="btn btn-secondary btn-more" aria-haspopup="menu" aria-expanded="false" aria-controls="key-actions-menu" data-i18n-title="actions.more"></button>
+              <div class="tab-more-menu menu-right hidden" id="key-actions-menu" role="menu" aria-labelledby="key-actions-btn">
+                <button type="button" id="export-btn" class="tab" role="menuitem" data-i18n="action.export"></button>
+              </div>
+            </div>
+          </div>
         </header>
 
         <div id="touch-banner" class="touch-banner hidden">
