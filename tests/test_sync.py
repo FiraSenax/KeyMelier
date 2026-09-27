@@ -1,5 +1,7 @@
 import json
 import os
+import sys
+import threading
 import tempfile
 import unittest
 from pathlib import Path
@@ -318,6 +320,107 @@ class FolderTests(unittest.TestCase):
         with self.assertRaises(sync.SyncError):
             sync.probe_folder(self.dir / "missing", PW, "a" * 16)
 
+
+
+class OverlapAndAccessTests(unittest.TestCase):
+    """Simulated computers in one process: own history files, one shared folder."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name) / "cloud"
+        self.dir.mkdir()
+
+    def computer(self, name):
+        h = History(Path(self.tmp.name) / f"{name}.json", enabled=True)
+        s = sync.Syncer(h, lambda n, p: None, lambda: True)
+        s._folder = sync.SyncFolder(self.dir, sync.new_device_id(), PW, f"machine-{name}")
+        h.track_forgotten = True
+        return h, s
+
+    def test_writes_that_overlap_never_expose_a_partial_file(self):
+        """Two writers and one reader released together by a barrier, many rounds:
+        the reader only ever sees complete, authentic files."""
+        (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
+        c_h, c_s = self.computer("c")
+        a_h.update_snapshot(record("1"))
+        b_h.update_snapshot(record("2"))
+        rounds = 25
+        barrier = threading.Barrier(3)
+        seen_errors = []
+
+        def writer(h, s, serial):
+            for i in range(rounds):
+                h.rename(h.list()[0]["key_id"], f"{serial}-{i}")
+                barrier.wait()
+                s._folder.write(h.sync_state(), force=True)
+
+        def reader():
+            for _ in range(rounds):
+                barrier.wait()
+                _found, errors = c_s._folder.read_others(only_new=False)
+                seen_errors.extend(errors)
+        threads = [threading.Thread(target=writer, args=(a_h, a_s, "a")),
+                   threading.Thread(target=writer, args=(b_h, b_s, "b")), threading.Thread(target=reader)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(60)
+        self.assertEqual(seen_errors, [], "an atomic replace never shows a half-written file")
+        c_s.run_once(full=True)
+        self.assertEqual(sorted(e["label"] for e in c_h.list()), [f"a-{rounds - 1}", f"b-{rounds - 1}"])
+
+    def test_same_computer_syncing_from_two_threads_is_serialised(self):
+        h, s = self.computer("a")
+        h.update_snapshot(record("1"))
+        barrier = threading.Barrier(2)
+        results = []
+
+        def run():
+            barrier.wait()
+            results.append(s.run_once(full=True))
+        threads = [threading.Thread(target=run) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(60)
+        self.assertEqual([r["errors"] for r in results], [[], []])
+        self.assertEqual(len(list(self.dir.glob("KeyMelier-*.kmsync"))), 1)
+        self.assertEqual(list(self.dir.glob("*.tmp")), [])
+
+    @unittest.skipIf(sys.platform == "win32" or os.geteuid() == 0, "POSIX permissions (not as root)")
+    def test_a_file_that_cannot_be_read_for_a_while(self):
+        (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
+        b_h.update_snapshot(record("2"))
+        b_s.run_once()
+        other = b_s._folder.own_path
+        other.chmod(0)                                          # e.g. a sync client holding it
+        self.addCleanup(lambda: other.exists() and other.chmod(0o600))
+        self.assertEqual(a_s.run_once()["errors"], [], "not reported at once")
+        codes = [e["code"] for e in a_s.run_once()["errors"]]
+        self.assertTrue(codes, "reported when it lasts")
+        self.assertEqual(a_h.list(), [])
+        other.chmod(0o600)
+        self.assertEqual(a_s.run_once()["errors"], [], "recovers")
+        self.assertEqual(len(a_h.list()), 1, "and takes the data over")
+
+    @unittest.skipIf(sys.platform == "win32" or os.geteuid() == 0, "POSIX permissions (not as root)")
+    def test_the_folder_cannot_be_written_for_a_while(self):
+        h, s = self.computer("a")
+        h.update_snapshot(record("1"))
+        s.run_once()
+        before = s._folder.own_path.read_bytes()
+        self.dir.chmod(0o500)                                   # read-only share
+        self.addCleanup(lambda: self.dir.chmod(0o700))
+        h.rename(h.list()[0]["key_id"], "changed while read-only")
+        self.assertEqual(s.run_once()["errors"], [])
+        self.assertEqual([e["code"] for e in s.run_once()["errors"]], ["sync_folder"])
+        self.assertEqual(s._folder.own_path.read_bytes(), before, "the old file is left intact")
+        self.assertEqual(h.list()[0]["label"], "changed while read-only", "the local change is kept")
+        self.dir.chmod(0o700)
+        self.assertEqual(s.run_once()["errors"], [])
+        _device, payload = sync.unseal(s._folder.own_path.read_bytes(), PW)
+        self.assertEqual(payload["history"]["keys"][0]["label"], "changed while read-only", "written after recovery")
 
 if __name__ == "__main__":
     unittest.main()

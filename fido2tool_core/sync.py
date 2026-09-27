@@ -341,6 +341,7 @@ class Syncer:
             if folder is None or not self._history.enabled:
                 return self.status()
             changed = False
+            problems: list[dict] = []   # all of this round, counted together (see _settle)
             try:
                 if folder.own_changed():
                     # first run, or someone else wrote our file: keep what is in it
@@ -355,23 +356,21 @@ class Syncer:
                         # never overwrite what we cannot read (incomplete, damaged, other passphrase)
                         logger.warning("Own sync file unreadable (%s)", code)
                         self._switch_device(folder, "sync_own_unreadable")
-                others, errors = folder.read_others(only_new=not full)
+                others, problems = folder.read_others(only_new=not full)
                 for other in others:
                     self.devices[other["device"]] = {"device": other["device"], "name": other["name"],
                                                      "written": other["written"]}
                     changed |= self._history.merge_sync(other["history"], keep_contents=self._keep_contents())
-                self.errors = self._settle(errors)
                 if changed or self._history.revision != self._last_revision or full:
                     folder.write(self._history.sync_state(), force=full)
-                    self._last_revision = self._history.revision
+                    self._last_revision = self._history.revision   # a failed write is retried next round
                 self.last_sync = datetime.now(timezone.utc).isoformat()
             except SyncError as e:
-                self.errors = self._settle([{"file": "", "code": e.code}])
-                changed = False
+                problems.append({"file": "", "code": e.code})
             except OSError as e:
                 logger.info("Sync folder not usable: %s", e)
-                self.errors = self._settle([{"file": "", "code": "sync_folder"}])
-                changed = False
+                problems.append({"file": "", "code": "sync_folder"})
+            self.errors = self._settle(problems)
         if changed:
             self._emit("history_synced", {})
         return self.status()
