@@ -122,7 +122,7 @@
     get_settings: () => ({ history_enabled: true, remember_sites: true, lang: 'en', stateless: false, system_languages: ['en-US'] }),
     data_status: () => ({ advisories: { source: 'downloaded', updated: iso(4 * D), count: 14 },
       mds: { cached: true, fetched_at: iso(6 * H), entry_count: 531, serial: 291, current: true, next_update: new Date(now + 20 * D).toISOString().slice(0, 10), revocation_checked: true, verified: true },
-      last_check: iso(6 * H), app: { current: '1.3.0', latest: '1.3.0', newer: false } }),
+      last_check: iso(6 * H), app: { current: '1.5.0', latest: '1.5.0', newer: false } }),
     mds_status: () => api.data_status().mds,
     tokens: () => ({ tokens }),
     history_list: () => ({ keys: Object.values(history).map(summary) }),

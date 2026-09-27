@@ -35,6 +35,14 @@ class AboutPanelTests(unittest.TestCase):
         self.assertEqual(self.links(text), [u for _, u in self.menubar.ABOUT_LINKS])
         self.assertTrue(all(u.startswith("https://") for u in self.links(text)))
 
+    def test_update_menu_text_is_translated(self):
+        with patch.object(self.mb, "_refresh"):
+            self.mb.set_language("fr", {"updates": "Rechercher des mises à jour…"})
+        self.assertEqual(self.mb._t("updates"), "Rechercher des mises à jour…")
+        with patch.object(self.mb, "_refresh"):
+            self.mb.set_language("xx")
+        self.assertEqual(self.mb._t("updates"), "Check for Updates…")
+
     def test_missing_texts_fall_back_to_english(self):
         text = self.credits("xx")
         self.assertIn(self.menubar.ABOUT_TEXTS["en"]["about.what"], text.string())

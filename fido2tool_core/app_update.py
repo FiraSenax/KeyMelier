@@ -33,7 +33,8 @@ def check() -> dict:
     """Return {current, latest, newer, url, published_at} (latest may be None)."""
     import requests
 
-    result = {"current": __version__, "latest": None, "newer": False, "url": None, "published_at": None}
+    result = {"current": __version__, "latest": None, "newer": False, "url": None, "published_at": None,
+              "failed": False}
     try:
         resp = requests.get(RELEASES_API, timeout=15, headers={"Accept": "application/vnd.github+json"})
         if resp.status_code == 404:
@@ -42,6 +43,7 @@ def check() -> dict:
         release = resp.json()
     except Exception as e:
         logger.info("App update check failed: %s", e)
+        result["failed"] = True   # offline or GitHub unreachable – say so when asked
         return result
     latest = _parse(release.get("tag_name", ""))
     current = _parse(__version__)

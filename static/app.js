@@ -1199,6 +1199,7 @@ let updateFlow = null;
 
 function renderUpdateBanner() {
   const app = dataStatus?.app;
+  $('version-text').textContent = app?.current ? `KeyMelier ${app.current}` : 'KeyMelier';
   const show = !!(app && app.newer && app.url);
   $('update-banner').classList.toggle('hidden', !show);
   if (!show) return;
@@ -1257,6 +1258,29 @@ function renderDataStatus() {
       : '—'],
   ]);
 }
+
+// "Check for updates" (sidebar, macOS app menu, menu bar icon)
+let updateChecking = false;
+async function checkForUpdates() {
+  if (updateChecking) return;
+  updateChecking = true;
+  $('version-check').disabled = true;
+  showToast(t('upd.checking'), 'info');
+  try {
+    dataStatus = await call('check_updates');
+    renderDataStatus();
+    const app = dataStatus.app || {};
+    if (app.failed) showToast(t('upd.checkFailed'), 'error');
+    else if (app.newer) showToast(t('upd.available', { v: app.latest }), 'success');
+    else showToast(t('upd.current', { v: app.current }), 'success');
+  } catch (e) {
+    showToast(errorMessage(e), 'error');
+  } finally {
+    updateChecking = false;
+    $('version-check').disabled = false;
+  }
+}
+window.__kmCheckUpdates = () => checkForUpdates();
 
 async function checkDataNow() {
   const btn = $('data-check');
@@ -3464,7 +3488,7 @@ function changeLang(choice, persist = true) {
   LANG_CHOICE = STRINGS[choice] ? choice : '';
   setLang(LANG_CHOICE || SYSTEM_LANG);
   window.pywebview?.api?.set_ui_language?.(LANG, {
-    open: t('menu.open'), quit: t('menu.quit'), none: t('sidebar.none'),
+    open: t('menu.open'), quit: t('menu.quit'), none: t('sidebar.none'), updates: t('upd.checkMenu'),
     OK: t('status.OK'), WARNING: t('status.WARNING'), CRITICAL: t('status.CRITICAL'), PENDING: t('status.PENDING'),
     // "About KeyMelier" panel (macOS)
     'about.lead': t('app.tagline'), 'about.what': t('about.what'), 'about.privacy': t('about.privacy'),
@@ -3759,6 +3783,7 @@ function init() {
   $('tab-more-menu').addEventListener('keydown', tabMenuKey);
   document.addEventListener('click', ev => { if (!ev.target.closest('#tab-more')) setTabMenu(false); });
   $('lang-select').addEventListener('change', ev => changeLang(ev.target.value));
+  $('version-check').addEventListener('click', checkForUpdates);
   $('pin-form').addEventListener('submit', submitPinForm);
   $('rs-confirm').addEventListener('change', ev => { $('rs-start').disabled = !ev.target.checked; });
   $('rs-start').addEventListener('click', startReset);

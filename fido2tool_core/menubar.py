@@ -17,9 +17,9 @@ FLASH_SECONDS = 5
 
 # Menu texts per UI language (kept short; falls back to English)
 TEXTS = {
-    "de": {"open": "KeyMelier öffnen", "quit": "Beenden", "none": "Kein Schlüssel verbunden",
+    "de": {"open": "KeyMelier öffnen", "quit": "Beenden", "none": "Kein Schlüssel verbunden", "updates": "Nach Updates suchen …",
            "UNKNOWN": "unbekannt", "OK": "keine bekannten Hinweise", "WARNING": "Warnung", "CRITICAL": "kritisch", "PENDING": "wird geprüft"},
-    "en": {"open": "Open KeyMelier", "quit": "Quit", "none": "No key connected",
+    "en": {"open": "Open KeyMelier", "quit": "Quit", "none": "No key connected", "updates": "Check for Updates…",
            "UNKNOWN": "unknown", "OK": "no known findings", "WARNING": "warning", "CRITICAL": "critical", "PENDING": "checking"},
 }
 
@@ -55,6 +55,7 @@ class MenuBar:
         self._target = None
         self._lang = "en"
         self._about_hooked = False
+        self._updates_item = None
         # Kept up to date from the event payloads. Never query the scanner
         # here: its callbacks fire while it holds its own lock.
         self._tokens: dict[str, dict] = {}
@@ -83,6 +84,9 @@ class MenuBar:
 
             def showAbout_(self, _sender):
                 menubar._show_about()
+
+            def checkUpdates_(self, _sender):
+                menubar._check_updates()
 
         self._target = _Target.alloc().init()
         self._item = NSStatusBar.systemStatusBar().statusItemWithLength_(NSVariableStatusItemLength)
@@ -148,6 +152,8 @@ class MenuBar:
         from AppKit import NSMenu, NSMenuItem
 
         self._hook_about()
+        if self._updates_item is not None:
+            self._updates_item.setTitle_(self._t("updates"))
         if self._item is None:
             return
         menu = NSMenu.alloc().init()
@@ -165,6 +171,9 @@ class MenuBar:
             item.setRepresentedObject_(tok.get("id"))
             menu.addItem_(item)
         menu.addItem_(NSMenuItem.separatorItem())
+        updates_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(self._t("updates"), "checkUpdates:", "")
+        updates_item.setTarget_(self._target)
+        menu.addItem_(updates_item)
         open_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(self._t("open"), "openApp:", "o")
         open_item.setTarget_(self._target)
         menu.addItem_(open_item)
@@ -185,10 +194,16 @@ class MenuBar:
         from AppKit import NSApp
         menu = NSApp.mainMenu()
         app_menu = menu.itemAtIndex_(0).submenu() if menu is not None and menu.numberOfItems() else None
-        for item in (app_menu.itemArray() if app_menu is not None else []):
+        from AppKit import NSMenuItem
+        for index, item in enumerate(app_menu.itemArray() if app_menu is not None else []):
             if item.action() == "orderFrontStandardAboutPanel:":
                 item.setTarget_(self._target)
                 item.setAction_("showAbout:")
+                # "Check for Updates…" right below, as in other Mac apps
+                self._updates_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    self._t("updates"), "checkUpdates:", "")
+                self._updates_item.setTarget_(self._target)
+                app_menu.insertItem_atIndex_(self._updates_item, index + 1)
                 self._about_hooked = True
                 return
 
@@ -219,6 +234,10 @@ class MenuBar:
                 add(" · ", muted)
             add(self._about_t(key), {**base, NSLinkAttributeName: NSURL.URLWithString_(url)})
         return text
+
+    def _check_updates(self):
+        self._open()
+        self._window.evaluate_js("window.__kmCheckUpdates && window.__kmCheckUpdates()")
 
     def _show_about(self):
         from AppKit import NSApp

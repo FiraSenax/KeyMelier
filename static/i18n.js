@@ -4613,6 +4613,21 @@ const SYNC_STRINGS = {
 };
 for (const [code, strings] of Object.entries(SYNC_STRINGS)) Object.assign(STRINGS[code], strings);
 
+const UPDCHK_STRINGS = {
+  de: {"upd.check": "Nach Updates suchen", "upd.checkMenu": "Nach Updates suchen …", "upd.checking": "Suche nach Updates …", "upd.current": "KeyMelier {v} ist aktuell.", "upd.checkFailed": "Konnte nicht nach Updates suchen – keine Verbindung zu GitHub?"},
+  en: {"upd.check": "Check for updates", "upd.checkMenu": "Check for Updates…", "upd.checking": "Checking for updates…", "upd.current": "KeyMelier {v} is up to date.", "upd.checkFailed": "Could not check for updates – no connection to GitHub?"},
+  es: {"upd.check": "Buscar actualizaciones", "upd.checkMenu": "Buscar actualizaciones…", "upd.checking": "Buscando actualizaciones…", "upd.current": "KeyMelier {v} está actualizado.", "upd.checkFailed": "No se pudo buscar actualizaciones: ¿sin conexión con GitHub?"},
+  fr: {"upd.check": "Rechercher des mises à jour", "upd.checkMenu": "Rechercher des mises à jour…", "upd.checking": "Recherche de mises à jour…", "upd.current": "KeyMelier {v} est à jour.", "upd.checkFailed": "Impossible de rechercher des mises à jour – pas de connexion à GitHub ?"},
+  it: {"upd.check": "Cerca aggiornamenti", "upd.checkMenu": "Cerca aggiornamenti…", "upd.checking": "Ricerca aggiornamenti…", "upd.current": "KeyMelier {v} è aggiornato.", "upd.checkFailed": "Impossibile cercare aggiornamenti: nessuna connessione a GitHub?"},
+  nl: {"upd.check": "Zoeken naar updates", "upd.checkMenu": "Zoeken naar updates…", "upd.checking": "Zoeken naar updates…", "upd.current": "KeyMelier {v} is up-to-date.", "upd.checkFailed": "Kon niet naar updates zoeken – geen verbinding met GitHub?"},
+  pl: {"upd.check": "Sprawdź aktualizacje", "upd.checkMenu": "Sprawdź aktualizacje…", "upd.checking": "Sprawdzanie aktualizacji…", "upd.current": "KeyMelier {v} jest aktualny.", "upd.checkFailed": "Nie udało się sprawdzić aktualizacji – brak połączenia z GitHubem?"},
+  pt: {"upd.check": "Procurar atualizações", "upd.checkMenu": "Procurar atualizações…", "upd.checking": "A procurar atualizações…", "upd.current": "O KeyMelier {v} está atualizado.", "upd.checkFailed": "Não foi possível procurar atualizações – sem ligação ao GitHub?"},
+  ja: {"upd.check": "アップデートを確認", "upd.checkMenu": "アップデートを確認…", "upd.checking": "アップデートを確認中…", "upd.current": "KeyMelier {v} は最新です。", "upd.checkFailed": "アップデートを確認できませんでした。GitHub に接続できませんか？"},
+  ko: {"upd.check": "업데이트 확인", "upd.checkMenu": "업데이트 확인…", "upd.checking": "업데이트 확인 중…", "upd.current": "KeyMelier {v}은(는) 최신 버전입니다.", "upd.checkFailed": "업데이트를 확인할 수 없습니다. GitHub에 연결되지 않았나요?"},
+  zh: {"upd.check": "检查更新", "upd.checkMenu": "检查更新…", "upd.checking": "正在检查更新…", "upd.current": "KeyMelier {v} 已是最新版本。", "upd.checkFailed": "无法检查更新——无法连接到 GitHub？"},
+};
+for (const [code, strings] of Object.entries(UPDCHK_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

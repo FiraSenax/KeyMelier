@@ -53,5 +53,30 @@ class AppUpdateTests(unittest.TestCase):
                 app_update.download(bad)
 
 
+
+class CheckTests(unittest.TestCase):
+    """A manual "check for updates" must be able to tell "up to date" from "could not check"."""
+
+    def test_unreachable_is_reported(self):
+        with patch("requests.get", side_effect=OSError("offline")):
+            result = app_update.check()
+        self.assertTrue(result["failed"])
+        self.assertFalse(result["newer"])
+
+    def test_no_release_yet_is_not_a_failure(self):
+        resp = MagicMock(status_code=404)
+        with patch("requests.get", return_value=resp):
+            self.assertFalse(app_update.check()["failed"])
+
+    def test_newer_release(self):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = {"tag_name": "v99.0.0", "html_url": "https://github.com/FiraSenax/KeyMelier/releases/tag/v99.0.0",
+                                  "assets": []}
+        with patch("requests.get", return_value=resp):
+            result = app_update.check()
+        self.assertTrue(result["newer"])
+        self.assertFalse(result["failed"])
+        self.assertEqual(result["latest"], "99.0.0")
+
 if __name__ == "__main__":
     unittest.main()
