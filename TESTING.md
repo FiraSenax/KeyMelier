@@ -88,11 +88,10 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 - **Browser engine:** UI tests run in Chrome on Linux. The app uses WebKit
   (macOS) and WebView2 (Windows); the packaged start test covers loading,
   resources and the bridge there, but not every interaction.
-- **Windows start test in CI** depends on the runner providing a desktop
-  session and WebView2 and on starting an app that requests administrator
-  rights. It is configured but was not yet run in CI at the time of writing;
-  if the runner cannot show windows, the job fails visibly – run the check
-  on a Windows PC instead and note it here.
+- **Windows start test in CI** runs on the hosted runner (desktop session,
+  WebView2, app with administrator rights) – first verified on 2026-09-27
+  (43 checks, run 36321724829). If a future runner image cannot show
+  windows, the job fails visibly; run the check on a Windows PC instead.
 - **No security keys in CI:** detection, reading, PIN entry, unplugging and
   reconnecting real keys are covered by [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 - **Not tested automatically:** screen readers, high-contrast modes,
