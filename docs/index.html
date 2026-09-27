@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeyMelier – the sommelier for your security keys</title>
+<meta name="description" content="KeyMelier is a free, open-source desktop app for macOS and Windows that checks, rates and manages FIDO2 security keys from any vendor.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1d1b20; --muted: #5d5a63; --line: #e3e0da;
+    --accent: #7a1f3d; --accent-soft: #f4e6eb; --ok: #1f7a4d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141217; --card: #1d1a21; --text: #f1eef4; --muted: #aaa4b1; --line: #2f2a35;
+            --accent: #e0789c; --accent-soft: #3a2230; --ok: #5fd39a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  header { padding: 72px 0 40px; text-align: center; }
+  header img { width: 112px; height: 112px; }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); margin: 12px 0 4px; letter-spacing: -0.02em; }
+  .tagline { font-size: 1.2rem; color: var(--muted); font-style: italic; margin: 0 0 18px; }
+  .lead { max-width: 680px; margin: 0 auto 28px; font-size: 1.08rem; }
+  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--text); background: var(--card); }
+  .small { color: var(--muted); font-size: 0.88rem; margin-top: 12px; }
+  section { padding: 36px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.6rem; margin: 0 0 18px; letter-spacing: -0.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line);
+          border-radius: 14px; overflow: hidden; font-size: 0.95rem; }
+  th, td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+  td.c, th.c { text-align: center; }
+  .yes { color: var(--ok); font-weight: 700; }
+  .note { background: var(--accent-soft); border-radius: 12px; padding: 14px 18px; }
+  footer { padding: 32px 0 56px; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); }
+  code { font-size: 0.9em; }
+  @media (max-width: 600px) { header { padding-top: 48px; } th, td { padding: 8px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="icon.svg" alt="KeyMelier icon: a wine glass whose stem is a security key">
+    <h1>KeyMelier</h1>
+    <p class="tagline">The sommelier for your security keys.</p>
+    <p class="lead">A free, open-source desktop app for macOS and Windows that <strong>checks, rates and keeps track of</strong> your FIDO2 security keys – YubiKey, Token2, Feitian and every other vendor – and manages everything on them.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/FiraSenax/KeyMelier/releases/latest">Download the latest release</a>
+      <a class="btn ghost" href="https://github.com/FiraSenax/KeyMelier">Source code on GitHub</a>
+    </div>
+    <p class="small">macOS and Windows · MIT license · 11 languages</p>
+  </header>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>Is this key genuine and safe?</h3><p>Attestation verified up to the FIDO Alliance root, certification and revocation status from FIDO metadata, and a signed, self-updating vulnerability database – summed up in a security check with concrete fixes.</p></div>
+      <div class="card"><h3>What is on which key?</h3><p>KeyMelier remembers every key it has seen and what was on it: passkey websites, authenticator accounts, OpenPGP keys, certificates. It shows what exists on only one key.</p></div>
+      <div class="card"><h3>Lost a key?</h3><p>A lost-key assistant lists where to remove the key, which authenticator accounts to re-enroll, which OpenPGP keys to revoke and which certificates to have revoked.</p></div>
+      <div class="card"><h3>Manage everything on the key</h3><p>PIN, passkeys, fingerprints and key settings; authenticator codes (TOTP/HOTP); OpenPGP including key generation on the card; PIV certificates; YubiKey OTP slots; applications per USB/NFC.</p></div>
+      <div class="card"><h3>Function test</h3><p>Registers, signs in and verifies a signature like a real website – without storing anything on the key.</p></div>
+      <div class="card"><h3>Quantum safety</h3><p>Shows the algorithms a key offers and detects post-quantum signatures (ML-DSA) automatically once keys support them.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it compares</h2>
+    <table>
+      <tr><th></th><th class="c">KeyMelier</th><th class="c">Browser</th><th class="c">Vendor apps</th></tr>
+      <tr><td>Keys from any vendor</td><td class="c yes">✓</td><td class="c">✓</td><td class="c">own keys</td></tr>
+      <tr><td>Signed vulnerability database</td><td class="c yes">✓</td><td class="c">–</td><td class="c">–</td></tr>
+      <tr><td>Attestation verified to the FIDO root</td><td class="c yes">✓</td><td class="c">–</td><td class="c">–</td></tr>
+      <tr><td>Remembers keys and their contents, backup overview</td><td class="c yes">✓</td><td class="c">–</td><td class="c">–</td></tr>
+      <tr><td>Lost-key assistant</td><td class="c yes">✓</td><td class="c">–</td><td class="c">–</td></tr>
+      <tr><td>Authenticator, OpenPGP, PIV, OTP</td><td class="c yes">✓</td><td class="c">–</td><td class="c">✓</td></tr>
+    </table>
+  </section>
+
+  <section id="privacy">
+    <h2>Privacy</h2>
+    <p>KeyMelier does not transfer any information about you, your computer or your security keys to other networked systems. It only downloads public data: FIDO Alliance metadata and its signer's revocation lists, KeyMelier's signed vulnerability database, and the latest release number for an update notice. Everything it stores stays on your computer; <code>--stateless</code> disables all storage.</p>
+  </section>
+
+  <section id="signing">
+    <h2>Code signing</h2>
+    <p class="note">Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
+    <p>Windows releases are signed through the SignPath Foundation's program for open-source projects; macOS releases with an Apple Developer ID. Each release is built by GitHub Actions from a tagged commit and lists the source commit, dependency locks, SHA-256 checksums, an SBOM and third-party licenses. Read the full <a href="https://github.com/FiraSenax/KeyMelier/blob/main/CODE_SIGNING.md">code signing policy</a>, including team roles.</p>
+  </section>
+
+  <footer>
+    KeyMelier is open source under the <a href="https://github.com/FiraSenax/KeyMelier/blob/main/LICENSE">MIT license</a>.
+    Not affiliated with Yubico, Token2, Feitian or the FIDO Alliance; product names belong to their owners.
+    · <a href="https://github.com/FiraSenax/KeyMelier/issues">Report an issue</a>
+  </footer>
+</div>
+</body>
+</html>

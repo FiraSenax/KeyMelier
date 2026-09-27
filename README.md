@@ -2,6 +2,8 @@
 
 *The sommelier for your security keys.*
 
+Website: https://firasenax.github.io/KeyMelier/
+
 KeyMelier is a desktop app (macOS + Windows) that **checks, rates and keeps track of your security keys** – across vendors. Managing a PIN or deleting a passkey is something Chrome can do too; KeyMelier answers the questions around it:
 
 - **Is this key genuine and safe?** Attestation verified up to the FIDO Alliance root, a curated and signed vulnerability database that updates itself, certification and revocation status – summed up in a per-key security check with concrete fixes.
