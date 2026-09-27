@@ -2,7 +2,24 @@
 
 *The sommelier for your security keys.*
 
-A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys. Plug in a key and see what it is, its attestation evidence and known vulnerability findings — and manage it: PIN, passkeys, fingerprints, factory reset. Previously seen keys are kept in a local history (on by default, can be turned off; stateless mode keeps everything in memory).
+KeyMelier is a desktop app (macOS + Windows) that **checks, rates and keeps track of your security keys** – across vendors. Managing a PIN or deleting a passkey is something Chrome can do too; KeyMelier answers the questions around it:
+
+- **Is this key genuine and safe?** Attestation verified up to the FIDO Alliance root, a curated and signed vulnerability database that updates itself, certification and revocation status – summed up in a per-key security check with concrete fixes.
+- **What is on which key – and what if one is lost?** KeyMelier remembers every key it has seen and what was on it, shows which accounts exist on only one key, and walks you through a lost key.
+- **Does it actually work?** A function test registers, signs in and verifies a signature like a real website, without storing anything on the key.
+
+And of course it manages the key: PIN, passkeys, fingerprints, key settings and factory reset.
+
+## What makes it different
+
+| | KeyMelier | Browser (Chrome) | Vendor apps |
+|---|---|---|---|
+| Works with keys from any vendor | ✓ | ✓ | usually own keys only |
+| Vulnerability check with self-updating, signed database | ✓ | – | – |
+| Attestation verified to the FIDO root, revocation checked | ✓ | – | – |
+| Remembers keys and what was on them; backup overview across keys | ✓ | – | – |
+| Lost-key assistant | ✓ | – | – |
+| PIN, passkeys, fingerprints, reset | ✓ | ✓ | ✓ |
 
 ## Features
 
@@ -11,7 +28,7 @@ A desktop app (macOS + Windows) for inspecting and managing FIDO2 security keys.
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
 - **Passkeys:** list discoverable credentials per website, rename and delete them
-- **Backup & loss:** which websites are on which key (names only, local recording disabled by default), sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
+- **Backup & loss:** which websites are on which key, sites without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from
 - **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
