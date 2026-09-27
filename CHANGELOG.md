@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Account overview easier to read:** rows are tinted by risk with a coloured edge and a symbol (✕ ! ? i ✓, always with text), and cells where a key in use lacks a risky account are marked as backup gaps; a legend explains both.
 - **Introduction on first start:** what KeyMelier does; remember history or nothing at all; why Windows needs administrator rights; what the warnings for unsigned / not yet notarized builds mean (from the real build state) and how to check the checksum; how to begin. Skippable, reopen under About.
 
 ## 1.7.1 — 2026-09-27

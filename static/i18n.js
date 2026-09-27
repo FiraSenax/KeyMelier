@@ -4718,6 +4718,21 @@ const OB_STRINGS = {
 };
 for (const [code, strings] of Object.entries(OB_STRINGS)) Object.assign(STRINGS[code], strings);
 
+const HEAT_STRINGS = {
+  de: {"acc.cell.gap": "Kein Backup auf diesem Schlüssel – hier könntest du eins anlegen", "acc.legend.gap": "fehlt auf einem Schlüssel, der in Gebrauch ist (Backup-Lücke)", "acc.legend.risk": "Risiko"},
+  en: {"acc.cell.gap": "No backup on this key – you could add one here", "acc.legend.gap": "missing on a key in use (backup gap)", "acc.legend.risk": "Risk"},
+  es: {"acc.cell.gap": "Sin copia en esta llave: podrías añadir una aquí", "acc.legend.gap": "falta en una llave en uso (hueco de respaldo)", "acc.legend.risk": "Riesgo"},
+  fr: {"acc.cell.gap": "Aucune sauvegarde sur cette clé – vous pourriez en ajouter une ici", "acc.legend.gap": "absent d'une clé en service (manque de sauvegarde)", "acc.legend.risk": "Risque"},
+  it: {"acc.cell.gap": "Nessun backup su questa chiave: potresti aggiungerne uno qui", "acc.legend.gap": "manca su una chiave in uso (backup mancante)", "acc.legend.risk": "Rischio"},
+  nl: {"acc.cell.gap": "Geen back-up op deze sleutel – je zou er hier een kunnen toevoegen", "acc.legend.gap": "ontbreekt op een sleutel die in gebruik is (back-upgat)", "acc.legend.risk": "Risico"},
+  pl: {"acc.cell.gap": "Brak kopii na tym kluczu – tu możesz ją dodać", "acc.legend.gap": "brak na używanym kluczu (luka w kopii)", "acc.legend.risk": "Ryzyko"},
+  pt: {"acc.cell.gap": "Sem cópia nesta chave – podias adicionar uma aqui", "acc.legend.gap": "em falta numa chave em uso (falha de cópia)", "acc.legend.risk": "Risco"},
+  ja: {"acc.cell.gap": "このキーにはバックアップがありません。ここに追加できます", "acc.legend.gap": "使用中のキーにない（バックアップの欠落）", "acc.legend.risk": "リスク"},
+  ko: {"acc.cell.gap": "이 키에는 백업이 없습니다. 여기에 추가할 수 있습니다", "acc.legend.gap": "사용 중인 키에 없음(백업 공백)", "acc.legend.risk": "위험"},
+  zh: {"acc.cell.gap": "此密钥上没有备份——可以在这里添加一个", "acc.legend.gap": "在使用中的密钥上缺失（备份缺口）", "acc.legend.risk": "风险"},
+};
+for (const [code, strings] of Object.entries(HEAT_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

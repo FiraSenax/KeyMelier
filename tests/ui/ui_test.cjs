@@ -146,6 +146,18 @@ async function main() {
     await until('accLevel === "" && accFilter === ""', 'reset');
     assert(await active() === 'acc-search', 'focus returns to the search');
   });
+  await test('risk at a glance: every row has a symbol with text, gaps only on keys in use in risky rows', async () => {
+    const rows = await js(`[...document.querySelectorAll('#accounts-content .acc-sub-row')].map(r => ({
+      level: [...r.classList].find(c => c.startsWith('acc-') && c !== 'acc-sub-row'),
+      badge: r.querySelector('.acc-level .sr-only')?.textContent || '',
+      gaps: r.querySelectorAll('td.gap').length }))`);
+    assert(rows.length > 0 && rows.every(r => r.badge.length > 0), 'each row names its risk in text');
+    assert(rows.filter(r => r.gaps).every(r => r.level === 'acc-crit' || r.level === 'acc-warn'), 'gaps only in risky rows');
+    assert(rows.some(r => r.gaps), 'the demo has at least one backup gap');
+    const lostGap = await js(`(() => { const lostCol = [...document.querySelectorAll('.acc-table thead th')].findIndex(th => th.classList.contains('lost'));
+      return [...document.querySelectorAll('#accounts-content .acc-sub-row')].some(r => r.children[lostCol]?.classList.contains('gap')); })()`);
+    assert(!lostGap, 'a lost key is never marked as a place for a backup');
+  });
   await test('next step: Enter expands the explanation (aria-expanded), focus stays', async () => {
     await focus('#accounts-content [data-next]');
     await press('Enter');

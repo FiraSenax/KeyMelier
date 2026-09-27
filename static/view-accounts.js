@@ -61,6 +61,14 @@ const STATUS_TEXT = {
 const ACC_CARDS = [['', 'acc.sum.accounts'], ['crit', 'acc.sum.lost'], ['warn', 'acc.sum.single'],
   ['unclear', 'acc.sum.unclear'], ['info', 'acc.sum.codes'], ['ok', 'acc.sum.ok']];
 
+// Risk of a row: symbol + text (never colour alone)
+const LEVEL_MARK = { crit: '✕', warn: '!', unclear: '?', info: 'i', ok: '✓' };
+const levelLabel = lvl => t((ACC_CARDS.find(([l]) => l === lvl) || [])[1] || 'acc.sum.accounts');
+
+function levelBadge(lvl) {
+  return `<span class="acc-level ${lvl}" title="${escHtml(levelLabel(lvl))}"><span aria-hidden="true">${LEVEL_MARK[lvl]}</span><span class="sr-only">${escHtml(levelLabel(lvl))}</span></span>`;
+}
+
 function accSummaryHtml(rows, clickable = false, active = null) {
   const count = lvl => (lvl ? rows.filter(r => r.level === lvl).length : rows.length);
   return ACC_CARDS.map(([lvl, key]) => {
@@ -114,6 +122,11 @@ function renderAccountsView() {
   const cells = r => m.keys.map(k => {
     const c = cellState(m, r, k.key_id);
     const lost = k.lost_since ? ' lost' : '';
+    // a key that is in use but lacks this risky account: where a backup could go
+    const gap = c.absent && !c.unknown && !k.lost_since && (r.level === 'crit' || r.level === 'warn');
+    if (gap) {
+      return `<td class="no gap" title="${escHtml(t('acc.cell.gap'))}"><span aria-hidden="true">–</span><span class="sr-only">${escHtml(t('acc.cell.gap'))}</span></td>`;
+    }
     if (c.absent) {
       return c.unknown ? `<td class="unknown${lost}" title="${escHtml(t('acc.cell.unknown'))}"><span aria-hidden="true">?</span><span class="sr-only">${escHtml(t('acc.cell.unknown'))}</span></td>`
         : `<td class="no${lost}" title="${escHtml(t('acc.cell.absent'))}"><span aria-hidden="true">–</span><span class="sr-only">${escHtml(t('acc.cell.absent'))}</span></td>`;
@@ -130,7 +143,7 @@ function renderAccountsView() {
     const next = NEXT_STEP[r.status];
     const open = next && accNextOpen.has(r.id);
     const nextId = `acc-next-${escHtml(r.id).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-    return `<tr class="acc-sub-row acc-${r.level}"><th scope="row" class="acc-name acc-indent">
+    return `<tr class="acc-sub-row acc-${r.level}"><th scope="row" class="acc-name acc-indent">${levelBadge(r.level)}
       <span><span class="acc-upn">${escHtml(label)}</span>${sub ? `<span class="acc-note">${escHtml(sub)}</span>` : ''}
       <span class="acc-note acc-status">${escHtml(STATUS_TEXT[r.status](r))}</span>${link}
       ${next ? `<button type="button" class="btn-link acc-next-btn" data-next="${escHtml(r.id)}" aria-expanded="${!!open}" aria-controls="${nextId}">${escHtml(t('acc.next'))}</button>` : ''}</span></th>${cells(r)}</tr>
@@ -163,6 +176,10 @@ function renderAccountsView() {
         <li><span class="pill on">${escHtml(t('acc.passkey'))}</span> <span class="pill">${escHtml(t('acc.code'))}</span> ${escHtml(t('acc.legend.yes'))}</li>
         <li><span class="acc-legend-mark">–</span> ${escHtml(t('acc.legend.no'))}</li>
         <li><span class="acc-legend-mark">?</span> ${escHtml(t('acc.legend.unknown'))}</li>
+        <li><span class="acc-legend-mark gap">–</span> ${escHtml(t('acc.legend.gap'))}</li>
+      </ul>
+      <ul class="acc-legend acc-legend-risk" aria-label="${escHtml(t('acc.legend.risk'))}">
+        ${['crit', 'warn', 'unclear', 'info', 'ok'].map(l => `<li>${levelBadge(l)} ${escHtml(levelLabel(l))}</li>`).join('')}
       </ul>
       ${shown.size ? `<div class="bk-table-wrap acc-wrap" tabindex="0" aria-label="${escHtml(t('acc.title'))}"><table class="bk-table acc-table">
         <thead><tr><th scope="col" class="acc-corner">${escHtml(t('acc.service'))}</th>${head}</tr></thead>

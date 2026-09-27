@@ -1478,3 +1478,29 @@ summary { min-height: 28px; display: list-item; }
 .ob-actions [data-ob="skip"] { margin-right: auto; }
 
 code.nowrap { white-space: nowrap; font-size: 0.95em; }
+
+/* Risk at a glance: tinted rows, a coloured edge, a symbol per row, gap cells */
+.acc-level { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  font-size: 0.78rem; font-weight: 800; color: #fff; margin-right: 8px; vertical-align: top; }
+.acc-level.crit { background: var(--crit); } .acc-level.warn { background: var(--warn); }
+.acc-level.unclear { background: var(--text-3); } .acc-level.info { background: var(--accent); } .acc-level.ok { background: var(--ok); }
+.acc-name.acc-indent { display: table-cell; }
+.acc-name.acc-indent > .acc-level + span { display: inline-block; vertical-align: top; max-width: calc(100% - 34px); }
+.acc-sub-row.acc-crit > * { background: color-mix(in srgb, var(--crit) 16%, var(--surface)); }
+.acc-sub-row.acc-warn > * { background: color-mix(in srgb, var(--warn) 13%, var(--surface)); }
+.acc-sub-row.acc-unclear > * { background: color-mix(in srgb, var(--text-3) 10%, var(--surface)); }
+.acc-sub-row.acc-info > * { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.acc-sub-row.acc-ok > * { background: color-mix(in srgb, var(--ok) 7%, var(--surface)); }
+.acc-sub-row.acc-crit > th { box-shadow: inset 4px 0 0 var(--crit), inset -1px 0 0 var(--border); }
+.acc-sub-row.acc-warn > th { box-shadow: inset 4px 0 0 var(--warn), inset -1px 0 0 var(--border); }
+.acc-sub-row.acc-unclear > th { box-shadow: inset 4px 0 0 var(--text-3), inset -1px 0 0 var(--border); }
+.acc-sub-row.acc-info > th { box-shadow: inset 4px 0 0 var(--accent), inset -1px 0 0 var(--border); }
+.acc-sub-row.acc-ok > th { box-shadow: inset 4px 0 0 var(--ok), inset -1px 0 0 var(--border); }
+.acc-table td.gap { background: color-mix(in srgb, var(--crit) 22%, var(--surface)) !important; outline: 1px dashed var(--crit); outline-offset: -4px; color: var(--crit); font-weight: 700; }
+.acc-legend-mark.gap { background: color-mix(in srgb, var(--crit) 22%, var(--surface)); outline: 1px dashed var(--crit); outline-offset: -3px; color: var(--crit); }
+.acc-legend-risk .acc-level { margin-right: 4px; }
+.acc-table .acc-sub-row.acc-crit > th { background: color-mix(in srgb, var(--crit) 16%, var(--surface)); }
+.acc-table .acc-sub-row.acc-warn > th { background: color-mix(in srgb, var(--warn) 13%, var(--surface)); }
+.acc-table .acc-sub-row.acc-unclear > th { background: color-mix(in srgb, var(--text-3) 10%, var(--surface)); }
+.acc-table .acc-sub-row.acc-info > th { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.acc-table .acc-sub-row.acc-ok > th { background: color-mix(in srgb, var(--ok) 7%, var(--surface)); }
