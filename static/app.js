@@ -3997,6 +3997,15 @@ function init() {
     const item = ev.target.closest('.key-item');
     if (item) selectToken(item.dataset.id);
   });
+  // The lock / read icons are role="button" spans inside the key button: Enter and Space act on them
+  $('key-list').addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const el = ev.target.closest('[data-unlock], [data-read]');
+    if (!el || el !== ev.target) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (el.dataset.unlock) quickLockToggle(el.dataset.unlock); else openProbe(el.dataset.read);
+  });
   $('nav-backup').addEventListener('click', showBackupView);
   $('nav-backup-icon').innerHTML = icon('shield', 18);
   $('nav-accounts').addEventListener('click', showAccountsView);
