@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0 — 2026-09-27
 
 UI revision – what needs attention and what to do next:
 
@@ -10,6 +10,8 @@ UI revision – what needs attention and what to do next:
 - **Key overview** leads with passkeys, authenticator accounts and open tasks ("Not read" instead of an empty count); missing optional hardware is one compact line; **Read key** reuses the unlock dialog / passkey search (no automatic PIN attempts); CSV export moved into the **⋯** menu.
 - **Passkeys:** compact groups per service with search, labelled Rename/Delete and details on demand.
 - **Replacing a key** is a guided view in four steps (choose, compare, test & confirm, summary) with "Open entries only"; "found on the new key" and "confirmed by you" stay separate, a tick never counts as technical proof.
+- A running key replacement can be **cancelled** from Backup & loss (asks first; only the progress is forgotten, nothing changes on the keys).
+- **Check for updates** lives in **About KeyMelier** (bottom of the sidebar) and, on macOS, in the KeyMelier menu.
 - Readability: stronger contrast for hint and status text in light and dark mode, visible keyboard focus, larger click targets, focus kept in dialogs and returned on close, long explanations behind "Details", sync shown compactly ("last synced locally").
 
 ## 1.6.1 — 2026-09-27
