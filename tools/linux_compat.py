@@ -35,6 +35,66 @@ MATRIX = {
 }
 
 
+MIN_CHECKS = 30   # the packaged start test reports far more; fewer means it did not really run
+STATUSES = {"passed", "failed"}
+MODES = {"native", "emulated"}
+
+
+def validate_result(r) -> list[str]:
+    """Problems with one result – empty only for a consistent, complete pass.
+
+    Used by `run` and `report` alike, so a single run and the summary apply
+    the same rules. `status: passed` alone is never trusted: a missing
+    required host library, too few or failed checks, or a missing or invalid
+    field make the result a failure. Missing OPTIONAL libraries (plugins such
+    as the GTK theme) are reported but do not fail it.
+    """
+    if not isinstance(r, dict):
+        return ["result is not a JSON object"]
+    problems = []
+    status = r.get("status")
+    if status not in STATUSES:
+        problems.append(f"invalid status {status!r}")
+    if r.get("mode") not in MODES:
+        problems.append(f"invalid mode {r.get('mode')!r} (native or emulated)")
+    if r.get("arch") not in PLATFORM:
+        problems.append(f"invalid arch {r.get('arch')!r}")
+    sha = r.get("sha256")
+    if not (isinstance(sha, str) and len(sha) == 64 and all(c in "0123456789abcdef" for c in sha)):
+        problems.append("no SHA-256 of the tested AppImage")
+    missing = r.get("missing_required")
+    if not isinstance(missing, list) or not all(isinstance(m, str) for m in missing):
+        problems.append("missing_required is not a list")
+    elif missing:
+        problems.append("required host libraries missing: " + ", ".join(missing))
+    if not isinstance(r.get("missing_optional", []), list):
+        problems.append("missing_optional is not a list")
+    checks, passed = r.get("checks"), r.get("passed_checks")
+    if not all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in (checks, passed)):
+        problems.append("check counts missing or invalid")
+    elif status == "passed":
+        if checks < MIN_CHECKS:
+            problems.append(f"only {checks} checks ran (expected at least {MIN_CHECKS})")
+        if passed != checks:
+            problems.append(f"{checks - passed} of {checks} checks failed")
+    if status == "failed":
+        problems.append(f"start test failed: {r.get('detail', 'no detail')}")
+    return problems
+
+
+def load_result(path: Path) -> dict:
+    """The result file, with its validation applied (status becomes 'failed' on any problem)."""
+    try:
+        r = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return {"status": "failed", "detail": f"unreadable result {path.name}: {e}", "problems": [f"invalid JSON: {e}"],
+                "image": path.parent.name}
+    problems = validate_result(r)
+    if not isinstance(r, dict):
+        return {"status": "failed", "problems": problems, "image": path.parent.name}
+    return {**r, "status": "passed" if not problems else "failed", "problems": problems}
+
+
 def arch_of(appimage: Path) -> str:
     return next(a for a in PLATFORM if appimage.name.endswith(f"-{a}.AppImage"))
 
@@ -50,17 +110,19 @@ def run(appimage: Path, image: str, emulated: bool, out: Path) -> dict:
     print(f"== {image} ({arch}, {'emulated' if emulated else 'native'})", flush=True)
     proc = subprocess.run(cmd, text=True, capture_output=True)
     (out / "container.log").write_text(proc.stdout + proc.stderr, encoding="utf-8")
-    try:
-        result = json.loads((out / "result.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        result = {"status": "failed", "detail": f"no result (container exit {proc.returncode})"}
+    if (out / "result.json").exists():
+        result = load_result(out / "result.json")
+    else:
+        result = {"status": "failed", "problems": [f"no result written (container exit {proc.returncode})"]}
     result.update(image=image, container_exit=proc.returncode)
-    if result.get("status") == "passed" and proc.returncode != 0:
-        result.update(status="failed", detail=f"container exit {proc.returncode}")
+    if proc.returncode != 0:
+        result["status"] = "failed"
+        result["problems"] = result.get("problems", []) + [f"container exit {proc.returncode}"]
     (out / "result.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
-    print(f"   {result['status']}: {result.get('detail')}  sha256 {result.get('sha256', '?')[:16]}…", flush=True)
-    for lib in result.get("missing_required", []):
-        print(f"   missing: {lib}")
+    print(f"   {result['status']}: {'; '.join(result['problems']) or result.get('detail')}  "
+          f"sha256 {str(result.get('sha256', '?'))[:16]}…", flush=True)
+    for lib in result.get("missing_optional", []) or []:
+        print(f"   optional, not found: {lib}")
     return result
 
 
@@ -68,19 +130,22 @@ def report(folders: list[Path]) -> tuple[str, bool]:
     rows, ok = [], True
     for f in folders:
         for path in sorted(f.rglob("result.json")):
-            r = json.loads(path.read_text(encoding="utf-8"))
-            ok &= r.get("status") == "passed"
+            r = load_result(path)   # the same rules as a single run
+            ok &= r["status"] == "passed"
             rows.append(r)
-    lines = ["| Image | Distribution | Arch | Mode | glibc | Result | Checks | Missing host libraries | AppImage SHA-256 |",
-             "|---|---|---|---|---|---|---|---|---|"]
-    for r in sorted(rows, key=lambda r: (r.get("arch", ""), r.get("image", ""))):
-        missing = ", ".join(r.get("missing_required", [])) or "–"
-        lines.append(f"| {r.get('image')} | {r.get('distribution', '?')} | {r.get('arch', '?')} | {r.get('mode', '?')} "
-                     f"| {r.get('glibc', '').split()[-1] if r.get('glibc') else '?'} | **{r.get('status')}** "
-                     f"| {r.get('passed_checks', 0)}/{r.get('checks', 0)} | {missing} | `{r.get('sha256', '?')}` |")
+    cell = lambda values: ", ".join(str(v) for v in values) if isinstance(values, list) and values else "–"
+    lines = ["| Image | Distribution | Arch | Mode | glibc | Result | Checks | Missing required libraries "
+             "| Missing optional (plugins) | Problems | AppImage SHA-256 |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
+    for r in sorted(rows, key=lambda r: (str(r.get("arch", "")), str(r.get("image", "")))):
+        glibc = r.get("glibc") if isinstance(r.get("glibc"), str) and r.get("glibc") else "?"
+        lines.append(f"| {r.get('image', '?')} | {r.get('distribution', '?')} | {r.get('arch', '?')} "
+                     f"| {r.get('mode', '?')} | {glibc.split()[-1]} | **{r['status']}** "
+                     f"| {r.get('passed_checks', '?')}/{r.get('checks', '?')} | {cell(r.get('missing_required'))} "
+                     f"| {cell(r.get('missing_optional'))} | {cell(r.get('problems'))} | `{r.get('sha256', '?')}` |")
     if not rows:
         ok = False
-        lines.append("| – | no results | | | | **failed** | | | |")
+        lines.append("| – | no results | | | | **failed** | | | | no result files found | |")
     lines += ["", "Container start tests only: no USB/key access, no Wayland, no real desktop or GPU driver."]
     return "\n".join(lines), ok
 

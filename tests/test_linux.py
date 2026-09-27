@@ -188,7 +188,8 @@ if __name__ == "__main__":
 
 
 class CompatReportTests(unittest.TestCase):
-    """tools/linux_compat.py report: every combination listed; one failure or no result blocks."""
+    """tools/linux_compat.py: one rule set (validate_result) for single runs and the summary.
+    Synthetic result files and simulated container runs only."""
 
     def setUp(self):
         import importlib.util
@@ -197,28 +198,99 @@ class CompatReportTests(unittest.TestCase):
         spec.loader.exec_module(self.compat)
         self.dir = Path(tempfile.mkdtemp())
 
-    def result(self, name, **fields):
+    GOOD = {"image": "ubuntu:24.04", "distribution": "Ubuntu 24.04", "arch": "x86_64", "mode": "native",
+            "glibc": "ldd 2.39", "status": "passed", "checks": 46, "passed_checks": 46, "sha256": "ab" * 32,
+            "missing_required": [], "missing_optional": []}
+
+    def result(self, name, content=None, **fields):
         (self.dir / name).mkdir()
-        base = {"image": name, "distribution": name, "arch": "x86_64", "mode": "native", "glibc": "ldd 2.39",
-                "status": "passed", "checks": 46, "passed_checks": 46, "sha256": "ab" * 32, "missing_required": []}
-        (self.dir / name / "result.json").write_text(json.dumps({**base, **fields}), encoding="utf-8")
+        text = content if content is not None else json.dumps({**self.GOOD, **fields})
+        (self.dir / name / "result.json").write_text(text, encoding="utf-8")
+        return self.dir / name / "result.json"
 
-    def test_all_passed(self):
-        self.result("ubuntu-24.04")
-        self.result("debian-13", mode="emulated")
-        text, ok = self.compat.report([self.dir])
-        self.assertTrue(ok)
-        self.assertIn("emulated", text)
-        self.assertIn("ab" * 32, text)
-        self.assertIn("no USB/key access, no Wayland", text)
-
-    def test_a_failure_or_no_result_blocks(self):
-        self.result("ubuntu-24.04")
-        self.result("fedora-43", status="failed", missing_required=["libfoo.so.1 (needed by x)"])
+    def test_the_reported_case_is_rejected(self):
+        """status passed + a missing required library (the case from the bug report)."""
+        path = self.result("repro", content=json.dumps({"status": "passed", "missing_required": ["libexample.so"],
+                                                        "checks": 46, "passed_checks": 46, "mode": "native"}))
+        r = self.compat.load_result(path)
+        self.assertEqual(r["status"], "failed")
+        self.assertTrue(any("libexample.so" in p for p in r["problems"]))
         text, ok = self.compat.report([self.dir])
         self.assertFalse(ok)
-        self.assertIn("libfoo.so.1", text)
-        self.assertFalse(self.compat.report([Path(tempfile.mkdtemp())])[1], "no results at all is not a pass")
+        self.assertIn("libexample.so", text)
+
+    def test_1_clean_pass(self):
+        self.assertEqual(self.compat.validate_result(dict(self.GOOD)), [])
+        self.result("ok")
+        self.assertTrue(self.compat.report([self.dir])[1])
+
+    def test_2_missing_required_library_fails(self):
+        problems = self.compat.validate_result({**self.GOOD, "missing_required": ["libxcb-cursor.so.0 (needed by libqxcb.so)"]})
+        self.assertTrue(any("libxcb-cursor.so.0" in p for p in problems))
+
+    def test_3_only_optional_missing_can_pass(self):
+        self.result("opt", missing_optional=["libgtk-3.so.0 (needed by libqgtk3.so)"])
+        text, ok = self.compat.report([self.dir])
+        self.assertTrue(ok)
+        self.assertIn("libgtk-3.so.0", text, "optional ones stay visible, in their own column")
+
+    def test_4_failed_start_fails(self):
+        self.assertTrue(self.compat.validate_result({**self.GOOD, "status": "failed", "detail": "exit 1"}))
+
+    def test_5_inconsistent_counts_fail(self):
+        for fields in ({"passed_checks": 45}, {"checks": 3, "passed_checks": 3}, {"checks": True, "passed_checks": 1},
+                       {"checks": "46"}):
+            with self.subTest(fields):
+                self.assertTrue(self.compat.validate_result({**self.GOOD, **fields}))
+
+    def test_6_invalid_json_or_missing_fields(self):
+        bad = self.compat.load_result(self.result("broken", content="{not json"))
+        self.assertEqual(bad["status"], "failed")
+        self.assertTrue(any("invalid JSON" in p for p in bad["problems"]))
+        for field in ("sha256", "mode", "arch", "missing_required", "checks", "status"):
+            with self.subTest(field):
+                r = dict(self.GOOD)
+                del r[field]
+                self.assertTrue(self.compat.validate_result(r), f"without {field}")
+        self.assertTrue(self.compat.validate_result(["not", "an", "object"]))
+        self.assertTrue(self.compat.validate_result({**self.GOOD, "mode": "container"}), "native/emulated only")
+
+    def test_7_one_bad_result_fails_the_summary(self):
+        self.result("a")
+        self.result("b", mode="emulated")
+        self.result("c", passed_checks=40)
+        text, ok = self.compat.report([self.dir])
+        self.assertFalse(ok)
+        self.assertIn("| emulated |", text)
+        self.assertIn("6 of 46 checks failed", text)
+
+    def test_8_no_results_fail(self):
+        self.assertFalse(self.compat.report([self.dir])[1])
+
+    def test_run_rejects_a_pass_with_missing_libraries_and_a_failed_container(self):
+        """run() with a simulated container: the written result decides, and the exit code counts too."""
+        out = self.dir / "run"
+        appimage = self.dir / "KeyMelier-Linux-x86_64.AppImage"
+        appimage.write_bytes(b"x")
+
+        def fake(result, code):
+            def docker(cmd, **kw):
+                out.mkdir(exist_ok=True)
+                (out / "result.json").write_text(json.dumps(result), encoding="utf-8")
+                return types.SimpleNamespace(returncode=code, stdout="", stderr="")
+            return docker
+        cases = [({**self.GOOD, "missing_required": ["libexample.so"]}, 0, "failed"),
+                 (dict(self.GOOD), 1, "failed"),
+                 (dict(self.GOOD), 0, "passed")]
+        for result, code, expected in cases:
+            with self.subTest(code=code, missing=result["missing_required"]):
+                with patch.object(self.compat.subprocess, "run", fake(result, code)):
+                    r = self.compat.run(appimage, "ubuntu:24.04", False, out)
+                self.assertEqual(r["status"], expected)
+                self.assertEqual(json.loads((out / "result.json").read_text())["status"], expected)
+        with patch.object(self.compat.subprocess, "run", fake(dict(self.GOOD), 0)), \
+                patch.object(self.compat, "run", lambda *a: {"status": "failed"}):
+            self.assertEqual(self.compat.main(["run", str(appimage), "ubuntu:24.04", "--out", str(out)]), 1)
 
     def test_matrix_matches_the_workflow(self):
         wf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")

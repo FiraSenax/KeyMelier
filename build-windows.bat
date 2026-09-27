@@ -14,10 +14,10 @@ if not exist "build-venv\Scripts\python.exe" (
 
 echo Installing dependencies...
 if not exist build mkdir build
-rem The reports record which files pip installed (SBOM hashes, tools/sbom.py)
-build-venv\Scripts\pip install --require-hashes -q -r requirements.txt --report build\pip-report-runtime.json
-if errorlevel 1 exit /b 1
-build-venv\Scripts\pip install --require-hashes -q -r requirements-build.txt --report build\pip-report-build.json
+rem The report records which files pip installed (SBOM hashes, tools/sbom.py);
+rem --force-reinstall so a rebuild records every package, not only new ones
+if exist build\pip-report*.json del /q build\pip-report*.json
+build-venv\Scripts\python -m pip install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt --report build\pip-report.json
 if errorlevel 1 exit /b 1
 
 echo Running PyInstaller...

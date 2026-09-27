@@ -20,9 +20,11 @@ fi
 
 echo "Installing dependencies..."
 mkdir -p build
-# The reports record which files pip installed (SBOM hashes, tools/sbom.py)
-"$PIP" install --require-hashes -q -r requirements.txt --report build/pip-report-runtime.json
-"$PIP" install --require-hashes -q -r requirements-build.txt --report build/pip-report-build.json
+# The report records which files pip installed (SBOM hashes, tools/sbom.py);
+# --force-reinstall so a rebuild records every package, not only new ones
+rm -f build/pip-report*.json
+"$PIP" install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt \
+    --report build/pip-report.json
 
 echo "Using committed app icon..."
 # Use the reviewed, committed icons; regeneration is a separate design task.

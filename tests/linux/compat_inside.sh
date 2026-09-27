@@ -84,7 +84,10 @@ fi
 ldd --version 2>&1 | head -1 > "$OUT/glibc.txt"
 
 # 2. Unpack (read-only copy) to list libraries the host does not provide.
-#    Plugins that fail to load are optional (e.g. the GTK theme without GTK).
+#    Required: the program, every bundled library, Qt WebEngine's helper and the
+#    display plugins a desktop uses (xcb = X11, wayland). Optional: all other
+#    plugins – e.g. the GTK theme without GTK, or the eglfs/linuxfb/vnc/offscreen
+#    platforms that only run without a desktop; Qt skips those that cannot load.
 WORK=$(mktemp -d)
 OFFSET=$(python3 -c "import sys; sys.path.insert(0, '/src/tools'); import check_artifacts as c; print(c.appimage_offset(open('$APPIMAGE', 'rb').read(4 << 20)))")
 unsquashfs -q -o "$OFFSET" -d "$WORK/root" "$APPIMAGE" > /dev/null
@@ -93,9 +96,13 @@ export LD_LIBRARY_PATH="$INTERNAL:$INTERNAL/PySide6/Qt/lib"
 scan() { for f in "$@"; do ldd "$f" 2>/dev/null | awk -v f="${f#$WORK/root/}" '/not found/ {print $1 " (needed by " f ")"}'; done | sort -u; }
 scan "$WORK/root/usr/lib/keymelier/KeyMelier" $(find "$INTERNAL" -maxdepth 1 -name '*.so*') \
      $(find "$INTERNAL/PySide6" -maxdepth 1 -name '*.so*') $(find "$INTERNAL/PySide6/Qt/lib" -name '*.so*') \
-     "$INTERNAL/PySide6/Qt/libexec/QtWebEngineProcess" $(find "$INTERNAL/PySide6/Qt/plugins/platforms" -name '*.so') \
+     "$INTERNAL/PySide6/Qt/libexec/QtWebEngineProcess" \
+     $(find "$INTERNAL/PySide6/Qt/plugins/platforms" \( -name 'libqxcb.so' -o -name 'libqwayland*.so' \)) \
      > "$OUT/missing-required.txt"
-scan $(find "$INTERNAL/PySide6/Qt/plugins" -name '*.so' -not -path '*/platforms/*') > "$OUT/missing-optional.txt"
+scan $(find "$INTERNAL/PySide6/Qt/plugins" -name '*.so' -not -name 'libqxcb.so' -not -name 'libqwayland*.so') \
+     > "$OUT/missing-optional.txt"
+[ -s "$OUT/missing-required.txt" ] && { echo "Required host libraries missing:"; cat "$OUT/missing-required.txt"; }
+[ -s "$OUT/missing-optional.txt" ] && { echo "Optional (plugins that will not load):"; cat "$OUT/missing-optional.txt"; }
 unset LD_LIBRARY_PATH
 
 # 3. The start test, as a normal user, with a virtual display, D-Bus and keyring
@@ -118,7 +125,11 @@ su tester -c "cd /home/tester && export SMOKE_ARTIFACTS=$OUT/smoke SMOKE_TIMEOUT
     python3 tools/smoke_packaged.py $TARGET'" > "$OUT/smoke.log" 2>&1
 CODE=$?
 cat "$OUT/smoke.log" | grep -v '^ok ' | tail -5
-if [ $CODE -eq 0 ]; then
+# A successful start never outweighs a missing required library
+if [ -s "$OUT/missing-required.txt" ]; then
+  result failed "required host libraries missing (see missing-required.txt)"
+  exit 1
+elif [ $CODE -eq 0 ]; then
   result passed "packaged start test passed"
 else
   result failed "packaged start test failed (exit $CODE, see smoke.log and smoke/)"
