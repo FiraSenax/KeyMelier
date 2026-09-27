@@ -58,6 +58,11 @@ jobs:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           UI_ARTIFACTS: build/ui-test-artifacts
         run: node tests/ui/ui_test.cjs
+      - name: UI under load (300+ accounts, minimum window size, light/dark)
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          UI_ARTIFACTS: build/ui-test-artifacts
+        run: node tests/ui/ui_stress.cjs
       - name: Keep screenshot and browser log
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

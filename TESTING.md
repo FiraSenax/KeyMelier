@@ -14,6 +14,7 @@ devices.
 | `node tests/ui_security.cjs` | Attestation classification in the UI | CI job `test` |
 | `node --check static/*.js` | Every UI script parses | CI job `test` |
 | `node tests/ui/ui_test.cjs` | The real UI page on demo data in headless Chrome, driven with **real keyboard and mouse input** (DevTools protocol): navigation, filters, search, menus, dialogs and focus, guided replacement, error message when a key is pulled out while reading, no page errors | CI job `ui` (Ubuntu) – required for the builds |
+| `node tests/ui/ui_stress.cjs` | The UI under load and in tight layouts: demo page `#stress` (12 keys in every state, 300+ accounts, several per service, very long German and Japanese names – `tools/demo_stress.js`, fixed seed) at 1280×800 and the minimum window size 820×560, in English, German and Japanese, light and dark: search and category filters show exactly the rows of the account model, focus and caret stay while typing, header row and account column stay sticky and aligned while the matrix scrolls, no page-wide horizontal overflow (scrolling inside the matrix is intended), buttons not cut off or covered, dialogs inside the window, text contrast ≥ 4.5:1, search/filter response under 400 ms (median of 7; about 20–70 ms locally), no page errors. Screenshot per failed scenario + browser log | CI job `ui` (Ubuntu) |
 | `python tools/smoke_packaged.py` | The **built app** from `dist/` starts its real window in a temporary home (no key access, no network) and checks runtime libraries, bundled data, translations, icons, CSS and the page ↔ backend bridge (46 checks); on Linux the AppImage itself under Xvfb with a D-Bus session and an unlocked Secret Service | CI jobs `build-macos`, `build-windows`, `build-linux` (x86_64, aarch64) after building/signing |
 | `python tools/sbom.py --check … --strict` | The shipped SBOM is complete: SPDX licenses, the SHA-256 of every installed file (from pip's report, allowed by the lock), bootloader, CPython, OpenSSL, Simple Icons | CI jobs `build-macos`, `build-windows`, `build-linux` (also at the end of `build-linux.sh`) |
 | `python tools/check_artifacts.py macos\|windows dist` | Packages exist and are not empty, ZIP/DMG structure, version in Info.plist and in the Windows version resources (app and installer), signing state as reported (ad-hoc / not signed while unsigned), SBOM, licence notices | CI jobs `build-macos`, `build-windows` |
@@ -101,6 +102,10 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 
 ## Limits of the automatic checks
 
+- **Load test limits:** `ui_stress.cjs` measures the page in headless Chrome, not the app's web views; the
+  400 ms limit (`UI_RESPONSE_LIMIT_MS`) is deliberately generous for shared CI runners and only catches
+  clear regressions, not small slowdowns. Layout is checked in the three languages and two window sizes
+  listed, not for every language or size.
 - **Browser engine:** UI tests run in Chrome on Linux. The app uses WebKit
   (macOS), WebView2 (Windows) and Qt WebEngine (Linux); the packaged start
   test covers loading, resources and the bridge there, but not every

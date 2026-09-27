@@ -32,7 +32,8 @@ def demo_page() -> Path:
     html = re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', "", html)  # demo scripts are inline too
     demo = (ROOT / "tools" / "docs_demo.js").read_text(encoding="utf-8")
     scenes = (ROOT / "tools" / "docs_scenes.js").read_text(encoding="utf-8")
-    html = html.replace("<script>", f"<script>\n{demo}\n</script>\n<script>", 1)
+    stress = (ROOT / "tools" / "demo_stress.js").read_text(encoding="utf-8")   # only used with #stress
+    html = html.replace("<script>", f"<script>\n{stress}\n{demo}\n</script>\n<script>", 1)
     html = html.replace("</body>", f"<script>\n{scenes}\n</script>\n</body>", 1)
     out = ROOT / "build" / "docs-demo" / "demo.html"
     out.parent.mkdir(parents=True, exist_ok=True)
