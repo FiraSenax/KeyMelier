@@ -13,4 +13,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-build = ["pyinstaller==6.20.0"]
+build = [
+    "dmgbuild==1.6.7 ; sys_platform == 'darwin'",
+    "pyinstaller==6.20.0",
+]

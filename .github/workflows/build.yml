@@ -78,6 +78,7 @@ jobs:
       - name: Disk image
         env:
           KEYMELIER_SIGN_IDENTITY: ${{ env.SIGN_MAC == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+          PYTHON: python
         run: bash packaging/make-dmg.sh
       - name: Notarize disk image
         if: env.SIGN_MAC == 'true'

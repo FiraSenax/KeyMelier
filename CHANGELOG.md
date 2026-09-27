@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The macOS disk image opens as a styled window: KeyMelier and Applications side by side with a "drag to install" arrow, in KeyMelier's colours (`packaging/dmg-background.svg`, built with dmgbuild).
+
 ## 1.3.1 — 2026-09-27
 
 - **Disk image and installer:** macOS releases come as `KeyMelier-macOS.dmg` (drag to Applications, also to update), Windows releases as `KeyMelier-Windows-Setup.exe` (installs or updates, Start menu entry, uninstaller). The zips remain as portable versions. On Windows KeyMelier requests administrator rights at start.

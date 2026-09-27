@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="480" viewBox="0 0 760 480">
+  <!-- DMG window background (760 x 480 pt). Icon centres: app (190,236), Applications (570,236), icon size 128; Finder draws the names centred at y≈320 in black.
+       Calm "security" look in KeyMelier's colours: graphite, wine red, champagne gold. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141824"/>
+      <stop offset="0.6" stop-color="#0f121b"/>
+      <stop offset="1" stop-color="#0b0d14"/>
+    </linearGradient>
+    <radialGradient id="light" cx="50%" cy="46%" r="55%">
+      <stop offset="0" stop-color="#6b1d3a" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#6b1d3a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b98f55"/>
+      <stop offset="0.5" stop-color="#f0d9a8"/>
+      <stop offset="1" stop-color="#c79b5f"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2130"/>
+      <stop offset="1" stop-color="#141824"/>
+    </linearGradient>
+    <pattern id="hex" width="28" height="48.5" patternUnits="userSpaceOnUse">
+      <path d="M14 0 L28 8.08 L28 24.25 L14 32.33 L0 24.25 L0 8.08 Z M14 32.33 L14 48.5" fill="none" stroke="#8a93b0" stroke-width="0.6"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-200%" width="200%" height="500%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="hexmask"><rect width="760" height="480" fill="url(#fade)"/></mask>
+  </defs>
+
+  <rect width="760" height="480" fill="url(#bg)"/>
+  <rect width="760" height="480" fill="url(#light)"/>
+  <rect width="760" height="480" fill="url(#hex)" opacity="0.07" mask="url(#hexmask)"/>
+
+  <!-- watermark: shield with keyhole -->
+  <g transform="translate(380 250)" opacity="0.07" fill="none" stroke="#f0d9a8" stroke-width="2">
+    <path d="M0 -118 L92 -84 V-12 C92 52 52 96 0 122 C-52 96 -92 52 -92 -12 V-84 Z"/>
+    <circle cx="0" cy="-18" r="20"/>
+    <path d="M-9 -2 L-15 48 H15 L9 -2"/>
+  </g>
+
+  <!-- key fingerprint texture -->
+  <g font-family="Menlo" font-size="10" fill="#8a93b0" opacity="0.13" letter-spacing="2">
+    <text x="30" y="30">8C3A 51F2 7D90 44E1 B6A2 0F5C 93D1 7E28</text>
+    <text x="440" y="30">A907 3D5E C1B8 62F4 0E9A 7C31 58D2 B6E0</text>
+    <text x="30" y="466">2F71 C0A9 55E3 9B18 D46C 7A02 E1F8 36B4</text>
+    <text x="440" y="466">SHA-256 · FIDO2 · ATTESTATION VERIFIED</text>
+  </g>
+
+  <!-- wordmark -->
+  <text x="380" y="74" font-family="Avenir Next" font-weight="600" font-size="34" letter-spacing="1"
+        text-anchor="middle" fill="#f4f1ea">KeyMelier</text>
+  <text x="380" y="98" font-family="Avenir Next" font-weight="500" font-size="11" letter-spacing="4.5"
+        text-anchor="middle" fill="url(#gold)">THE SOMMELIER FOR YOUR SECURITY KEYS</text>
+
+  <!-- icon slots -->
+  <g filter="url(#shadow)">
+    <rect x="104" y="146" width="172" height="206" rx="30" fill="url(#slot)"/>
+    <rect x="484" y="146" width="172" height="206" rx="30" fill="url(#slot)"/>
+  </g>
+  <g fill="none" stroke-width="1.3">
+    <rect x="104" y="146" width="172" height="206" rx="30" stroke="url(#gold)" opacity="0.75"/>
+    <rect x="484" y="146" width="172" height="206" rx="30" stroke="url(#gold)" opacity="0.75"/>
+  </g>
+  <!-- arrow -->
+  <g filter="url(#glow)">
+    <line x1="300" y1="236" x2="446" y2="236" stroke="#e6c893" stroke-width="3" stroke-dasharray="0.1 9" stroke-linecap="round"/>
+    <path d="M434 222 L454 236 L434 250" fill="none" stroke="#f0d9a8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="378" y="216" font-family="Avenir Next" font-weight="600" font-size="11" letter-spacing="3"
+        text-anchor="middle" fill="#f4f1ea" opacity="0.9">DRAG TO INSTALL</text>
+  <text x="378" y="264" font-family="Avenir Next" font-weight="500" font-size="10.5" letter-spacing="0.5"
+        text-anchor="middle" fill="#9aa1b8">replaces an older version</text>
+
+  <!-- label plates: Finder draws the file names here -->
+  <g fill="#f4f1ea" opacity="0.94">
+    <rect x="122" y="307" width="136" height="27" rx="13.5"/>
+    <rect x="502" y="307" width="136" height="27" rx="13.5"/>
+  </g>
+</svg>
