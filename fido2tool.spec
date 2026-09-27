@@ -95,7 +95,6 @@ a = Analysis(
         'smartcard.System',
         'smartcard.pcsc',
         'smartcard.pcsc.PCSCReader',
-        'smartcard.pcsc.PCSCContext',
         'smartcard.CardConnection',
         'smartcard.ExclusiveConnectCardConnection',
         # Native window
