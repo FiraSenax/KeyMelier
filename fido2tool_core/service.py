@@ -394,7 +394,9 @@ class KeyService:
         except DeviceNotFound:
             return
         sites = [{"rp_id": rp["rp_id"] or rp["rp_id_hash"][:16], "name": rp["rp_name"],
-                  "count": len(rp["credentials"])} for rp in rps]
+                  "count": len(rp["credentials"]),
+                  "users": [{"name": c.get("user_name", ""), "display": c.get("display_name", "")}
+                            for c in rp["credentials"]]} for rp in rps]
         self.emit("history_updated", self.history.set_sites(record, sites))
 
     def history_set_lost(self, kid: str, lost: bool) -> dict:
@@ -414,6 +416,21 @@ class KeyService:
     def passkeys(self, token_id: str) -> dict:
         with self._scanner.session(token_id, refresh=False) as (_record, ctap2):
             return self._passkeys(token_id, ctap2)
+
+    def passkeys_probe(self, token_id: str, pin: str | None = None, extra: list | None = None) -> dict:
+        """Keys without credential management: ask site by site (see passkey_probe)."""
+        from fido2tool_core import passkey_probe
+        record = self._scanner.get(token_id)
+        known = [s["rp_id"] for e in self.history.list() for s in (e.get("sites") or [])]
+        extra = [str(x) for x in (extra or [])][:50]
+        rp_ids = passkey_probe.candidates(known, extra)
+        with self._scanner.session(token_id, timeout=10.0, refresh=False) as (_record, ctap2):
+            found = passkey_probe.probe(ctap2, rp_ids, pin=pin or None,
+                                        progress=lambda i, n: self.emit("probe_progress", {"id": token_id, "done": i, "total": n}))
+        if self._remember_contents():
+            sites = [{"rp_id": f["rp_id"], "name": "", "count": f["count"], "users": f["users"]} for f in found]
+            self.emit("history_updated", self.history.set_sites(record, sites, probed=len(rp_ids)))
+        return {"found": found, "checked": len(rp_ids), "names": bool(pin)}
 
     def passkey_rename(self, token_id: str, credential_id: str, user_id: str, name: str = "",
                        display_name: str = "", site: str = "") -> dict:

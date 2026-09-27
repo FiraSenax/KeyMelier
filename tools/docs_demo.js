@@ -40,10 +40,13 @@
   };
   const tokens = [yk, t2];
 
+  const u = (...names) => names.map((name) => ({ name, display: '' }));
   const sites = [
-    { rp_id: 'github.com', name: 'GitHub', count: 1 }, { rp_id: 'google.com', name: 'Google', count: 1 },
-    { rp_id: 'login.microsoft.com', name: 'Microsoft', count: 1 }, { rp_id: 'bitwarden.com', name: 'Bitwarden', count: 1 },
-    { rp_id: 'proton.me', name: 'Proton', count: 1 },
+    { rp_id: 'github.com', name: 'GitHub', count: 1, users: u('erika') },
+    { rp_id: 'google.com', name: 'Google', count: 1, users: u('erika@example.com') },
+    { rp_id: 'login.microsoft.com', name: 'Microsoft', count: 3, users: u('erika@contoso.com', 'admin.erika@contoso.com', 'erika@fabrikam.com') },
+    { rp_id: 'bitwarden.com', name: 'Bitwarden', count: 1, users: u('erika@example.com') },
+    { rp_id: 'proton.me', name: 'Proton', count: 1, users: u('erika@proton.me') },
   ];
   const oathAccounts = [
     { issuer: 'AWS', name: 'root@example.com' }, { issuer: 'GitHub', name: 'erika' },
@@ -76,7 +79,8 @@
     },
     b2b2b2b2b2b2b2b2: {
       key_id: 'b2b2b2b2b2b2b2b2', first_seen: iso(60 * D), last_seen: iso(2 * H), connect_count: 18, label: 'Backup key',
-      snapshot: { ...t2 }, sites: sites.slice(0, 3), sites_updated: iso(10 * D),
+      snapshot: { ...t2 }, sites: [sites[0], sites[1], { ...sites[2], count: 2, users: u('erika@contoso.com', 'erika@fabrikam.com') }],
+      sites_updated: iso(10 * D),
       inventory: { oath: { items: oathAccounts.slice(1, 3), updated: iso(10 * D) } },
       events: [{ ts: iso(2 * H), type: 'connected' }],
     },

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Find passkeys on older keys** (FIDO 2.0, e.g. YubiKey 5.1): they cannot list passkeys, so KeyMelier asks them website by website – silently, for your known sites, common passkey services and your own domains; with the PIN including account names.
+- **Account names (UPNs)** are remembered with the passkeys; the account overview rates every account separately (e.g. several Microsoft Entra accounts of one domain).
 - Keys without passkey management (FIDO 2.0, e.g. YubiKey firmware 5.1) get a "read" action instead of the unlock, a clear explanation instead of "This key does not support that", and "passkeys not readable" in the account overview.
 - Serial numbers in the sidebar, the key header and the account overview – usually printed on the key.
 - Quick unlock: a lock next to each key in the sidebar asks for the PIN and reads everything on the key at once (passkeys, authenticator, OpenPGP, certificates).

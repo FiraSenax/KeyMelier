@@ -1253,3 +1253,9 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .ql-overlay.hidden { display: none; }
 .ql-dialog { width: min(420px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }
 .quick-lock.busy { opacity: 0.4; pointer-events: none; }
+.probe-users { margin: 4px 0 0; padding-left: 16px; font-size: 0.82rem; color: var(--text-2); }
+.probe-bar { margin: 10px 0 4px; height: 5px; }
+.acc-upn { display: block; font-size: 0.85rem; font-family: var(--mono); overflow-wrap: anywhere; }
+.acc-group td { background: var(--surface-2); }
+.acc-indent { padding-left: 46px !important; }
+.acc-sub-row .acc-upn { font-weight: 600; }

@@ -159,15 +159,22 @@ class History:
             self._save()
             return self._summary(entry)
 
-    def set_sites(self, record, sites: list[dict]) -> dict:
-        """Remember which websites have passkeys on this key (names only)."""
+    def set_sites(self, record, sites: list[dict], probed: int | None = None) -> dict:
+        """Remember which websites (and account names) have passkeys on this
+        key. probed: the key cannot list passkeys; this many sites were asked."""
         with self._lock:
             entry = self._entry_for(record)
             entry["sites"] = sorted(
-                ({"rp_id": s["rp_id"], "name": s.get("name", ""), "count": int(s.get("count", 1))} for s in sites),
+                ({"rp_id": s["rp_id"], "name": s.get("name", ""), "count": int(s.get("count", 1)),
+                  "users": [{"name": str(u.get("name", ""))[:200], "display": str(u.get("display", ""))[:200]}
+                            for u in (s.get("users") or [])][:100]} for s in sites),
                 key=lambda s: s["rp_id"],
             )
             entry["sites_updated"] = _now()
+            if probed:
+                entry["sites_probed"] = probed
+            else:
+                entry.pop("sites_probed", None)
             self._save()
             return self._summary(entry)
 
@@ -189,6 +196,7 @@ class History:
             for entry in self._entries.values():
                 entry.pop("sites", None)
                 entry.pop("sites_updated", None)
+                entry.pop("sites_probed", None)
                 entry.pop("inventory", None)
                 entry.pop("lost_done", None)
                 for event in entry.get("events", []):
@@ -360,7 +368,10 @@ def _clean_entry(raw) -> dict | None:
     }
     if isinstance(raw.get("sites"), list):
         entry["sites"] = [{"rp_id": _text(s.get("rp_id"), 253), "name": _text(s.get("name")),
-                           "count": s["count"] if isinstance(s.get("count"), int) and not isinstance(s.get("count"), bool) else 1}
+                           "count": s["count"] if isinstance(s.get("count"), int) and not isinstance(s.get("count"), bool) else 1,
+                           "users": [{"name": _text(u.get("name")), "display": _text(u.get("display"))}
+                                     for u in (s.get("users") if isinstance(s.get("users"), list) else [])[:100]
+                                     if isinstance(u, dict)]}
                           for s in raw["sites"][:2000] if isinstance(s, dict) and isinstance(s.get("rp_id"), str) and s["rp_id"]]
     if isinstance(raw.get("inventory"), dict):
         inv = {}
@@ -375,6 +386,8 @@ def _clean_entry(raw) -> dict | None:
     for field in ("sites_updated", "lost_since"):
         if isinstance(raw.get(field), str):
             entry[field] = raw[field][:40]
+    if isinstance(raw.get("sites_probed"), int) and not isinstance(raw.get("sites_probed"), bool):
+        entry["sites_probed"] = raw["sites_probed"]
     return entry
 
 

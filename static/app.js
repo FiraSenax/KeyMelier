@@ -252,8 +252,7 @@ function renderSidebar() {
       ${canManage(tok) && (tok.options?.clientPin || tok.options?.uv)
         ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
             title="${escHtml(t(isUnlocked(tok.id) ? 'ql.lock' : 'ql.unlock'))}">${icon(isUnlocked(tok.id) ? 'lockOpen' : 'lock', 15)}</span>`
-        : cardApps.get(tok.id)?.oath || cardApps.get(tok.id)?.openpgp || cardApps.get(tok.id)?.piv
-          ? `<span class="quick-lock" data-read="${escHtml(tok.id)}" role="button" tabindex="0" title="${escHtml(t('ql.read'))}">${icon('refresh', 15)}</span>` : ''}
+        : `<span class="quick-lock" data-read="${escHtml(tok.id)}" role="button" tabindex="0" title="${escHtml(t('probe.sidebar'))}">${icon('refresh', 15)}</span>`}
       <span class="status-dot ${escHtml(tok.security_status)}" title="${escHtml(t(`status.${tok.security_status}`))}"></span>
     </button>`).join('');
 }
@@ -615,42 +614,67 @@ function accountsModel() {
     const keysFor = [...new Set(candidates.filter(Boolean))];
     let svc = keysFor.map(k => alias.get(k)).find(Boolean);
     if (!svc) {
-      svc = { key: keysFor[0] || serviceKey(label), label, hits: new Map() };
+      svc = { key: keysFor[0] || serviceKey(label), label, accounts: new Map() };
       services.set(svc.key, svc);
     }
     keysFor.forEach(k => alias.set(k, svc));
     return svc;
   };
+  // One account per user name (UPN); accounts without a known name are grouped
+  const hitFor = (svc, userName, keyId) => {
+    const id = String(userName || '').trim().toLowerCase();
+    if (!svc.accounts.has(id)) svc.accounts.set(id, { id, label: userName || '', hits: new Map() });
+    const acc = svc.accounts.get(id);
+    if (!acc.hits.has(keyId)) acc.hits.set(keyId, { passkey: 0, codes: 0 });
+    return acc.hits.get(keyId);
+  };
   for (const e of keys) {
     for (const s of e.sites || []) {
       const svc = get([serviceKey(s.name), serviceKey(s.rp_id)], s.name || s.rp_id);
-      const hit = svc.hits.get(e.key_id) || { passkey: 0, codes: [] };
-      hit.passkey += s.count || 1;
-      hit.rp = s.rp_id;
-      svc.hits.set(e.key_id, hit);
+      const users = (s.users || []).filter(u => u.name || u.display);
+      if (users.length) users.forEach(u => { hitFor(svc, u.name || u.display, e.key_id).passkey += 1; });
+      const unnamed = (s.count || 1) - users.length;
+      if (unnamed > 0) hitFor(svc, '', e.key_id).passkey += unnamed;
     }
     for (const a of e.inventory?.oath?.items || []) {
       const issuer = a.issuer || String(a.name || '').split(':')[0];
       // the account name (often an e-mail address) never identifies the service
       const svc = get([serviceKey(issuer)], issuer || a.name);
-      const hit = svc.hits.get(e.key_id) || { passkey: 0, codes: [] };
-      hit.codes.push(a.name);
-      svc.hits.set(e.key_id, hit);
+      hitFor(svc, a.issuer ? a.name : '', e.key_id).codes += 1;
     }
   }
-  const rows = [...services.values()].map(svc => {
-    const holders = keys.filter(k => svc.hits.has(k.key_id));
+  // Entries without a name (older history, keys read without PIN) belong to
+  // the only named account if there is exactly one; otherwise they stay apart
+  for (const svc of services.values()) {
+    const unnamed = svc.accounts.get('');
+    const named = [...svc.accounts.values()].filter(acc => acc.id);
+    if (unnamed && named.length === 1) {
+      for (const [keyId, h] of unnamed.hits) {
+        const target = named[0].hits.get(keyId) || { passkey: 0, codes: 0 };
+        named[0].hits.set(keyId, { passkey: target.passkey + h.passkey, codes: target.codes + h.codes });
+      }
+      svc.accounts.delete('');
+    }
+  }
+  const rank = { crit: 0, warn: 1, info: 2, ok: 3 };
+  const assess = hits => {
+    const holders = keys.filter(k => hits.has(k.key_id));
     const active = holders.filter(k => !k.lost_since);
-    const hasPasskey = holders.some(k => svc.hits.get(k.key_id).passkey);
-    let level, note;
-    if (!active.length) { level = 'crit'; note = t('acc.st.lostOnly'); }
-    else if (active.length === 1) { level = 'warn'; note = t('acc.st.single', { key: keyLabel(active[0]) }); }
-    else if (!hasPasskey) { level = 'info'; note = t('acc.st.codesOnly', { n: active.length }); }
-    else { level = 'ok'; note = t('acc.st.ok', { n: active.length }); }
-    return { ...svc, level, note, count: active.length };
+    const hasPasskey = holders.some(k => hits.get(k.key_id).passkey);
+    if (!active.length) return { level: 'crit', note: t('acc.st.lostOnly') };
+    if (active.length === 1) return { level: 'warn', note: t('acc.st.single', { key: keyLabel(active[0]) }) };
+    if (!hasPasskey) return { level: 'info', note: t('acc.st.codesOnly', { n: active.length }) };
+    return { level: 'ok', note: t('acc.st.ok', { n: active.length }) };
+  };
+  const rows = [...services.values()].map(svc => {
+    const accounts = [...svc.accounts.values()].map(acc => ({ ...acc, ...assess(acc.hits) }))
+      .sort((a, b) => rank[a.level] - rank[b.level] || a.label.localeCompare(b.label));
+    const named = accounts.filter(a => a.id);
+    const worst = accounts.reduce((w, a) => (rank[a.level] < rank[w] ? a.level : w), 'ok');
+    return { ...svc, accounts, split: named.length > 1 || (named.length && accounts.length > 1), level: worst,
+             note: accounts.length === 1 ? accounts[0].note : '' };
   });
-  const order = { crit: 0, warn: 1, info: 2, ok: 3 };
-  rows.sort((a, b) => order[a.level] - order[b.level] || a.label.localeCompare(b.label));
+  rows.sort((a, b) => rank[a.level] - rank[b.level] || a.label.localeCompare(b.label));
   return { keys, rows };
 }
 
@@ -664,15 +688,39 @@ function renderAccountsView() {
       <div class="callout-text">${escHtml(t('acc.empty.text'))}</div></div>`;
     return;
   }
-  const count = lvl => rows.filter(r => r.level === lvl).length;
+  const accountRows = rows.flatMap(r => r.accounts);
+  const count = lvl => accountRows.filter(a => a.level === lvl).length;
   const q = serviceKey(accFilter);
-  const shown = rows.filter(r => (!accOnlyProblems || r.level !== 'ok') && (!q || r.key.includes(q) || serviceKey(r.label).includes(q)));
+  const matches = r => !q || r.key.includes(q) || serviceKey(r.label).includes(q)
+    || r.accounts.some(a => a.id.replace(/[^a-z0-9]/g, '').includes(q));
+  const shown = rows.filter(r => (!accOnlyProblems || r.level !== 'ok') && matches(r));
   const head = keys.map(k => {
     const free = k.snapshot?.remaining_disc_creds;
-    const noList = k.snapshot?.options && !canManage(k.snapshot);
+    const noList = k.snapshot?.options && !canManage(k.snapshot) && !k.sites_probed;
     return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
       <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
-      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : noList ? t('acc.noList') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
+      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : noList ? t('acc.noList') : k.sites_probed ? t('acc.probed') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
+  }).join('');
+  const cells = hits => keys.map(k => {
+    const h = hits.get(k.key_id);
+    if (!h) return `<td class="no${k.lost_since ? ' lost' : ''}">–</td>`;
+    const tags = [h.passkey ? `<span class="pill on">${escHtml(h.passkey > 1 ? `${t('acc.passkey')} ×${h.passkey}` : t('acc.passkey'))}</span>` : '',
+      h.codes ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
+    return `<td class="yes${k.lost_since ? ' lost' : ''}">${tags}</td>`;
+  }).join('');
+  const avatar = r => `<span class="pk-avatar">${escHtml((r.label[0] || '?').toUpperCase())}</span>`;
+  const body = shown.map(r => {
+    if (!r.split) {
+      const a = r.accounts[0];
+      return `<tr class="acc-${a.level}"><td class="acc-name">${avatar(r)}
+        <span><span class="acc-label">${escHtml(r.label)}</span>${a.label ? `<span class="acc-upn">${escHtml(a.label)}</span>` : ''}
+        <span class="acc-note">${escHtml(a.note)}</span></span></td>${cells(a.hits)}</tr>`;
+    }
+    const accounts = r.accounts.filter(a => !accOnlyProblems || a.level !== 'ok');
+    return `<tr class="acc-group acc-${r.level}"><td class="acc-name" colspan="${keys.length + 1}">${avatar(r)}
+        <span><span class="acc-label">${escHtml(r.label)}</span><span class="acc-note">${escHtml(t('acc.accounts', { n: r.accounts.length }))}</span></span></td></tr>`
+      + accounts.map(a => `<tr class="acc-sub-row acc-${a.level}"><td class="acc-name acc-indent">
+        <span><span class="acc-upn">${escHtml(a.label || t('acc.unnamed'))}</span><span class="acc-note">${escHtml(a.note)}</span></span></td>${cells(a.hits)}</tr>`).join('');
   }).join('');
   el.innerHTML = `
     <div class="acc-summary">
@@ -689,17 +737,7 @@ function renderAccountsView() {
       </div>
       <div class="bk-table-wrap"><table class="bk-table acc-table">
         <thead><tr><th>${escHtml(t('acc.service'))}</th>${head}</tr></thead>
-        <tbody>${shown.map(r => `<tr class="acc-${r.level}">
-          <td class="acc-name"><span class="pk-avatar">${escHtml((r.label[0] || '?').toUpperCase())}</span>
-            <span><span class="acc-label">${escHtml(r.label)}</span><span class="acc-note">${escHtml(r.note)}</span></span></td>
-          ${keys.map(k => {
-            const h = r.hits.get(k.key_id);
-            if (!h) return `<td class="no${k.lost_since ? ' lost' : ''}">–</td>`;
-            const tags = [h.passkey ? `<span class="pill on">${escHtml(t('acc.passkey'))}</span>` : '',
-              h.codes.length ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
-            return `<td class="yes${k.lost_since ? ' lost' : ''}">${tags}</td>`;
-          }).join('')}
-        </tr>`).join('') || `<tr><td colspan="${keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
+        <tbody>${body || `<tr><td colspan="${keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
       </table></div>
       ${unread.length ? `<p class="field-hint bk-hint">${escHtml(t('acc.unread', { names: unread.map(keyLabel).join(', ') }))}</p>` : ''}
       <p class="field-hint bk-hint">${escHtml(t('acc.hint'))}</p>
@@ -1367,11 +1405,65 @@ function markUnlocked(id, ttlSeconds) {
   renderSidebar();
 }
 
+function openProbe(id) {
+  quickUnlock = { id, mode: 'probe', busy: false, error: null };
+  renderQuickUnlock();
+}
+
+function renderProbeDialog(el, tok) {
+  const q = quickUnlock;
+  const pct = q.total ? Math.round((q.done || 0) * 100 / q.total) : 0;
+  el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
+    <h2>${escHtml(t('probe.dialogTitle', { name: displayName(tok) }))}</h2>
+    <p class="card-text">${escHtml(t('probe.dialogText'))}</p>
+    ${tok.options?.clientPin ? `<label class="field"><span>${escHtml(t('probe.pin'))}</span>
+      <input type="password" class="ql-pin" autocomplete="off" spellcheck="false" ${q.busy ? 'disabled' : ''}></label>` : ''}
+    <label class="field"><span>${escHtml(t('probe.extra'))}</span>
+      <input type="text" class="ql-extra" placeholder="firma.okta.com, adfs.firma.de" spellcheck="false" ${q.busy ? 'disabled' : ''}></label>
+    ${q.busy ? `<div class="oath-bar probe-bar"><div style="width:${pct}%"></div></div>
+      <p class="field-hint">${escHtml(t('probe.progress', { done: q.done || 0, total: q.total || '…' }))}</p>` : ''}
+    ${q.error ? `<p class="field-error">${escHtml(q.error)}</p>` : ''}
+    <p class="field-hint">${escHtml(t('probe.note'))}</p>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-ql="cancel" ${q.busy ? 'disabled' : ''}>${escHtml(t('pk.delete.cancel'))}</button>
+      <button type="submit" class="btn btn-primary" ${q.busy ? 'disabled' : ''}>${escHtml(t('probe.start'))}</button>
+    </div></form>`;
+  el.querySelector('.ql-pin')?.focus();
+}
+
+async function probeSubmit() {
+  const tok = quickUnlock && tokens.get(quickUnlock.id);
+  if (!tok) return;
+  const root = $('quick-unlock');
+  const pin = root.querySelector('.ql-pin')?.value || '';
+  const extra = (root.querySelector('.ql-extra')?.value || '').split(/[\s,;]+/).filter(Boolean);
+  quickUnlock = { ...quickUnlock, busy: true, error: null, done: 0, total: 0 };
+  renderQuickUnlock();
+  try {
+    const res = await call('passkeys_probe', { token_id: tok.id, pin: pin || null, extra });
+    const got = await call('read_contents', { token_id: tok.id }).catch(() => ({}));
+    const accounts = res.found.reduce((n, f) => n + f.count, 0);
+    const parts = [t('probe.found', { n: accounts, sites: res.found.length }),
+      got.oath != null ? t('ql.got.oath', { n: got.oath }) : '', got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
+      got.piv ? t('ql.got.piv', { n: got.piv }) : ''].filter(Boolean);
+    showToast(`${displayName(tok)}: ${parts.join(', ')}`, 'success');
+    quickUnlock = null;
+    renderQuickUnlock();
+    await loadHistory();
+    render();
+    if (selectedId === tok.id && activeTab === 'passkeys') renderPasskeys();
+  } catch (e) {
+    quickUnlock = { ...quickUnlock, busy: false, error: errorMessage(e) };
+    renderQuickUnlock();
+  }
+}
+
 function renderQuickUnlock() {
   const el = $('quick-unlock');
   const tok = quickUnlock && tokens.get(quickUnlock.id);
   el.classList.toggle('hidden', !tok);
   if (!tok) { el.innerHTML = ''; return; }
+  if (quickUnlock.mode === 'probe') return renderProbeDialog(el, tok);
   const uv = tok.options?.uv === true;
   el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
     <h2>${escHtml(t('ql.title', { name: displayName(tok) }))}</h2>
@@ -1414,22 +1506,6 @@ async function quickUnlockSubmit(method) {
     quickUnlock = { ...quickUnlock, busy: false, error: errorMessage(e) };
     renderQuickUnlock();
   }
-}
-
-// Keys without passkey management: read the smart card applications (no PIN)
-async function quickRead(id, btn) {
-  const tok = tokens.get(id);
-  if (!tok) return;
-  btn.classList.add('busy');
-  const got = await call('read_contents', { token_id: id }).catch(() => ({}));
-  const parts = [
-    got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
-    got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
-    got.piv ? t('ql.got.piv', { n: got.piv }) : '',
-  ].filter(Boolean);
-  showToast(t('ql.readDone', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
-  await loadHistory();
-  render();
 }
 
 async function quickLockToggle(id) {
@@ -1494,9 +1570,30 @@ function credProtectLabel(level) {
   return level === 3 ? t('pk.protect3') : null;
 }
 
+function probedPasskeysHtml(token) {
+  const entry = historyKeys.get(token.history_id);
+  const sites = entry?.sites || [];
+  const list = sites.length ? `<section class="card"><ul class="pk-list">${sites.map(s => `<li class="pk-item probe-item">
+      <span class="pk-avatar">${escHtml((s.rp_id[0] || '?').toUpperCase())}</span>
+      <div class="pk-user"><div class="pk-user-name">${escHtml(s.rp_id)}</div>
+        <div class="pk-user-sub">${escHtml(t('probe.accounts', { n: s.count }))}</div>
+        ${(s.users || []).some(u => u.name || u.display) ? `<ul class="probe-users">${s.users.map(u => `<li>${escHtml(u.name || u.display || t('probe.unnamed'))}</li>`).join('')}</ul>` : ''}
+      </div></li>`).join('')}</ul>
+      <p class="field-hint">${escHtml(t('probe.checked', { n: entry.sites_probed || 0, when: relTime(entry.sites_updated) }))}</p></section>` : '';
+  return `<div class="callout"><div class="callout-title">${escHtml(t('probe.title'))}</div>
+      <div class="callout-text">${escHtml(t('probe.intro'))}</div>
+      <div class="form-actions att-actions"><button type="button" class="btn btn-primary" data-act="probe">${escHtml(t(sites.length ? 'probe.again' : 'probe.start'))}</button></div></div>${list}`;
+}
+
 function renderPasskeys() {
   const el = $('pk-content');
   const st = pkState;
+  const token = tokens.get(selectedId);
+  if (st && !st.supported && token && !token.offline) {
+    el.innerHTML = probedPasskeysHtml(token);
+    el.querySelector('[data-act=probe]').onclick = () => openProbe(token.id);
+    return;
+  }
   const gate = managementGateHtml(st, 'pk.unsupported');
   if (gate !== null) { el.innerHTML = gate; focusUnlockPin('passkeys'); return; }
 
@@ -3269,6 +3366,16 @@ const EVENT_HANDLERS = {
   mds_ready: p => { mdsInfo = p; renderMds(); },
   data_status: p => { dataStatus = p; mdsInfo = p.mds; renderMds(); renderDataStatus(); },
   app_update: p => { dataStatus = { ...(dataStatus || {}), app: p }; renderDataStatus(); },
+  probe_progress: p => {
+    if (quickUnlock?.mode === 'probe' && quickUnlock.id === p.id) {
+      quickUnlock = { ...quickUnlock, done: p.done, total: p.total };
+      const bar = document.querySelector('.probe-bar > div');
+      if (bar) {
+        bar.style.width = `${Math.round(p.done * 100 / p.total)}%`;
+        bar.parentElement.nextElementSibling.textContent = t('probe.progress', { done: p.done, total: p.total });
+      } else renderQuickUnlock();
+    }
+  },
   update_progress: p => { updateFlow = { stage: 'downloading', pct: p.pct }; renderUpdateBanner(); },
   update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); call('update_open').catch(() => {}); },
   update_failed: p => {
@@ -3320,14 +3427,17 @@ function init() {
     const lockBtn = ev.target.closest('[data-unlock]');
     if (lockBtn) { ev.stopPropagation(); quickLockToggle(lockBtn.dataset.unlock); return; }
     const readBtn = ev.target.closest('[data-read]');
-    if (readBtn) { ev.stopPropagation(); quickRead(readBtn.dataset.read, readBtn); return; }
+    if (readBtn) { ev.stopPropagation(); openProbe(readBtn.dataset.read); return; }
     const item = ev.target.closest('.key-item');
     if (item) selectToken(item.dataset.id);
   });
   $('nav-backup').addEventListener('click', showBackupView);
   $('nav-backup-icon').innerHTML = icon('shield', 18);
   $('nav-accounts').addEventListener('click', showAccountsView);
-  $('quick-unlock').addEventListener('submit', ev => { ev.preventDefault(); quickUnlockSubmit(); });
+  $('quick-unlock').addEventListener('submit', ev => {
+    ev.preventDefault();
+    if (quickUnlock?.mode === 'probe') probeSubmit(); else quickUnlockSubmit();
+  });
   $('quick-unlock').addEventListener('click', ev => {
     const b = ev.target.closest('[data-ql]');
     if (ev.target.id === 'quick-unlock' || b?.dataset.ql === 'cancel') { quickUnlock = null; renderQuickUnlock(); return; }
