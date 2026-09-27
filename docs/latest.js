@@ -8,11 +8,13 @@
       const asset = (name) => (rel.assets || []).find((a) => a.name === name);
       const date = new Date(rel.published_at).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' });
       document.querySelectorAll('[data-latest-version]').forEach((el) => { el.textContent = `${rel.tag_name} · ${date}`; });
-      const links = [['KeyMelier-macOS.zip', 'macOS'], ['KeyMelier-Windows.zip', 'Windows']];
+      // Installer first (disk image / setup); the ZIP only for releases without one
+      const links = [[['KeyMelier-macOS.dmg', 'KeyMelier-macOS.zip'], 'macOS'],
+        [['KeyMelier-Windows-Setup.exe', 'KeyMelier-Windows.zip'], 'Windows']];
       document.querySelectorAll('[data-latest-downloads]').forEach((el) => {
         el.textContent = '';
-        for (const [name, label] of links) {
-          const a = asset(name);
+        for (const [names, label] of links) {
+          const a = names.map(asset).find(Boolean);
           if (!a) continue;
           const link = document.createElement('a');
           link.className = 'btn primary';
