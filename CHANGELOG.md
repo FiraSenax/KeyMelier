@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+UI revision – what needs attention and what to do next:
+
+- **Backup & loss** starts with account coverage (**Review accounts**), then **Lost a key?** and **Replace an old key**, plus a one-line sync status. Storage, history, "All keys belong to me", history export/import and sync setup moved to the new global **Settings** (app settings); a key's own settings are now called **Key settings**.
+- **Account overview:** the summary cards are filters (keyboard accessible), combined with the search, with a match count, "Reset filter" and an empty state. Header row and account column stay visible while scrolling; the legend sits above the table; **Next step** explains what to do for problem accounts – without promising any automatic transfer.
+- **Key check vs. account coverage:** the header, overview and checks keep "Key check" (the device) and "Account coverage" (accounts depending on the key) apart, so a flawless key can still show accounts without a backup. Unknown and stale data stay marked.
+- **Key overview** leads with passkeys, authenticator accounts and open tasks ("Not read" instead of an empty count); missing optional hardware is one compact line; **Read key** reuses the unlock dialog / passkey search (no automatic PIN attempts); CSV export moved into the **⋯** menu.
+- **Passkeys:** compact groups per service with search, labelled Rename/Delete and details on demand.
+- **Replacing a key** is a guided view in four steps (choose, compare, test & confirm, summary) with "Open entries only"; "found on the new key" and "confirmed by you" stay separate, a tick never counts as technical proof.
+- Readability: stronger contrast for hint and status text in light and dark mode, visible keyboard focus, larger click targets, focus kept in dialogs and returned on close, long explanations behind "Details", sync shown compactly ("last synced locally").
+
 ## 1.6.1 — 2026-09-27
 
 Bug fixes only.
