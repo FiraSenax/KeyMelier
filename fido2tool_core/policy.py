@@ -26,6 +26,8 @@ import os
 import sys
 from pathlib import Path
 
+from fido2tool_core.advisories import clean_text
+
 logger = logging.getLogger(__name__)
 
 MAC_PLIST = Path("/Library/Managed Preferences/com.keymelier.app.plist")
@@ -153,11 +155,11 @@ def advisory_sources(raw: dict | None = None) -> list[dict]:
             break
         if not isinstance(e, dict):
             continue
-        name = str(e.get("Name") or "").strip()[:MAX_NAME]
+        name = clean_text(e.get("Name"), MAX_NAME) or ""
         if not name or name in names:
             logger.warning("Ignoring advisory source without a unique name")
             continue
-        if not _valid_location(e.get("Location")):
+        if not _valid_location(e.get("Location")) or clean_text(e.get("Location"), 2000) != e.get("Location"):
             logger.warning("Ignoring advisory source %s: Location must be https:// or an absolute path", name)
             continue
         if not _valid_key(e.get("PublicKey")):

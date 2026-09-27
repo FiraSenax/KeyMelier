@@ -65,12 +65,42 @@ The document has the same format as the official
 }
 ```
 
-`severity` is one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (other values count
-as `MEDIUM`; `CRITICAL` marks the key as critical, all others as a warning).
-`firmware_min_inclusive` / `firmware_max_exclusive` are optional. Only
-`https://` references are shown (at most 10, without spaces). KeyMelier opens
-exactly these links in the browser – for example an intranet page – but no
-other address on the same server.
+The document is a JSON object with `updated` (set by the signing tool) and
+`advisories`, a list of up to 1000 entries. Each entry is checked field by
+field; unknown fields are ignored, and an entry with an invalid required or
+firmware field is skipped as a whole (and logged):
+
+| Field | Required | Allowed values |
+|---|---|---|
+| `id` | yes | 1–100 characters: letters, digits and `. _ : / -`, starting with a letter or digit. Must not be an id of the official database (such entries are skipped). |
+| `affected_aaguids` | yes | 1–200 AAGUIDs in the form `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (hex). |
+| `severity` | no | `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`; anything else counts as `MEDIUM`. `CRITICAL` marks the key as critical, all others as a warning. |
+| `firmware_min_inclusive`, `firmware_max_exclusive` | no | Version like `5.7` or `5.7.0` (digits and dots). An unreadable value skips the entry – it would otherwise match every firmware. |
+| `title` | no | Text, up to 200 characters. |
+| `note` | no | Text, up to 2000 characters. |
+| `cvss` | no | Number 0–10, or a string like `"9.8"`; anything else is dropped. |
+| `references` | no | Up to 10 `https://` links (host, optional port and path/query; no spaces, quotes or angle brackets). KeyMelier opens exactly these links in the browser – for example an intranet page – but no other address on the same server. |
+
+Texts are shown as plain text: control characters (line breaks included) are
+replaced by spaces, and HTML stays visible as text instead of being
+interpreted.
+
+### What protects against a manipulated source
+
+- **Who can configure it:** only machine-wide locations an administrator
+  writes (HKLM, managed preferences, a root-owned file); the user's own
+  registry and preferences are not read.
+- **Who can publish findings:** only the holder of the private key named in
+  the policy. Documents with a missing or wrong signature are ignored.
+- **What a document can contain:** the field rules above. It is parsed as
+  JSON only – nothing in it is executed – and it is at most 2 MB.
+- **What reaches the window:** every value is escaped before display, and the
+  window's Content Security Policy runs only KeyMelier's own scripts (no inline
+  scripts or event handlers, no network access, no frames), so even markup
+  that got through could not execute.
+- **What it can change:** only add findings. Official findings cannot be
+  removed, weakened or replaced, and an older document never replaces a
+  newer one.
 
 Sign it with the tool from this repository (Python 3 with `cryptography`):
 

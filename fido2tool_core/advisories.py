@@ -32,24 +32,57 @@ def _read_source(location: str) -> tuple[bytes, str]:
     return path.read_bytes(), Path(location + ".sig").read_text(encoding="ascii")
 
 
+# Company advisories (policy sources) are checked field by field against a
+# whitelist; anything not listed is dropped, anything malformed drops the
+# whole entry. The UI escapes every value and runs only hashed scripts (CSP),
+# so this is a second line of defence – and it keeps a broken source from
+# matching more keys than intended.
+MAX_ADVISORIES = 1000
+MAX_AAGUIDS = 200
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+_AAGUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}")
+_FIRMWARE = re.compile(r"\d{1,5}(\.\d{1,5}){0,3}")
+_CVSS = re.compile(r"(10(\.0)?|\d(\.\d)?)")
+_URL = re.compile(r"https://[A-Za-z0-9.-]+(:\d{1,5})?(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?")
+
+
+def clean_text(value, limit: int) -> Optional[str]:
+    """Plain text without control characters, or None."""
+    if not isinstance(value, str):
+        return None
+    text = _CONTROL.sub(" ", value).strip()
+    return text[:limit] or None
+
+
 def _clean_entry(adv, origin: str) -> Optional[dict]:
     """A managed advisory in the official shape, or None if unusable."""
-    if not isinstance(adv, dict) or not isinstance(adv.get("id"), str) or not adv["id"].strip():
+    if not isinstance(adv, dict) or not isinstance(adv.get("id"), str) or not _ID.fullmatch(adv["id"]):
         return None
     aaguids = adv.get("affected_aaguids")
-    if not isinstance(aaguids, list) or not all(isinstance(a, str) for a in aaguids):
+    if not isinstance(aaguids, list) or not 0 < len(aaguids) <= MAX_AAGUIDS \
+            or not all(isinstance(a, str) and _AAGUID.fullmatch(a) for a in aaguids):
         return None
-    entry = {"id": adv["id"].strip()[:100], "affected_aaguids": aaguids,
+    entry = {"id": adv["id"], "affected_aaguids": [a.lower() for a in aaguids],
              "severity": adv.get("severity") if adv.get("severity") in SEVERITIES else "MEDIUM",
              "origin": origin}
-    for key in ("title", "note", "firmware_min_inclusive", "firmware_max_exclusive"):
-        if isinstance(adv.get(key), str):
-            entry[key] = adv[key][:2000]
-    if isinstance(adv.get("cvss"), (int, float, str)) and not isinstance(adv.get("cvss"), bool):
-        entry["cvss"] = adv["cvss"]
-    # Only plain https links (no spaces or control characters); the app may open exactly these
-    entry["references"] = [u for u in adv.get("references") or []
-                           if isinstance(u, str) and len(u) <= 2000 and re.fullmatch(r"https://[^\s\x00-\x1f\x7f]+", u)][:10]
+    for key in ("firmware_min_inclusive", "firmware_max_exclusive"):
+        if key in adv:   # a bound that cannot be read would widen the match to every firmware
+            if not isinstance(adv[key], str) or not _FIRMWARE.fullmatch(adv[key]):
+                return None
+            entry[key] = adv[key]
+    for key, limit in (("title", 200), ("note", 2000)):
+        text = clean_text(adv.get(key), limit)
+        if text:
+            entry[key] = text
+    cvss = adv.get("cvss")
+    if isinstance(cvss, (int, float)) and not isinstance(cvss, bool) and 0 <= cvss <= 10:
+        entry["cvss"] = round(float(cvss), 1)
+    elif isinstance(cvss, str) and _CVSS.fullmatch(cvss):
+        entry["cvss"] = cvss
+    # Only plain https links; the app may open exactly these (in the browser)
+    refs = adv.get("references") if isinstance(adv.get("references"), list) else []
+    entry["references"] = [u for u in refs if isinstance(u, str) and len(u) <= 2000 and _URL.fullmatch(u)][:10]
     return entry
 
 
@@ -124,7 +157,10 @@ class AdvisoryChecker:
         for src in self._sources:
             state = self._extra[src["name"]]
             state["count"] = state["dropped"] = 0
-            for adv in (state["document"] or {}).get("advisories", []):
+            advisories = (state["document"] or {}).get("advisories", [])
+            if len(advisories) > MAX_ADVISORIES:
+                logger.warning("Advisory source %s: only the first %d entries are used", src["name"], MAX_ADVISORIES)
+            for adv in advisories[:MAX_ADVISORIES]:
                 entry = _clean_entry(adv, src["name"])
                 if entry is None or entry["id"] in official_ids:
                     state["dropped"] += 1   # malformed, or would shadow an official entry

@@ -212,6 +212,41 @@ class TestManagedSources(unittest.TestCase):
         self.assertEqual(found[0]["references"], ["https://intra.example/a"])
         self.assertEqual(c.info()["policy"][0]["count"], 1)
 
+    def test_hostile_entries_are_dropped_or_neutralised(self):
+        """Injection attempts through a (validly signed) source: nothing executable reaches the UI."""
+        from fido2tool_core.advisories import _clean_entry
+        drop = {
+            "script in id": corp("<script>alert(1)</script>"),
+            "quote in id": corp('X" onmouseover="alert(1)'),
+            "id with newline": corp("CORP-1\nFAKE LOG LINE"),
+            "aaguid not a uuid": corp(aaguid="<img src=x>"),
+            "no aaguid": {**corp(), "affected_aaguids": []},
+            "too many aaguids": {**corp(), "affected_aaguids": [OTHER_AAGUID] * 201},
+            "unreadable firmware bound": corp(firmware_max_exclusive="abc"),
+            "firmware bound as number": corp(firmware_min_inclusive=5),
+        }
+        for name, adv in drop.items():
+            with self.subTest(name):
+                self.assertIsNone(_clean_entry(adv, "x"))
+        entry = _clean_entry(corp(title="<b>A</b>\u2028next\x1b[31m", note="line1\nline2", cvss="9.8<img src=x>",
+                                  references=['https://a.example/"><svg onload=alert(1)>', "javascript:alert(1)",
+                                              "https://a.example/x'y", "data:text/html,<script>", "https://a.example/ok?q=1#f"]),
+                             "x")
+        self.assertNotRegex(entry["title"] + entry["note"], r"[\x00-\x1f\u2028]")
+        self.assertEqual(entry["title"], "<b>A</b> next [31m", "markup stays text; the UI escapes it")
+        self.assertNotIn("cvss", entry)
+        self.assertEqual(entry["references"], ["https://a.example/ok?q=1#f"])
+        self.assertEqual(_clean_entry(corp(cvss=9.84), "x")["cvss"], 9.8)
+        self.assertNotIn("cvss", _clean_entry(corp(cvss=True), "x"))
+
+    def test_source_name_without_control_characters(self):
+        _, pub = keypair()
+        raw = {"AdvisorySources": [{"Name": "Contoso\nWARNING fake", "Location": "https://intra.example/a.json",
+                                    "PublicKey": pub},
+                                   {"Name": "Lab", "Location": "https://intra.example/a.json\nb", "PublicKey": pub}]}
+        sources = policy.advisory_sources(raw)
+        self.assertEqual([s["name"] for s in sources], ["Contoso WARNING fake"])
+
     def test_no_rollback_to_older_document(self):
         location = write_source(self.dir, self.priv, [corp()], updated="2026-09-27T00:00:00+00:00")
         c = self.checker(location)
