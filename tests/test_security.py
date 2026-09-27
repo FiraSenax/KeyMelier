@@ -96,8 +96,21 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(r.security_status, 'CRITICAL')
         adv.check.return_value = []
         mds.get_highest_security_status.return_value = 'FIDO_CERTIFIED_L2'
+        adv.document = {'updated': datetime.now(timezone.utc).isoformat()}
+        r.attestation = None
+        scanner._enrich_record(r)
+        self.assertEqual(r.security_status, 'UNKNOWN')  # model OK, device not yet proven
+        r.attestation = {'status': 'VERIFIED'}
         scanner._enrich_record(r)
         self.assertEqual(r.security_status, 'OK')
+        r.attestation = {'status': 'FAILED'}
+        scanner._apply_attestation_status(r)
+        self.assertEqual(r.security_status, 'CRITICAL')  # counterfeit certified model
+        r.attestation = {'status': 'VERIFIED'}
+        adv.document = {'updated': (datetime.now(timezone.utc) - timedelta(days=400)).isoformat()}
+        scanner._enrich_record(r)
+        self.assertEqual(r.security_status, 'UNKNOWN')  # stale advisory database
+        adv.document = {'updated': datetime.now(timezone.utc).isoformat()}
         mds.is_current.return_value = False
         scanner._enrich_record(r)
         self.assertEqual(r.security_status, 'UNKNOWN')

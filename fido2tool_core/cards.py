@@ -54,7 +54,6 @@ def map_card_error(e) -> CardError:
 class Cards:
     def __init__(self):
         self._locks: dict[str, threading.Lock] = {}
-        self._serials: dict[str, str | None] = {}  # reader name -> YubiKey serial
         self._guard = threading.Lock()
         # Optional callable(reader) -> context manager, entered around every
         # card connection (the service uses it to pause FIDO polling)
@@ -111,39 +110,47 @@ class Cards:
                 time.sleep(0.4)
 
     def _serial_of(self, reader: str) -> str | None:
-        if reader in self._serials:
-            return self._serials[reader]
-        serial = None
-        if "yubico" in reader.lower():
-            try:
-                from yubikit.management import ManagementSession
-                with self.connect(reader, timeout=3.0) as conn:
-                    info = ManagementSession(conn).read_device_info()
-                    serial = str(info.serial) if info.serial else None
-            except Exception as e:
-                logger.debug("Could not read serial via %s: %s", reader, e)
-                return None  # do not cache failures
-        self._serials[reader] = serial
-        return serial
+        """Serial of the YubiKey behind a reader, read fresh every time: reader
+        names are reused when keys are swapped, so a cache could point an
+        operation at the wrong key."""
+        if "yubico" not in reader.lower():
+            return None
+        try:
+            from yubikit.management import ManagementSession
+            with self.connect(reader, timeout=3.0) as conn:
+                info = ManagementSession(conn).read_device_info()
+                return str(info.serial) if info.serial else None
+        except Exception as e:
+            logger.debug("Could not read serial via %s: %s", reader, e)
+            return None
 
     def find_reader(self, record) -> str | None:
-        """PC/SC reader that belongs to a connected FIDO key, or None."""
+        """PC/SC reader that belongs to a connected FIDO key, or None.
+
+        Refuses (CardError "ambiguous") instead of guessing when more than one
+        reader could be this key – operations must never hit another key.
+        """
         readers = [d.reader.name for d in _reader_devices()]
-        # Forget readers that disappeared
-        for name in list(self._serials):
-            if name not in readers:
-                self._serials.pop(name, None)
-        if record.serial_number and (record.vendor_id == 0x1050 or "yubi" in (record.product_name or "").lower()):
-            for name in readers:
-                if self._serial_of(name) == record.serial_number:
-                    return name
-            return None
+        yubikey = record.vendor_id == 0x1050 or "yubi" in (record.product_name or "").lower()
+        if yubikey:
+            candidates = [name for name in readers if "yubico" in name.lower()]
+            if record.serial_number:
+                matches = [name for name in candidates if self._serial_of(name) == str(record.serial_number)]
+                if len(matches) > 1:
+                    raise CardError("Two devices report the same serial number – refusing to continue.",
+                                    "ambiguous_key")
+                return matches[0] if matches else None
+            if len(candidates) > 1:
+                raise CardError("Several YubiKeys are connected and this one has no readable serial "
+                                "number. Plug in only this key.", "ambiguous_key")
+            return candidates[0] if candidates else None
         product = (record.product_name or "").lower()
-        if product:
-            for name in readers:
-                if product in name.lower():
-                    return name
-        return None
+        if not product:
+            return None
+        matches = [name for name in readers if product in name.lower()]
+        if len(matches) > 1:
+            raise CardError("Several keys of this model are connected. Plug in only this key.", "ambiguous_key")
+        return matches[0] if matches else None
 
     def applets(self, reader: str) -> dict:
         """Which of the supported applications the card answers to."""

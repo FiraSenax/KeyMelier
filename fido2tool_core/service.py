@@ -121,6 +121,9 @@ class KeyService:
 
     def _on_disconnect(self, record):
         auth.forget(record.id)
+        # OATH access keys are per application, not per FIDO token: a key
+        # that leaves takes every unlocked authenticator with it
+        oath_app.forget_all()
         fingerprints_mod.cancel_enrollment(record.id)
         self._attestation_logged.discard(record.id)
         logger.info("Token disconnected: %s", record.product_name)
@@ -302,6 +305,7 @@ class KeyService:
 
     def lock(self, token_id: str) -> dict:
         auth.forget(token_id)
+        oath_app.forget_all()
         return {"unlocked": False}
 
     # ── Passkeys ─────────────────────────────────────────────────────────────
@@ -590,8 +594,11 @@ class KeyService:
         return self._openpgp_do(token_id, openpgp_app.set_cardholder, name, url, admin_pin)
 
     def openpgp_generate(self, token_id: str, algorithm: str, name: str, email: str = "",
-                         expire_days: int = 0, admin_pin: str = "", user_pin: str = "") -> dict:
+                         expire_days: int = 0, admin_pin: str = "", user_pin: str = "",
+                         replace: bool = False) -> dict:
         record, reader = self._card(token_id)
+        if replace is not True and any(k["present"] for k in self._cards.read(reader, openpgp_app.info)["keys"]):
+            raise CardError("This key already holds OpenPGP keys. Confirm replacing them.", "confirm_replace")
         with self._cards.connect(reader, timeout=30.0) as conn:
             result = openpgp_app.generate_keys(conn, algorithm, name, email, expire_days, admin_pin, user_pin)
         self._log(record, "pgp_generated", site=result["user_id"] if self._remember_contents() else None)
@@ -629,9 +636,15 @@ class KeyService:
         self._piv_do(token_id, piv_app.unblock_pin, puk, new_pin, event="piv_pin_unblocked")
         return self.piv(token_id)
 
+    def _piv_slot_used(self, token_id, slot) -> bool:
+        data = self.piv(token_id)
+        return any(s["slot"] == str(slot).lower() and (s["cert"] or s["key"]) for s in data["slots"])
+
     def piv_generate(self, token_id: str, slot: str, key_type: str, subject: str, days: int, pin: str,
                      management_key: str | None = None, pin_policy: str = "default",
-                     touch_policy: str = "default") -> dict:
+                     touch_policy: str = "default", replace: bool = False) -> dict:
+        if replace is not True and self._piv_slot_used(token_id, slot):
+            raise CardError("This slot is in use. Confirm replacing it.", "confirm_replace")
         self._piv_do(token_id, piv_app.generate, slot, key_type, subject, days, pin, management_key,
                      pin_policy, touch_policy, event="piv_generated", detail={"slot": slot})
         return self.piv(token_id)
@@ -646,7 +659,9 @@ class KeyService:
         return {"pem": self._piv_do(token_id, piv_app.export_certificate, slot)}
 
     def piv_delete(self, token_id: str, slot: str, pin: str | None = None,
-                   management_key: str | None = None, key: bool = False) -> dict:
+                   management_key: str | None = None, key: bool = False, confirm: bool = False) -> dict:
+        if confirm is not True:
+            raise CardError("Please confirm deleting.", "invalid_input")
         self._piv_do(token_id, piv_app.delete, slot, pin, management_key, key is True,
                      event="piv_deleted", detail={"slot": slot})
         return self.piv(token_id)
@@ -701,7 +716,14 @@ class KeyService:
         self._log(record, "otp_deleted", slot=int(slot))
         return self.otp(token_id)
 
-    def otp_static(self, token_id: str, slot: int, password: str, access_code: str | None = None) -> dict:
+    def _otp_guard(self, token_id, slot, replace):
+        if replace is not True and any(s["slot"] == int(slot) and s["configured"]
+                                       for s in self.otp(token_id)["slots"]):
+            raise CardError("This slot is in use. Confirm replacing it.", "confirm_replace")
+
+    def otp_static(self, token_id: str, slot: int, password: str, access_code: str | None = None,
+                   replace: bool = False) -> dict:
+        self._otp_guard(token_id, slot, replace)
         record = self._yubikey(token_id)
         with self._otp_lock, self._otp_hold(token_id):
             yubikey_apps.otp_static_password(record.serial_number, int(slot), password, access_code)
@@ -709,7 +731,8 @@ class KeyService:
         return self.otp(token_id)
 
     def otp_hmac(self, token_id: str, slot: int, secret: str | None = None, touch: bool = False,
-                 access_code: str | None = None) -> dict:
+                 access_code: str | None = None, replace: bool = False) -> dict:
+        self._otp_guard(token_id, slot, replace)
         record = self._yubikey(token_id)
         with self._otp_lock, self._otp_hold(token_id):
             key = yubikey_apps.otp_challenge_response(record.serial_number, int(slot), secret,
@@ -801,7 +824,14 @@ class KeyService:
     def reset_arm(self, token_id: str, confirm: bool = False) -> dict:
         if confirm is not True:
             raise PinError("Please confirm the reset.", "invalid_input")
-        info = reset_mod.arm(self._scanner.get(token_id))
+        record = self._scanner.get(token_id)
+        if not record.serial_number and any(
+                r.aaguid == record.aaguid and r.id != record.id for r in self._scanner.get_all()):
+            # Without a serial the re-plugged key can only be recognised by
+            # its model – with a second key of that model present, refuse.
+            raise PinError("Another key of this model is connected. Unplug it before resetting.",
+                           "ambiguous_key")
+        info = reset_mod.arm(record)
 
         def check_expired():
             if reset_mod.expired():

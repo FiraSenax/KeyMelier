@@ -120,7 +120,11 @@ def issue_body(f: dict, entries: list[dict]) -> str:
     table = "\n".join(["| AAGUID | Model (MDS3) | authenticatorVersion |", "|---|---|---|", *rows]) if rows else "_No matching models found in MDS3._"
     return f"""**Source:** {f['source']} – {f['url']}
 
-> {f['summary']}
+Summary (untrusted text from the source):
+
+```text
+{f['summary'].replace('`', "'")}
+```
 
 ### Candidate models from FIDO MDS3
 {table}

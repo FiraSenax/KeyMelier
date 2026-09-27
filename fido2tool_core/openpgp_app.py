@@ -256,7 +256,7 @@ def set_cardholder(conn, name: str, url: str, admin_pin: str) -> None:
         encoded_name = name.encode("latin-1")
     except UnicodeEncodeError:
         raise CardError("The name may only contain Latin letters.", "pgp_name_charset") from None
-    if url and not url.lower().startswith(("https://", "http://")):
+    if url and not url.lower().startswith("https://"):
         raise CardError("The URL must start with https://.", "invalid_input")
     # OpenPGP stores "Last<<First"; take the last word as the surname
     if " " in name:

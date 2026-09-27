@@ -26,6 +26,7 @@ def arm(record) -> dict:
     with _armed_lock:
         _armed = {
             "aaguid": record.aaguid,
+            "serial": record.serial_number or None,
             "product_name": record.product_name,
             "expires": time.monotonic() + ARM_WINDOW,
         }
@@ -65,6 +66,9 @@ def claim(record) -> bool:
             _armed is not None
             and _armed["expires"] > time.monotonic()
             and _armed["aaguid"] == record.aaguid
+            # Same model is not enough: a backup key of that model must never
+            # be wiped because it happened to be plugged in within the window
+            and (_armed["serial"] is None or _armed["serial"] == (record.serial_number or None))
         ):
             _armed = None
             return True

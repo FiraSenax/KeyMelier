@@ -16,6 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
@@ -37,6 +39,8 @@ jobs:
       signed: ${{ steps.build.outputs.signed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
@@ -74,12 +78,14 @@ jobs:
       - run: |
           ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
           cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt
+          cp build/keymelier-sbom.cdx.json dist/KeyMelier-macOS.cdx.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
           path: |
             dist/KeyMelier-macOS.zip
             dist/THIRD_PARTY_LICENSES-macOS.txt
+            dist/KeyMelier-macOS.cdx.json
           retention-days: 14
   build-windows:
     needs: test
@@ -94,6 +100,8 @@ jobs:
       signed: ${{ steps.signed.outputs.signed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
@@ -136,12 +144,14 @@ jobs:
       - run: |
           Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
           Copy-Item build\THIRD_PARTY_LICENSES.txt dist\THIRD_PARTY_LICENSES-Windows.txt
+          Copy-Item build\keymelier-sbom.cdx.json dist\KeyMelier-Windows.cdx.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Windows
           path: |
             dist/KeyMelier-Windows.zip
             dist/THIRD_PARTY_LICENSES-Windows.txt
+            dist/KeyMelier-Windows.cdx.json
           retention-days: 14
   release:
     needs: [build-macos, build-windows]
@@ -151,6 +161,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Check release version
         run: |
           version=$(python3 -c "from fido2tool_core.version import __version__; print(__version__)")

@@ -46,6 +46,12 @@ function errorMessage(e) {
   return e.message;
 }
 
+// Dropping a link or file would navigate the window (and hand the bridge to
+// that page): swallow all drops.
+for (const type of ['dragover', 'drop']) {
+  document.addEventListener(type, e => e.preventDefault(), true);
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function escHtml(str) {
@@ -187,6 +193,7 @@ function buildKv(rows, monoKeys = []) {
 
 // { cls: pass|fail|partial|running, text } for an attestation result
 function attestationSummary(att, token) {
+  if (!att && token?.offline) return { cls: 'partial', text: t('sec.att.notRun'), short: t('tile.security.attPartial') };
   if (!att) return { cls: 'running', text: t('sec.att.running'), short: t('tile.security.attRunning') };
   if (token?.force_pin_change && !att.passed) {
     return { cls: 'partial', text: t('sec.att.needsPinChange'), short: t('tile.security.attNeedsPin') };
@@ -1335,7 +1342,7 @@ function fingerprintLabel(fp, i) {
 function enrollHtml(st) {
   const e = fpEnroll;
   if (!e) {
-    const max = st.max_name_bytes ? `maxlength="${st.max_name_bytes}"` : '';
+    const max = Number.isInteger(st.max_name_bytes) ? `maxlength="${st.max_name_bytes}"` : '';
     return `<form class="card form-card fp-enroll-form" autocomplete="off">
         <h2>${escHtml(t('fp.enroll.title'))}</h2>
         <p class="card-text">${escHtml(t('fp.enroll.text'))}</p>
@@ -1384,7 +1391,7 @@ function renderFingerprints() {
     html += '<section class="card"><ul class="pk-list">' + fps.map((fp, i) => {
       let actions;
       if (fpRename === fp.id) {
-        const max = st.max_name_bytes ? `maxlength="${st.max_name_bytes}"` : '';
+        const max = Number.isInteger(st.max_name_bytes) ? `maxlength="${st.max_name_bytes}"` : '';
         return `<li class="pk-item">
           <form class="fp-rename-form" data-id="${escHtml(fp.id)}">
             <input type="text" class="fp-rename-input" value="${escHtml(fp.name)}" ${max} spellcheck="false">
@@ -1892,6 +1899,8 @@ function pgpFormHtml(st) {
       <h2>${escHtml(t('pgp.gen.title'))}</h2>
       <p class="card-text">${escHtml(t('pgp.gen.text'))}</p>
       ${replacing ? `<div class="callout crit"><div class="callout-text">${escHtml(t('pgp.gen.replace'))}</div></div>` : ''}
+      ${['on', 'fixed', 'cached', 'cached_fixed'].includes(st.keys.find(k => k.slot === 'sig')?.touch)
+        ? `<div class="callout warn"><div class="callout-text">${escHtml(t('pgp.gen.touchHint'))}</div></div>` : ''}
       <div class="oath-grid">
         ${pgpField('pgp-gname', t('pgp.gen.name'), 'text', st.name || '', 'maxlength="100"')}
         ${pgpField('pgp-gemail', t('pgp.gen.email'), 'email', '', 'maxlength="120"')}
@@ -2046,7 +2055,8 @@ async function pgpGenerate(f) {
   btn.innerHTML = `<span class="spinner"></span>${escHtml(t(val('pgp-galgo').startsWith('rsa') ? 'pgp.gen.workingRsa' : 'piv.working'))}`;
   try {
     const res = await call('openpgp_generate', { token_id: token.id, algorithm: val('pgp-galgo'), name: val('pgp-gname'),
-      email: val('pgp-gemail'), expire_days: Number(val('pgp-gexpire')), admin_pin: val('pgp-admin'), user_pin: val('pgp-guser') });
+      email: val('pgp-gemail'), expire_days: Number(val('pgp-gexpire')), admin_pin: val('pgp-admin'), user_pin: val('pgp-guser'),
+      replace: !!confirm?.checked });
     pgpState = res.state;
     pgpResult = res;
     pgpForm = null;
@@ -2172,7 +2182,7 @@ function pivFormHtml(st) {
         ${['default', 'once', 'always', 'never'].map(p => `<option value="${p}">${escHtml(t(`piv.policy.${p}`))}</option>`).join('')}</select></label>
       <label class="field"><span>${escHtml(t('piv.gen.touchPolicy'))}</span><select class="piv-touchpol bk-select">
         ${['default', 'never', 'always', 'cached'].map(p => `<option value="${p}">${escHtml(t(`piv.touch.${p}`))}</option>`).join('')}</select></label>
-    </div>` + pivAuthFields(st), pivError, 'piv.gen.do');
+    </div>` + (pivSlotUsed(st, slot) ? replaceCheck() : '') + pivAuthFields(st), pivError, 'piv.gen.do');
   if (kind === 'import') return formCardHtml(pivForm, t('piv.import.title', { slot: slotName(slot) }), t('piv.import.text'),
     `<label class="field"><span>PEM</span><textarea class="piv-pem" rows="6" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>` +
     pivAuthFields(st, false), pivError, 'piv.import.do');
@@ -2180,6 +2190,14 @@ function pivFormHtml(st) {
     (st.can_delete_key ? `<label class="check"><input type="checkbox" class="piv-delkey"><span>${escHtml(t('piv.delete.key'))}</span></label>` : '') +
     pivAuthFields(st, false), pivError, 'pk.delete.do');
   return '';
+}
+
+function pivSlotUsed(st, slot) {
+  return st.slots.some(s => s.slot === slot && (s.cert || s.key));
+}
+
+function replaceCheck() {
+  return `<label class="check"><input type="checkbox" class="app-replace"><span>${escHtml(t('confirm.replace'))}</span></label>`;
 }
 
 function slotName(slot) {
@@ -2323,10 +2341,11 @@ function initPivPane() {
     if (kind === 'protect') return pivCall('piv_protect_management_key', { pin: val('piv-pin'), management_key: auth.management_key }, 'pgp.saved');
     if (kind === 'gen') {
       return pivCall('piv_generate', { slot, key_type: val('piv-type'), subject: val('piv-subject'), days: Number(val('piv-days')) || 365,
-        pin: val('piv-pin'), management_key: auth.management_key, pin_policy: val('piv-pinpol'), touch_policy: val('piv-touchpol') }, 'piv.gen.done');
+        pin: val('piv-pin'), management_key: auth.management_key, pin_policy: val('piv-pinpol'), touch_policy: val('piv-touchpol'),
+        replace: !!f.querySelector('.app-replace')?.checked }, 'piv.gen.done');
     }
     if (kind === 'import') return pivCall('piv_import', { slot, pem: val('piv-pem'), ...auth }, 'piv.import.done');
-    if (kind === 'delete') return pivCall('piv_delete', { slot, key: !!f.querySelector('.piv-delkey')?.checked, ...auth }, 'piv.deleted');
+    if (kind === 'delete') return pivCall('piv_delete', { slot, key: !!f.querySelector('.piv-delkey')?.checked, confirm: true, ...auth }, 'piv.deleted');
   });
 }
 
@@ -2364,11 +2383,13 @@ function renderOtp() {
         <button type="button" class="btn btn-primary" data-act="secret-done">${escHtml(t('otp.secret.done'))}</button></div></div>`);
   }
   const [kind, n] = (otpForm || '').split(':');
+  const used = st.slots.some(s => String(s.slot) === n && s.configured);
+  const replace = used ? (n === '1' ? `<p class="field-hint">${escHtml(t('otp.delete.text1'))}</p>` : '') + replaceCheck() : '';
   if (kind === 'static') parts.push(formCardHtml(otpForm, t('otp.static.title', { slot: t(`otp.slot${n}`) }), t('otp.static.text'),
-    fieldHtml('otp-pw', t('otp.static.password'), 'password', '', 'maxlength="38"') + access, otpError));
+    fieldHtml('otp-pw', t('otp.static.password'), 'password', '', 'maxlength="38"') + replace + access, otpError));
   if (kind === 'hmac') parts.push(formCardHtml(otpForm, t('otp.hmac.title', { slot: t(`otp.slot${n}`) }), t('otp.hmac.text'),
     fieldHtml('otp-secret', t('otp.hmac.secret'), 'text', '', `placeholder="${escHtml(t('otp.hmac.random'))}"`) +
-    `<label class="check"><input type="checkbox" class="otp-touch" checked><span>${escHtml(t('oath.requireTouch'))}</span></label>` + access, otpError));
+    `<label class="check"><input type="checkbox" class="otp-touch" checked><span>${escHtml(t('oath.requireTouch'))}</span></label>` + replace + access, otpError));
   if (kind === 'delete') parts.push(formCardHtml(otpForm, t('otp.delete.title', { slot: t(`otp.slot${n}`) }),
     t(n === '1' ? 'otp.delete.text1' : 'otp.delete.text'), access, otpError, 'pk.delete.do'));
   if (!otpForm && otpError) parts.push(`<p class="field-error">${escHtml(otpError)}</p>`);
@@ -2438,9 +2459,10 @@ function initOtpPane() {
     const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
     const [kind, n] = (f.dataset.form || '').split(':');
     const access_code = val('otp-acc').trim() || null;
+    const replace = !!f.querySelector('.app-replace')?.checked;
     const slot = Number(n);
-    if (kind === 'static') return otpCall('otp_static', { slot, password: val('otp-pw'), access_code }, 'otp.programmed');
-    if (kind === 'hmac') return otpCall('otp_hmac', { slot, secret: val('otp-secret').trim() || null, touch: f.querySelector('.otp-touch').checked, access_code }, 'otp.programmed');
+    if (kind === 'static') return otpCall('otp_static', { slot, password: val('otp-pw'), access_code, replace }, 'otp.programmed');
+    if (kind === 'hmac') return otpCall('otp_hmac', { slot, secret: val('otp-secret').trim() || null, touch: f.querySelector('.otp-touch').checked, access_code, replace }, 'otp.programmed');
     if (kind === 'delete') return otpCall('otp_delete', { slot, access_code }, 'otp.deleted');
   });
 }

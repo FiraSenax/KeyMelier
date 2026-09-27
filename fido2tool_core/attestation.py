@@ -235,6 +235,15 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
             "detail": chain_detail,
         })
 
+    # ── Certificate belongs to the claimed model ─────────────────────────────
+    # The chain is checked against the roots of the AAGUID the device claims;
+    # vendors share roots across products, so the leaf must name the model too.
+    if leaf_cert and result.chain_valid is not None:
+        bound, detail = _model_binding(fmt, leaf_cert, aaguid_from_auth, expected_aaguid, mds3_client)
+        result.checks.append({"name": "Certificate matches model", "passed": bound, "detail": detail})
+        if bound is None and result.chain_valid:
+            result.chain_valid = None  # chain fine, but model not established
+
     # ── Overall result ───────────────────────────────────────────────────────
     _finalize(result)
 
@@ -418,6 +427,14 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
                     f"({len(chain_certs)} cert(s))"
                 )
 
+        # Signatures chain to a vendor root, but the certificate profile or
+        # validity is unusual: not evidence of forgery, but not verified either
+        from fido2tool_core.certificates import chains_cryptographically
+        for root in root_certs:
+            if chains_cryptographically(leaf, intermediates, root):
+                return None, (f"Chain to '{_get_cn(root)}' is cryptographically intact but does not meet "
+                              "the certificate profile or validity rules – not verified")
+
         leaf_cn = _get_cn(leaf)
         return False, (
             f"Leaf cert '{leaf_cn}' does not chain to any MDS3 root "
@@ -428,11 +445,50 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
         return False, f"Chain verification error: {e}"
 
 
+AAGUID_EXTENSION = "1.3.6.1.4.1.45724.1.1.4"
+
+
+def _model_binding(fmt, leaf_der: bytes, aaguid_auth, expected_aaguid, mds3_client):
+    """(True|False|None, detail): does the attestation certificate itself
+    identify the model the device claims to be?"""
+    import uuid
+    from cryptography import x509
+
+    leaf = x509.load_der_x509_certificate(leaf_der)
+    if fmt == "packed":
+        try:
+            ext = leaf.extensions.get_extension_for_oid(x509.ObjectIdentifier(AAGUID_EXTENSION)).value
+        except x509.ExtensionNotFound:
+            return None, "Certificate has no AAGUID extension – the model is not bound to it"
+        raw = ext.value
+        if len(raw) == 18 and raw[:2] == b"\x04\x10":  # DER OCTET STRING wrapper
+            raw = raw[2:]
+        if len(raw) != 16:
+            return None, "Unreadable AAGUID extension"
+        cert_aaguid = str(uuid.UUID(bytes=raw))
+        if cert_aaguid != expected_aaguid.lower():
+            return False, f"Certificate names AAGUID {cert_aaguid}, device claims {expected_aaguid}"
+        return True, "Certificate AAGUID matches the device"
+    if fmt == "fido-u2f":
+        if aaguid_auth and aaguid_auth != "00000000-0000-0000-0000-000000000000":
+            return None, "U2F attestation with a non-zero AAGUID – model not bound"
+        entry = mds3_client.lookup(expected_aaguid) if mds3_client else None
+        kids = [k.lower() for k in (entry or {}).get("attestationCertificateKeyIdentifiers", [])]
+        try:
+            ski = leaf.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value.digest.hex()
+        except x509.ExtensionNotFound:
+            ski = x509.SubjectKeyIdentifier.from_public_key(leaf.public_key()).digest.hex()
+        if kids and ski in kids:
+            return True, "Certificate key identifier listed for this model"
+        return None, "U2F certificate is not listed for this model"
+    return None, "Model binding not checked for this format"
+
+
 def _chain_validates(leaf, intermediates: list, root) -> bool:
     """Validate time, signatures, CA/key usage, path length and critical extensions."""
     from fido2tool_core.certificates import validate_path
     try:
-        validate_path(leaf, intermediates, root)
+        validate_path(leaf, intermediates, root, strict=False)
         return True
     except Exception:
         return False

@@ -90,6 +90,7 @@ class CSVExporter:
 
 def _safe_cell(value):
     value = str(value)
-    if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")):
+    stripped = value.lstrip(" \t\r\n")
+    if stripped.startswith(("=", "+", "-", "@", "|", "\uff1d", "\uff0b", "\uff0d", "\uff20")) or value.startswith(("\t", "\r", "\n")):
         return "'" + value
     return value

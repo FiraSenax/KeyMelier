@@ -34,6 +34,9 @@ def _otp_device(serial: str | None):
     from yubikit.management import ManagementSession
 
     devices = list_otp_devices()
+    if serial is None and len(devices) > 1:
+        raise CardError("Several YubiKeys are connected and this one has no readable serial number. "
+                        "Plug in only this key.", "ambiguous_key")
     if not devices:
         raise CardError("The key's OTP interface is not available (disabled or not a YubiKey).", "no_otp",
                         status=404)
@@ -47,7 +50,7 @@ def _otp_device(serial: str | None):
         try:
             info = ManagementSession(conn).read_device_info()
             if serial is None or str(info.serial) == str(serial):
-                return conn
+                return conn  # serial None: the only OTP device (checked above)
         except Exception as e:
             errors.append(e)
         conn.close()

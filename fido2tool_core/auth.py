@@ -58,7 +58,10 @@ def forget(token_id: str) -> None:
 def is_unlocked(token_id: str) -> bool:
     with _tokens_lock:
         entry = _tokens.get(token_id)
-        return bool(entry and entry[2] > time.monotonic())
+        if entry and entry[2] <= time.monotonic():
+            del _tokens[token_id]  # do not keep expired tokens in memory
+            return False
+        return bool(entry)
 
 
 def uv_unlock_available(info) -> bool:

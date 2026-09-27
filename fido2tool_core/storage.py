@@ -20,11 +20,15 @@ def atomic_write(path, data):
         import re
         import subprocess
         options = {"creationflags": subprocess.CREATE_NO_WINDOW}
-        identity = subprocess.check_output(['whoami', '/user', '/fo', 'csv', '/nh'], text=True, **options)
+        # Absolute paths: the app runs elevated, and a bare name would also be
+        # searched for in the app and current directory
+        system32 = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32")
+        identity = subprocess.check_output([os.path.join(system32, 'whoami.exe'), '/user', '/fo', 'csv', '/nh'],
+                                           text=True, **options)
         sid = next(csv.reader([identity.strip()]))[-1]
         if not re.fullmatch(r'S-1-\d+(?:-\d+)+', sid):
             raise ValueError("Could not determine Windows user SID")
-        subprocess.run(['icacls', str(path.parent), '/inheritance:r', '/grant:r', f'*{sid}:(OI)(CI)F'],
+        subprocess.run([os.path.join(system32, 'icacls.exe'), str(path.parent), '/inheritance:r', '/grant:r', f'*{sid}:(OI)(CI)F'],
                        check=True, stdout=subprocess.DEVNULL, **options)
     fd, name = tempfile.mkstemp(prefix=".keymelier-", dir=path.parent)
     try:

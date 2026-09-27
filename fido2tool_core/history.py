@@ -267,7 +267,9 @@ class History:
                     self._entries[entry["key_id"]] = entry
                     added += 1
                     continue
-                _merge_entry(current, entry)
+                candidate = json.loads(json.dumps(current))
+                _merge_entry(candidate, entry)
+                self._entries[entry["key_id"]] = candidate
                 merged += 1
             self._save()
         return {"added": added, "merged": merged}
@@ -285,36 +287,95 @@ class History:
 _ID = __import__("re").compile(r"^[0-9a-f]{16}$")
 
 
+# Snapshot fields an import may carry: descriptive only. Security verdicts
+# (attestation, advisories, MDS status) are never imported – they are
+# re-established when the real key is plugged in.
+_SNAPSHOT_TEXT = {"product_name": 120, "serial_number": 40, "manufacturer": 80, "aaguid": 36,
+                  "firmware_version_str": 40, "form_factor": 40, "mds_description": 200}
+_SNAPSHOT_INT = ("vendor_id", "product_id", "firmware_version_raw", "max_cred_count", "min_pin_length")
+
+
+def _text(v, n=200):
+    return v[:n] if isinstance(v, str) else ""
+
+
+def _clean_snapshot(raw) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    snap = {k: _text(raw.get(k), n) for k, n in _SNAPSHOT_TEXT.items() if isinstance(raw.get(k), str)}
+    for k in _SNAPSHOT_INT:
+        if isinstance(raw.get(k), int) and not isinstance(raw.get(k), bool):
+            snap[k] = raw[k]
+    for k in ("fido2_versions", "extensions"):
+        if isinstance(raw.get(k), list):
+            snap[k] = [_text(x, 40) for x in raw[k][:20] if isinstance(x, str)]
+    if isinstance(raw.get("options"), dict):
+        snap["options"] = {_text(k, 40): v for k, v in list(raw["options"].items())[:40] if isinstance(v, bool)}
+    if isinstance(raw.get("algorithms"), list):
+        snap["algorithms"] = [a for a in raw["algorithms"][:20] if isinstance(a, int) and not isinstance(a, bool)]
+    snap["security_status"] = "UNKNOWN"
+    snap["imported"] = True
+    return snap
+
+
+def _clean_event(e) -> dict | None:
+    if not isinstance(e, dict) or not isinstance(e.get("type"), str) or not isinstance(e.get("ts"), str):
+        return None
+    out = {"ts": _text(e["ts"], 40), "type": _text(e["type"], 40)}
+    for k, v in e.items():
+        if k in out or not isinstance(k, str) or len(k) > 20 or len(out) > 12:
+            continue
+        if isinstance(v, str):
+            out[k] = v[:200]
+        elif isinstance(v, (int, float, bool)) or v is None:
+            out[k] = v
+    return out
+
+
+def _clean_items(items) -> list:
+    out = []
+    for item in (items if isinstance(items, list) else [])[:500]:
+        if isinstance(item, dict):
+            clean = {_text(k, 20): (v[:300] if isinstance(v, str) else v) for k, v in list(item.items())[:8]
+                     if isinstance(k, str) and (isinstance(v, str) or (isinstance(v, int) and not isinstance(v, bool)))}
+            if clean:
+                out.append(clean)
+    return out
+
+
 def _clean_entry(raw) -> dict | None:
     """Validate an imported entry; keep only known fields of the right type."""
     if not isinstance(raw, dict) or not isinstance(raw.get("key_id"), str) or not _ID.match(raw["key_id"]):
         return None
-
-    def text(v, n=200):
-        return v[:n] if isinstance(v, str) else ""
-
+    events = [e for e in map(_clean_event, raw.get("events") or [] if isinstance(raw.get("events"), list) else [])
+              if e][-MAX_EVENTS:]
     entry = {
         "key_id": raw["key_id"],
-        "first_seen": text(raw.get("first_seen"), 40) or _now(),
-        "last_seen": text(raw.get("last_seen"), 40) or _now(),
-        "connect_count": raw.get("connect_count") if isinstance(raw.get("connect_count"), int) else 0,
-        "label": text(raw.get("label"), 60),
-        "snapshot": raw.get("snapshot") if isinstance(raw.get("snapshot"), dict) else {},
-        "events": [e for e in raw.get("events", []) if isinstance(e, dict) and isinstance(e.get("type"), str)
-                   and isinstance(e.get("ts"), str)][-MAX_EVENTS:] if isinstance(raw.get("events"), list) else [],
+        "first_seen": _text(raw.get("first_seen"), 40) or _now(),
+        "last_seen": _text(raw.get("last_seen"), 40) or _now(),
+        "connect_count": raw.get("connect_count") if isinstance(raw.get("connect_count"), int)
+        and not isinstance(raw.get("connect_count"), bool) and raw.get("connect_count") >= 0 else 0,
+        "label": _text(raw.get("label"), 60),
+        "snapshot": _clean_snapshot(raw.get("snapshot")),
+        "events": events,
     }
-    entry["snapshot"]["security_status"] = "UNKNOWN"  # re-evaluated when the key is plugged in
-    for field, kind in (("sites", list), ("inventory", dict), ("lost_done", list)):
-        if isinstance(raw.get(field), kind):
-            entry[field] = raw[field]
+    if isinstance(raw.get("sites"), list):
+        entry["sites"] = [{"rp_id": _text(s.get("rp_id"), 253), "name": _text(s.get("name")),
+                           "count": s["count"] if isinstance(s.get("count"), int) and not isinstance(s.get("count"), bool) else 1}
+                          for s in raw["sites"][:2000] if isinstance(s, dict) and isinstance(s.get("rp_id"), str) and s["rp_id"]]
+    if isinstance(raw.get("inventory"), dict):
+        inv = {}
+        for section in ("oath", "openpgp", "piv", "otp"):
+            value = raw["inventory"].get(section)
+            if isinstance(value, dict):
+                inv[section] = {"items": _clean_items(value.get("items")), "updated": _text(value.get("updated"), 40)}
+        if inv:
+            entry["inventory"] = inv
+    if isinstance(raw.get("lost_done"), list):
+        entry["lost_done"] = [_text(x, 300) for x in raw["lost_done"][:2000] if isinstance(x, str)]
     for field in ("sites_updated", "lost_since"):
         if isinstance(raw.get(field), str):
             entry[field] = raw[field][:40]
-    if isinstance(entry.get("sites"), list):
-        entry["sites"] = [{"rp_id": text(s.get("rp_id"), 253), "name": text(s.get("name")),
-                           "count": s.get("count") if isinstance(s.get("count"), int) else 1}
-                          for s in entry["sites"] if isinstance(s, dict) and s.get("rp_id")]
-    return json.loads(json.dumps(entry))
+    return entry
 
 
 def _merge_entry(current: dict, other: dict) -> None:
@@ -322,7 +383,11 @@ def _merge_entry(current: dict, other: dict) -> None:
     if other["last_seen"] > current.get("last_seen", ""):
         current["last_seen"] = other["last_seen"]
         if other.get("snapshot"):
-            current["snapshot"] = {**other["snapshot"], **current.get("snapshot", {})}
+            # only fill descriptive gaps; never take verdicts from an import
+            filled = _clean_snapshot(other["snapshot"])
+            filled.pop("imported", None)
+            filled.pop("security_status", None)
+            current["snapshot"] = {**filled, **current.get("snapshot", {})}
     current["connect_count"] = max(current.get("connect_count", 0), other.get("connect_count", 0))
     if not current.get("label") and other.get("label"):
         current["label"] = other["label"]
@@ -333,9 +398,12 @@ def _merge_entry(current: dict, other: dict) -> None:
         current["sites"], current["sites_updated"] = other["sites"], other["sites_updated"]
     for section, inv in (other.get("inventory") or {}).items():
         mine = current.setdefault("inventory", {}).get(section)
-        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > mine.get("updated", "")):
+        if not isinstance(mine, dict):
+            mine = None
+        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > str(mine.get("updated", ""))):
             current["inventory"][section] = inv
     if other.get("lost_since") and not current.get("lost_since"):
         current["lost_since"] = other["lost_since"]
     if other.get("lost_done"):
-        current["lost_done"] = sorted(set(current.get("lost_done", [])) | set(other["lost_done"]))
+        mine = [x for x in current.get("lost_done", []) if isinstance(x, str)]
+        current["lost_done"] = sorted(set(mine) | set(other["lost_done"]))

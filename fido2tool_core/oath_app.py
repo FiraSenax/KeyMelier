@@ -27,6 +27,13 @@ def forget_all():
         _keys.clear()
 
 
+def purge_expired():
+    now = time.monotonic()
+    with _keys_lock:
+        for device_id in [d for d, (_, exp) in _keys.items() if exp <= now]:
+            del _keys[device_id]
+
+
 def _session(conn, need_unlock=True):
     from yubikit.oath import OathSession
     try:
@@ -37,6 +44,7 @@ def _session(conn, need_unlock=True):
         with _keys_lock:
             entry = _keys.get(session.device_id)
         if not entry or entry[1] <= time.monotonic():
+            purge_expired()
             raise CardError("Enter the authenticator password.", "oath_locked", status=401)
         try:
             session.validate(entry[0])

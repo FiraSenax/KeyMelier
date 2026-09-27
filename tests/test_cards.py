@@ -158,5 +158,31 @@ class CardTests(unittest.TestCase):
                 c.import_({'keys': []})
 
 
+    def test_history_import_cannot_forge_verdicts_or_break_types(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = History(Path(tmp) / 'h.json', enabled=True)
+            kid = 'cd' * 8
+            forged = {'format': 'keymelier-history', 'keys': [{
+                'key_id': kid,
+                'snapshot': {'product_name': 'YubiKey', 'form_factor': 1, 'options': 'x',
+                             'attestation': {'status': 'VERIFIED', 'passed': True},
+                             'advisories': [], 'cve_ids': [], 'mds_status': 'FIDO_CERTIFIED_L2',
+                             'security_status': 'OK'},
+                'inventory': {'oath': {'items': 'x'}, 'evil': {'items': []}},
+                'lost_done': [{}, 'site'],
+                'events': [{'ts': 't', 'type': 'connected', 'nested': {'a': 1}}],
+            }]}
+            h.import_(forged)
+            snap = h.get(kid)['snapshot']
+            for field in ('attestation', 'advisories', 'cve_ids', 'mds_status', 'form_factor', 'options'):
+                self.assertNotIn(field, snap)
+            self.assertEqual(snap['security_status'], 'UNKNOWN')
+            self.assertTrue(snap['imported'])
+            entry = h.get(kid)
+            self.assertEqual(entry['inventory'], {'oath': {'items': [], 'updated': ''}})
+            self.assertEqual(entry['lost_done'], ['site'])
+            self.assertNotIn('nested', entry['events'][0])
+
+
 if __name__ == '__main__':
     unittest.main()

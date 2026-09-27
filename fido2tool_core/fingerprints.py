@@ -20,6 +20,10 @@ _enrollments: dict[str, threading.Event] = {}
 _enrollments_lock = threading.Lock()
 
 
+def _small_int(value, low, high):
+    return value if isinstance(value, int) and not isinstance(value, bool) and low <= value <= high else None
+
+
 def _bio(ctap2, protocol=None, token=None):
     from fido2.ctap2.bio import BioEnrollment, FPBioEnrollment
 
@@ -49,8 +53,9 @@ def capabilities(ctap2) -> dict:
     if caps["supported"]:
         try:
             sensor = _bio(ctap2).get_fingerprint_sensor_info()
-            caps["max_samples"] = sensor.get(BioEnrollment.RESULT.MAX_SAMPLES_REQUIRED)
-            caps["max_name_bytes"] = sensor.get(BioEnrollment.RESULT.MAX_TEMPLATE_FRIENDLY_NAME)
+            # Device-supplied: accept small integers only (they end up in markup)
+            caps["max_samples"] = _small_int(sensor.get(BioEnrollment.RESULT.MAX_SAMPLES_REQUIRED), 1, 64)
+            caps["max_name_bytes"] = _small_int(sensor.get(BioEnrollment.RESULT.MAX_TEMPLATE_FRIENDLY_NAME), 1, 255)
         except Exception as e:
             logger.debug("Sensor info unavailable: %s", e)
     return caps

@@ -252,6 +252,9 @@ def generate(conn, slot: str, key_type: str, subject: str, days: int, pin: str,
         raise CardError("Invalid setting.", "invalid_input") from None
     session = _session(conn)
     target = _slot(slot)
+    # Check the PIN before anything is changed: a wrong PIN must not leave
+    # the slot with a new key and an old, non-matching certificate
+    _verify_pin(session, pin)
     _authenticate(session, pin, management_key)
     try:
         public_key = session.generate_key(target, KEY_TYPE[key_type], pin_p, touch_p)

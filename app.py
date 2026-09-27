@@ -8,10 +8,12 @@ can reach the app.
 """
 
 import base64
+import hashlib
 import os
 import json
 import logging
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -87,6 +89,41 @@ def _gpg():
     return None
 
 
+# Functions the page may call. pywebview resolves js_api names as dotted
+# attribute paths without filtering private members ("_window.gui.os…"), so
+# the page gets plain wrapper functions only – never an object.
+BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "open_licenses",
+          "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
+
+
+def _lock_navigation(window):
+    """The window only ever shows our inline document. If anything navigates
+    it elsewhere (drop, link), put the app back before that page can act."""
+    def on_loaded(*_):
+        try:
+            url = window.get_current_url() or ""
+        except Exception:
+            url = ""
+        if url and url not in ("about:blank",) and not url.startswith("data:"):
+            logger.warning("Navigation to %s blocked", url[:80])
+            window.load_html(build_html())
+
+    window.events.loaded += on_loaded
+
+
+def _expose_bridge(window, api):
+    def wrap(name):
+        method = getattr(api, name)
+
+        def bridge(*args):
+            return method(*args)
+        bridge.__name__ = name
+        bridge.__qualname__ = name
+        return bridge
+
+    window.expose(*(wrap(name) for name in BRIDGE))
+
+
 class Api:
     """Exposed to JavaScript as window.pywebview.api.
 
@@ -101,8 +138,8 @@ class Api:
 
     def set_ui_language(self, lang, texts=None):
         """The page tells the menu bar which language and texts it shows."""
-        if self._menubar is not None:
-            self._menubar.set_language(str(lang)[:5], texts if isinstance(texts, dict) else None)
+        if self._menubar is not None and isinstance(lang, str) and re.fullmatch(r"[a-z]{2}", lang):
+            self._menubar.set_language(lang, texts if isinstance(texts, dict) else None)
 
     def save_text(self, filename, text, private=False):
         """Save generated text (OpenPGP public key, revocation certificate)
@@ -116,7 +153,10 @@ class Api:
         if not chosen:
             return None
         path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if private else 0o644)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags, 0o600 if private else 0o644)
+        if private and hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)  # an existing file keeps its mode otherwise
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         return str(path)
@@ -259,9 +299,20 @@ def build_html() -> str:
     icon = base64.b64encode((STATIC_DIR / "icon.svg").read_bytes()).decode()
     html = html.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
     html = html.replace('src="icon.svg"', f'src="data:image/svg+xml;base64,{icon}"')
+    hashes = []
     for name in ("i18n.js", "app.js"):
         js = (STATIC_DIR / name).read_text(encoding="utf-8").replace("</script", "<\\/script")
-        html = html.replace(f'<script src="{name}"></script>', f"<script>\n{js}\n</script>")
+        body = f"\n{js}\n"
+        hashes.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'")
+        html = html.replace(f'<script src="{name}"></script>', f"<script>{body}</script>")
+    # Only our two scripts may run: no inline handlers, no javascript: URLs,
+    # no network, no framing. 'unsafe-eval' is needed by pywebview's bridge
+    # stubs (new Function). Injected markup therefore cannot execute.
+    csp = ("default-src 'none'; script-src " + " ".join(hashes) + " 'unsafe-eval'; "
+           "style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; "
+           "form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'")
+    html = html.replace('<meta charset="UTF-8">',
+                        f'<meta charset="UTF-8">\n  <meta http-equiv="Content-Security-Policy" content="{csp}">', 1)
     return html
 
 
@@ -293,7 +344,7 @@ def _macos_app_identity():
 
 def _single_instance():
     """Return a held lock file, or None if another KeyMelier is already running."""
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     handle = open(LOCK_FILE, "a+")
     try:
         if sys.platform == "win32":
@@ -355,7 +406,7 @@ def main():
     window = webview.create_window(
         "KeyMelier",
         html=build_html(),
-        js_api=api,
+        js_api=None,  # see _expose_bridge: never hand pywebview an object
         width=1180,
         height=780,
         min_size=(820, 560),
@@ -364,6 +415,8 @@ def main():
     )
     pump.attach(window)
     api._window = window
+    _expose_bridge(window, api)
+    _lock_navigation(window)
 
     if sys.platform == "darwin":
         _macos_app_identity()

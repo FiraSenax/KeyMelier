@@ -132,6 +132,7 @@ class TokenScanner:
         # One lock per HID path. Whoever holds it owns the device's CTAP channel;
         # the poll loop skips locked devices and treats them as still present.
         self._device_locks: dict[str, threading.Lock] = {}
+        self._model_status: dict[str, str] = {}  # path -> status from MDS/advisories only
 
         self.on_connect: Callable[[TokenRecord], None] = lambda r: None
         self.on_disconnect: Callable[[TokenRecord], None] = lambda r: None
@@ -315,6 +316,7 @@ class TokenScanner:
                 att_result = attestation_mod.run(ctap2.device, record.aaguid, self._mds3,
                                                  pin=pin, use_uv=use_uv)
                 record.attestation = _attestation_to_dict(att_result)
+                self._apply_attestation_status(record)
         except DeviceNotFound:
             record.attestation = {
                 "ran": False, "passed": False,
@@ -372,7 +374,8 @@ class TokenScanner:
                     {k: a.get(k) for k in ("id", "title", "severity", "cvss", "note", "references")}
                     for a in advisories
                 ]
-                advisory_ok = self._advisory.document is not None
+                from fido2tool_core import updates as _updates
+                advisory_ok = _updates.is_fresh(self._advisory.document)
                 if any(a.get("severity") == "CRITICAL" for a in advisories):
                     advisory_level = "CRITICAL"
                 elif advisories:
@@ -388,17 +391,30 @@ class TokenScanner:
         warn_statuses = {"UPDATE_AVAILABLE", "USER_VERIFICATION_BYPASS"}
 
         if record.mds_status in revoked_statuses or advisory_level == "CRITICAL":
-            record.security_status = "CRITICAL"
+            level = "CRITICAL"
         elif record.mds_status in warn_statuses or advisory_level == "WARNING":
-            record.security_status = "WARNING"
+            level = "WARNING"
         elif (advisory_ok and self._mds3 and self._mds3.is_current()
               and record.mds_status in {
                   "FIDO_CERTIFIED", "FIDO_CERTIFIED_L1", "FIDO_CERTIFIED_L1plus",
                   "FIDO_CERTIFIED_L2", "FIDO_CERTIFIED_L2plus",
                   "FIDO_CERTIFIED_L3", "FIDO_CERTIFIED_L3plus"}):
-            record.security_status = "OK"
+            level = "OK"
         else:
-            record.security_status = "UNKNOWN"
+            level = "UNKNOWN"
+        self._model_status[record.path] = level
+        self._apply_attestation_status(record)
+
+    def _apply_attestation_status(self, record: TokenRecord):
+        """The model's status only applies to this device if it proved to be
+        that model: FAILED attestation is critical, and OK needs VERIFIED."""
+        level = self._model_status.get(record.path, record.security_status)
+        status = (record.attestation or {}).get("status")
+        if status == "FAILED":
+            level = "CRITICAL"
+        elif level == "OK" and status != "VERIFIED":
+            level = "UNKNOWN"
+        record.security_status = level
 
     def run_forever(self):
         self._running = True

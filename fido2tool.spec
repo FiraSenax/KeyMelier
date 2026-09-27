@@ -21,6 +21,8 @@ APP_VERSION = _version_ns['__version__']
 sys.path.insert(0, str(Path('tools').resolve()))
 import third_party_licenses  # noqa: E402
 LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt')
+import sbom  # noqa: E402
+SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION)
 
 # Icon path can be overridden via env var (used by CI)
 icon_path = os.environ.get('KEYMELIER_ICON') or None
@@ -34,6 +36,7 @@ a = Analysis(
         ('data',          'data'),
         ('fido2tool_core','fido2tool_core'),
         (str(LICENSES_FILE), '.'),
+        (str(SBOM_FILE), '.'),
         ('LICENSE', '.'),
     ],
     hiddenimports=[
@@ -113,7 +116,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -129,7 +132,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='KeyMelier',
 )
