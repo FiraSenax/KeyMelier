@@ -402,7 +402,6 @@ class OverlapAndAccessTests(unittest.TestCase):
         self.assertEqual(len(list(self.dir.glob("KeyMelier-*.kmsync"))), 1)
         self.assertEqual(list(self.dir.glob("*.tmp")), [])
 
-    @unittest.skipIf(sys.platform == "win32" or os.geteuid() == 0, "POSIX permissions (not as root)")
     def test_windows_sharing_violation_while_opening_is_retried(self):
         """Windows: opening fails for a moment while another process replaces the file."""
         (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
@@ -431,6 +430,7 @@ class OverlapAndAccessTests(unittest.TestCase):
         found, _ = a_s._folder.read_others()
         self.assertEqual(len(found), 1, "not marked as seen: read in the next round")
 
+    @unittest.skipIf(sys.platform == "win32" or os.geteuid() == 0, "POSIX permissions (not as root)")
     def test_a_file_that_cannot_be_read_for_a_while(self):
         (a_h, a_s), (b_h, b_s) = self.computer("a"), self.computer("b")
         b_h.update_snapshot(record("2"))
