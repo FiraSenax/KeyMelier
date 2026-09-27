@@ -128,6 +128,7 @@ async function openDiagnostics() {
     showToast(errorMessage(e), 'error');
     return;
   }
+  if (el.classList.contains('hidden')) return;   // About was closed while the report was built
   diagText = JSON.stringify(report, null, 2) + '\n';
   el.innerHTML = `<div class="ql-dialog card diag-dialog">
     <h2 id="about-title">${escHtml(t('diag.title'))}</h2>
@@ -145,7 +146,13 @@ async function saveDiagnostics() {
   const text = diagText;
   if (!text) return;
   const date = new Date().toISOString().slice(0, 10);
-  const path = await window.pywebview?.api?.save_text(`keymelier-diagnostics-${date}.json`, text, true);
+  let path;
+  try {
+    path = await window.pywebview?.api?.save_text(`keymelier-diagnostics-${date}.json`, text, true);
+  } catch (e) {
+    showToast(errorMessage(e), 'error');   // e.g. a read-only folder; the preview stays
+    return;
+  }
   if (!path) return;   // cancelled in the file dialog: nothing written, preview stays
   showToast(t('diag.saved'), 'info');
   openAbout(false);

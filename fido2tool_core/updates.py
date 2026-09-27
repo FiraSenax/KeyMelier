@@ -53,7 +53,9 @@ def parse(data: bytes) -> dict | None:
 
 
 def _updated(doc: dict) -> datetime:
-    return datetime.fromisoformat(doc["updated"].replace("Z", "+00:00"))
+    """The document's date; a date or time without zone counts as UTC (comparable either way)."""
+    value = datetime.fromisoformat(doc["updated"].replace("Z", "+00:00"))
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _read_signed(path: Path, sig_path: Path) -> dict | None:

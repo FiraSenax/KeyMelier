@@ -169,8 +169,8 @@ def _read_regular(path: Path) -> bytes | None:
 
     None for anything that is not such a file. Opening is retried for a moment
     while Windows reports a sharing violation (another process is replacing
-    the file); a file that stays locked raises PermissionError and is reported
-    by the sync round once it lasts. FileInTransit: it vanished meanwhile.
+    the file); a file that stays locked raises PermissionError (reported as
+    sync_locked once it lasts). FileInTransit: it vanished meanwhile.
     """
     import stat
     try:
@@ -283,6 +283,10 @@ class SyncFolder:
                 data = _read_regular(path)
             except FileInTransit:
                 continue   # not marked as seen: read again next round
+            except PermissionError:
+                # still locked after the retries: report this file, read the others
+                errors.append({"file": path.name, "code": "sync_locked"})
+                continue
             if data is None:
                 errors.append({"file": path.name, "code": "sync_damaged"})
                 continue

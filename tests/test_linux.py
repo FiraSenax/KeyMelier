@@ -63,7 +63,7 @@ class ReplaceFileTests(unittest.TestCase):
             calls.append(src)
             if len(calls) < 3:
                 raise PermissionError(13, "The process cannot access the file")
-        with patch.object(storage.os, "name", "nt"), patch.object(storage.os, "replace", replace), \
+        with patch.object(storage, "SHARING_VIOLATIONS", True), patch.object(storage.os, "replace", replace), \
                 patch("time.sleep"):
             storage.replace_file("a", "b")
         self.assertEqual(len(calls), 3)
@@ -71,11 +71,11 @@ class ReplaceFileTests(unittest.TestCase):
     def test_gives_up_after_the_limit_and_never_retries_on_posix(self):
         def always(src, dst):
             raise PermissionError(13, "denied")
-        with patch.object(storage.os, "name", "nt"), patch.object(storage.os, "replace", always), \
+        with patch.object(storage, "SHARING_VIOLATIONS", True), patch.object(storage.os, "replace", always), \
                 patch("time.sleep") as sleep, self.assertRaises(PermissionError):
             storage.replace_file("a", "b", attempts=5)
         self.assertEqual(sleep.call_count, 4)
-        with patch.object(storage.os, "name", "posix"), patch.object(storage.os, "replace", always), \
+        with patch.object(storage, "SHARING_VIOLATIONS", False), patch.object(storage.os, "replace", always), \
                 patch("time.sleep") as sleep, self.assertRaises(PermissionError):
             storage.replace_file("a", "b")
         sleep.assert_not_called()
@@ -160,7 +160,8 @@ class NavigationLockTests(unittest.TestCase):
 
     def test_other_documents_are_reverted(self):
         page = PurePosixPath("/run/user/1000/keymelier-x/keymelier.html").as_uri()
-        for url in ("file:///etc/passwd", "https://example.com/", "file:///run/user/1000/keymelier-x/other.html"):
+        for url in ("file:///etc/passwd", "https://example.com/", "file:///run/user/1000/keymelier-x/other.html",
+                    "data:text/html,<script>alert(1)</script>"):
             with self.subTest(url):
                 self.assertEqual(self.visit(url, page), [page])
         self.assertEqual(self.visit("https://example.com/", None), ["inline"], "macOS/Windows: inline page")

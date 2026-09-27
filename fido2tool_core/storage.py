@@ -25,6 +25,10 @@ def set_aside(path):
     return target.name
 
 
+# Only Windows reports sharing violations; a PermissionError elsewhere is real
+SHARING_VIOLATIONS = os.name == "nt"
+
+
 def retry_sharing(action, attempts=40, delay=0.05):
     """Run action(), retrying for up to ~2 s while Windows reports a sharing violation.
 
@@ -37,7 +41,7 @@ def retry_sharing(action, attempts=40, delay=0.05):
         try:
             return action()
         except PermissionError:
-            if os.name != "nt" or attempt == attempts - 1:
+            if not SHARING_VIOLATIONS or attempt == attempts - 1:
                 raise
             time.sleep(delay)
 

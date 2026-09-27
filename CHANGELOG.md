@@ -17,6 +17,7 @@ The first release since 1.7.0 (1.7.1 was prepared but never published; its chang
 
 **Fixed**
 
+- **Files held by another program:** settings and history that cannot be read at start because another program holds them are left unchanged – not set aside, not overwritten in that session; only damaged content is set aside. One locked sync file no longer stops the others from being read.
 - **Windows sync:** writing or reading a sync file no longer fails while another program (a cloud sync client, the other computer, a virus scanner) is using it at that moment – Windows' sharing violation is retried for up to two seconds; a file that stays locked is still reported, one that was just renamed is read in the next round.
 - **Account overview:** the window no longer scrolls sideways (hidden screen-reader texts in the table widened the page); at the minimum window size long key names in the table header take at most two lines, so the matrix stays usable; buttons reached with the keyboard are no longer hidden under the fixed header and first column.
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.
@@ -32,7 +33,7 @@ The first release since 1.7.0 (1.7.1 was prepared but never published; its chang
 **Known limitations**
 
 - **Unsigned:** macOS builds are not notarized, Windows builds are not code-signed, the Linux AppImages are unsigned – compare the checksums in `SHA256SUMS.txt`.
-- **Linux:** needs glibc 2.38 or newer. The AppImages are start-tested automatically in containers (Ubuntu 24.04 and 26.04, Debian 13, Fedora 43, openSUSE Leap 16.0 on x86-64 and ARM64, Arch Linux on x86-64) – without a security key, USB, Wayland or a real desktop. Key access on Linux has not been tested with hardware yet.
+- **Linux:** needs glibc 2.39 or newer. The AppImages are start-tested automatically in containers (Ubuntu 24.04 and 26.04, Debian 13, Fedora 43, openSUSE Leap 16.0 on x86-64 and ARM64, Arch Linux on x86-64) – without a security key, USB, Wayland or a real desktop. Key access on Linux has not been tested with hardware yet.
 - **Automated tests** use demo data and synthetic keys; UI tests run in Chrome, not in each platform's web view. Results with real keys are recorded in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 
 ## 1.7.0 — 2026-09-27

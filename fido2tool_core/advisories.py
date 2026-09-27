@@ -87,7 +87,9 @@ def _clean_entry(adv, origin: str) -> Optional[dict]:
 
 
 class AdvisoryChecker:
-    def __init__(self, data_path: Path, policy_sources: Optional[list[dict]] = None):
+    def __init__(self, data_path: Path, policy_sources: Optional[list[dict]] = None, defer_policy: bool = False):
+        """defer_policy: load the company sources only in check_for_update (the app's background
+        update thread), so a slow or unreachable network path never delays the start."""
         from fido2tool_core import policy, updates
 
         self._data_path = Path(data_path)
@@ -103,7 +105,8 @@ class AdvisoryChecker:
             self.use(doc, source)
         else:
             logger.warning("No advisory database available")
-        self.load_policy_sources(network=False)
+        if not defer_policy:
+            self.load_policy_sources(network=False)
 
     def use(self, document: dict, source: str):
         self.document = document
@@ -142,7 +145,11 @@ class AdvisoryChecker:
                 continue
             old = state["document"]
             state["status"] = "ok"
-            if old is not None and updates._updated(doc) <= updates._updated(old):
+            try:
+                if old is not None and updates._updated(doc) <= updates._updated(old):
+                    continue
+            except (TypeError, ValueError) as e:
+                logger.warning("Advisory source %s: dates not comparable (%s); keeping the loaded one", src["name"], e)
                 continue
             state["document"] = doc
             changed = True

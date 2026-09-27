@@ -103,6 +103,8 @@ async function readAllKeys() {
     for (const id of ids) {
       const tok = tokens.get(id);
       if (!tok) continue;
+      // A key without PIN cannot be read yet (it would only point to the PIN tab): skip it
+      if (canManage(tok) && !tok.options?.clientPin && !tok.options?.uv) continue;
       if (canManage(tok) && (tok.options?.clientPin || tok.options?.uv) && isUnlocked(id)) {
         await readContentsNow(tok);
         done++;
@@ -170,8 +172,8 @@ function pinAssistantHtml(capable) {
           ? `<label class="field"><span>${escHtml(t('pin.form.current'))}</span><input type="password" id="kpin-current" autocomplete="off" maxlength="63" required></label>` : `<p class="field-hint">${escHtml(t('kpin.noPinYet'))}</p>`}
         ${p.error ? `<p class="field-error">${escHtml(p.error)}</p>` : ''}
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" data-act="kpin-stop">${escHtml(t('kpin.stop'))}</button>
-          <button type="button" class="btn btn-secondary" data-act="kpin-skip">${escHtml(t('kpin.skip'))}</button>
+          <button type="button" class="btn btn-secondary" data-act="kpin-stop" ${p.busy ? 'disabled' : ''}>${escHtml(t('kpin.stop'))}</button>
+          <button type="button" class="btn btn-secondary" data-act="kpin-skip" ${p.busy ? 'disabled' : ''}>${escHtml(t('kpin.skip'))}</button>
           <button type="submit" class="btn btn-primary" ${tok && !p.busy ? '' : 'disabled'}>${escHtml(t(needsCurrent ? 'kpin.change' : 'kpin.set', { key: label(id) }))}</button>
         </div>
       </form></section>`;
@@ -227,6 +229,8 @@ async function keysPinSubmit(form) {
 function keysAction(act, el) {
   if (act === 'keys-recheck') return recheckAllKeys();
   if (act === 'keys-readall') return readAllKeys();
+  // While a PIN change runs on a key, the assistant's buttons wait for it
+  if (act.startsWith('kpin-') && keysPin?.busy) return el;
   if (act === 'kpin-start') keysPin = { step: 'choose', selected: [], newPin: '', index: 0, results: {}, error: null };
   if (act === 'kpin-cancel' || act === 'kpin-close') keysPin = null;
   if (act === 'kpin-next') keysPin.step = 'pin';

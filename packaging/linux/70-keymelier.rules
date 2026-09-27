@@ -19,11 +19,11 @@ SUBSYSTEM!="hidraw", GOTO="keymelier_end"
 ATTRS{idVendor}=="1050", TAG+="uaccess"                          # Yubico
 ATTRS{idVendor}=="096e", TAG+="uaccess"                          # Feitian
 ATTRS{idVendor}=="349e", TAG+="uaccess"                          # Token2
-ATTRS{idVendor}=="20a0", TAG+="uaccess"                          # Nitrokey
 ATTRS{idVendor}=="311f", TAG+="uaccess"                          # TrustKey / eWBM
 
 # Single products of vendors that make other devices too. Keys not listed
 # here work through systemd's generic rule; report missing ones as an issue.
+ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="42b1|42b2", TAG+="uaccess"        # Nitrokey FIDO2, Nitrokey 3 (20a0 is shared by many projects)
 ATTRS{idVendor}=="1209", ATTRS{idProduct}=="5070|beee", TAG+="uaccess"        # SoloKeys
 ATTRS{idVendor}=="0483", ATTRS{idProduct}=="a2ca", TAG+="uaccess"             # SoloKeys (old)
 ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="5026", TAG+="uaccess"             # Google Titan

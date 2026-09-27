@@ -356,6 +356,31 @@ async function main() {
     assert(/udev/.test(await js('$("empty-linux").textContent')), 'hint on the empty screen');
     await js('appSettings.platform = "darwin"; appSettings.build = { signed: false, notarized: false }; $("empty-linux").classList.add("hidden");');
   });
+  await test('reopened introduction keeps a mixed storage setting; double click on Next skips no step', async () => {
+    await js('appSettings.history_enabled = true; appSettings.remember_sites = false; window.__demoCalls.length = 0; openOnboarding();');
+    assert(await js('!document.querySelector("#onboarding input[name=ob-store]:checked")'), 'mixed setting: neither option preselected');
+    await click('#onboarding [data-ob=next]');
+    await click('#onboarding [data-ob=next]');
+    await until('onboarding?.step === 3', 'step 3');
+    assert(await js('!window.__demoCalls.includes("set_settings")'), 'nothing changed without a choice');
+    await js('onboardingAction("back")');
+    await until('onboarding?.step === 2', 'back on step 2');
+    await js('document.querySelector("#onboarding input[value=nothing]").click()');
+    await js('onboardingAction("next"); onboardingAction("next");');   // double click while saving
+    await until('onboarding && !onboarding.busy', 'saved');
+    assert(await js('onboarding.step') === 3, 'the platform notes are not skipped');
+    assert(await js('appSettings.remember_sites === false && appSettings.history_enabled === false'), 'the chosen setting applied');
+    await press('Escape');
+    await js('appSettings.history_enabled = true; appSettings.remember_sites = true;');
+  });
+  await test('PIN on several keys: Stop and Skip wait while a key is being changed', async () => {
+    await js('keysPin = { step: "run", selected: ["demo-yk5", "demo-t2"], newPin: "123456", index: 0, results: {}, error: null, busy: true }; showKeysView();');
+    await until('!!document.querySelector("#kpin [data-act=kpin-skip]")', 'assistant');
+    assert(await js('document.querySelector("#kpin [data-act=kpin-skip]").disabled && document.querySelector("#kpin [data-act=kpin-stop]").disabled'), 'disabled while busy');
+    await js('keysAction("kpin-skip"); keysAction("kpin-stop");');
+    assert(await js('keysPin.index === 0 && keysPin.step === "run"'), 'ignored while busy');
+    await js('keysPin = null; renderPanel();');
+  });
   await test('inventory export: JSON and CSV with filters, saved privately', async () => {
     await js('showSettingsView()');
     await until('!!$("inventory-card")', 'export card');

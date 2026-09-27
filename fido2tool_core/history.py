@@ -16,7 +16,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from fido2tool_core.storage import atomic_write, set_aside, stateless, history_cipher
+from fido2tool_core.storage import atomic_write, history_cipher, retry_sharing, set_aside, stateless
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +51,14 @@ class History:
         self.track_forgotten = False
         self.revision = 0   # bumped on every change (sync writes only when it moved)
         self.load_problem: dict | None = None   # history file could not be read (kept aside)
+        self._read_blocked = False   # file exists but could not be read: never overwrite it
         self._load()
 
     def _load(self):
         if not self.enabled:
             return
         try:
-            raw = self._path.read_bytes()
+            raw = retry_sharing(self._path.read_bytes)
             if self._encrypted:
                 self._cipher = history_cipher(create=False)
                 raw = self._cipher.decrypt(raw)
@@ -80,15 +81,30 @@ class History:
             if self._encrypted:
                 self.enabled = False
                 raise RuntimeError("Encrypted history could not be opened; existing file preserved") from e
-            # Never overwrite what we could not read: keep it under another name
             self._entries, self._forgotten = {}, {}
-            kept = set_aside(self._path)
+            kept = None
+            if not isinstance(e, OSError):
+                # Damaged content: keep it under another name and start fresh
+                try:
+                    kept = set_aside(self._path)
+                except OSError:
+                    pass
+            if kept is None and self._path.exists():
+                # Locked or not accessible (another program holds it): the file is fine –
+                # never overwrite it in this session
+                self._read_blocked = True
+                self.load_problem = {"code": "history_locked", "file": self._path.name}
+                logger.warning("History not readable (%s); not saving it in this session", e)
+                return
             self.load_problem = {"code": "history_unreadable", "file": kept or ""}
             logger.warning("Could not read history (%s); kept as %s, starting fresh", e, kept)
 
     def _save(self):
         self.revision += 1
         if not self.enabled:
+            return
+        if self._read_blocked:
+            logger.error("History not saved: the file could not be read at start (it is kept unchanged)")
             return
         try:
             raw = json.dumps({"version": 1, "keys": list(self._entries.values()),

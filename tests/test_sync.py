@@ -414,7 +414,7 @@ class OverlapAndAccessTests(unittest.TestCase):
                 attempts.append(path)
                 raise PermissionError(13, "The process cannot access the file")
             return real_open(path, flags, *args)
-        with patch.object(sync.os, "name", "nt"), patch.object(sync.os, "open", flaky_open), patch("time.sleep"):
+        with patch("fido2tool_core.storage.SHARING_VIOLATIONS", True), patch.object(sync.os, "open", flaky_open), patch("time.sleep"):
             found, errors = a_s._folder.read_others(only_new=False)
         self.assertEqual((len(found), errors, len(attempts)), (1, [], 2))
 

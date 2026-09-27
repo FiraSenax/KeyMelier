@@ -112,14 +112,16 @@ def _lock_navigation(window, page_url=None):
             url = window.get_current_url() or ""
         except Exception:
             url = ""
-        if page_url and unquote(url.split("#")[0]) == unquote(page_url):   # Qt reports it decoded
+        if page_url:
+            # Linux: only the page file itself (about:blank only before it has loaded)
+            if not url or url == "about:blank" or unquote(url.split("#")[0]) == unquote(page_url):   # Qt reports it decoded
+                return
+            logger.warning("Navigation to %s blocked", url[:80])
+            window.load_url(page_url)
             return
         if url and url not in ("about:blank",) and not url.startswith("data:"):
             logger.warning("Navigation to %s blocked", url[:80])
-            if page_url:
-                window.load_url(page_url)
-            else:
-                window.load_html(build_html())
+            window.load_html(build_html())
 
     window.events.loaded += on_loaded
 
@@ -402,7 +404,7 @@ def main():
         selftest = True
 
     mds3 = MDS3Client()
-    advisories = AdvisoryChecker(DATA_DIR)
+    advisories = AdvisoryChecker(DATA_DIR, defer_policy=True)   # company sources: in the update thread
     scanner = TokenScanner(
         poll_interval=1.0,
         mds3_client=mds3,

@@ -28,8 +28,8 @@ def notes(mac_signed: bool, win_signed: bool) -> str:
                      "KeyMelier. **Not signed** – if SmartScreen appears: *More info* → *Run anyway*.")
     lines += [
         "- `KeyMelier-Linux-x86_64.AppImage`, `KeyMelier-Linux-aarch64.AppImage` – **Linux** (x86-64 / ARM64): "
-        "make it executable (`chmod +x`) and start it. **Unsigned** – compare the checksum. Needs glibc 2.38 or newer "
-        "(e.g. Ubuntu 24.04, Debian 13, Fedora 39); if your key does not appear, see *Linux* in the documentation "
+        "make it executable (`chmod +x`) and start it. **Unsigned** – compare the checksum. Needs glibc 2.39 or newer "
+        "(e.g. Ubuntu 24.04, Debian 13, Fedora 40); if your key does not appear, see *Linux* in the documentation "
         "(udev rules).",
         "- `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip` – the same apps without installer (portable).",
         "",

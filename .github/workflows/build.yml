@@ -452,7 +452,8 @@ jobs:
   # packages and the report are kept as the artifact "release-rehearsal".
   release-rehearsal:
     needs: [test, ui, build-macos, build-windows, build-linux, linux-compat]
-    if: github.event_name == 'workflow_dispatch'
+    # also after a failed job: the report then shows which one (and fails)
+    if: always() && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: read

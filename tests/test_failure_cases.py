@@ -186,5 +186,68 @@ class InterruptedSaveTests(unittest.TestCase):
             self.assertTrue(kept.exists(), "the old settings stay for the user")
 
 
+    def locked(self, path, times=None):
+        """Reading `path` fails with PermissionError (another program holds it) – always, or `times` times."""
+        real, calls = Path.read_text, []
+        real_bytes = Path.read_bytes
+
+        def guard(fn):
+            def read(p, *a, **kw):
+                if Path(p) == path and (times is None or len(calls) < times):
+                    calls.append(p)
+                    raise PermissionError(13, "The process cannot access the file")
+                return fn(p, *a, **kw)
+            return read
+        return patch.multiple(Path, read_text=guard(real), read_bytes=guard(real_bytes)), calls
+
+    def test_locked_settings_are_neither_moved_nor_overwritten(self):
+        settings = self.dir / "settings.json"
+        settings.write_text('{"lang": "de", "sync_folder": "/x"}', encoding="utf-8")
+        blocked, _ = self.locked(settings)
+        with patch.object(service_mod, "SETTINGS_FILE", settings), blocked, patch("time.sleep"):
+            svc = service_mod.KeyService(FakeScanner(record("1")), None,
+                                         history=History(self.dir / "h.json", enabled=True))
+            st = svc.get_settings()
+            self.assertEqual([p["code"] for p in st["problems"]], ["settings_locked"])
+            svc.set_settings({"lang": "fr"})               # would lose sync_folder: not written
+        self.assertEqual(json.loads(settings.read_text()), {"lang": "de", "sync_folder": "/x"})
+        self.assertEqual([f.name for f in self.dir.iterdir() if "unreadable" in f.name], [])
+
+    def test_a_briefly_locked_settings_file_is_read_after_a_retry(self):
+        settings = self.dir / "settings.json"
+        settings.write_text('{"lang": "de"}', encoding="utf-8")
+        blocked, calls = self.locked(settings, times=2)
+        with patch.object(service_mod, "SETTINGS_FILE", settings), blocked, \
+                patch("fido2tool_core.storage.SHARING_VIOLATIONS", True), \
+                patch("time.sleep"):
+            svc = service_mod.KeyService(FakeScanner(record("1")), None,
+                                         history=History(self.dir / "h.json", enabled=True))
+            self.assertEqual(svc.get_settings()["lang"], "de")
+        self.assertEqual(len(calls), 2)
+
+    def test_locked_history_is_neither_moved_nor_overwritten(self):
+        path = self.dir / "history.json"
+        h = History(path, enabled=True)
+        h.update_snapshot(record("1"))
+        before = path.read_bytes()
+        blocked, _ = self.locked(path)
+        with blocked, patch("time.sleep"):
+            h2 = History(path, enabled=True)
+        self.assertEqual(h2.load_problem["code"], "history_locked")
+        h2.update_snapshot(record("2"))                     # the app keeps working …
+        self.assertEqual(path.read_bytes(), before, "… without overwriting the locked history")
+        self.assertEqual([f.name for f in self.dir.iterdir() if "unreadable" in f.name], [])
+
+    def test_set_aside_failing_does_not_stop_the_start(self):
+        settings = self.dir / "settings.json"
+        settings.write_text('{"broken', encoding="utf-8")
+        with patch.object(service_mod, "SETTINGS_FILE", settings), \
+                patch.object(service_mod, "set_aside", side_effect=PermissionError(13, "locked")):
+            svc = service_mod.KeyService(FakeScanner(record("1")), None,
+                                         history=History(self.dir / "h.json", enabled=True))
+            self.assertEqual([p["code"] for p in svc.get_settings()["problems"]], ["settings_locked"])
+        self.assertEqual(settings.read_text(), '{"broken')
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,7 @@ import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, set_aside, stateless
+from fido2tool_core.storage import atomic_write, retry_sharing, secret_delete, secret_get, secret_set, set_aside, stateless
 from fido2tool_core import build_info, diagnostics
 from fido2tool_core import sync as sync_mod
 
@@ -105,6 +105,7 @@ class KeyService:
         self._mds3 = mds3_client
         self._session_settings = {}
         self._settings_problem = None   # settings file could not be read (kept aside)
+        self._settings_locked = False   # it exists but could not be read: never overwrite it
         # History is on unless the user switched it off (websites stay opt-in)
         self.history = history or History(enabled=self._stored_settings().get("history_enabled") is not False)
         if not self._remember_contents():
@@ -181,7 +182,10 @@ class KeyService:
     def run_update_loop(self):
         """Background thread: keep metadata and advisories current."""
         while True:
-            self.check_updates()
+            try:
+                self.check_updates()
+            except Exception:   # never let the thread die: the next round tries again
+                logger.exception("Update check failed")
             current = self._mds3 is None or self._mds3.is_current()
             threading.Event().wait(self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL)
 
@@ -310,18 +314,34 @@ class KeyService:
         if stateless():
             return self._session_settings
         try:
-            data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            data = json.loads(retry_sharing(lambda: SETTINGS_FILE.read_text(encoding="utf-8")))
             if not isinstance(data, dict):
                 raise ValueError("settings are not an object")
+            self._settings_locked = False
             return data
         except FileNotFoundError:
+            self._settings_locked = False
             return {}
-        except Exception as e:
-            # Never overwrite unreadable settings silently: keep them, use defaults
-            kept = set_aside(SETTINGS_FILE)
+        except ValueError as e:
+            # Damaged content: keep it under another name, use defaults
+            try:
+                kept = set_aside(SETTINGS_FILE)
+            except OSError:
+                return self._settings_unavailable(e)
+            self._settings_locked = False
             self._settings_problem = {"code": "settings_unreadable", "file": kept or ""}
             logger.warning("Could not read settings (%s); kept as %s, using defaults", e, kept)
             return {}
+        except OSError as e:
+            # Locked or not accessible (another program holds it): the file is fine
+            return self._settings_unavailable(e)
+
+    def _settings_unavailable(self, error) -> dict:
+        """Defaults for now, the file untouched – and never overwritten while it cannot be read."""
+        self._settings_locked = True
+        self._settings_problem = {"code": "settings_locked", "file": SETTINGS_FILE.name}
+        logger.warning("Settings not readable (%s); using defaults without saving", error)
+        return {}
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
@@ -366,6 +386,11 @@ class KeyService:
         return self.get_settings()
 
     def _write_settings(self, settings: dict) -> None:
+        if not stateless() and getattr(self, "_settings_locked", False):
+            self._stored_settings()   # readable again?
+            if self._settings_locked:
+                logger.error("Settings not saved: the file could not be read (it is kept unchanged)")
+                return
         try:
             if stateless():
                 self._session_settings = settings

@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLATFORM = {"x86_64": "linux/amd64", "aarch64": "linux/arm64"}
 
-# Supported distributions tested in CI (glibc ≥ 2.38, see docs/guide.html#linux);
+# Supported distributions tested in CI (glibc ≥ 2.39, see docs/guide.html#linux);
 # Arch Linux publishes no official ARM64 image
 MATRIX = {
     "x86_64": ["ubuntu:24.04", "ubuntu:26.04", "debian:13", "fedora:43", "opensuse/leap:16.0", "archlinux:latest"],

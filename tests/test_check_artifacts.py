@@ -185,7 +185,8 @@ class CheckArtifactsTests(unittest.TestCase):
         self.assertLess(release.index("prepare-release"), release.index("action-gh-release"))
         self.assertNotIn("action-gh-release", rehearsal)
         self.assertNotIn("contents: write", rehearsal)
-        self.assertIn("if: github.event_name == 'workflow_dispatch'", rehearsal)
+        self.assertIn("if: always() && github.event_name == 'workflow_dispatch'", rehearsal,
+                      "manual runs only – and also after a failed job, so the report says which")
         import fnmatch
         import re
         uploaded = re.findall(r"^\s+name: ([\w.-]+)", rehearsal.split("upload-artifact")[1], re.M)

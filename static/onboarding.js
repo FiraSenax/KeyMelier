@@ -18,8 +18,15 @@ function maybeStartOnboarding() {
   if (!appSettings.onboarding_done && !appSettings.stateless) openOnboarding();
 }
 
+// The current storage state: all, nothing, or a mix set under Settings ('custom')
+function currentStore() {
+  if (appSettings.history_enabled === false) return 'nothing';
+  return appSettings.remember_sites === false ? 'custom' : 'all';
+}
+
 function openOnboarding() {
-  onboarding = { step: 1, store: appSettings.history_enabled === false ? 'nothing' : 'all', opener: document.activeElement };
+  const store = currentStore();
+  onboarding = { step: 1, store, initialStore: store, opener: document.activeElement, busy: false };
   renderOnboarding();
 }
 
@@ -100,11 +107,22 @@ function renderOnboarding() {
 }
 
 async function onboardingAction(act) {
-  if (!onboarding) return;
+  if (!onboarding || onboarding.busy) return;   // one step at a time (double click, Escape while saving)
   if (act === 'skip' || act === 'done') return closeOnboarding();
   if (act === 'back') onboarding.step = Math.max(1, onboarding.step - 1);
   if (act === 'next') {
-    if (onboarding.step === 2) await applyStorageChoice(onboarding.store);
+    // only a choice the user actually changed is applied – reopening the
+    // introduction never switches settings back
+    if (onboarding.step === 2 && onboarding.store !== onboarding.initialStore) {
+      onboarding.busy = true;
+      try {
+        await applyStorageChoice(onboarding.store);
+      } finally {
+        if (onboarding) onboarding.busy = false;
+      }
+      if (!onboarding) return;
+      onboarding.initialStore = onboarding.store;
+    }
     onboarding.step = Math.min(ONBOARDING_STEPS, onboarding.step + 1);
   }
   renderOnboarding();
