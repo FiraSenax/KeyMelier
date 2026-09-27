@@ -127,6 +127,17 @@
     tokens: () => ({ tokens }),
     history_list: () => ({ keys: Object.values(history).map(summary) }),
     history_get: ({ kid }) => history[kid],
+    history_replace: ({ kid, new_kid }) => {
+      if (!new_kid) delete history[kid].replace;
+      else if (history[kid].replace?.new !== new_kid) history[kid].replace = { new: new_kid, since: iso(0), done: [] };
+      return summary(history[kid]);
+    },
+    history_replace_done: ({ kid, item, done }) => {
+      const list = new Set(history[kid].replace.done);
+      if (done) list.add(item); else list.delete(item);
+      history[kid].replace.done = [...list];
+      return summary(history[kid]);
+    },
     pin_status: () => ({ supported: true, is_set: true, retries: 8, power_cycle_required: false, min_length: 6, max_bytes: 63, force_change: false, uv: null, uv_retries: null }),
     config: () => ({ supported: true, pin_set: true, uv_unlock: false, min_pin_length: 6, can_set_min_pin: true, force_pin_change: false, always_uv: false, unlocked: true }),
     passkeys: () => ({ supported: true, pin_set: true, uv_unlock: false, rename: true, unlocked: true, existing: 5, remaining: 95,

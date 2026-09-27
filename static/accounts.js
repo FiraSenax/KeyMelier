@@ -186,6 +186,65 @@ function rowsOfKey(model, keyId) {
   return model.rows.filter(r => r.holders.has(keyId) && !(r.kind === 'code' && r.linkedTo));
 }
 
+// Replacing an old key with a new one: what the old key holds, and what the
+// new key technically shows for it. "found" is only claimed when the new key
+// was read and holds the same identity (passkey: rpId + account name, code:
+// issuer + name, OpenPGP: fingerprint). PIV certificates and OTP slots only
+// match by subject/slot – a hint, not proof of the same key ("similar").
+// Nothing here is ever "copied": device-bound private keys cannot leave a key.
+function buildReplacePlan(model, oldId, newId) {
+  const oldKey = model.keys.find(k => k.key_id === oldId);
+  const newKey = model.keys.find(k => k.key_id === newId);
+  if (!oldKey || !newKey || oldId === newId) return null;
+  const newInfo = model.keyInfo.get(newId);
+  const verdict = (found, known) => (found ? 'found' : known ? 'missing' : 'unknown');
+
+  const passkeys = model.rows
+    .filter(r => (r.kind === 'passkey' || r.kind === 'unknown') && r.holders.get(oldId)?.passkey > 0)
+    .map(r => {
+      if (r.kind === 'unknown') {
+        // account unknown: at most "the new key has some passkey for this site"
+        const other = model.rows.find(o => o.rpId === r.rpId && o.kind !== 'code' && o.holders.get(newId)?.passkey > 0);
+        const h = other?.holders.get(newId);
+        return { id: `pk?:${r.rpId}`, kind: 'unknown', rpId: r.rpId, account: '', count: r.count,
+          group: r.groupLabel, check: other ? 'similar' : verdict(false, newInfo.passkeysKnown), source: h?.source, checked: h?.checked };
+      }
+      const h = r.holders.get(newId);
+      return { id: `pk:${r.rpId}|${r.account.toLowerCase()}`, kind: 'passkey', rpId: r.rpId, account: r.account,
+        group: r.groupLabel, check: verdict(h?.passkey > 0, newInfo.passkeysKnown), source: h?.source, checked: h?.checked };
+    });
+
+  const codes = model.rows
+    .filter(r => r.kind === 'code' && r.holders.get(oldId)?.code > 0)
+    .map(r => {
+      const h = r.holders.get(newId);
+      return { id: `oath:${r.issuer.toLowerCase()}|${r.account.toLowerCase()}`, kind: 'code', issuer: r.issuer, account: r.account,
+        check: verdict(h?.code > 0, newInfo.codesKnown), source: h?.source, checked: h?.checked };
+    });
+
+  const inv = (key, section) => key.inventory?.[section];
+  const cardItems = (section, idOf, strict) => {
+    const mine = inv(oldKey, section)?.items || [];
+    const theirs = inv(newKey, section);
+    return mine.map(item => {
+      const match = (theirs?.items || []).some(o => idOf(o) === idOf(item));
+      return { id: `${section}:${idOf(item)}`, kind: section, item,
+        check: match ? (strict ? 'found' : 'similar') : verdict(false, !!theirs), checked: theirs?.updated || null };
+    });
+  };
+  return {
+    oldKey, newKey,
+    passkeys, codes,
+    openpgp: cardItems('openpgp', i => String(i.fingerprint || '').toLowerCase(), true),
+    piv: cardItems('piv', i => String(i.label || ''), false),
+    otp: cardItems('otp', i => String(i.otp_slot || ''), false),
+  };
+}
+
+function replacePlanItems(plan) {
+  return plan ? [...plan.passkeys, ...plan.codes, ...plan.openpgp, ...plan.piv, ...plan.otp] : [];
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { buildAccountModel, cellState, rowsOfKey, registrableDomain, serviceKey, STALE_DAYS };
+  module.exports = { buildAccountModel, cellState, rowsOfKey, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
 }

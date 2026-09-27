@@ -414,6 +414,23 @@ class KeyService:
         self.emit("history_updated", summary)
         return summary
 
+    def history_replace(self, kid: str, new_kid: str | None) -> dict:
+        summary = self.history.set_replace(str(kid), str(new_kid) if new_kid else None)
+        if summary is None:
+            raise PinError("Choose two different known keys.", "not_found", status=404)
+        self.emit("history_updated", summary)
+        return summary
+
+    def history_replace_done(self, kid: str, item: str, done: bool) -> dict:
+        # item names services/accounts: only kept when contents may be remembered
+        if not self._remember_contents():
+            raise PinError("Remembering key contents is turned off.", "not_allowed", status=409)
+        summary = self.history.set_replace_done(str(kid), str(item), bool(done))
+        if summary is None:
+            raise PinError("Unknown history entry.", "not_found", status=404)
+        self.emit("history_updated", summary)
+        return summary
+
     def passkeys(self, token_id: str) -> dict:
         with self._scanner.session(token_id, refresh=False) as (_record, ctap2):
             return self._passkeys(token_id, ctap2)

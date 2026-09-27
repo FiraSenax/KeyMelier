@@ -51,7 +51,7 @@ LOCK_FILE = Path.home() / "keymelier" / "app.lock"
 ALLOWED = {
     "tokens", "mds_status", "data_status", "check_updates",
     "history_list", "history_get", "history_rename", "history_forget",
-    "history_set_lost", "history_lost_done",
+    "history_set_lost", "history_lost_done", "history_replace", "history_replace_done",
     "get_settings", "set_settings",
     "pin_status", "pin_update", "attestation_rerun",
     "unlock", "lock",

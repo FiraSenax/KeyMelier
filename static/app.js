@@ -23,6 +23,7 @@ const cardRetries = new Map();
 let mainView = 'key';     // 'key' | 'backup' | 'accounts'
 let appSettings = {};     // persisted settings (remember_sites, ...)
 let lostKid = null;       // key selected in the lost-key assistant
+let replaceOld = null;    // key being replaced (backup view)
 
 const $ = id => document.getElementById(id);
 
@@ -326,6 +327,7 @@ function renderKeyView(token) {
   $('touch-banner').classList.toggle('hidden', !!token.attestation || !!token.offline);
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('hidden', !tabAllowed(token, b.dataset.tab)));
   if (!tabAllowed(token, activeTab)) switchTab('overview');
+  syncTabMore();
 
   renderTiles(token);
   renderSecurityCheck(token);
@@ -495,7 +497,98 @@ function renderBackupView() {
     </select>
     ${lost ? lostAssistantHtml(lost) : ''}
   </section>`);
+  parts.push(replaceCardHtml(entries));
   el.innerHTML = parts.join('');
+}
+
+// ── Replace an old key ──────────────────────────────────────────────────────
+// Guides moving everything to a new key. Technical checks come from what the
+// new key showed when it was read; "done" is only the user's confirmation.
+// Nothing is ever reset or deleted on either key.
+
+function replaceKeyOption(e, selected) {
+  const sn = serialLabel(e.snapshot);
+  return `<option value="${escHtml(e.key_id)}"${selected ? ' selected' : ''}>${escHtml(keyLabel(e))}${sn ? ' · ' + escHtml(sn) : ''}${e.lost_since ? ' – ' + escHtml(t('bk.lostBadge')) : ''}</option>`;
+}
+
+const RP_CHECK = {
+  found: ['ok', 'rp.check.found'],
+  similar: ['warn', 'rp.check.similar'],
+  missing: ['warn', 'rp.check.missing'],
+  unknown: ['muted', 'rp.check.unknown'],
+};
+
+function replaceItemLabel(i) {
+  if (i.kind === 'passkey') return `${i.rpId} · ${i.account}`;
+  if (i.kind === 'unknown') return `${i.rpId} · ${t(i.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: i.count })}`;
+  if (i.kind === 'code') return [i.issuer, i.account].filter(Boolean).join(' · ');
+  return inventoryLabel(i.item);
+}
+
+function replaceCardHtml(entries) {
+  const old = replaceOld && historyKeys.get(replaceOld);
+  const newId = old?.replace?.new;
+  const head = `<h2>${escHtml(t('rp.title'))}</h2>
+    <p class="card-text">${escHtml(t('rp.text'))}</p>
+    <div class="rp-pick">
+      <label><span>${escHtml(t('rp.old'))}</span>
+        <select id="rp-old" class="bk-select"><option value="">${escHtml(t('rp.choose'))}</option>
+        ${entries.map(e => replaceKeyOption(e, e.key_id === replaceOld)).join('')}</select></label>
+      <label><span>${escHtml(t('rp.new'))}</span>
+        <select id="rp-new" class="bk-select" ${old ? '' : 'disabled'}><option value="">${escHtml(t('rp.choose'))}</option>
+        ${entries.filter(e => e.key_id !== replaceOld && !e.lost_since).map(e => replaceKeyOption(e, e.key_id === newId)).join('')}</select></label>
+    </div>`;
+  if (!old || !newId || !historyKeys.has(newId)) return `<section class="card" id="rp-card">${head}</section>`;
+
+  const m = accountModel();
+  const plan = buildReplacePlan(m, old.key_id, newId);
+  const items = replacePlanItems(plan);
+  const done = new Set(old.replace.done || []);
+  const remember = appSettings.remember_sites !== false && !appSettings.stateless;
+  const itemHtml = i => {
+    const [cls, key] = RP_CHECK[i.check];
+    const when = i.checked ? ` · ${relTime(i.checked)}` : '';
+    const src = i.source ? t(`acc.src.${i.source}`) : '';
+    return `<li class="${done.has(i.id) ? 'done' : ''}">
+      <label><input type="checkbox" data-rp-item="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''} ${remember ? '' : 'disabled'}>
+        <span class="bk-site">${escHtml(replaceItemLabel(i))}</span></label>
+      <span class="rp-state">
+        <span class="rp-chip ${cls}" title="${escHtml([src, when.slice(3)].filter(Boolean).join(' · '))}">${escHtml(t(key))}</span>
+        ${done.has(i.id) ? `<span class="rp-chip user">${escHtml(t('rp.confirmed'))}</span>` : ''}
+      </span></li>`;
+  };
+  const section = (list, title, hint) => (list.length ? `<h3 class="bk-group">${escHtml(t(title))}</h3>
+    <p class="field-hint bk-hint">${escHtml(t(hint))}</p>
+    <ul class="bk-lost-list rp-list">${list.map(itemHtml).join('')}</ul>` : '');
+
+  const info = m.keyInfo.get(newId);
+  const found = items.filter(i => i.check === 'found').length;
+  const confirmed = items.filter(i => done.has(i.id)).length;
+  const connected = [...tokens.values()].some(tk => tk.history_id === newId && !tk.offline);
+  const notes = [];
+  if (!info.passkeysKnown || (plan.codes.length && !info.codesKnown)) notes.push(t('rp.readNew'));
+  if (!remember) notes.push(t('rp.noRemember'));
+  else if (!appSettings.history_enabled) notes.push(t('rp.session'));
+
+  return `<section class="card" id="rp-card">${head}
+    ${items.length ? `<div class="acc-summary rp-summary">
+        <div class="acc-stat"><b>${items.length}</b><span>${escHtml(t('rp.sum.total'))}</span></div>
+        <div class="acc-stat ok"><b>${found}</b><span>${escHtml(t('rp.sum.found'))}</span></div>
+        <div class="acc-stat info"><b>${confirmed}</b><span>${escHtml(t('rp.sum.confirmed'))}</span></div>
+      </div>
+      <p class="field-hint bk-hint">${escHtml(t('rp.legend'))}</p>` : `<p class="card-text">${escHtml(t(remember ? 'rp.empty' : 'rp.noRemember'))}</p>`}
+    ${notes.map(n => `<p class="field-hint bk-hint warn-text">${escHtml(n)}</p>`).join('')}
+    ${section(plan.passkeys, 'rp.pk.title', 'rp.pk.hint')}
+    ${section(plan.codes, 'hist.contents.oath', 'rp.oath.hint')}
+    ${section(plan.openpgp, 'hist.contents.openpgp', 'rp.pgp.hint')}
+    ${section(plan.piv, 'hist.contents.piv', 'rp.piv.hint')}
+    ${section(plan.otp, 'hist.contents.otp', 'rp.otp.hint')}
+    <p class="field-hint bk-hint rp-never">${escHtml(t('rp.never'))}</p>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-act="rp-open-new">${escHtml(t(connected ? 'rp.openNew' : 'rp.openNewOffline'))}</button>
+      <button type="button" class="btn btn-secondary" data-act="rp-stop">${escHtml(t('rp.stop'))}</button>
+    </div>
+  </section>`;
 }
 
 function lostAssistantHtml(entry) {
@@ -904,9 +997,45 @@ function selectToken(id) {
   switchTab(activeTab);
 }
 
+// "Advanced" menu of the tab bar: shown when it has an item for this key;
+// names the active area when one of its items is open
+function syncTabMore() {
+  const items = [...document.querySelectorAll('#tab-more-menu .tab')];
+  $('tab-more').classList.toggle('hidden', !items.some(b => !b.classList.contains('hidden')));
+  const active = items.find(b => b.dataset.tab === activeTab);
+  $('tab-more-btn').classList.toggle('active', !!active);
+  $('tab-more-current').textContent = active ? ` · ${t(`tab.${activeTab}`)}` : '';
+}
+
+function setTabMenu(open, focusFirst = false) {
+  const menu = $('tab-more-menu');
+  menu.classList.toggle('hidden', !open);
+  $('tab-more-btn').setAttribute('aria-expanded', String(open));
+  if (open) {
+    const items = [...menu.querySelectorAll('.tab:not(.hidden)')];
+    (focusFirst ? items[0] : items.find(b => b.dataset.tab === activeTab) || items[0])?.focus();
+  }
+}
+
+function tabMenuKey(ev) {
+  const items = [...$('tab-more-menu').querySelectorAll('.tab:not(.hidden)')];
+  const i = items.indexOf(document.activeElement);
+  const go = n => { ev.preventDefault(); items[(n + items.length) % items.length]?.focus(); };
+  if (ev.key === 'ArrowDown') go(i + 1);
+  else if (ev.key === 'ArrowUp') go(i - 1);
+  else if (ev.key === 'Home') go(0);
+  else if (ev.key === 'End') go(items.length - 1);
+  else if (ev.key === 'Escape') { ev.preventDefault(); setTabMenu(false); $('tab-more-btn').focus(); }
+  else if (ev.key === 'Tab') setTabMenu(false);
+}
+
 function switchTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+    b.setAttribute(b.getAttribute('role') === 'tab' ? 'aria-selected' : 'aria-current', String(b.dataset.tab === tab));
+  });
+  syncTabMore();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== tab));
   const current = currentToken();
   if (tab === 'history' && current) loadHistoryDetail(current.history_id);
@@ -3411,6 +3540,19 @@ function init() {
       appSettings = await call('set_settings', { values: { remember_sites: el.checked } }).catch(() => appSettings);
       if (!el.checked) await loadHistory();
       render();
+    } else if (el.id === 'rp-old') {
+      replaceOld = el.value || null;
+      renderBackupView();
+    } else if (el.id === 'rp-new' && replaceOld) {
+      const summary = await call('history_replace', { kid: replaceOld, new_kid: el.value || null })
+        .catch(e => { showToast(errorMessage(e), 'error'); return null; });
+      if (summary) historyKeys.set(summary.key_id, summary);
+      renderBackupView();
+    } else if (el.dataset.rpItem && replaceOld) {
+      const summary = await call('history_replace_done', { kid: replaceOld, item: el.dataset.rpItem, done: el.checked })
+        .catch(e => { showToast(errorMessage(e), 'error'); return null; });
+      if (summary) historyKeys.set(summary.key_id, summary);
+      renderBackupView();
     } else if (el.id === 'bk-lost-select') {
       lostKid = el.value || null;
       renderBackupView();
@@ -3424,7 +3566,17 @@ function init() {
     if (b?.dataset.act === 'open-accounts') return showAccountsView();
     if (b?.dataset.act === 'hist-export') return exportHistory();
     if (b?.dataset.act === 'hist-import') return importHistory();
-    if (!b || !lostKid) return;
+    if (b?.dataset.act === 'rp-open-new') {
+      const newId = historyKeys.get(replaceOld)?.replace?.new;
+      const live = [...tokens.values()].find(tk => tk.history_id === newId && !tk.offline);
+      return live ? selectToken(live.id) : newId && selectHistory(newId);
+    }
+    if (b?.dataset.act === 'rp-stop') {
+      const summary = await call('history_replace', { kid: replaceOld, new_kid: null }).catch(() => null);
+      if (summary) historyKeys.set(summary.key_id, summary);
+      return renderBackupView();
+    }
+    if (!b || !lostKid || !['lost', 'unlost'].includes(b.dataset.act)) return;
     const summary = await call('history_set_lost', { kid: lostKid, lost: b.dataset.act === 'lost' }).catch(() => null);
     if (summary) { historyKeys.set(summary.key_id, summary); render(); }
   });
@@ -3452,7 +3604,17 @@ function init() {
     const b = ev.target.closest('[data-goto]');
     if (b) switchTab(b.dataset.goto);
   });
-  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+    switchTab(b.dataset.tab);
+    if (b.closest('#tab-more-menu')) { setTabMenu(false); $('tab-more-btn').focus(); }
+  }));
+  $('tab-more-btn').addEventListener('click', () => setTabMenu($('tab-more-menu').classList.contains('hidden')));
+  $('tab-more-btn').addEventListener('keydown', ev => {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); setTabMenu(true, true); }
+    if (ev.key === 'Escape') setTabMenu(false);
+  });
+  $('tab-more-menu').addEventListener('keydown', tabMenuKey);
+  document.addEventListener('click', ev => { if (!ev.target.closest('#tab-more')) setTabMenu(false); });
   $('lang-select').addEventListener('change', ev => changeLang(ev.target.value));
   $('pin-form').addEventListener('submit', submitPinForm);
   $('rs-confirm').addEventListener('change', ev => { $('rs-start').disabled = !ev.target.checked; });

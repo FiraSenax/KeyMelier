@@ -1,7 +1,7 @@
 // Regression tests for static/accounts.js – each case is a misclassification
 // that must not happen again (node tests/accounts_model.cjs).
 const assert = require('node:assert/strict');
-const { buildAccountModel, cellState, registrableDomain } = require('../static/accounts.js');
+const { buildAccountModel, cellState, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
 
 const NOW = Date.parse('2026-09-27T12:00:00Z');
 const day = n => new Date(NOW - n * 86400e3).toISOString();
@@ -96,6 +96,53 @@ const find = (m, pred) => m.rows.find(pred);
   assert.equal(cellState(m, r, 'OLD').unknown, false);     // known absent, but …
   assert.equal(m.keyInfo.get('OLD').stale, true);          // … flagged as stale
   assert.equal(cellState(m, find(m, x => x.account === 'q'), 'IMP').source, 'import');
+}
+
+// 7. Key replacement: only exact identities count as "found" on the new key
+{
+  const oldKey = key('OLD', {
+    sites: [site('github.com', ['erika']), site('login.microsoft.com', ['a@c.com', 'b@c.com']), site('webauthn.io', [], { count: 1 })],
+    sites_updated: day(1),
+    inventory: {
+      oath: { items: [{ issuer: 'GitHub', name: 'erika' }, { issuer: 'AWS', name: 'root' }], updated: day(1) },
+      openpgp: { items: [{ slot: 'sig', fingerprint: 'AAAA' }, { slot: 'enc', fingerprint: 'BBBB' }], updated: day(1) },
+      piv: { items: [{ slot: '9a', label: '9A: CN=erika' }], updated: day(1) },
+    },
+  });
+  const fresh = key('NEW');  // never read
+  let m = buildAccountModel([oldKey, fresh], NOW);
+  let p = buildReplacePlan(m, 'OLD', 'NEW');
+  assert.ok(replacePlanItems(p).every(i => i.check === 'unknown'), 'a new key that was never read proves nothing');
+  assert.equal(p.passkeys.length, 4);
+  assert.equal(buildReplacePlan(m, 'OLD', 'OLD'), null, 'old and new must differ');
+
+  const read = key('NEW', {
+    sites: [site('github.com', ['erika']), site('login.microsoft.com', ['a@c.com']), site('webauthn.io', ['someone'])],
+    sites_updated: day(0),
+    inventory: {
+      oath: { items: [{ issuer: 'GitHub', name: 'erika' }], updated: day(0) },
+      openpgp: { items: [{ slot: 'sig', fingerprint: 'aaaa' }], updated: day(0) },
+      piv: { items: [{ slot: '9a', label: '9A: CN=erika' }], updated: day(0) },
+    },
+  });
+  m = buildAccountModel([oldKey, read], NOW);
+  p = buildReplacePlan(m, 'OLD', 'NEW');
+  const by = id => replacePlanItems(p).find(i => i.id === id).check;
+  assert.equal(by('pk:github.com|erika'), 'found');
+  assert.equal(by('pk:login.microsoft.com|a@c.com'), 'found');
+  assert.equal(by('pk:login.microsoft.com|b@c.com'), 'missing', 'another UPN of the same service is not a replacement');
+  assert.equal(by('pk?:webauthn.io'), 'similar', 'a nameless passkey only matches the site, never the account');
+  assert.equal(by('oath:github|erika'), 'found');
+  assert.equal(by('oath:aws|root'), 'missing');
+  assert.equal(by('openpgp:aaaa'), 'found');
+  assert.equal(by('openpgp:bbbb'), 'missing');
+  assert.equal(by('piv:9A: CN=erika'), 'similar', 'same certificate subject is a hint, not the same key');
+
+  // an interrupted search on the new key cannot prove anything is missing
+  const partial = { ...read, sites: [], probe: { complete: false } };
+  m = buildAccountModel([oldKey, partial], NOW);
+  p = buildReplacePlan(m, 'OLD', 'NEW');
+  assert.ok(p.passkeys.every(i => i.check === 'unknown'));
 }
 
 console.log('Account model tests passed');

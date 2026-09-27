@@ -227,6 +227,7 @@ class History:
                 entry.pop("probe", None)
                 entry.pop("inventory", None)
                 entry.pop("lost_done", None)
+                entry.pop("replace", None)
                 for event in entry.get("events", []):
                     for field in ("site", "user", "rp_id"):
                         event.pop(field, None)
@@ -253,6 +254,33 @@ class History:
             items = set(entry.get("lost_done", []))
             (items.add if done else items.discard)(rp_id)
             entry["lost_done"] = sorted(items)
+            self._save()
+            return self._summary(entry)
+
+    def set_replace(self, kid: str, new_kid: str | None) -> dict | None:
+        """Start (or stop, new_kid=None) replacing key kid by new_kid. Choosing
+        another new key starts over; nothing is ever done to either key."""
+        with self._lock:
+            entry = self._entries.get(kid)
+            if not entry or (new_kid and (new_kid == kid or new_kid not in self._entries)):
+                return None
+            current = entry.get("replace") or {}
+            if not new_kid:
+                entry.pop("replace", None)
+            elif current.get("new") != new_kid:
+                entry["replace"] = {"new": new_kid, "since": _now(), "done": []}
+            self._save()
+            return self._summary(entry)
+
+    def set_replace_done(self, kid: str, item: str, done: bool) -> dict | None:
+        """The user confirms (or un-confirms) that one item was moved."""
+        with self._lock:
+            entry = self._entries.get(kid)
+            if not entry or not entry.get("replace"):
+                return None
+            items = set(entry["replace"].get("done", []))
+            (items.add if done else items.discard)(item[:600])
+            entry["replace"]["done"] = sorted(items)[:5000]
             self._save()
             return self._summary(entry)
 

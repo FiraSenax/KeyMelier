@@ -112,13 +112,22 @@
           <button type="button" class="tab" data-tab="passkeys" role="tab" data-i18n="tab.passkeys"></button>
           <button type="button" class="tab" data-tab="fingerprints" role="tab" data-i18n="tab.fingerprints"></button>
           <button type="button" class="tab hidden" data-tab="oath" role="tab" data-i18n="tab.oath"></button>
-          <button type="button" class="tab hidden" data-tab="openpgp" role="tab" data-i18n="tab.openpgp"></button>
-          <button type="button" class="tab hidden" data-tab="piv" role="tab" data-i18n="tab.piv"></button>
-          <button type="button" class="tab hidden" data-tab="otp" role="tab" data-i18n="tab.otp"></button>
           <button type="button" class="tab" data-tab="history" role="tab" data-i18n="tab.history"></button>
           <button type="button" class="tab" data-tab="security" role="tab" data-i18n="tab.security"></button>
-          <button type="button" class="tab" data-tab="settings" role="tab" data-i18n="tab.settings"></button>
-          <button type="button" class="tab" data-tab="details" role="tab" data-i18n="tab.details"></button>
+          <!-- Less common areas: one "Advanced" menu (keyboard: arrows, Home/End, Esc) -->
+          <div class="tab-more" id="tab-more">
+            <button type="button" class="tab-more-btn" id="tab-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="tab-more-menu">
+              <span data-i18n="tab.more"></span><span id="tab-more-current" class="tab-more-current"></span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="tab-more-menu hidden" id="tab-more-menu" role="menu" aria-labelledby="tab-more-btn">
+              <button type="button" class="tab hidden" data-tab="openpgp" role="menuitem" data-i18n="tab.openpgp"></button>
+              <button type="button" class="tab hidden" data-tab="piv" role="menuitem" data-i18n="tab.piv"></button>
+              <button type="button" class="tab hidden" data-tab="otp" role="menuitem" data-i18n="tab.otp"></button>
+              <button type="button" class="tab" data-tab="settings" role="menuitem" data-i18n="tab.settings"></button>
+              <button type="button" class="tab" data-tab="details" role="menuitem" data-i18n="tab.details"></button>
+            </div>
+          </div>
         </nav>
 
         <div class="tab-panels">

@@ -6,6 +6,8 @@
 - **Passkey search results per site:** found, no credentials, not supported, PIN required, technical error; a stopped or failed search never removes known entries, partial results are marked, the search can be cancelled, a wrong PIN stops it at once without retrying, and a hit is explained as "credentials on the key", not a sign-in.
 - **Provenance and freshness:** every entry shows whether it was read directly, found by search or imported, and when; keys that were not (fully) read show "?" instead of "not there"; stale data is flagged; the limits of the rating are explained.
 - Regression tests for the account model and the passkey search.
+- **Replace an old key** (Backup & loss): pick old and new key, see every passkey, authenticator account, OpenPGP key, certificate and OTP slot of the old key with two separate marks – "found on the new key" (checked from what the new key showed) and "confirmed by you". Guidance per type (passkeys are registered anew, never copied; codes set up again; OpenPGP only from your own backup; certificates reissued). Progress is kept with the history (session-only with history off); neither key is ever reset or changed.
+- **Simpler tab bar:** everyday areas stay direct; OpenPGP, PIV, OTP, key settings and technical details are in an "Advanced" menu (keyboard: arrows, Home/End, Esc). Tabs and the key header wrap in narrow windows instead of being cut off.
 
 ## 1.4.0 — 2026-09-27
 

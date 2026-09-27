@@ -51,12 +51,14 @@
   <a href="#history">History</a>
   <a href="#accounts">Account overview</a>
   <a href="#backup">Backup &amp; lost keys</a>
+  <a href="#replace">Replacing a key</a>
   <a href="#data">Data, updates &amp; privacy</a>
   <a href="#troubleshooting">Troubleshooting</a>
 </nav>
 <main>
   <h1>Documentation</h1>
   <p class="muted">For KeyMelier <span data-latest-version>– see the latest release</span>. Screenshots use fictional demo data.</p>
+  <p>The tab bar of a key shows the everyday areas directly – Overview, PIN, Passkeys, Fingerprints, Authenticator, History, Security. OpenPGP, PIV, OTP, the key settings and the technical details are in the <b>Advanced</b> menu at its end (also by keyboard: arrow keys, Esc). Areas a key does not support are not shown.</p>
 
   <h2 id="install">Install &amp; first launch</h2>
   <p>Download the zip for your system from the <a href="https://github.com/FiraSenax/KeyMelier/releases/latest">latest release</a>. Each release lists SHA-256 checksums – compare them if in doubt.</p>
@@ -108,6 +110,7 @@
   <p class="note">Classic two-factor registrations (U2F) are not stored on the key and therefore do not appear in this list.</p>
 
   <h2 id="settings">Key settings &amp; reset</h2>
+  <p>In <b>Advanced → Settings</b>.</p>
   <img class="shot" src="img/settings.png" alt="Settings tab with key options and applications per interface">
   <ul>
     <li><b>Key settings</b>: minimum PIN length, always require PIN or fingerprint, force a PIN change.</li>
@@ -155,15 +158,26 @@
 
   <h2 id="accounts">Account overview</h2>
   <img class="shot" src="img/accounts.png" alt="Account overview across all keys">
-  <p><b>Accounts</b> (top of the sidebar) lists every service across all your keys – passkeys and authenticator codes together – with a recommendation for each: only on a lost key, only on one key (add it to a second one), codes only (check whether the service offers passkeys), or protected on several keys. Problems come first; search and "Only what needs action" help with long lists. The column headers show how many passkey slots each key has left.</p>
+  <p><b>Accounts</b> (top of the sidebar) lists every account across all your keys – passkeys and authenticator codes – grouped by service, with a rating for each: only on a lost key, only on one key (add it to a second one), passkey plus code on another key, codes only, account unclear, or passkey on several keys. Problems come first; search and "Only what needs action" help with long lists. The column headers show how many passkey slots each key has left and when it was last read.</p>
+  <p>The rating is deliberately strict. An account counts as the same only with the <b>same website ID (rpId) and the same account name</b> – two accounts at the same service (e.g. two Microsoft UPNs) are rated separately, and a similar-looking domain is never merged. Passkeys whose account name is unknown (older keys without the PIN) are shown as "account unclear" and are never counted as anyone's backup. A code is linked to a passkey only by an identical account name and marked as such. Keys marked as lost never count as protection.</p>
+  <p>Every cell says where the information comes from – <b>read from the key</b>, <b>found by search</b> (older keys) or <b>imported</b> – and when. A key that was never read, or whose search stopped early, shows <b>?</b> ("not known") instead of "not there". Information older than 90 days is marked as stale.</p>
   <p>The overview assumes that <b>all keys belong to you</b>. If you manage keys for several people, turn off <b>All keys belong to me</b> under Backup &amp; loss: the overview, the backup tables and the "backup on" hints are then hidden, because one person's key is not another person's backup.</p>
-  <p class="note">KeyMelier only knows what it has read: open Passkeys and Authenticator once per key. Classic U2F registrations are not stored on the key and cannot appear. Services are matched by name and domain.</p>
+  <p class="note">KeyMelier only knows what it has read: open Passkeys and Authenticator once per key. Classic U2F registrations are not stored on the key and cannot appear. A passkey on a key is not proof that signing in at the service works.</p>
 
   <h2 id="backup">Backup &amp; lost keys</h2>
   <img class="shot" src="img/backup.png" alt="Backup overview of websites and accounts per key">
-  <p><b>Backup &amp; loss</b> (top of the sidebar) shows which websites and authenticator accounts are on which key and highlights those on a single key only. Here you also switch history and remembering contents on or off, and <b>export or import</b> the history to back it up or move it to another computer.</p>
+  <p><b>Backup &amp; loss</b> (top of the sidebar) sums up how well your accounts are covered – with the same strict rating as the account overview, which opens from here. Here you also switch history and remembering contents on or off, and <b>export or import</b> the history to back it up or move it to another computer.</p>
   <img class="shot" src="img/lost.png" alt="Lost-key assistant">
   <p>If a key is lost, pick it in <b>Lost a key?</b> and mark it as lost. You get a checklist: websites to remove the key from (with the keys that still work there), authenticator accounts to set up again, OpenPGP keys to revoke and certificates to have revoked.</p>
+
+  <h2 id="replace">Replacing a key</h2>
+  <img class="shot" src="img/replace.png" alt="Replacing an old key: comparison with the new key">
+  <p><b>Replace an old key</b> (under Backup &amp; loss) compares what KeyMelier knows about the old key with a new one and walks you through the move. Pick the old and the new key (with serial numbers). Each passkey, authenticator account, OpenPGP key, certificate and OTP slot of the old key is listed with two separate marks:</p>
+  <ul>
+    <li><b>Found on the new key</b> – checked by KeyMelier from what the new key showed when it was last read (same website and account name, same authenticator account, same OpenPGP fingerprint). A certificate with the same name or a used OTP slot is only "similar" – not proof of the same key. "New key not read yet" means: plug it in and open the areas once.</li>
+    <li><b>Confirmed by you</b> – your own tick when you have finished a service. KeyMelier cannot check whether signing in works.</li>
+  </ul>
+  <p>Private keys cannot be copied from one security key to another: register the new key at each service, set up authenticator accounts again (or from a QR code you kept), load OpenPGP keys only from your own backup or create new ones, and have certificates reissued. Progress is saved with the history; with history off it lasts until KeyMelier quits, and with "remember contents" off there is nothing to compare. KeyMelier never resets or deletes anything on either key – remove the old key at every service first, then reset it yourself.</p>
 
   <h2 id="data">Data, updates &amp; privacy</h2>
   <img class="shot" src="img/details.png" alt="Technical details">
@@ -174,7 +188,7 @@
   <ul>
     <li><b>Key not detected on Windows</b>: run KeyMelier as administrator.</li>
     <li><b>"The smart card interface is used by another program"</b>: usually GnuPG. Run <code>gpgconf --kill scdaemon</code> and try again.</li>
-    <li><b>Authenticator/OpenPGP/PIV tabs missing</b>: the key has no smart card interface, it is disabled under Settings, or several keys of the same model are connected – plug in only one.</li>
+    <li><b>Authenticator/OpenPGP/PIV missing</b> (OpenPGP and PIV are in the Advanced menu): the key has no smart card interface, it is disabled under Advanced → Settings, or several keys of the same model are connected – plug in only one.</li>
     <li><b>Authenticity test "not performed"</b>: touch the key when it blinks right after plugging it in, or run the test again in the Security tab (with PIN if asked).</li>
     <li><b>OTP slots cannot be read on macOS</b>: grant Input Monitoring (see <a href="#otp">OTP slots</a>).</li>
     <li>Anything else: <a href="https://github.com/FiraSenax/KeyMelier/issues">open an issue</a>.</li>
