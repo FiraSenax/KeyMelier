@@ -20,6 +20,7 @@
     'unlock-done': () => { quickLockToggle('demo-yk5'); setTimeout(() => { document.querySelector('.ql-pin').value = '123456'; quickUnlockSubmit(); }, 300); },
     shared: () => { appSettings.personal_mode = false; lostKid = 'c3c3c3c3c3c3c3c3'; showBackupView(); },
     backup: () => showBackupView(),
+    sync: () => { showBackupView(); setTimeout(() => document.getElementById('sync-card')?.scrollIntoView(), 400); },
     replace: () => {
       const old = historyKeys.get('a1a1a1a1a1a1a1a1');
       old.replace = { new: 'b2b2b2b2b2b2b2b2', since: new Date().toISOString(), done: ['pk:github.com|erika', 'oath:hetzner|erika@example.com'] };

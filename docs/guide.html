@@ -52,6 +52,7 @@
   <a href="#accounts">Account overview</a>
   <a href="#backup">Backup &amp; lost keys</a>
   <a href="#replace">Replacing a key</a>
+  <a href="#sync">Sync between computers</a>
   <a href="#data">Data, updates &amp; privacy</a>
   <a href="#troubleshooting">Troubleshooting</a>
 </nav>
@@ -178,6 +179,11 @@
     <li><b>Confirmed by you</b> – your own tick when you have finished a service. KeyMelier cannot check whether signing in works.</li>
   </ul>
   <p>Private keys cannot be copied from one security key to another: register the new key at each service, set up authenticator accounts again (or from a QR code you kept), load OpenPGP keys only from your own backup or create new ones, and have certificates reissued. Progress is saved with the history; with history off it lasts until KeyMelier quits, and with "remember contents" off there is nothing to compare. KeyMelier never resets or deletes anything on either key – remove the old key at every service first, then reset it yourself.</p>
+
+  <h2 id="sync">Sync between computers</h2>
+  <img class="shot" src="img/sync.png" alt="Sync between computers: folder, this computer and the other computers">
+  <p>Using KeyMelier on several computers? Under <b>Backup &amp; loss → Sync between computers</b>, pick a folder that you already sync – iCloud Drive, OneDrive, Dropbox, Syncthing or a NAS share – and set a passphrase. Do the same on every computer with the same passphrase. KeyMelier writes one file per computer into that folder and merges the files of the others every half minute: key names, history, what is on each key, lost and replacement status. The newest decision wins, including "no longer lost" and "removed from history".</p>
+  <p class="note">The files are encrypted with your passphrase (scrypt, AES-256-GCM). Whoever can see the folder only sees random ids. The passphrase is kept in the macOS Keychain or Windows Credential Manager and cannot be recovered. Security ratings are never synced – each computer checks a key when it is plugged in there. Sync needs the saved history and is off in stateless mode.</p>
 
   <h2 id="data">Data, updates &amp; privacy</h2>
   <img class="shot" src="img/details.png" alt="Technical details">

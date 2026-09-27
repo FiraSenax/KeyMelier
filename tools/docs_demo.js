@@ -127,6 +127,10 @@
     tokens: () => ({ tokens }),
     history_list: () => ({ keys: Object.values(history).map(summary) }),
     history_get: ({ kid }) => history[kid],
+    sync_status: () => ({ available: true, active: true, configured: true, folder: '/Users/erika/Library/Mobile Documents/com~apple~CloudDocs/KeyMelier',
+      device: '3f9a1c07b2d84e65', device_name: 'Erikas MacBook Pro', last_sync: iso(2 * 60e3), min_passphrase: 10, problem: null,
+      devices: [{ device: 'a', name: 'Office PC', written: iso(20 * 60e3) }, { device: 'b', name: 'Gaming PC', written: iso(3 * H) },
+                { device: 'c', name: 'Mac mini', written: iso(1 * D) }], errors: [] }),
     history_replace: ({ kid, new_kid }) => {
       if (!new_kid) delete history[kid].replace;
       else if (history[kid].replace?.new !== new_kid) history[kid].replace = { new: new_kid, since: iso(0), done: [] };

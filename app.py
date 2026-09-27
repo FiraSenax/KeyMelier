@@ -52,6 +52,7 @@ ALLOWED = {
     "tokens", "mds_status", "data_status", "check_updates",
     "history_list", "history_get", "history_rename", "history_forget",
     "history_set_lost", "history_lost_done", "history_replace", "history_replace_done",
+    "sync_status", "sync_enable", "sync_disable", "sync_now",
     "get_settings", "set_settings",
     "pin_status", "pin_update", "attestation_rerun",
     "unlock", "lock",
@@ -92,7 +93,7 @@ def _gpg():
 # Functions the page may call. pywebview resolves js_api names as dotted
 # attribute paths without filtering private members ("_window.gui.os…"), so
 # the page gets plain wrapper functions only – never an object.
-BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "open_licenses",
+BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "choose_folder", "open_licenses",
           "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
 
 
@@ -174,6 +175,16 @@ class Api:
         if path.stat().st_size > 20_000_000:
             return None
         return path.read_text(encoding="utf-8", errors="replace")
+
+    def choose_folder(self):
+        """Let the user pick the sync folder; returns its path (or None)."""
+        if self._window is None:
+            return None
+        chosen = self._window.create_file_dialog(webview.FileDialog.FOLDER, directory=str(Path.home()))
+        if not chosen:
+            return None
+        path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+        return str(path) if path.is_dir() else None
 
     def gpg_available(self):
         return _gpg() is not None
@@ -426,6 +437,7 @@ def main():
         api._menubar = menubar
 
     webview.start(background_start, debug="--debug" in sys.argv)
+    service.sync_flush()
     scanner.stop()
     logger.info("Window closed, exiting.")
 

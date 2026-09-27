@@ -1321,3 +1321,12 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 }
 .tab-more-menu .tab:hover, .tab-more-menu .tab:focus-visible { background: var(--surface-2); color: var(--text); }
 .tab-more-menu .tab.active { color: var(--accent); font-weight: 600; }
+
+/* Sync between computers */
+.sync-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; max-width: 520px; }
+.sync-folder { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sync-folder .mono, #sync-card dd.mono { word-break: break-all; font-size: 0.82rem; }
+.sync-devices { list-style: none; display: flex; flex-direction: column; }
+.sync-devices li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.sync-devices li:last-child { border-bottom: none; }
+.sync-off { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }

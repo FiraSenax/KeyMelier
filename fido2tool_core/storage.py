@@ -56,3 +56,28 @@ def history_cipher(create=True):
         key = Fernet.generate_key().decode('ascii')
         backend.set_password('KeyMelier', 'history-encryption-v1', key)
     return Fernet(key.encode('ascii'))
+
+
+def _native_keyring():
+    import keyring
+    backend = keyring.get_keyring()
+    if type(backend).__module__ not in {'keyring.backends.macOS', 'keyring.backends.Windows'}:
+        raise RuntimeError('Needs macOS Keychain or Windows Credential Manager')
+    return backend
+
+
+def secret_get(name):
+    """A secret from the OS credential store (never a plaintext fallback)."""
+    return _native_keyring().get_password('KeyMelier', name)
+
+
+def secret_set(name, value):
+    _native_keyring().set_password('KeyMelier', name, value)
+
+
+def secret_delete(name):
+    import keyring.errors
+    try:
+        _native_keyring().delete_password('KeyMelier', name)
+    except keyring.errors.PasswordDeleteError:
+        pass

@@ -12,7 +12,8 @@ import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from fido2tool_core.storage import atomic_write, stateless
+from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, stateless
+from fido2tool_core import sync as sync_mod
 
 from fido2tool_core import auth
 from fido2tool_core import fingerprints as fingerprints_mod
@@ -91,6 +92,10 @@ class KeyService:
             self.history.clear_sites()
         self.emit = lambda name, payload: None
         self._attestation_logged: set[str] = set()
+        # Sync between the user's computers through a folder (off unless set up)
+        self._syncer = sync_mod.Syncer(self.history, lambda n, p: self.emit(n, p), self._remember_contents)
+        self._sync_problem = None
+        self._sync_configure()
 
         scanner.set_callbacks(
             on_connect=self._on_connect,
@@ -303,6 +308,12 @@ class KeyService:
                 settings["remember_sites"] = value is True and not stateless()
                 if not value:
                     self.history.clear_sites()
+        self._write_settings(settings)
+        if "history_enabled" in (values or {}):
+            self._sync_configure()   # sync needs the history
+        return self.get_settings()
+
+    def _write_settings(self, settings: dict) -> None:
         try:
             if stateless():
                 self._session_settings = settings
@@ -310,7 +321,82 @@ class KeyService:
                 atomic_write(SETTINGS_FILE, json.dumps(settings))
         except Exception as e:
             logger.error("Could not save settings: %s", e)
-        return self.get_settings()
+
+    # ── Sync between computers ───────────────────────────────────────────────
+
+    def _sync_configure(self) -> None:
+        st = self._stored_settings()
+        folder, device = st.get("sync_folder"), st.get("sync_device")
+        self._sync_problem = None
+        if stateless() or not self.history.enabled or not folder or not device:
+            self._syncer.configure(None, None, None)
+            return
+        try:
+            passphrase = secret_get(sync_mod.KEYRING_NAME)
+        except Exception as e:
+            logger.warning("Sync passphrase unavailable: %s", e)
+            passphrase = None
+        if not passphrase:
+            self._sync_problem = "sync_keychain"
+            self._syncer.configure(None, None, None)
+            return
+        self._syncer.configure(Path(folder), device, passphrase)
+
+    def sync_status(self) -> dict:
+        st = self._stored_settings()
+        return {**self._syncer.status(), "available": not stateless() and self.history.enabled,
+                "configured": bool(st.get("sync_folder")), "configured_folder": st.get("sync_folder"),
+                "problem": self._sync_problem, "min_passphrase": sync_mod.MIN_PASSPHRASE}
+
+    def sync_enable(self, folder: str, passphrase: str) -> dict:
+        if stateless() or not self.history.enabled:
+            raise PinError("Sync needs the history to be switched on.", "sync_unavailable", status=409)
+        if not isinstance(folder, str) or not isinstance(passphrase, str) or len(folder) > 1000 or len(passphrase) > 1000:
+            raise PinError("Invalid input.", "invalid_input")
+        settings = self._stored_settings()
+        device = settings.get("sync_device") or sync_mod.new_device_id()
+        try:
+            sync_mod.probe_folder(Path(folder), passphrase, device)
+            secret_set(sync_mod.KEYRING_NAME, passphrase)
+        except sync_mod.SyncError as e:
+            raise PinError(str(e), e.code, status=400) from None
+        except RuntimeError as e:   # no native credential store
+            raise PinError(str(e), "sync_keychain", status=409) from None
+        settings.update(sync_folder=str(Path(folder)), sync_device=device)
+        self._write_settings(settings)
+        self._sync_configure()
+        self._syncer.run_once(full=True)
+        return self.sync_status()
+
+    def sync_disable(self, remove_file: bool = False) -> dict:
+        status = self._syncer.status()
+        self._syncer.configure(None, None, None)
+        if remove_file and status["folder"] and status["device"]:
+            own = Path(status["folder"]) / f"KeyMelier-{status['device']}.kmsync"
+            if own.is_file() and not own.is_symlink():
+                own.unlink()
+        try:
+            secret_delete(sync_mod.KEYRING_NAME)
+        except Exception as e:
+            logger.info("Could not remove sync passphrase: %s", e)
+        settings = self._stored_settings()
+        settings.pop("sync_folder", None)
+        self._write_settings(settings)
+        self.history.stop_tracking_forgotten()
+        self._sync_problem = None
+        return self.sync_status()
+
+    def sync_now(self) -> dict:
+        self._syncer.run_once(full=True)
+        return self.sync_status()
+
+    def sync_flush(self) -> None:
+        """On quit: write the latest state for the other computers."""
+        if self._syncer.active:
+            try:
+                self._syncer.run_once()
+            except Exception as e:
+                logger.info("Final sync failed: %s", e)
 
     # ── PIN ──────────────────────────────────────────────────────────────────
 
