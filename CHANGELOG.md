@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 — 2026-09-27
 
 - Service logos in the account overview, passkey and authenticator lists for brands that allow it (bundled from Simple Icons, CC0 icon data; nothing is fetched from the network). Brands that restrict logo use keep the letter.
 - **Find passkeys on older keys** (FIDO 2.0, e.g. YubiKey 5.1): they cannot list passkeys, so KeyMelier asks them website by website – silently, for your known sites, common passkey services and your own domains; with the PIN including account names.
