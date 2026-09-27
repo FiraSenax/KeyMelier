@@ -81,8 +81,16 @@ export MODE APPIMAGE
 
 # 1. Which package exactly is tested (before anything runs)
 sha256sum "$APPIMAGE" > "$OUT/sha256.txt"
-if ! install > "$LOG" 2>&1; then
-  tail -20 "$LOG"; result failed "installing the runtime prerequisites failed (see install.log)"; exit 1
+# Package mirrors fail now and then: up to three attempts. Still failing
+# means no evidence for this distribution – the test fails.
+installed=no
+for attempt in 1 2 3; do
+  if install >> "$LOG" 2>&1; then installed=yes; break; fi
+  echo "install attempt $attempt failed" | tee -a "$LOG"
+  [ $attempt -lt 3 ] && sleep $((attempt * 20))
+done
+if [ $installed = no ]; then
+  tail -20 "$LOG"; result failed "installing the runtime prerequisites failed 3 times (see install.log)"; exit 1
 fi
 ldd --version 2>&1 | head -1 > "$OUT/glibc.txt"
 
