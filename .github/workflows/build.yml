@@ -24,8 +24,9 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python tools/advisories_sign.py verify
-      - run: node --check static/app.js
-      - run: node --check static/i18n.js
+      - name: Syntax of every UI script
+        shell: bash
+        run: for f in static/*.js; do node --check "$f"; done
       - run: node tests/ui_security.cjs
       - run: node tests/accounts_model.cjs
   # UI tests on the demo page (no backend, no keys) with real keyboard and
