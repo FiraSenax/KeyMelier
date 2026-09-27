@@ -246,7 +246,7 @@ function renderSidebar() {
       <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub">${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}</span>
+        <span class="key-item-sub" title="${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}">${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}</span>
       </span>
       <span class="status-dot ${escHtml(tok.security_status || '')}" title="${escHtml(t(`status.${tok.security_status || 'UNKNOWN'}`))}"></span>
     </button>`;
@@ -256,7 +256,7 @@ function renderSidebar() {
       <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
       <span class="key-item-text">
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub">${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}</span>
+        <span class="key-item-sub" title="${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}">${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}</span>
       </span>
       ${canManage(tok) && (tok.options?.clientPin || tok.options?.uv)
         ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
@@ -648,7 +648,9 @@ function syncErrorText(e) {
 function syncCardHtml() {
   const st = syncState;
   if (!st) return '';
-  const head = `<h2>${escHtml(t('sync.title'))}</h2><p class="card-text">${escHtml(t('sync.text'))}</p>`;
+  const head = `<h2>${escHtml(t('sync.title'))}</h2><p class="card-text">${escHtml(t('sync.textShort'))}</p>
+    <details class="acc-more"><summary>${escHtml(t('sync.how'))}</summary><p class="field-hint">${escHtml(t('sync.text'))}</p>
+      <p class="field-hint">${escHtml(t('sync.privacy'))}</p></details>`;
   if (!st.available) {
     return `<section class="card" id="sync-card">${head}<p class="field-hint bk-hint">${escHtml(t('sync.needsHistory'))}</p></section>`;
   }
@@ -664,13 +666,9 @@ function syncCardHtml() {
           <button type="button" class="btn btn-danger" data-act="sync-off">${escHtml(t('sync.off'))}</button>
         </div></div>` : '';
     return `<section class="card" id="sync-card">${head}
-      <dl class="kv">
-        <dt>${escHtml(t('sync.folder'))}</dt><dd class="mono">${escHtml(st.folder)}</dd>
-        <dt>${escHtml(t('sync.thisComputer'))}</dt><dd>${escHtml(st.device_name)}</dd>
-        <dt>${escHtml(t('sync.last'))}</dt><dd>${escHtml(st.last_sync ? relTime(st.last_sync) : '—')}</dd>
-      </dl>
-      <h3 class="bk-group">${escHtml(t('sync.others'))}</h3>
-      ${devices}
+      <p class="sync-state"><b>${escHtml(t('sync.on.state'))}</b> · ${escHtml(t('sync.last'))}: ${escHtml(st.last_sync ? relTime(st.last_sync) : '—')}
+        · ${escHtml(t('sync.othersN', { n: st.devices.length }))}</p>
+      <p class="field-hint">${escHtml(t('sync.lastHint'))}</p>
       ${st.notice ? `<p class="field-hint bk-hint warn-text">${escHtml(t(`sync.notice.${st.notice.code}`, { file: st.notice.file }))}</p>` : ''}
       ${st.errors.map(e => `<p class="field-hint bk-hint warn-text">${escHtml(syncErrorText(e))}</p>`).join('')}
       <div class="form-actions att-actions">
@@ -678,7 +676,14 @@ function syncCardHtml() {
         ${syncForm.confirmOff ? '' : `<button type="button" class="btn btn-secondary" data-act="sync-off-ask">${escHtml(t('sync.off'))}</button>`}
       </div>
       ${off}
-      <p class="field-hint bk-hint">${escHtml(t('sync.privacy'))}</p>
+      <details class="acc-more"><summary>${escHtml(t('sync.details'))}</summary>
+        <dl class="kv">
+          <dt>${escHtml(t('sync.folder'))}</dt><dd class="mono">${escHtml(st.folder)}</dd>
+          <dt>${escHtml(t('sync.thisComputer'))}</dt><dd>${escHtml(st.device_name)}</dd>
+        </dl>
+        <h3 class="bk-group">${escHtml(t('sync.others'))}</h3>
+        ${devices}
+      </details>
     </section>`;
   }
   const problem = st.problem ? `<p class="field-hint bk-hint warn-text">${escHtml(t(`sync.err.${st.problem}`, { file: '' }))}</p>` : '';
@@ -699,7 +704,6 @@ function syncCardHtml() {
         <button type="submit" class="btn btn-primary" ${folder && !syncForm.busy ? '' : 'disabled'}>${escHtml(t(syncForm.busy ? 'sync.working' : 'sync.on'))}</button>
       </div>
     </form>
-    <p class="field-hint bk-hint">${escHtml(t('sync.privacy'))}</p>
   </section>`;
 }
 
@@ -1976,11 +1980,22 @@ async function probeSubmit() {
   }
 }
 
+let dialogOpener = null;   // element to focus again when a dialog closes
+
 function renderQuickUnlock() {
   const el = $('quick-unlock');
   const tok = quickUnlock && tokens.get(quickUnlock.id);
+  const wasOpen = !el.classList.contains('hidden');
   el.classList.toggle('hidden', !tok);
-  if (!tok) { el.innerHTML = ''; return; }
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  if (!tok) {
+    el.innerHTML = '';
+    if (wasOpen && dialogOpener?.isConnected) dialogOpener.focus();
+    dialogOpener = null;
+    return;
+  }
+  if (!wasOpen) dialogOpener = document.activeElement;
   if (quickUnlock.mode === 'probe') return renderProbeDialog(el, tok);
   const uv = tok.options?.uv === true;
   el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
@@ -4150,6 +4165,13 @@ function init() {
     if (act === 'close') openAbout(false);
     if (act === 'licenses') window.pywebview?.api?.open_licenses();
     if (act === 'updates') { openAbout(false); checkForUpdates(); }
+  });
+  $('quick-unlock').addEventListener('keydown', ev => {   // keep focus inside the dialog
+    if (ev.key !== 'Tab') return;
+    const f = [...$('quick-unlock').querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')];
+    const i = f.indexOf(document.activeElement);
+    if (ev.shiftKey && i <= 0) { ev.preventDefault(); f[f.length - 1]?.focus(); }
+    else if (!ev.shiftKey && i === f.length - 1) { ev.preventDefault(); f[0]?.focus(); }
   });
   $('about-dialog').addEventListener('keydown', ev => {
     if (ev.key === 'Escape') { ev.preventDefault(); openAbout(false); }

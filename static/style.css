@@ -8,7 +8,9 @@
   --border-strong: #cfd4dd;
   --text: #16191f;
   --text-2: #4a5160;
-  --text-3: #858c9a;
+  --text-3: #6b7280;   /* ≥ 4.5:1 on surfaces (small hint text) */
+  --warn-text: #a35b00;
+  --ok-text: #177a42;
 
   --accent: #2f5fe0;
   --accent-hover: #244fc4;
@@ -43,7 +45,9 @@
     --border-strong: #3a3f4b;
     --text: #eceef3;
     --text-2: #b0b6c3;
-    --text-3: #7c8392;
+    --text-3: #9aa0ad;
+    --warn-text: #f0a53a;
+    --ok-text: #3ccf7c;
 
     --accent: #6d95ff;
     --accent-hover: #86a8ff;
@@ -1442,3 +1446,15 @@ button.status-pill { border: none; font: inherit; cursor: pointer; }
 .btn-small { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: inherit; font-size: 0.82rem; cursor: pointer; }
 .btn-small:hover { color: var(--text); border-color: var(--text-3); }
 .btn-small.danger:hover { color: var(--crit); border-color: var(--crit); }
+
+/* Readable status text (small text needs 4.5:1; the base colours are for icons and large numbers) */
+.warn-text { color: var(--warn-text); }
+.acc-warn .acc-note, .bk-backup.warn, .rp-chip.warn { color: var(--warn-text); }
+.acc-ok .acc-note, .bk-backup.ok, .rp-chip.ok, .ok-text { color: var(--ok-text); }
+.sync-line.warn { border-color: var(--warn-text); }
+
+/* Visible keyboard focus everywhere; comfortable click targets */
+:where(button, a, input, select, summary, [role="button"], [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-link { padding: 4px 2px; min-height: 28px; }
+.quick-lock { width: 30px; height: 30px; }
+summary { min-height: 28px; display: list-item; }
