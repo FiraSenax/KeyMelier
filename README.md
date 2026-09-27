@@ -219,6 +219,7 @@ fido2tool_core/
   mds3.py / advisories.py / exporter.py
   policy.py              # Managed configuration (ENTERPRISE.md)
   desktop.py             # Browser, clipboard, page file (Linux specifics)
+  diagnostics.py         # Diagnostic report from allow-listed fields
 static/                  # UI (HTML/CSS/JS, inlined into the window at start)
 data/advisories.json     # Curated advisory database
 fido2tool.spec           # PyInstaller spec (.app / .exe / Linux bundle)

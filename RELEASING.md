@@ -57,8 +57,11 @@ immediate SmartScreen reputation.
    physical supported keys on macOS and Windows (and Linux when possible) and record the results in
    [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 2. Bump `fido2tool_core/version.py` and `pyproject.toml` consistently; refresh the lock.
-3. Commit and push the reviewed version tag (`vX.Y.Z`).
-4. Verify successful signing/notarization and the attached source/dependency evidence.
+3. Run the **release rehearsal** on the candidate (*Actions → Build → Run workflow*): the same builds,
+   artifact transfer and checks as the release, without publishing. It must be green; its report
+   (artifact `release-rehearsal`) names the commit, the version and every file with its SHA-256.
+4. Commit and push the reviewed version tag (`vX.Y.Z`) on that commit.
+5. Verify successful signing/notarization and the attached source/dependency evidence.
 
 Without the credentials above, version-tag builds are published unsigned (macOS
 ad-hoc signed) and labelled as such in the release notes. The Linux AppImages

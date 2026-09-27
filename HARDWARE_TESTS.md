@@ -52,7 +52,7 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 | Windows 11 | 1.7.0 or newer | YubiKey 5 (FW 5.1/5.2, FIDO 2.0) | | Not tested | Not tested | Not tested | Not tested | |
 | Windows 11 | 1.7.0 or newer | Token2 (PIN+ / FIDO2.1) | | Not tested | Not tested | Not tested | Not tested | |
 | Windows 10 | 1.7.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | |
-| Ubuntu 24.04 container (aarch64, Xvfb, no USB) | 1.8.0 candidate | – | – | – | – | – | Passed (AppImage starts, self-test 46 checks) | 2026-09-27 – automated start test in Docker on macOS, not on a Linux desktop and without a key. Not a hardware result. |
+| Containers: Ubuntu 24.04/26.04, Debian 13, Fedora 43, openSUSE Leap 16.0 (x86_64 + aarch64), Arch Linux (x86_64); Xvfb, no USB | 1.8.0 candidate | – | – | – | – | – | Passed (AppImage starts, self-test 46 checks, 11 of 11 combinations) | 2026-09-27 – automated start test on native CI runners (Build run 36342999686, CI job linux-compat), without a key, USB, Wayland or a real desktop. Not a hardware result. |
 | Ubuntu 24.04 (GNOME, Wayland) | 1.8.0 or newer | YubiKey 5 (FW 5.7) | | Not tested | Not tested | Not tested | Not tested | AppImage; check access without the udev rules (systemd) |
 | Ubuntu 24.04 (GNOME, Wayland) | 1.8.0 or newer | Token2 (PIN+ / FIDO2.1) | | Not tested | Not tested | Not tested | Not tested | Authenticator/OpenPGP/PIV need pcscd |
 | Fedora (KDE Plasma) | 1.8.0 or newer | any FIDO2 key | | Not tested | Not tested | Not tested | Not tested | Sync with KWallet (Secret Service) |
