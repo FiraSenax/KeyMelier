@@ -13,6 +13,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 from fido2tool_core.storage import atomic_write, secret_delete, secret_get, secret_set, set_aside, stateless
+from fido2tool_core import build_info
 from fido2tool_core import sync as sync_mod
 
 from fido2tool_core import auth
@@ -294,7 +295,8 @@ class KeyService:
         return {"history_enabled": not stateless(), "remember_sites": not stateless(), "personal_mode": True,
                 **self._stored_settings(),
                 "stateless": stateless(), "system_languages": system_languages(),
-                "problems": [p for p in (self._settings_problem, self.history.load_problem) if p]}
+                "problems": [p for p in (self._settings_problem, self.history.load_problem) if p],
+                "platform": sys.platform, "build": build_info.load()}
 
     def set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()
@@ -311,6 +313,11 @@ class KeyService:
                 self.history.set_enabled(settings[key])
                 if settings.get("remember_sites") is False:
                     self.history.clear_sites()
+            elif key == "onboarding_done":
+                # the first-start introduction was finished or skipped
+                if not isinstance(value, bool):
+                    raise PinError("Expected a boolean", "invalid_input")
+                settings["onboarding_done"] = value
             elif key == "personal_mode":
                 # All keys belong to one person: cross-key overviews make sense
                 if not isinstance(value, bool):

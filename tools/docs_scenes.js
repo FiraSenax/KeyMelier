@@ -33,6 +33,7 @@
     lost: () => { showBackupView(); lostKid = 'c3c3c3c3c3c3c3c3'; renderBackupView(); document.querySelector('#bk-lost-select')?.scrollIntoView(); },
   };
   const run = () => {
+    if (window.__demoScene === 'none') return;   // tests drive the page themselves
     if (!tokens.size) return setTimeout(run, 50);
     selectToken('demo-yk5');
     setTimeout(() => (scenes[window.__demoScene] || scenes.overview)(), 200);

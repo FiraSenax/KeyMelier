@@ -93,6 +93,8 @@ jobs:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: bash tools/import-macos-signing.sh
+      - name: Record the signing state in the app (shown in the introduction)
+        run: printf '{"signed": %s, "notarized": %s, "ci": true}\n' "$SIGN_MAC" "$SIGN_MAC" > data/build.json
       - name: Build
         id: build
         env:
@@ -192,6 +194,9 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+      - name: Record the signing state in the app (shown in the introduction)
+        shell: bash
+        run: printf '{"signed": %s, "ci": true}\n' "$SIGN_WIN" > data/build.json
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico

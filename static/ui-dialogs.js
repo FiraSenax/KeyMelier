@@ -103,6 +103,7 @@ function openAbout(open = true) {
     <div class="form-actions about-actions">
       <button type="button" class="btn btn-secondary" data-about="licenses">${escHtml(t('about.licenses'))}</button>
       <button type="button" class="btn btn-secondary" data-about="updates">${escHtml(t('upd.check'))}</button>
+      <button type="button" class="btn btn-secondary" data-about="intro">${escHtml(t('ob.open'))}</button>
       <button type="button" class="btn btn-primary" data-about="close">${escHtml(t('about.close'))}</button>
     </div>
     <p class="field-hint">© 2026 Sven Frank · MIT License</p>

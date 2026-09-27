@@ -118,8 +118,11 @@
     };
   };
 
+  const settings = { history_enabled: true, remember_sites: true, lang: 'en', stateless: false, system_languages: ['en-US'],
+    onboarding_done: true, platform: 'darwin', build: { signed: false, notarized: false } };
   const api = {
-    get_settings: () => ({ history_enabled: true, remember_sites: true, lang: 'en', stateless: false, system_languages: ['en-US'] }),
+    get_settings: () => ({ ...settings }),
+    set_settings: ({ values }) => Object.assign(settings, values) && { ...settings },
     data_status: () => ({ advisories: { source: 'downloaded', updated: iso(4 * D), count: 14 },
       mds: { cached: true, fetched_at: iso(6 * H), entry_count: 531, serial: 291, current: true, next_update: new Date(now + 20 * D).toISOString().slice(0, 10), revocation_checked: true, verified: true },
       last_check: iso(6 * H), app: { current: '1.7.0', latest: '1.7.0', newer: false } }),
@@ -137,6 +140,7 @@
       return summary(history[kid]);
     },
     history_replace_done: ({ kid, item, done }) => {
+      if (!history[kid]?.replace) return summary(history[kid]);   // like the backend: nothing to tick
       const list = new Set(history[kid].replace.done);
       if (done) list.add(item); else list.delete(item);
       history[kid].replace.done = [...list];

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Introduction on first start:** what KeyMelier does; remember history or nothing at all; why Windows needs administrator rights; what the warnings for unsigned / not yet notarized builds mean (from the real build state) and how to check the checksum; how to begin. Skippable, reopen under About.
+
 ## 1.7.1 — 2026-09-27
 
 - **Reading a key tells the truth:** if the key is pulled out while reading, KeyMelier says so and what to do next instead of reporting success; parts that could not be read are named; known data is kept.

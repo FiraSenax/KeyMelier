@@ -89,6 +89,7 @@ async function main() {
   };
 
   await until('typeof tokens !== "undefined" && tokens.size > 0 && historyKeys.size > 0', 'the app to load its demo data', 15000);
+  await js('selectToken("demo-yk5")');   // a defined start: first key selected (no demo scene runs with #none)
 
   // ── 1. Navigation ──
   await test('backup page: coverage, lost key and replacement visible at 1280x800 without scrolling', async () => {
@@ -247,9 +248,14 @@ async function main() {
 
   // ── 4. Guided key replacement ──
   await test('replacement: steps by keyboard, open-only by Space, tick vs. technical check, cancel asks first', async () => {
-    await js(`(() => { const o = historyKeys.get('a1a1a1a1a1a1a1a1');
-      o.replace = { new: 'b2b2b2b2b2b2b2b2', since: new Date().toISOString(), done: ['pk:bitwarden.com|erika@example.com', 'pk:github.com|erika'] };
-      showReplaceView(o.key_id); })()`);
+    // set up through the bridge, as the real app would: replacement a1 -> b2 with two ticks
+    await js(`(async () => {
+      const kid = 'a1a1a1a1a1a1a1a1';
+      let sum = await call('history_replace', { kid, new_kid: 'b2b2b2b2b2b2b2b2' });
+      for (const item of ['pk:bitwarden.com|erika@example.com', 'pk:github.com|erika'])
+        sum = await call('history_replace_done', { kid, item, done: true });
+      historyKeys.set(kid, sum);
+      showReplaceView(kid); })()`);
     assert(await js('replaceStep') === 2, 'opens at step 2');
     await focus('[data-rp-step="3"]');
     await press('Enter');
@@ -290,6 +296,42 @@ async function main() {
     assert(await js('document.querySelectorAll("#pk-content .pk-item").length') === all, 'all again');
   });
 
+  await test('introduction: shown on first start, keyboard steps, storage choice applied, Escape skips, reopen from About', async () => {
+    await js(`(() => { window.__demoCalls.length = 0; appSettings.onboarding_done = false; document.activeElement.blur(); maybeStartOnboarding(); })()`);
+    await until('!$("onboarding").classList.contains("hidden")', 'introduction open');
+    assert(await js('document.activeElement.dataset.ob') === 'next', 'focus on Next');
+    await press('Enter');
+    await until('onboarding?.step === 2', 'step 2');
+    await focus('#onboarding input[value=nothing]');
+    await press(' ');
+    assert(await js('onboarding.store') === 'nothing', 'choice by keyboard');
+    await focus('#onboarding [data-ob=next]');
+    await press('Enter');
+    await until('onboarding?.step === 3', 'step 3');
+    assert(await js('appSettings.history_enabled === false && appSettings.remember_sites === false'), 'storage switched off');
+    assert(await js('/notarized|notarisiert/i.test($("onboarding").textContent)'), 'macOS demo build: says it is not notarized');
+    await press('Tab', { shift: true }); await press('Tab', { shift: true }); await press('Tab', { shift: true }); await press('Tab', { shift: true });
+    assert(await js('$("onboarding").contains(document.activeElement)'), 'focus stays inside');
+    await press('Escape');
+    await until('$("onboarding").classList.contains("hidden") && appSettings.onboarding_done === true', 'skipped and remembered');
+    assert(await js('!window.__demoCalls.some(c => ["unlock","read_contents","passkeys","pin_update"].includes(c))'), 'nothing done on a key');
+    await js('call("set_settings", { values: { history_enabled: true, remember_sites: true } }).then(s => { appSettings = s; })');
+    await focus('#about-open'); await press('Enter');
+    await until('!$("about-dialog").classList.contains("hidden")', 'about');
+    await focus('#about-dialog [data-about=intro]'); await press('Enter');
+    await until('!$("onboarding").classList.contains("hidden") && onboarding.step === 1', 'introduction reopened');
+    await press('Escape');
+    await until('$("onboarding").classList.contains("hidden")', 'closed again');
+  });
+  await test('introduction on Windows explains admin rights and the unsigned build', async () => {
+    await js('appSettings.platform = "win32"; appSettings.build = { signed: false }; openOnboarding(); onboarding.step = 3; renderOnboarding();');
+    const text = await js('$("onboarding").textContent');
+    assert(/administrator/i.test(text) && /SmartScreen/.test(text) && /SHA256SUMS/.test(text), text.slice(0, 200));
+    await js('appSettings.build = { signed: true }; renderOnboarding();');
+    assert(!(await js('/SmartScreen/.test($("onboarding").textContent)')), 'no unsigned warning for a signed build');
+    await press('Escape');
+    await js('appSettings.platform = "darwin"; appSettings.build = { signed: false, notarized: false };');
+  });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));
   });

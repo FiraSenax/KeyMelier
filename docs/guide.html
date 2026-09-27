@@ -36,6 +36,7 @@
 <nav>
   <a class="home" href="index.html"><img src="icon.svg" alt="">KeyMelier</a>
   <a href="#install">Install &amp; first launch</a>
+  <a href="#intro">First start</a>
   <a href="#overview">Overview &amp; checks</a>
   <a href="#appsettings">App settings</a>
   <h4>FIDO2</h4>
@@ -80,6 +81,9 @@
   <h3>Updates</h3>
   <p>When a new version is published, a notice appears in the sidebar. <b>Download update</b> fetches the disk image or installer for your system into <b>Downloads</b>, checks it against the SHA-256 checksum published with the release and opens it. You install it yourself: on macOS quit KeyMelier and drag the new version to Applications, on Windows follow the installer. KeyMelier never installs anything on its own. To check yourself, open <b>About KeyMelier</b> at the bottom of the sidebar and click <b>Check for updates</b>, or use <b>KeyMelier → Check for Updates…</b> in the macOS menu or the menu bar icon.</p>
   <p>Plug in a key – it appears in the sidebar within a second. KeyMelier follows your system language (11 languages) and light/dark mode; the language can be changed at the bottom left.</p>
+
+  <h2 id="intro">First start</h2>
+  <p>On the first start a short introduction explains what KeyMelier does, lets you choose whether it remembers history and contents or <b>nothing at all</b>, explains the platform notes (why Windows needs administrator rights, what the warnings for unsigned or not yet notarized builds mean and how to check the SHA-256 checksum) and shows how to begin. Skip it with Esc; open it again under <b>About KeyMelier → Introduction</b>. For no traces at all – not even saved settings – start KeyMelier with <code>--stateless</code>.</p>
 
   <h2 id="overview">Overview &amp; checks</h2>
   <img class="shot" src="img/overview.png" alt="Overview of a key: key check and account coverage, passkeys, authenticator, open tasks">

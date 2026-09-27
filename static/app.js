@@ -3310,6 +3310,7 @@ async function start() {
   call('data_status').then(st => { dataStatus = st; renderDataStatus(); }).catch(() => {});
   await loadHistory();
   await loadTokens();
+  maybeStartOnboarding();
   window.pywebview.api.client_log(`started: ${tokens.size} key(s), ${historyKeys.size} in history`);
 }
 
@@ -3522,8 +3523,10 @@ function init() {
     if (act === 'close') openAbout(false);
     if (act === 'licenses') window.pywebview?.api?.open_licenses();
     if (act === 'updates') { openAbout(false); checkForUpdates(); }
+    if (act === 'intro') { openAbout(false); openOnboarding(); }
   });
   trapFocus($('quick-unlock'));
+  initOnboarding();
   trapFocus($('about-dialog'));
   $('about-dialog').addEventListener('keydown', ev => {
     if (ev.key === 'Escape') { ev.preventDefault(); openAbout(false); }

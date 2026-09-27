@@ -58,3 +58,4 @@ logs/
 *.p12
 *.pfx
 *.keychain-db
+data/build.json
