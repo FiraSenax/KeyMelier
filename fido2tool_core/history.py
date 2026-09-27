@@ -342,6 +342,10 @@ class History:
         with self._lock:
             removed = self._entries.pop(kid, None) is not None
             if removed:
+                # no trace left: drop replacements that pointed to this key
+                for entry in self._entries.values():
+                    if (entry.get("replace") or {}).get("new") == kid:
+                        entry.pop("replace", None)
                 self._save()
             return removed
 

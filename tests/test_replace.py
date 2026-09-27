@@ -52,6 +52,12 @@ class ReplaceProgressTests(unittest.TestCase):
         self.h.clear_sites()
         self.assertNotIn('replace', self.h.get(self.old))
 
+    def test_forgetting_the_new_key_ends_the_replacement(self):
+        self.h.set_replace(self.old, self.new)
+        self.assertTrue(self.h.forget(self.new))
+        self.assertNotIn('replace', self.h.get(self.old))
+        self.assertNotIn(self.new, self.path.read_text())
+
     def test_without_storage_nothing_is_written(self):
         path = Path(self.tmp.name) / 'off.json'
         h = History(path, enabled=False)
