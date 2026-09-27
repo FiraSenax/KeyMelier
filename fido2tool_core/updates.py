@@ -29,19 +29,19 @@ CACHE_SIG = CACHE_DIR / "advisories.json.sig"
 PUBLIC_KEY_B64 = "ggYXnLxwx1iO6YQlNOG7fP0IpqbK7s8HZsiIayMikJQ="
 
 
-def verify(data: bytes, signature_b64: str) -> bool:
+def verify(data: bytes, signature_b64: str, public_key_b64: str = PUBLIC_KEY_B64) -> bool:
     from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
     try:
-        key = Ed25519PublicKey.from_public_bytes(base64.b64decode(PUBLIC_KEY_B64))
+        key = Ed25519PublicKey.from_public_bytes(base64.b64decode(public_key_b64))
         key.verify(base64.b64decode(signature_b64.strip()), data)
         return True
     except (InvalidSignature, ValueError):
         return False
 
 
-def _parse(data: bytes) -> dict | None:
+def parse(data: bytes) -> dict | None:
     try:
         doc = json.loads(data.decode("utf-8"))
         if isinstance(doc, dict) and isinstance(doc.get("advisories"), list) and doc.get("updated"):
@@ -65,7 +65,7 @@ def _read_signed(path: Path, sig_path: Path) -> dict | None:
     if not verify(data, sig):
         logger.warning("Ignoring %s: signature invalid", path)
         return None
-    return _parse(data)
+    return parse(data)
 
 
 def load_best(bundled_dir: Path) -> tuple[dict | None, str]:
@@ -120,7 +120,7 @@ def fetch(current: dict | None) -> dict | None:
     if not verify(data, sig):
         logger.warning("Downloaded advisories rejected: signature invalid")
         return None
-    doc = _parse(data)
+    doc = parse(data)
     if doc is None:
         logger.warning("Downloaded advisories rejected: malformed")
         return None

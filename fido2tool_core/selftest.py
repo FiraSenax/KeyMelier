@@ -125,6 +125,13 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
     check("runtime: keyring backend", keychain)
     check("runtime: pywebview", webview)
     check("data: signed advisory database loaded", lambda: advisories.info().get("count", 0) > 0 and advisories.info())
+
+    def managed_policy():
+        # Registry (winreg) / plist reader is bundled; the report shows what is configured
+        from fido2tool_core import policy
+        raw = policy.read_raw()
+        return {"sources": [s["name"] for s in policy.advisory_sources(raw)], "configured": bool(raw)}
+    check("runtime: managed configuration reader", managed_policy)
     for name in ("advisories.json", "advisories.json.sig"):
         check(f"data: {name}", lambda n=name: (data_dir / n).is_file())
     from fido2tool_core.page import SCRIPTS

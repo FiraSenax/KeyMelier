@@ -419,6 +419,20 @@ async function main() {
     await until('keysPin.step === "done" && keysPin.results["demo-t2"] === "changed"', 'changed');
     await click('#kpin [data-act=kpin-close]');
   });
+  await test('company advisory sources: finding names its source, status listed, nothing to configure', async () => {
+    await js(`(() => { const tk = tokens.get("demo-yk5");
+      tk.advisories = [{ id: "CVE-2024-45678", severity: "MEDIUM" }, { id: "CORP-1", severity: "HIGH", title: "<b>x</b>", origin: "Contoso <IT>" }];
+      selectToken("demo-yk5"); renderSecurity(tk); })()`);
+    const origins = await js('[...$("sec-advisories").querySelectorAll(".advisory-origin")].map(e => e.textContent)');
+    assert(origins.length === 1 && origins[0].includes('Contoso <IT>'), `only the company finding shows its source: ${origins}`);
+    assert(await js('!$("sec-advisories").querySelector("b")'), 'escaped');
+    await js('switchTab("security")');
+    await js(`dataStatus = { ...(dataStatus || {}), advisories: { source: "bundled", updated: new Date().toISOString(), count: 5,
+      policy: [{ name: "Contoso", status: "ok", count: 3 }, { name: "Lab", status: "invalid", count: 0 }] } }; renderDataStatus();`);
+    const text = await js('$("data-status").textContent');
+    assert(text.includes('Contoso') && text.includes('3') && text.includes('Lab'), text);
+    assert(await js('!document.querySelector("input[name*=policy], [data-act*=policy]")'), 'no settings for the sources');
+  });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));
   });

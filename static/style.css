@@ -583,6 +583,7 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 .advisory:last-child { margin-bottom: 0; }
 .advisory-id { font-family: var(--mono); font-weight: 600; color: var(--crit); }
 .advisory-text { font-size: 0.82rem; color: var(--text-2); }
+.advisory-origin { margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--text-2); }
 .advisory-title { font-weight: 600; font-size: 0.88rem; margin: 2px 0; }
 .advisory-link { display: block; font-size: 0.78rem; margin-top: 4px; text-align: left; word-break: break-all; }
 .advisory { background: var(--warn-soft); }

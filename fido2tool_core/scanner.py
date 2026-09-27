@@ -371,7 +371,7 @@ class TokenScanner:
                                                    manufacturer=record.manufacturer)
                 record.cve_ids = [a["id"] for a in advisories]
                 record.advisories = [
-                    {k: a.get(k) for k in ("id", "title", "severity", "cvss", "note", "references")}
+                    {k: a.get(k) for k in ("id", "title", "severity", "cvss", "note", "references", "origin")}
                     for a in advisories
                 ]
                 from fido2tool_core import updates as _updates

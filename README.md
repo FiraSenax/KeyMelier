@@ -182,7 +182,7 @@ across different operating systems, SDKs or signing timestamps.
 
 Which security keys were tested, and how to report yours: [tested keys](https://firasenax.github.io/KeyMelier/hardware.html) (from [HARDWARE_TESTS.md](HARDWARE_TESTS.md); report with the *Tested with a security key* issue form).
 How the app is tested (automatically and with real keys): [TESTING.md](TESTING.md) and
-[HARDWARE_TESTS.md](HARDWARE_TESTS.md). See [RELEASING.md](RELEASING.md) for the signing setup. Version tags publish only
+[HARDWARE_TESTS.md](HARDWARE_TESTS.md). Organisations can add their own signed advisory sources: [ENTERPRISE.md](ENTERPRISE.md). See [RELEASING.md](RELEASING.md) for the signing setup. Version tags publish only
 after tests, signing and platform signature verification succeed. Pushes to main
 produce CI test artifacts, not public unsigned nightly releases. Releases include
 checksums, the source commit and dependency lockfiles.

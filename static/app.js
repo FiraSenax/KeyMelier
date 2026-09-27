@@ -736,6 +736,7 @@ function renderSecurity(token) {
         <div class="advisory-id">${escHtml(a.id)}${a.severity ? ` · ${escHtml(t(`sev.${a.severity}`))}${a.cvss ? ` (CVSS ${escHtml(a.cvss)})` : ''}` : ''}</div>
         ${a.title ? `<div class="advisory-title">${escHtml(a.title)}</div>` : ''}
         <div class="advisory-text">${escHtml(a.note || t('sec.advisory.affects'))}</div>
+        ${a.origin ? `<div class="advisory-origin">${escHtml(t('sec.advisory.origin', { name: a.origin }))}</div>` : ''}
         ${(a.references || []).map(u => `<button type="button" class="btn-link advisory-link" data-url="${escHtml(u)}">${escHtml(u.replace(/^https:\/\//, ''))}</button>`).join('')}
       </div>`).join('')
     : `<p class="muted">${escHtml(t('sec.noAdvisories'))}</p>`;
@@ -967,6 +968,9 @@ function renderDataStatus() {
   el.innerHTML = buildKv([
     [t('data.advisories'), adv.updated ? fmtDate(adv.updated) : t('data.none')],
     [t('data.source'), t(`data.source.${adv.source || 'none'}`)],
+    ...(adv.policy || []).map((p, i) => [i ? '' : t('data.policy'),
+      t(`data.policy.${['ok', 'invalid', 'unreachable'].includes(p.status) ? p.status : 'pending'}`, { name: p.name, n: p.count })]),
+    ...(adv.policy?.length ? [['', t('data.policy.hint')]] : []),
     [t('data.mds'), st.mds?.fetched_at
       ? `${fmtDate(st.mds.fetched_at)}${st.mds.serial ? ` · #${st.mds.serial}` : ''}${st.mds.verified ? ` · ${t('data.verified')}` : ''}`
       : t('data.none')],
