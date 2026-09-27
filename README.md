@@ -44,6 +44,10 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 - **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
 - Explicit CSV export of connected keys to `~/keymelier/exports/`
 
+## License
+
+KeyMelier is MIT licensed (see `LICENSE`). The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build.
+
 ## Download
 
 Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest).

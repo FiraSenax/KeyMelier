@@ -16,6 +16,12 @@ _version_ns = {}
 exec(Path('fido2tool_core/version.py').read_text(), _version_ns)
 APP_VERSION = _version_ns['__version__']
 
+# Licenses of everything bundled on this platform (MIT/BSD need their notices
+# in binary distributions; LGPL/MPL their source locations)
+sys.path.insert(0, str(Path('tools').resolve()))
+import third_party_licenses  # noqa: E402
+LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt')
+
 # Icon path can be overridden via env var (used by CI)
 icon_path = os.environ.get('KEYMELIER_ICON') or None
 
@@ -27,6 +33,8 @@ a = Analysis(
         ('static',        'static'),
         ('data',          'data'),
         ('fido2tool_core','fido2tool_core'),
+        (str(LICENSES_FILE), '.'),
+        ('LICENSE', '.'),
     ],
     hiddenimports=[
         # fido2 / CTAP

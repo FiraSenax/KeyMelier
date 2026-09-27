@@ -4314,6 +4314,22 @@ const LOST2_STRINGS = {
 };
 for (const [code, strings] of Object.entries(LOST2_STRINGS)) Object.assign(STRINGS[code], strings);
 
+// About
+const ABOUT_STRINGS = {
+  de: {"about.licenses": "Open-Source-Lizenzen"},
+  en: {"about.licenses": "Open-source licenses"},
+  es: {"about.licenses": "Licencias de código abierto"},
+  fr: {"about.licenses": "Licences open source"},
+  it: {"about.licenses": "Licenze open source"},
+  nl: {"about.licenses": "Opensourcelicenties"},
+  pl: {"about.licenses": "Licencje open source"},
+  pt: {"about.licenses": "Licenças de código aberto"},
+  ja: {"about.licenses": "オープンソース ライセンス"},
+  ko: {"about.licenses": "오픈 소스 라이선스"},
+  zh: {"about.licenses": "开源许可证"},
+};
+for (const [code, strings] of Object.entries(ABOUT_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 — 2026-09-27
+
+- Third-party license notices: `THIRD_PARTY_LICENSES.txt` (generated at build time from the bundled packages, including source locations for LGPL/MPL components) ships inside the app and with every release; "Open-source licenses" opens it.
+- Copying a PIV certificate no longer truncates it.
+
 ## 1.2.0 — 2026-09-27
 
 - **Authenticator (OATH):** show TOTP/HOTP codes with countdown and one-click copy, add accounts from an otpauth:// link or by hand, rename, delete, set/remove the password, reset. Touch-protected accounts show their code after touching the key.

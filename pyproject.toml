@@ -1,6 +1,6 @@
 [project]
 name = "keymelier"
-version = "1.2.0"
+version = "1.2.1"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "fido2==2.2.1",

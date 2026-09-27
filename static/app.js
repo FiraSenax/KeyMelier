@@ -2919,6 +2919,7 @@ function init() {
   $('pin-show').addEventListener('change', ev => setPinVisible(ev.target.checked));
   $('export-btn').addEventListener('click', exportTokens);
   $('data-check').addEventListener('click', checkDataNow);
+  $('licenses-open').addEventListener('click', () => window.pywebview?.api?.open_licenses());
   $('update-btn').addEventListener('click', () => {
     if (dataStatus?.app?.url) window.pywebview?.api?.open_url(dataStatus.app.url);
   });

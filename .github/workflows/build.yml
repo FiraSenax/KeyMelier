@@ -71,11 +71,15 @@ jobs:
       - name: Remove temporary signing keychain
         if: always() && env.SIGN_MAC == 'true'
         run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
-      - run: ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
+      - run: |
+          ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
+          cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
-          path: dist/KeyMelier-macOS.zip
+          path: |
+            dist/KeyMelier-macOS.zip
+            dist/THIRD_PARTY_LICENSES-macOS.txt
           retention-days: 14
   build-windows:
     needs: test
@@ -129,11 +133,15 @@ jobs:
         id: signed
         shell: bash
         run: echo "signed=$SIGN_WIN" >> "$GITHUB_OUTPUT"
-      - run: Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
+      - run: |
+          Compress-Archive -Path dist\KeyMelier -DestinationPath dist\KeyMelier-Windows.zip
+          Copy-Item build\THIRD_PARTY_LICENSES.txt dist\THIRD_PARTY_LICENSES-Windows.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Windows
-          path: dist/KeyMelier-Windows.zip
+          path: |
+            dist/KeyMelier-Windows.zip
+            dist/THIRD_PARTY_LICENSES-Windows.txt
           retention-days: 14
   release:
     needs: [build-macos, build-windows]

@@ -117,5 +117,18 @@ class CardTests(unittest.TestCase):
             self.assertTrue(written & CAPABILITY.FIDO2)
 
 
+    def test_third_party_licenses_cover_bundled_packages(self):
+        import sys as _sys
+        from pathlib import Path as _Path
+        _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'tools'))
+        import third_party_licenses
+        text = third_party_licenses.build()
+        for name in ('fido2', 'yubikey-manager', 'pywebview', 'cryptography', 'pyscard'):
+            self.assertIn(f'\n{name} ', text)
+        self.assertIn('github.com/LudovicRousseau/pyscard', text)
+        self.assertIn('GNU LESSER GENERAL PUBLIC LICENSE', text)
+        self.assertIn('PSF License', text)
+
+
 if __name__ == '__main__':
     unittest.main()

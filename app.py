@@ -90,9 +90,26 @@ class Api:
         if self._menubar is not None:
             self._menubar.set_language(str(lang)[:5], texts if isinstance(texts, dict) else None)
 
+    def open_licenses(self):
+        """Show the bundled third-party licenses in the system text viewer."""
+        path = ROOT_DIR / "THIRD_PARTY_LICENSES.txt"
+        if not path.exists():  # running from source
+            sys.path.insert(0, str(ROOT_DIR / "tools"))
+            import third_party_licenses
+            path = third_party_licenses.write(ROOT_DIR / "build" / "THIRD_PARTY_LICENSES.txt")
+        try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", "-e", str(path)])
+            elif sys.platform == "win32":
+                os.startfile(str(path))  # noqa: S606 – fixed local file
+            return True
+        except Exception as e:
+            logger.debug("Opening licenses failed: %s", e)
+            return False
+
     def copy_text(self, text):
-        """Put a code on the system clipboard (the web view's clipboard API is unreliable)."""
-        text = str(text)[:256]
+        """Put a code or certificate on the system clipboard (the web view's clipboard API is unreliable)."""
+        text = str(text)[:16384]
         try:
             if sys.platform == "darwin":
                 subprocess.run(["pbcopy"], input=text.encode(), check=True)
