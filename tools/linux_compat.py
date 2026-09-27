@@ -103,7 +103,8 @@ def run(appimage: Path, image: str, emulated: bool, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     arch = arch_of(appimage)
     timeout = os.environ.get("SMOKE_TIMEOUT", "900" if emulated else "300")   # emulation is ~5-10x slower
-    cmd = ["docker", "run", "--rm", "--platform", PLATFORM[arch], "-e", f"SMOKE_TIMEOUT={timeout}",
+    owner = ["-e", f"HOST_UID={os.getuid()}", "-e", f"HOST_GID={os.getgid()}"] if hasattr(os, "getuid") else []
+    cmd = ["docker", "run", "--rm", "--platform", PLATFORM[arch], "-e", f"SMOKE_TIMEOUT={timeout}", *owner,
            "-v", f"{ROOT}:/src:ro", "-v", f"{appimage.resolve().parent}:/app:ro", "-v", f"{out.resolve()}:/out",
            image, "bash", "/src/tests/linux/compat_inside.sh", f"/app/{appimage.name}",
            "emulated" if emulated else "native"]

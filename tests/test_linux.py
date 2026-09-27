@@ -292,6 +292,23 @@ class CompatReportTests(unittest.TestCase):
                 patch.object(self.compat, "run", lambda *a: {"status": "failed"}):
             self.assertEqual(self.compat.main(["run", str(appimage), "ubuntu:24.04", "--out", str(out)]), 1)
 
+    @unittest.skipIf(not hasattr(os, "getuid"), "POSIX")
+    def test_container_hands_results_back_to_the_caller(self):
+        """The container runs as root; on Linux runners its files would stay root's (CI: Permission denied)."""
+        seen = []
+
+        def docker(cmd, **kw):
+            seen.append(cmd)
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="")
+        appimage = self.dir / "KeyMelier-Linux-aarch64.AppImage"
+        appimage.write_bytes(b"x")
+        with patch.object(self.compat.subprocess, "run", docker):
+            self.compat.run(appimage, "debian:13", False, self.dir / "out")
+        self.assertIn(f"HOST_UID={os.getuid()}", seen[0])
+        self.assertIn(f"HOST_GID={os.getgid()}", seen[0])
+        script = (Path(__file__).resolve().parent.parent / "tests" / "linux" / "compat_inside.sh").read_text(encoding="utf-8")
+        self.assertRegex(script, r"trap '.*chown -R \"\$HOST_UID.*' EXIT")
+
     def test_matrix_matches_the_workflow(self):
         wf = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         for image in set(self.compat.MATRIX["x86_64"]) | set(self.compat.MATRIX["aarch64"]):

@@ -9,6 +9,9 @@
 set -uo pipefail
 APPIMAGE="$1"; MODE="${2:-native}"; OUT=/out
 . /etc/os-release
+# The container runs as root; hand the results back to the calling user
+# (Linux CI runners map the uid 1:1), however the script ends
+trap '[ -n "${HOST_UID:-}" ] && chown -R "$HOST_UID:${HOST_GID:-$HOST_UID}" "$OUT"' EXIT
 LOG="$OUT/install.log"
 
 # Runtime prerequisites: the libraries the AppImage takes from the system
