@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keys without passkey management (FIDO 2.0, e.g. YubiKey firmware 5.1) get a "read" action instead of the unlock, a clear explanation instead of "This key does not support that", and "passkeys not readable" in the account overview.
 - Serial numbers in the sidebar, the key header and the account overview – usually printed on the key.
 - Quick unlock: a lock next to each key in the sidebar asks for the PIN and reads everything on the key at once (passkeys, authenticator, OpenPGP, certificates).
 - **Account overview** (personal mode): every service across all keys – passkeys and authenticator codes together – with a recommendation each (only on a lost key, only on one key, codes only, well protected), search and a problems filter; free passkey slots per key.

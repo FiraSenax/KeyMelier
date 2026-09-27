@@ -77,6 +77,7 @@ const ICONS = {
   key: '<rect x="7" y="2" width="10" height="15" rx="3"/><path d="M10 17v4h4v-4"/><circle cx="12" cy="8" r="2"/>',
   fingerprint: '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   lockOpen: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
   plug: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
@@ -248,8 +249,11 @@ function renderSidebar() {
         <span class="key-item-name">${escHtml(displayName(tok))}</span>
         <span class="key-item-sub">${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}</span>
       </span>
-      ${tok.options?.clientPin || tok.options?.uv ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
-        title="${escHtml(t(isUnlocked(tok.id) ? 'ql.lock' : 'ql.unlock'))}">${icon(isUnlocked(tok.id) ? 'lockOpen' : 'lock', 15)}</span>` : ''}
+      ${canManage(tok) && (tok.options?.clientPin || tok.options?.uv)
+        ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
+            title="${escHtml(t(isUnlocked(tok.id) ? 'ql.lock' : 'ql.unlock'))}">${icon(isUnlocked(tok.id) ? 'lockOpen' : 'lock', 15)}</span>`
+        : cardApps.get(tok.id)?.oath || cardApps.get(tok.id)?.openpgp || cardApps.get(tok.id)?.piv
+          ? `<span class="quick-lock" data-read="${escHtml(tok.id)}" role="button" tabindex="0" title="${escHtml(t('ql.read'))}">${icon('refresh', 15)}</span>` : ''}
       <span class="status-dot ${escHtml(tok.security_status)}" title="${escHtml(t(`status.${tok.security_status}`))}"></span>
     </button>`).join('');
 }
@@ -299,7 +303,8 @@ function render() {
   const token = currentToken();
   $('empty-view').classList.toggle('hidden', !!token);
   $('key-view').classList.toggle('hidden', !token);
-  if (token) { renderKeyView(token); if (!token.offline) loadCardApps(token); }
+  if (token) renderKeyView(token);
+  for (const tok of tokens.values()) loadCardApps(tok);  // cached; drives tabs and sidebar actions
 }
 
 function renderKeyView(token) {
@@ -664,9 +669,10 @@ function renderAccountsView() {
   const shown = rows.filter(r => (!accOnlyProblems || r.level !== 'ok') && (!q || r.key.includes(q) || serviceKey(r.label).includes(q)));
   const head = keys.map(k => {
     const free = k.snapshot?.remaining_disc_creds;
+    const noList = k.snapshot?.options && !canManage(k.snapshot);
     return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
       <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
-      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
+      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : noList ? t('acc.noList') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
   }).join('');
   el.innerHTML = `
     <div class="acc-summary">
@@ -918,9 +924,9 @@ async function loadCardApps(token) {
   const tries = (cardRetries.get(token.id) || 0) + 1;
   cardRetries.set(token.id, tries);
   if (retry && tries <= 3) {
-    setTimeout(() => { cardApps.delete(token.id); if (selectedId === token.id) render(); }, 4000);
+    setTimeout(() => { cardApps.delete(token.id); if (selectedId === token.id) render(); else loadCardApps(token); }, 4000);
   }
-  if (selectedId === token.id) render();
+  if (selectedId === token.id) render(); else renderSidebar();
 }
 
 function selectToken(id) {
@@ -1345,6 +1351,12 @@ function loadManagement(token) {
 const unlockedUntil = new Map();   // token id -> ms timestamp (mirrors the server-side TTL)
 let quickUnlock = null;            // { id, busy, error }
 
+// Something a PIN unlock gives access to (passkey list, fingerprints, settings)
+function canManage(tok) {
+  const o = tok?.options || {};
+  return !!(o.credMgmt || o.credentialMgmtPreview || o.bioEnroll || o.userVerificationMgmtPreview || o.authnrCfg);
+}
+
 function isUnlocked(id) {
   return (unlockedUntil.get(id) || 0) > Date.now();
 }
@@ -1402,6 +1414,22 @@ async function quickUnlockSubmit(method) {
     quickUnlock = { ...quickUnlock, busy: false, error: errorMessage(e) };
     renderQuickUnlock();
   }
+}
+
+// Keys without passkey management: read the smart card applications (no PIN)
+async function quickRead(id, btn) {
+  const tok = tokens.get(id);
+  if (!tok) return;
+  btn.classList.add('busy');
+  const got = await call('read_contents', { token_id: id }).catch(() => ({}));
+  const parts = [
+    got.oath != null ? t('ql.got.oath', { n: got.oath }) : '',
+    got.openpgp ? t('ql.got.pgp', { n: got.openpgp }) : '',
+    got.piv ? t('ql.got.piv', { n: got.piv }) : '',
+  ].filter(Boolean);
+  showToast(t('ql.readDone', { name: displayName(tok) }) + (parts.length ? ` – ${parts.join(', ')}` : ''), 'success');
+  await loadHistory();
+  render();
 }
 
 async function quickLockToggle(id) {
@@ -3291,6 +3319,8 @@ function init() {
   $('key-list').addEventListener('click', ev => {
     const lockBtn = ev.target.closest('[data-unlock]');
     if (lockBtn) { ev.stopPropagation(); quickLockToggle(lockBtn.dataset.unlock); return; }
+    const readBtn = ev.target.closest('[data-read]');
+    if (readBtn) { ev.stopPropagation(); quickRead(readBtn.dataset.read, readBtn); return; }
     const item = ev.target.closest('.key-item');
     if (item) selectToken(item.dataset.id);
   });

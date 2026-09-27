@@ -4458,6 +4458,22 @@ const QL_STRINGS = {
 };
 for (const [code, strings] of Object.entries(QL_STRINGS)) Object.assign(STRINGS[code], strings);
 
+// Keys without passkey management
+const NOMGMT_STRINGS = {
+  de: {"err.no_management": "Dieser Schlüssel kann Passkeys nicht auflisten oder verwalten – das geht erst ab FIDO 2.1 (bei YubiKeys ab Firmware 5.2). Seine Passkeys funktionieren trotzdem.", "ql.read": "Authenticator, OpenPGP und Zertifikate lesen", "ql.readDone": "{name} gelesen", "acc.noList": "Passkeys nicht auslesbar"},
+  en: {"err.no_management": "This key cannot list or manage passkeys – that needs FIDO 2.1 (on YubiKeys firmware 5.2 or newer). Its passkeys still work.", "ql.read": "Read authenticator, OpenPGP and certificates", "ql.readDone": "{name} read", "acc.noList": "passkeys not readable"},
+  es: {"err.no_management": "Esta llave no puede listar ni gestionar passkeys: requiere FIDO 2.1 (en YubiKey, firmware 5.2 o posterior). Sus passkeys siguen funcionando.", "ql.read": "Leer autenticador, OpenPGP y certificados", "ql.readDone": "{name} leída", "acc.noList": "passkeys no legibles"},
+  fr: {"err.no_management": "Cette clé ne peut pas lister ni gérer les passkeys – il faut FIDO 2.1 (sur YubiKey, firmware 5.2 ou plus récent). Ses passkeys fonctionnent quand même.", "ql.read": "Lire authentificateur, OpenPGP et certificats", "ql.readDone": "{name} lue", "acc.noList": "passkeys non lisibles"},
+  it: {"err.no_management": "Questa chiave non può elencare né gestire le passkey: serve FIDO 2.1 (su YubiKey firmware 5.2 o successivo). Le sue passkey funzionano comunque.", "ql.read": "Leggi autenticatore, OpenPGP e certificati", "ql.readDone": "{name} letta", "acc.noList": "passkey non leggibili"},
+  nl: {"err.no_management": "Deze sleutel kan passkeys niet tonen of beheren – daarvoor is FIDO 2.1 nodig (bij YubiKeys firmware 5.2 of nieuwer). De passkeys werken wel.", "ql.read": "Authenticator, OpenPGP en certificaten lezen", "ql.readDone": "{name} gelezen", "acc.noList": "passkeys niet leesbaar"},
+  pl: {"err.no_management": "Ten klucz nie może wyświetlać ani zarządzać passkeys – wymaga to FIDO 2.1 (w YubiKey firmware 5.2 lub nowszy). Jego passkeys nadal działają.", "ql.read": "Odczytaj uwierzytelniacz, OpenPGP i certyfikaty", "ql.readDone": "Odczytano {name}", "acc.noList": "passkeys nieczytelne"},
+  pt: {"err.no_management": "Esta chave não pode listar nem gerir passkeys – requer FIDO 2.1 (em YubiKey, firmware 5.2 ou mais recente). As passkeys continuam a funcionar.", "ql.read": "Ler autenticador, OpenPGP e certificados", "ql.readDone": "{name} lida", "acc.noList": "passkeys não legíveis"},
+  ja: {"err.no_management": "このキーはパスキーの一覧表示や管理ができません。FIDO 2.1（YubiKey ではファームウェア 5.2 以降）が必要です。パスキー自体は使えます。", "ql.read": "認証アプリ・OpenPGP・証明書を読み取る", "ql.readDone": "{name} を読み取りました", "acc.noList": "パスキーは読み取り不可"},
+  ko: {"err.no_management": "이 키는 패스키를 나열하거나 관리할 수 없습니다. FIDO 2.1(YubiKey는 펌웨어 5.2 이상)이 필요합니다. 패스키 자체는 계속 작동합니다.", "ql.read": "인증기, OpenPGP, 인증서 읽기", "ql.readDone": "{name} 읽음", "acc.noList": "패스키 읽기 불가"},
+  zh: {"err.no_management": "此密钥无法列出或管理通行密钥——需要 FIDO 2.1（YubiKey 为固件 5.2 或更高版本）。其通行密钥仍可正常使用。", "ql.read": "读取身份验证器、OpenPGP 和证书", "ql.readDone": "已读取 {name}", "acc.noList": "无法读取通行密钥"},
+};
+for (const [code, strings] of Object.entries(NOMGMT_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

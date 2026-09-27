@@ -96,7 +96,8 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False) -
         raise AuthError("Set a PIN first – the key only allows management after PIN entry.", "pin_not_set")
     perm = _permissions(info)
     if not perm:
-        raise AuthError("This key has nothing to manage.", "unsupported")
+        raise AuthError("This key cannot list or manage passkeys – that needs FIDO 2.1 "
+                        "(on YubiKeys firmware 5.2 or newer). Its passkeys still work.", "no_management")
 
     client_pin = ClientPin(ctap2)
     try:
