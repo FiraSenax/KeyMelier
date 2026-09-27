@@ -13,6 +13,8 @@
     settings: () => switchTab('settings'),
     history: () => switchTab('history'),
     details: () => switchTab('details'),
+    accounts: () => showAccountsView(),
+    shared: () => { appSettings.personal_mode = false; lostKid = 'c3c3c3c3c3c3c3c3'; showBackupView(); },
     backup: () => showBackupView(),
     lost: () => { showBackupView(); lostKid = 'c3c3c3c3c3c3c3c3'; renderBackupView(); document.querySelector('#bk-lost-select')?.scrollIntoView(); },
   };

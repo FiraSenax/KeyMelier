@@ -32,6 +32,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
 - **Passkeys:** list discoverable credentials per website, rename and delete them
+- **Account overview:** every service across all your keys with what to improve – only on one key, only on a lost key, codes only (for people whose keys all belong to them; can be turned off when managing keys for several people)
 - **Backup & loss:** which websites and authenticator accounts are on which key, those without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from, the authenticator accounts to re-enroll, the OpenPGP keys to revoke and the PIV certificates to have revoked
 - **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change

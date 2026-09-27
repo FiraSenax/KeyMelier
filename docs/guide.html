@@ -49,6 +49,7 @@
   <a href="#otp">OTP slots</a>
   <h4>Keeping track</h4>
   <a href="#history">History</a>
+  <a href="#accounts">Account overview</a>
   <a href="#backup">Backup &amp; lost keys</a>
   <a href="#data">Data, updates &amp; privacy</a>
   <a href="#troubleshooting">Troubleshooting</a>
@@ -151,6 +152,12 @@
   <h2 id="history">History</h2>
   <img class="shot" src="img/history.png" alt="History with key facts, what's on it and activity">
   <p>Every key KeyMelier has seen stays in the sidebar with its last known state. Give it a name, see serial number, AAGUID and an activity timeline – and <b>what's on it</b>: passkey websites, authenticator accounts, OpenPGP keys, certificates and OTP slots, with the time they were last read. Only names are stored, never secrets or codes.</p>
+
+  <h2 id="accounts">Account overview</h2>
+  <img class="shot" src="img/accounts.png" alt="Account overview across all keys">
+  <p><b>Accounts</b> (top of the sidebar) lists every service across all your keys – passkeys and authenticator codes together – with a recommendation for each: only on a lost key, only on one key (add it to a second one), codes only (check whether the service offers passkeys), or protected on several keys. Problems come first; search and "Only what needs action" help with long lists. The column headers show how many passkey slots each key has left.</p>
+  <p>The overview assumes that <b>all keys belong to you</b>. If you manage keys for several people, turn off <b>All keys belong to me</b> under Backup &amp; loss: the overview, the backup tables and the "backup on" hints are then hidden, because one person's key is not another person's backup.</p>
+  <p class="note">KeyMelier only knows what it has read: open Passkeys and Authenticator once per key. Classic U2F registrations are not stored on the key and cannot appear. Services are matched by name and domain.</p>
 
   <h2 id="backup">Backup &amp; lost keys</h2>
   <img class="shot" src="img/backup.png" alt="Backup overview of websites and accounts per key">

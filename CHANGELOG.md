@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Account overview** (personal mode): every service across all keys – passkeys and authenticator codes together – with a recommendation each (only on a lost key, only on one key, codes only, well protected), search and a problems filter; free passkey slots per key.
+- **"All keys belong to me"** setting: turn it off when managing keys for several people – cross-key overviews and backup hints are then hidden.
 - The macOS disk image opens as a styled window: KeyMelier and Applications side by side with a "drag to install" arrow, in KeyMelier's colours (`packaging/dmg-background.svg`, built with dmgbuild).
 
 ## 1.3.1 — 2026-09-27

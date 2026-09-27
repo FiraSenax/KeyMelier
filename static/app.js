@@ -20,7 +20,7 @@ let histConfirmForget = false;
 let dataStatus = null;    // freshness of advisories and FIDO metadata
 const cardApps = new Map(); // token id -> { oath, piv, openpgp, otp } available on the smart card
 const cardRetries = new Map();
-let mainView = 'key';     // 'key' | 'backup'
+let mainView = 'key';     // 'key' | 'backup' | 'accounts'
 let appSettings = {};     // persisted settings (remember_sites, ...)
 let lostKid = null;       // key selected in the lost-key assistant
 
@@ -269,9 +269,19 @@ function render() {
   if (selectedHist && !historyKeys.has(selectedHist)) selectedHist = null;
   if (!selectedId && !selectedHist && tokens.size) selectedId = tokens.keys().next().value;
 
+  if (mainView === 'accounts' && !personalMode()) mainView = 'key';
   renderSidebar();
   $('nav-backup').classList.toggle('active', mainView === 'backup');
+  $('nav-accounts').classList.toggle('active', mainView === 'accounts');
+  $('nav-accounts').classList.toggle('hidden', !personalMode());
   $('backup-view').classList.toggle('hidden', mainView !== 'backup');
+  $('accounts-view').classList.toggle('hidden', mainView !== 'accounts');
+  if (mainView === 'accounts') {
+    $('empty-view').classList.add('hidden');
+    $('key-view').classList.add('hidden');
+    renderAccountsView();
+    return;
+  }
   if (mainView === 'backup') {
     $('empty-view').classList.add('hidden');
     $('key-view').classList.add('hidden');
@@ -360,7 +370,7 @@ function securityChecks(token) {
     else add('info', 'chk.secondFinger', {}, 'fingerprints');
   }
 
-  const backup = backupStatus(token);
+  const backup = personalMode() ? backupStatus(token) : null;
   if (backup && backup.onlyHere.length) add('warn', 'chk.noBackup', { n: backup.onlyHere.length }, 'history');
   else if (backup) add('ok', 'chk.backupOk');
 
@@ -432,8 +442,18 @@ function renderBackupView() {
     <p class="field-hint bk-hint">${escHtml(t('histx.hint'))}</p>
   </section>`);
 
-  // Coverage matrix: websites x keys
-  if (!withSites.length) {
+  parts.push(`<section class="card">
+    <label class="switch-row">
+      <input type="checkbox" id="personal-mode" ${personalMode() ? 'checked' : ''}>
+      <span>${escHtml(t('acc.mode'))}</span>
+    </label>
+    <p class="field-hint bk-hint">${escHtml(t(personalMode() ? 'acc.mode.on' : 'acc.mode.off'))}</p>
+  </section>`);
+
+  // Coverage matrix: websites x keys (only meaningful if all keys are one person's)
+  if (!personalMode()) {
+    // skip cross-key matrices
+  } else if (!withSites.length) {
     parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('bk.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('bk.empty.text'))}</div></div>`);
   } else {
@@ -460,7 +480,7 @@ function renderBackupView() {
   }
 
   // Coverage matrix: authenticator accounts x keys
-  const withOath = entries.filter(e => e.inventory?.oath);
+  const withOath = personalMode() ? entries.filter(e => e.inventory?.oath) : [];
   const oathId = a => `${a.issuer || ''}\u0000${a.name || ''}`;
   const accounts = [...new Map(withOath.flatMap(e => e.inventory.oath.items || []).map(a => [oathId(a), a])).values()]
     .sort((a, b) => inventoryLabel(a).localeCompare(inventoryLabel(b)));
@@ -496,7 +516,8 @@ function renderBackupView() {
 }
 
 function lostAssistantHtml(entry) {
-  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since);
+  const others = personalMode()
+    ? [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && e.sites && !e.lost_since) : [];
   const done = new Set(entry.lost_done || []);
   const sites = entry.sites || [];
   const toggle = entry.lost_since
@@ -509,7 +530,7 @@ function lostAssistantHtml(entry) {
       return `<li class="${done.has(s.rp_id) ? 'done' : ''}">
         <label><input type="checkbox" data-site="${escHtml(s.rp_id)}" ${done.has(s.rp_id) ? 'checked' : ''}>
           <span class="bk-site">${escHtml(s.rp_id)}</span></label>
-        <span class="bk-backup ${backups.length ? 'ok' : 'warn'}">${escHtml(backups.length ? t('bk.lost.backupOn', { names: backups.join(', ') }) : t('bk.lost.noBackup'))}</span>
+        ${personalMode() ? `<span class="bk-backup ${backups.length ? 'ok' : 'warn'}">${escHtml(backups.length ? t('bk.lost.backupOn', { names: backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
       </li>`;
     }).join('')}</ul>
     <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t(entry.sites ? 'bk.lost.emptyKey' : 'bk.lost.notRecorded'))}</p>
@@ -525,7 +546,7 @@ function lostAssistantHtml(entry) {
 // Authenticator accounts, OpenPGP keys and PIV certificates of a lost key
 function lostInventoryHtml(entry, done) {
   const inv = entry.inventory || {};
-  const others = [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && !e.lost_since);
+  const others = personalMode() ? [...historyKeys.values()].filter(e => e.key_id !== entry.key_id && !e.lost_since) : [];
   const groups = [];
   const oath = inv.oath?.items || [];
   if (oath.length) {
@@ -545,8 +566,133 @@ function lostInventoryHtml(entry, done) {
     <ul class="bk-lost-list">${g.items.map(i => `<li class="${done.has(i.id) ? 'done' : ''}">
       <label><input type="checkbox" data-site="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''}>
         <span class="bk-site">${escHtml(i.label)}</span></label>
-      ${i.backups ? `<span class="bk-backup ${i.backups.length ? 'ok' : 'warn'}">${escHtml(i.backups.length ? t('bk.lost.backupOn', { names: i.backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
+      ${i.backups && personalMode() ? `<span class="bk-backup ${i.backups.length ? 'ok' : 'warn'}">${escHtml(i.backups.length ? t('bk.lost.backupOn', { names: i.backups.join(', ') }) : t('bk.lost.noBackup'))}</span>` : ''}
     </li>`).join('')}</ul>`).join('');
+}
+
+// ── Accounts overview (personal mode) ───────────────────────────────────────
+
+function personalMode() {
+  return appSettings.personal_mode !== false;
+}
+
+// "login.microsoft.com" / "Microsoft" / "GitHub" -> "microsoft" / "github"
+const MULTI_TLD = new Set(['co.uk', 'com.au', 'co.jp', 'co.nz', 'com.br', 'co.za', 'com.tr']);
+function serviceKey(value) {
+  let v = String(value || '').toLowerCase().trim();
+  if (v.includes('.')) {
+    const parts = v.replace(/^https?:\/\//, '').split('/')[0].split('.');
+    const tail2 = parts.slice(-2).join('.');
+    v = parts.length >= 3 && MULTI_TLD.has(tail2) ? parts[parts.length - 3] : parts[parts.length - 2] || parts[0];
+  }
+  return v.replace(/[^a-z0-9]/g, '');
+}
+
+let accFilter = '';
+let accOnlyProblems = false;
+
+function accountsModel() {
+  const keys = [...historyKeys.values()].sort((a, b) => (a.lost_since ? 1 : 0) - (b.lost_since ? 1 : 0));
+  const services = new Map();
+  const alias = new Map();   // name- or domain-derived key -> service
+  // A service is known by several spellings ("AWS" code, "aws.amazon.com"
+  // passkey named "AWS"): any shared spelling joins them
+  const get = (candidates, label) => {
+    const keysFor = [...new Set(candidates.filter(Boolean))];
+    let svc = keysFor.map(k => alias.get(k)).find(Boolean);
+    if (!svc) {
+      svc = { key: keysFor[0] || serviceKey(label), label, hits: new Map() };
+      services.set(svc.key, svc);
+    }
+    keysFor.forEach(k => alias.set(k, svc));
+    return svc;
+  };
+  for (const e of keys) {
+    for (const s of e.sites || []) {
+      const svc = get([serviceKey(s.name), serviceKey(s.rp_id)], s.name || s.rp_id);
+      const hit = svc.hits.get(e.key_id) || { passkey: 0, codes: [] };
+      hit.passkey += s.count || 1;
+      hit.rp = s.rp_id;
+      svc.hits.set(e.key_id, hit);
+    }
+    for (const a of e.inventory?.oath?.items || []) {
+      const issuer = a.issuer || String(a.name || '').split(':')[0];
+      // the account name (often an e-mail address) never identifies the service
+      const svc = get([serviceKey(issuer)], issuer || a.name);
+      const hit = svc.hits.get(e.key_id) || { passkey: 0, codes: [] };
+      hit.codes.push(a.name);
+      svc.hits.set(e.key_id, hit);
+    }
+  }
+  const rows = [...services.values()].map(svc => {
+    const holders = keys.filter(k => svc.hits.has(k.key_id));
+    const active = holders.filter(k => !k.lost_since);
+    const hasPasskey = holders.some(k => svc.hits.get(k.key_id).passkey);
+    let level, note;
+    if (!active.length) { level = 'crit'; note = t('acc.st.lostOnly'); }
+    else if (active.length === 1) { level = 'warn'; note = t('acc.st.single', { key: keyLabel(active[0]) }); }
+    else if (!hasPasskey) { level = 'info'; note = t('acc.st.codesOnly', { n: active.length }); }
+    else { level = 'ok'; note = t('acc.st.ok', { n: active.length }); }
+    return { ...svc, level, note, count: active.length };
+  });
+  const order = { crit: 0, warn: 1, info: 2, ok: 3 };
+  rows.sort((a, b) => order[a.level] - order[b.level] || a.label.localeCompare(b.label));
+  return { keys, rows };
+}
+
+function renderAccountsView() {
+  $('accounts-avatar').innerHTML = icon('passkey', 30);
+  const el = $('accounts-content');
+  const { keys, rows } = accountsModel();
+  const unread = keys.filter(k => !k.sites && !k.inventory?.oath);
+  if (!rows.length) {
+    el.innerHTML = `<div class="callout"><div class="callout-title">${escHtml(t('acc.empty.title'))}</div>
+      <div class="callout-text">${escHtml(t('acc.empty.text'))}</div></div>`;
+    return;
+  }
+  const count = lvl => rows.filter(r => r.level === lvl).length;
+  const q = serviceKey(accFilter);
+  const shown = rows.filter(r => (!accOnlyProblems || r.level !== 'ok') && (!q || r.key.includes(q) || serviceKey(r.label).includes(q)));
+  const head = keys.map(k => {
+    const free = k.snapshot?.remaining_disc_creds;
+    return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
+      <span class="acc-sub">${escHtml(k.lost_since ? t('bk.lostBadge') : free != null ? t('acc.free', { n: free }) : '')}</span></th>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="acc-summary">
+      <div class="acc-stat"><b>${rows.length}</b><span>${escHtml(t('acc.sum.services'))}</span></div>
+      <div class="acc-stat crit"><b>${count('crit')}</b><span>${escHtml(t('acc.sum.lost'))}</span></div>
+      <div class="acc-stat warn"><b>${count('warn')}</b><span>${escHtml(t('acc.sum.single'))}</span></div>
+      <div class="acc-stat info"><b>${count('info')}</b><span>${escHtml(t('acc.sum.codes'))}</span></div>
+      <div class="acc-stat ok"><b>${count('ok')}</b><span>${escHtml(t('acc.sum.ok'))}</span></div>
+    </div>
+    <section class="card">
+      <div class="acc-tools">
+        <input type="search" id="acc-search" placeholder="${escHtml(t('acc.search'))}" value="${escHtml(accFilter)}" spellcheck="false">
+        <label class="check"><input type="checkbox" id="acc-problems" ${accOnlyProblems ? 'checked' : ''}><span>${escHtml(t('acc.onlyProblems'))}</span></label>
+      </div>
+      <div class="bk-table-wrap"><table class="bk-table acc-table">
+        <thead><tr><th>${escHtml(t('acc.service'))}</th>${head}</tr></thead>
+        <tbody>${shown.map(r => `<tr class="acc-${r.level}">
+          <td class="acc-name"><span class="pk-avatar">${escHtml((r.label[0] || '?').toUpperCase())}</span>
+            <span><span class="acc-label">${escHtml(r.label)}</span><span class="acc-note">${escHtml(r.note)}</span></span></td>
+          ${keys.map(k => {
+            const h = r.hits.get(k.key_id);
+            if (!h) return `<td class="no${k.lost_since ? ' lost' : ''}">–</td>`;
+            const tags = [h.passkey ? `<span class="pill on">${escHtml(t('acc.passkey'))}</span>` : '',
+              h.codes.length ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
+            return `<td class="yes${k.lost_since ? ' lost' : ''}">${tags}</td>`;
+          }).join('')}
+        </tr>`).join('') || `<tr><td colspan="${keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
+      </table></div>
+      ${unread.length ? `<p class="field-hint bk-hint">${escHtml(t('acc.unread', { names: unread.map(keyLabel).join(', ') }))}</p>` : ''}
+      <p class="field-hint bk-hint">${escHtml(t('acc.hint'))}</p>
+    </section>`;
+}
+
+function showAccountsView() {
+  mainView = 'accounts';
+  render();
 }
 
 function showBackupView() {
@@ -1052,7 +1198,7 @@ async function saveHistoryName(label) {
 }
 
 function onHistoryUpdated(summary) {
-  if (mainView === 'backup') {
+  if (mainView === 'backup' || mainView === 'accounts') {
     if (summary.replaces) historyKeys.delete(summary.replaces);
     historyKeys.set(summary.key_id, summary);
     render();
@@ -3056,11 +3202,31 @@ function init() {
   });
   $('nav-backup').addEventListener('click', showBackupView);
   $('nav-backup-icon').innerHTML = icon('shield', 18);
+  $('nav-accounts').addEventListener('click', showAccountsView);
+  $('nav-accounts-icon').innerHTML = icon('passkey', 18);
+  $('accounts-content').addEventListener('input', ev => {
+    if (ev.target.id === 'acc-search') {
+      accFilter = ev.target.value;
+      const pos = ev.target.selectionStart;
+      renderAccountsView();
+      const box = $('acc-search');
+      box.focus();
+      box.setSelectionRange(pos, pos);
+    }
+  });
+  $('accounts-content').addEventListener('change', ev => {
+    if (ev.target.id === 'acc-problems') { accOnlyProblems = ev.target.checked; renderAccountsView(); }
+  });
   $('backup-content').addEventListener('change', async ev => {
     const el = ev.target;
     if (el.id === 'history-enabled') {
       appSettings = await call('set_settings', { values: { history_enabled: el.checked } }).catch(() => appSettings);
       renderBackupView();
+    }
+    if (el.id === 'personal-mode') {
+      appSettings = await call('set_settings', { values: { personal_mode: el.checked } }).catch(() => appSettings);
+      render();
+      return;
     }
     if (el.id === 'bk-remember') {
       appSettings = await call('set_settings', { values: { remember_sites: el.checked } }).catch(() => appSettings);

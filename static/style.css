@@ -1221,3 +1221,23 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 #pq-card .kv { margin: 10px 0 12px; }
 #pq-card .att-summary { margin-bottom: 4px; }
 .pgp-form .callout, .app-form .callout { margin-bottom: 10px; }
+
+/* Accounts overview */
+.acc-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.acc-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.acc-stat b { display: block; font-size: 1.5rem; line-height: 1.1; }
+.acc-stat span { font-size: 0.8rem; color: var(--text-2); }
+.acc-stat.crit b { color: var(--crit); } .acc-stat.warn b { color: var(--warn); } .acc-stat.ok b { color: var(--ok); }
+.acc-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.acc-tools input[type=search] { flex: 1; min-width: 180px; }
+.acc-table td.yes .pill { margin: 1px 2px; font-size: 0.72rem; }
+.acc-name { display: flex; align-items: center; gap: 10px; min-width: 260px; }
+.acc-label { display: block; font-weight: 600; }
+.acc-name .pk-avatar { width: 26px; height: 26px; font-size: 0.8rem; }
+.acc-key { white-space: nowrap; }
+.acc-key .acc-sub { display: block; font-weight: 400; font-size: 0.72rem; color: var(--text-2); }
+.acc-note { display: block; font-size: 0.8rem; white-space: normal; color: var(--text-2); }
+.acc-crit .acc-note { color: var(--crit); } .acc-warn .acc-note { color: var(--warn); } .acc-ok .acc-note { color: var(--ok); }
+#acc-search { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font: inherit; outline: none; }
+#acc-search:focus { border-color: var(--accent); }

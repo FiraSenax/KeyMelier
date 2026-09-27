@@ -22,6 +22,11 @@
         <span class="key-item-text"><span class="key-item-name" data-i18n="bk.nav"></span></span>
       </button>
 
+      <button type="button" id="nav-accounts" class="key-item nav-item">
+        <span class="key-item-icon" id="nav-accounts-icon"></span>
+        <span class="key-item-text"><span class="key-item-name" data-i18n="acc.nav"></span></span>
+      </button>
+
       <div class="sidebar-label" data-i18n="sidebar.keys"></div>
       <nav id="key-list" class="key-list"></nav>
       <p id="key-list-empty" class="key-list-empty" data-i18n="sidebar.none"></p>
@@ -58,6 +63,17 @@
         <h1 data-i18n="empty.playful"></h1>
         <p data-i18n="empty.text"></p>
         <p class="hint" data-i18n="empty.hint"></p>
+      </section>
+
+      <section id="accounts-view" class="key-view hidden">
+        <header class="key-header">
+          <div class="key-avatar" id="accounts-avatar"></div>
+          <div class="key-heading">
+            <h1 data-i18n="acc.title"></h1>
+            <p data-i18n="acc.subtitle"></p>
+          </div>
+        </header>
+        <div id="accounts-content" class="pane-stack backup-content"></div>
       </section>
 
       <section id="backup-view" class="key-view hidden">

@@ -274,7 +274,8 @@ class KeyService:
 
     def get_settings(self) -> dict:
         # lang: the user's explicit choice (absent = follow the system)
-        return {"history_enabled": not stateless(), "remember_sites": not stateless(), **self._stored_settings(),
+        return {"history_enabled": not stateless(), "remember_sites": not stateless(), "personal_mode": True,
+                **self._stored_settings(),
                 "stateless": stateless(), "system_languages": system_languages()}
 
     def set_settings(self, values: dict) -> dict:
@@ -292,6 +293,11 @@ class KeyService:
                 self.history.set_enabled(settings[key])
                 if settings.get("remember_sites") is False:
                     self.history.clear_sites()
+            elif key == "personal_mode":
+                # All keys belong to one person: cross-key overviews make sense
+                if not isinstance(value, bool):
+                    raise PinError("Expected a boolean", "invalid_input")
+                settings["personal_mode"] = value
             elif key == "remember_sites":
                 settings["remember_sites"] = value is True and not stateless()
                 if not value:
