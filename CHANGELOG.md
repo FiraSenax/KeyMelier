@@ -28,6 +28,7 @@ The first release since 1.7.0 (1.7.1 was prepared but never published; its chang
 
 - **SBOM complete and checked:** also lists the PyInstaller bootloader, both OpenSSL builds and the Simple Icons data; SPDX licenses for every component; the SHA-256 of each file actually installed (pip report, checked against the lock). Every CI build rejects an incomplete SBOM.
 - Quality: UI tests with real keyboard input in CI, a start test of the packaged app on macOS and Windows, upgrade tests with data written by earlier releases, failure-case tests, `app.js` split into view modules, [TESTING.md](TESTING.md) and a hardware test matrix.
+- **Source revision in every build:** About shows the commit the app was built from ("modified" for a local build with uncommitted changes, "unknown" without one); the diagnostic report contains the full commit; the release checks require it to match SOURCE_COMMIT.txt in every package.
 - Release checks: the release job restores the AppImages' execute bit after the artifact transfer; a manual **release rehearsal** in CI runs the same builds, transfer and checks as a release without publishing, and keeps the checked packages and a report. The AppImages are start-tested unchanged in clean containers of the supported distributions on x86-64 and ARM64. UI load tests with 12 keys and 300+ accounts (search/filter speed, focus, sticky headers, dialogs at 1280×800 and 820×560, light/dark). The build workflow is valid YAML again and checked by a test.
 
 **Known limitations**

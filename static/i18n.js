@@ -4838,6 +4838,21 @@ const I18N_LOCKED = {
 };
 for (const [code, strings] of Object.entries(I18N_LOCKED)) Object.assign(STRINGS[code], strings);
 
+const I18N_BUILD = {
+  de: {"about.build": "Build {commit}", "about.buildModified": "Build {commit} (lokal verändert)", "about.buildUnknown": "Build unbekannt"},
+  en: {"about.build": "Build {commit}", "about.buildModified": "Build {commit} (modified locally)", "about.buildUnknown": "Build unknown"},
+  es: {"about.build": "Compilación {commit}", "about.buildModified": "Compilación {commit} (modificada localmente)", "about.buildUnknown": "Compilación desconocida"},
+  fr: {"about.build": "Build {commit}", "about.buildModified": "Build {commit} (modifié localement)", "about.buildUnknown": "Build inconnu"},
+  it: {"about.build": "Build {commit}", "about.buildModified": "Build {commit} (modificata localmente)", "about.buildUnknown": "Build sconosciuta"},
+  ja: {"about.build": "ビルド {commit}", "about.buildModified": "ビルド {commit}（ローカルで変更あり）", "about.buildUnknown": "ビルド不明"},
+  ko: {"about.build": "빌드 {commit}", "about.buildModified": "빌드 {commit} (로컬에서 변경됨)", "about.buildUnknown": "빌드 알 수 없음"},
+  nl: {"about.build": "Build {commit}", "about.buildModified": "Build {commit} (lokaal gewijzigd)", "about.buildUnknown": "Build onbekend"},
+  pl: {"about.build": "Kompilacja {commit}", "about.buildModified": "Kompilacja {commit} (zmieniona lokalnie)", "about.buildUnknown": "Kompilacja nieznana"},
+  pt: {"about.build": "Compilação {commit}", "about.buildModified": "Compilação {commit} (modificada localmente)", "about.buildUnknown": "Compilação desconhecida"},
+  zh: {"about.build": "构建 {commit}", "about.buildModified": "构建 {commit}（本地已修改）", "about.buildUnknown": "构建未知"},
+};
+for (const [code, strings] of Object.entries(I18N_BUILD)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

@@ -52,8 +52,8 @@ case "$ID" in
 esac
 
 result() {   # status detail
-  python3 - "$@" <<'PY' 2>/dev/null || printf '{"status": "%s", "detail": "%s", "sha256": "%s", "mode": "%s", "arch": "%s", "id": "%s", "version_id": "%s"}\n' \
-      "$1" "$2" "$(cut -d' ' -f1 /out/sha256.txt 2>/dev/null)" "$MODE" "$(uname -m)" "$ID" "${VERSION_ID:-}" > /out/result.json
+  python3 - "$@" <<'PY' 2>/dev/null || printf '{"status": "%s", "detail": "%s", "sha256": "%s", "mode": "%s", "arch": "%s", "id": "%s", "version_id": "%s", "run_id": "%s"}\n' \
+      "$1" "$2" "$(cut -d' ' -f1 /out/sha256.txt 2>/dev/null)" "$MODE" "$(uname -m)" "$ID" "${VERSION_ID:-}" "${RUN_ID:-}" > /out/result.json
 import json, os, sys
 status, detail = sys.argv[1], sys.argv[2]
 def read(name, default=""):
@@ -70,6 +70,7 @@ except Exception:
 json.dump({"distribution": os_release.get("PRETTY_NAME", "").strip('"'), "id": os_release.get("ID", "").strip('"'),
            "version_id": os_release.get("VERSION_ID", "").strip('"'), "arch": os.uname().machine,
            "mode": os.environ.get("MODE"), "appimage": os.path.basename(os.environ.get("APPIMAGE", "")),
+           "run_id": os.environ.get("RUN_ID", ""),
            "sha256": read("sha256.txt").split(" ")[0], "glibc": read("glibc.txt"),
            "missing_required": [l for l in read("missing-required.txt").splitlines() if l],
            "missing_optional": [l for l in read("missing-optional.txt").splitlines() if l],

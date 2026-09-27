@@ -201,7 +201,8 @@ class CompatReportTests(unittest.TestCase):
 
     GOOD = {"image": "ubuntu:24.04", "distribution": "Ubuntu 24.04", "arch": "x86_64", "mode": "native",
             "glibc": "ldd 2.39", "status": "passed", "checks": 46, "passed_checks": 46, "sha256": "ab" * 32,
-            "missing_required": [], "missing_optional": []}
+            "missing_required": [], "missing_optional": [], "run_id": "r1",
+            "expected": {"sha256": "ab" * 32, "arch": "x86_64", "mode": "native", "run_id": "r1"}}
 
     def result(self, name, content=None, **fields):
         (self.dir / name).mkdir()
@@ -258,7 +259,7 @@ class CompatReportTests(unittest.TestCase):
 
     def test_7_one_bad_result_fails_the_summary(self):
         self.result("a")
-        self.result("b", mode="emulated")
+        self.result("b", mode="emulated", expected={**self.GOOD["expected"], "mode": "emulated"})
         self.result("c", passed_checks=40)
         text, ok = self.compat.report([self.dir])
         self.assertFalse(ok)
@@ -268,30 +269,97 @@ class CompatReportTests(unittest.TestCase):
     def test_8_no_results_fail(self):
         self.assertFalse(self.compat.report([self.dir])[1])
 
+    def container(self, appimage, result, code=0, write=True):
+        """A simulated docker run: writes `result` (with this run's id and the package's real hash)."""
+        import hashlib
+
+        def docker(cmd, **kw):
+            out = Path(next(v.split(":")[0] for v in cmd if v.endswith(":/out")))
+            run_id = next(v.split("=", 1)[1] for v in cmd if v.startswith("RUN_ID="))
+            if write:
+                data = {**result}
+                data.setdefault("run_id", run_id)
+                data.setdefault("sha256", hashlib.sha256(appimage.read_bytes()).hexdigest())
+                data.pop("expected", None)
+                (out / "result.json").write_text(json.dumps(data), encoding="utf-8")
+            return types.SimpleNamespace(returncode=code, stdout="", stderr="")
+        return patch.object(self.compat.subprocess, "run", docker)
+
+    def appimage(self, arch="x86_64", content=b"appimage-bytes"):
+        path = self.dir / f"KeyMelier-Linux-{arch}.AppImage"
+        path.write_bytes(content)
+        return path
+
+    def base(self, **fields):
+        r = {k: v for k, v in self.GOOD.items() if k not in ("expected", "run_id", "sha256")}
+        return {**r, **fields}
+
+    def test_bound_1_matching_report_passes(self):
+        app = self.appimage()
+        with self.container(app, self.base()):
+            r = self.compat.run(app, "ubuntu:24.04", False, self.dir / "out")
+        self.assertEqual(r["status"], "passed", r.get("problems"))
+
+    def test_bound_2_other_sha_fails(self):
+        app = self.appimage()
+        with self.container(app, self.base(sha256="cd" * 32)):
+            r = self.compat.run(app, "ubuntu:24.04", False, self.dir / "out")
+        self.assertEqual(r["status"], "failed")
+        self.assertTrue(any("not the requested package" in p for p in r["problems"]))
+
+    def test_bound_3_wrong_arch_fails(self):
+        app = self.appimage()
+        with self.container(app, self.base(arch="aarch64")):
+            r = self.compat.run(app, "ubuntu:24.04", False, self.dir / "out")
+        self.assertTrue(any("requested 'x86_64'" in p for p in r["problems"]))
+
+    def test_bound_4_other_mode_fails(self):
+        app = self.appimage()
+        with self.container(app, self.base(mode="native")):
+            r = self.compat.run(app, "ubuntu:24.04", True, self.dir / "out")   # emulated requested
+        self.assertTrue(any("requested 'emulated'" in p for p in r["problems"]))
+
+    def test_bound_5_an_old_report_never_counts(self):
+        app, out = self.appimage(), self.dir / "out"
+        out.mkdir()
+        (out / "result.json").write_text(json.dumps(self.GOOD), encoding="utf-8")   # a passed report from before
+        with self.container(app, {}, code=0, write=False):
+            r = self.compat.run(app, "ubuntu:24.04", False, out)
+        self.assertEqual(r["status"], "failed")
+        self.assertTrue(any("no readable result written by this run" in p for p in r["problems"]))
+        with self.container(app, self.base(run_id="from-an-earlier-run")):
+            r = self.compat.run(app, "ubuntu:24.04", False, out)
+        self.assertTrue(any("not from this run" in p for p in r["problems"]))
+
+    def test_bound_6_different_packages_in_one_architecture_fail_the_summary(self):
+        self.result("a")
+        self.result("b", sha256="cd" * 32, expected={**self.GOOD["expected"], "sha256": "cd" * 32})
+        text, ok = self.compat.report([self.dir])
+        self.assertFalse(ok)
+        self.assertIn("2 different SHA-256 values", text)
+
+    def test_bound_7_native_and_emulated_stay_distinguishable(self):
+        self.result("x-native")
+        self.result("x-emulated", mode="emulated", expected={**self.GOOD["expected"], "mode": "emulated"})
+        text, ok = self.compat.report([self.dir])
+        self.assertTrue(ok)
+        self.assertIn("| native |", text)
+        self.assertIn("| emulated |", text)
+
     def test_run_rejects_a_pass_with_missing_libraries_and_a_failed_container(self):
         """run() with a simulated container: the written result decides, and the exit code counts too."""
-        out = self.dir / "run"
-        appimage = self.dir / "KeyMelier-Linux-x86_64.AppImage"
-        appimage.write_bytes(b"x")
-
-        def fake(result, code):
-            def docker(cmd, **kw):
-                out.mkdir(exist_ok=True)
-                (out / "result.json").write_text(json.dumps(result), encoding="utf-8")
-                return types.SimpleNamespace(returncode=code, stdout="", stderr="")
-            return docker
-        cases = [({**self.GOOD, "missing_required": ["libexample.so"]}, 0, "failed"),
-                 (dict(self.GOOD), 1, "failed"),
-                 (dict(self.GOOD), 0, "passed")]
+        app, out = self.appimage(), self.dir / "run"
+        cases = [(self.base(missing_required=["libexample.so"]), 0, "failed"),
+                 (self.base(), 1, "failed"),
+                 (self.base(), 0, "passed")]
         for result, code, expected in cases:
             with self.subTest(code=code, missing=result["missing_required"]):
-                with patch.object(self.compat.subprocess, "run", fake(result, code)):
-                    r = self.compat.run(appimage, "ubuntu:24.04", False, out)
+                with self.container(app, result, code):
+                    r = self.compat.run(app, "ubuntu:24.04", False, out)
                 self.assertEqual(r["status"], expected)
                 self.assertEqual(json.loads((out / "result.json").read_text())["status"], expected)
-        with patch.object(self.compat.subprocess, "run", fake(dict(self.GOOD), 0)), \
-                patch.object(self.compat, "run", lambda *a: {"status": "failed"}):
-            self.assertEqual(self.compat.main(["run", str(appimage), "ubuntu:24.04", "--out", str(out)]), 1)
+        with patch.object(self.compat, "run", lambda *a: {"status": "failed"}):
+            self.assertEqual(self.compat.main(["run", str(app), "ubuntu:24.04", "--out", str(out)]), 1)
 
     @unittest.skipIf(not hasattr(os, "getuid"), "POSIX")
     def test_container_hands_results_back_to_the_caller(self):

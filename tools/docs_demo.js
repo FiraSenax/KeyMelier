@@ -121,7 +121,8 @@
   };
 
   const settings = { history_enabled: true, remember_sites: true, lang: 'en', stateless: false, system_languages: ['en-US'],
-    onboarding_done: true, platform: 'darwin', build: { signed: false, notarized: false } };
+    onboarding_done: true, platform: 'darwin',
+    build: { signed: false, notarized: false, ci: true, commit: '4216033e9d042fa2a010ffeb0374756297418b09', modified: false } };
   const api = {
     get_settings: () => ({ ...settings }),
     set_settings: ({ values }) => Object.assign(settings, values) && { ...settings },
@@ -131,7 +132,7 @@
     mds_status: () => api.data_status().mds,
     // Same shape as fido2tool_core/diagnostics.py (demo values only)
     diagnostics: () => ({ format: 'keymelier-diagnostics', created: iso(0).slice(0, 16) + 'Z',
-      app: { version: '1.7.0', build: { signed: false, notarized: false, ci: true } },
+      app: { version: '1.7.0', build: { ...settings.build } },
       system: { platform: 'darwin', os: 'Darwin', os_release: '25.0.0', distribution: null, arch: 'arm64', python: '3.12.10', gui: 'cocoa', keyring: 'keyring.backends.macOS' },
       settings: { language: null, history_enabled: true, remember_sites: true, stateless: false, onboarding_done: true },
       keys: { connected: tokens.length, in_history: Object.keys(history).length },

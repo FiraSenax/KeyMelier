@@ -16,6 +16,7 @@ import sys
 import threading
 from datetime import datetime, timezone
 
+from fido2tool_core import build_info
 from fido2tool_core.version import __version__
 
 FORMAT = "keymelier-diagnostics"
@@ -113,7 +114,8 @@ def build(*, settings: dict, data_status: dict, sync_status: dict, connected: in
         "app": {
             "version": __version__,
             "build": {"signed": flag(build_state.get("signed")), "notarized": flag(build_state.get("notarized")),
-                      "ci": flag(build_state.get("ci"))},
+                      "ci": flag(build_state.get("ci")), "commit": build_info.valid_commit(build_state.get("commit")),
+                      "modified": flag(build_state.get("modified"))},
         },
         "system": {
             "platform": enum(sys.platform, {"darwin", "win32", "linux"}),

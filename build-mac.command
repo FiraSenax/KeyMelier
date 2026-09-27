@@ -32,6 +32,9 @@ export KEYMELIER_ICON="static/icon.icns"
 
 xattr -cr static data fido2tool_core
 
+# Source commit (and whether the tree has uncommitted changes) for About/diagnostics
+"$PYTHON" tools/write_build_info.py
+
 echo "Running PyInstaller..."
 "$PYINSTALLER" --clean --noconfirm fido2tool.spec
 

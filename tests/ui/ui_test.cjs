@@ -468,6 +468,21 @@ async function main() {
     assert(text.includes('Contoso') && text.includes('3') && text.includes('Lab'), text);
     assert(await js('!document.querySelector("input[name*=policy], [data-act*=policy]")'), 'no settings for the sources');
   });
+  await test('About names the build commit; the diagnostic report has the same full commit', async () => {
+    const full = '4216033e9d042fa2a010ffeb0374756297418b09';
+    await js(`appSettings.build = { signed: false, notarized: false, ci: true, commit: '${full}', modified: false }; openAbout();`);
+    assert((await js('$("about-build").textContent')).includes('4216033') && !(await js('$("about-build").textContent')).includes(full.slice(7, 14)), 'short commit');
+    await click('#about-dialog [data-about=diag]');
+    await until('!!$("diag-preview")', 'preview');
+    assert(JSON.parse(await js('$("diag-preview").textContent')).app.build.commit === full, 'full commit in the report');
+    await js('openAbout(false); appSettings.build = { commit: "' + full + '", modified: true }; openAbout();');
+    assert(/modified|verändert/.test(await js('$("about-build").textContent')), 'a locally modified build says so');
+    for (const bad of ['null', '"xyz"', '"' + full.toUpperCase() + '"', '"<b>' + full + '</b>"']) {
+      await js(`openAbout(false); appSettings.build = { commit: ${bad}, modified: false }; openAbout();`);
+      assert(/unknown|unbekannt/.test(await js('$("about-build").textContent')), `invalid commit ${bad} shows unknown`);
+    }
+    await js('openAbout(false); appSettings.build = { signed: false, notarized: false };');
+  });
   await test('diagnostic report: preview first, Back saves nothing, Save writes exactly the preview (privately)', async () => {
     await js('window.__lastSave = null; window.__demoCalls.length = 0; openAbout();');
     await until('!!document.querySelector("#about-dialog [data-about=diag]")', 'about dialog');

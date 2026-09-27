@@ -60,6 +60,9 @@ immediate SmartScreen reputation.
 3. Run the **release rehearsal** on the candidate (*Actions → Build → Run workflow*): the same builds,
    artifact transfer and checks as the release, without publishing. It must be green; its report
    (artifact `release-rehearsal`) names the commit, the version and every file with its SHA-256.
+   `python3 tools/fetch_rc.py RUN_ID` puts exactly the checked packages of that run into
+   `dist/rc-<version>-<commit>/` with `RC-MANIFEST.json` (version, commit, run link, SHA-256 of every
+   file) – verified, never overwriting an existing candidate.
 4. Commit and push the reviewed version tag (`vX.Y.Z`) on that commit.
 5. Verify successful signing/notarization and the attached source/dependency evidence.
 

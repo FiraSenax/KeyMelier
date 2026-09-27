@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Validate release artifacts after packaging. Any problem exits 1.
 
-    check_artifacts.py macos   DIST [--signed true|false]
-    check_artifacts.py windows DIST [--signed true|false]
-    check_artifacts.py linux   DIST --arch x86_64|aarch64
+    check_artifacts.py macos   DIST [--signed true|false] [--commit SHA]
+    check_artifacts.py windows DIST [--signed true|false] [--commit SHA]
+    check_artifacts.py linux   DIST --arch x86_64|aarch64 [--commit SHA]
+
+--commit (and in release mode SOURCE_COMMIT.txt): the app inside each package
+must name exactly this commit in data/build.json, built from an unmodified tree.
     check_artifacts.py release DIR --commit SHA --notes NOTES.md --mac-signed X --win-signed Y
                               [--report REPORT.md --jobs "test=success,build-linux=success,…"]
     check_artifacts.py restore-exec DIR
@@ -127,6 +130,33 @@ def check_licenses(r: Report, path: Path) -> None:
         r.check(needle in text, f"{path.name} names {needle}")
 
 
+BUILD_JSON = {"mac": "KeyMelier.app/Contents/Resources/data/build.json", "win": "KeyMelier/_internal/data/build.json",
+              "linux": "usr/lib/keymelier/_internal/data/build.json"}
+
+
+def check_build_commit(r: Report, name: str, raw: str | bytes | None, commit: str | None) -> None:
+    """The app inside the package names exactly the released commit, built from an unmodified tree."""
+    if not commit:
+        return
+    try:
+        info = json.loads(raw) if raw else None
+    except ValueError:
+        info = None
+    r.check(isinstance(info, dict) and info.get("commit") == commit, f"{name}: built from commit {commit[:12]}",
+            f"build.json says {info.get('commit') if isinstance(info, dict) else 'nothing'}")
+    r.check(isinstance(info, dict) and info.get("modified") is False, f"{name}: built from an unmodified tree",
+            f"modified: {info.get('modified') if isinstance(info, dict) else '?'}")
+
+
+def zip_member(path: Path, member: str) -> bytes | None:
+    try:
+        with zipfile.ZipFile(path) as z:
+            name = next((n for n in z.namelist() if n.replace("\\", "/") == member), None)
+            return z.read(name) if name else None
+    except (OSError, zipfile.BadZipFile):
+        return None
+
+
 def check_mac_zip(r: Report, path: Path, version: str) -> None:
     try:
         with zipfile.ZipFile(path) as z:
@@ -236,7 +266,7 @@ def squashfs_contents(path: Path, offset: int):
     return {line.strip().lstrip("/") for line in listing.splitlines()}, lambda inner: run("-cat", str(path), inner)
 
 
-def check_appimage(r: Report, path: Path, arch: str, version: str) -> None:
+def check_appimage(r: Report, path: Path, arch: str, version: str, commit: str | None = None) -> None:
     try:
         head = path.read_bytes()[:4 * 1024 * 1024]
     except OSError as e:
@@ -261,6 +291,7 @@ def check_appimage(r: Report, path: Path, arch: str, version: str) -> None:
                   f"{internal}/static/index.html", f"{internal}/data/advisories.json.sig",
                   f"{internal}/THIRD_PARTY_LICENSES.txt", "usr/share/keymelier/70-keymelier.rules"):
         r.check(entry in entries, f"{path.name} contains {entry}")
+    check_build_commit(r, path.name, read(BUILD_JSON["linux"]), commit)
     m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/fido2tool_core/version.py"))
     r.check(m is not None and m.group(1) == version, f"{path.name}: app version {version}", m.group(1) if m else "none")
 
@@ -310,6 +341,8 @@ def run(argv: list[str]) -> Report:
     if mode == "macos":
         check_files(r, folder, MAC_FILES)
         check_mac_zip(r, folder / "KeyMelier-macOS.zip", version)
+        check_build_commit(r, "KeyMelier-macOS.zip", zip_member(folder / "KeyMelier-macOS.zip", BUILD_JSON["mac"]),
+                           opts.get("--commit"))
         check_dmg_container(r, folder / "KeyMelier-macOS.dmg")
         if sys.platform == "darwin":
             check_dmg_mounted(r, folder / "KeyMelier-macOS.dmg", version)
@@ -320,6 +353,8 @@ def run(argv: list[str]) -> Report:
     elif mode == "windows":
         check_files(r, folder, WIN_FILES)
         check_win_zip(r, folder / "KeyMelier-Windows.zip", version, flag("--signed"))
+        check_build_commit(r, "KeyMelier-Windows.zip", zip_member(folder / "KeyMelier-Windows.zip", BUILD_JSON["win"]),
+                           opts.get("--commit"))
         check_installer(r, folder / "KeyMelier-Windows-Setup.exe", version, flag("--signed"))
         check_sbom(r, folder / "KeyMelier-Windows.cdx.json", version, strict="--strict-sbom" in argv)
         check_licenses(r, folder / "THIRD_PARTY_LICENSES-Windows.txt")
@@ -330,7 +365,7 @@ def run(argv: list[str]) -> Report:
             return r
         appimage, bom, licenses = linux_files(arch)
         check_files(r, folder, (appimage, bom, licenses))
-        check_appimage(r, folder / appimage, arch, version)
+        check_appimage(r, folder / appimage, arch, version, opts.get("--commit"))
         check_sbom(r, folder / bom, version, strict="--strict-sbom" in argv)
         check_licenses(r, folder / licenses)
     elif mode == "release":
@@ -348,7 +383,9 @@ def run(argv: list[str]) -> Report:
         check_win_zip(r, folder / "KeyMelier-Windows.zip", version, flag("--win-signed"))
         check_installer(r, folder / "KeyMelier-Windows-Setup.exe", version, flag("--win-signed"))
         for arch in LINUX_ARCHES:
-            check_appimage(r, folder / linux_files(arch)[0], arch, version)
+            check_appimage(r, folder / linux_files(arch)[0], arch, version, commit)
+        for name, kind in (("KeyMelier-macOS.zip", "mac"), ("KeyMelier-Windows.zip", "win")):
+            check_build_commit(r, name, zip_member(folder / name, BUILD_JSON[kind]), commit)
         for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json", *LINUX_FILES[1::3]):
             check_sbom(r, folder / name, version, strict=True)
         for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *LINUX_FILES[2::3]):

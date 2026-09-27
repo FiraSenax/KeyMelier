@@ -36,12 +36,54 @@ class SettingsTests(unittest.TestCase):
     def test_platform_and_build_are_reported(self):
         st = self.svc.get_settings()
         self.assertEqual(st["platform"], sys.platform)
-        self.assertEqual(set(st["build"]), {"signed", "notarized", "ci"})
+        self.assertEqual(set(st["build"]), {"signed", "notarized", "ci", "commit", "modified"})
+
+    def test_commit_is_validated_and_modified_is_never_assumed_clean(self):
+        full = "0123456789abcdef0123456789abcdef01234567"
+        cases = [({"commit": full, "modified": False}, (full, False)),
+                 ({"commit": full}, (full, True)),                       # not stated: counts as modified
+                 ({"commit": full, "modified": "no"}, (full, True)),
+                 ({"commit": full.upper()}, (None, None)),
+                 ({"commit": full[:12]}, (None, None)),
+                 ({"commit": "../../etc/passwd"}, (None, None)),
+                 ({"commit": full + "\nevil"}, (None, None)),
+                 ({"commit": "a" * 64, "modified": False}, ("a" * 64, False)),   # SHA-256 repositories
+                 ([], (None, None))]
+        for data, expected in cases:
+            with self.subTest(data=data):
+                (self.tmp / "c.json").write_text(json.dumps(data))
+                info = build_info.load(self.tmp / "c.json")
+                self.assertEqual((info["commit"], info["modified"]), expected)
+
+    def test_build_info_writer_uses_the_checkout(self):
+        import importlib.util
+        import subprocess
+        spec = importlib.util.spec_from_file_location("wbi", Path(__file__).resolve().parent.parent / "tools" / "write_build_info.py")
+        wbi = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wbi)
+        full = "0123456789abcdef0123456789abcdef01234567"
+        answers = {("rev-parse", "HEAD"): full, ("status", "--porcelain", "--untracked-files=no"): ""}
+        with patch.object(wbi, "git", lambda *a: answers[a]):
+            self.assertEqual(wbi.build_info(False, False, True)["commit"], full)
+            self.assertIs(wbi.build_info(False, False, True)["modified"], False)
+            answers[("status", "--porcelain", "--untracked-files=no")] = " M static/app.js"
+            self.assertIs(wbi.build_info(False, False, False)["modified"], True, "local changes are declared")
+            with patch.dict("os.environ", {"GITHUB_SHA": "f" * 40}), self.assertRaises(SystemExit):
+                wbi.build_info(False, False, True)          # CI: must be the commit that was checked out
+        with patch.object(wbi, "git", lambda *a: None):
+            self.assertEqual((wbi.build_info(False, False, False)["commit"], wbi.build_info(False, False, False)["modified"]),
+                             (None, None), "no Git: unknown, nothing invented")
+        if (Path(__file__).resolve().parent.parent / ".git").exists():
+            head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                                  cwd=Path(__file__).resolve().parent.parent).stdout.strip()
+            self.assertEqual(wbi.build_info(False, False, False)["commit"], head)
 
     def test_build_info_is_honest_by_default(self):
-        self.assertEqual(build_info.load(self.tmp / "missing.json"), {"signed": False, "notarized": False, "ci": False})
+        self.assertEqual(build_info.load(self.tmp / "missing.json"),
+                         {"signed": False, "notarized": False, "ci": False, "commit": None, "modified": None})
         (self.tmp / "b.json").write_text('{"signed": true, "notarized": true, "ci": true}')
-        self.assertEqual(build_info.load(self.tmp / "b.json"), {"signed": True, "notarized": True, "ci": True})
+        self.assertEqual(build_info.load(self.tmp / "b.json"),
+                         {"signed": True, "notarized": True, "ci": True, "commit": None, "modified": None})
         (self.tmp / "c.json").write_text('{"signed": "true"}')           # only a real boolean counts
         self.assertFalse(build_info.load(self.tmp / "c.json")["signed"])
         (self.tmp / "d.json").write_text("not json")

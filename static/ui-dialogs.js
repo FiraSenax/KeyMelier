@@ -87,6 +87,14 @@ const ABOUT_LINKS = [['about.site', 'https://firasenax.github.io/KeyMelier/'],
   ['about.source', 'https://github.com/FiraSenax/KeyMelier'],
   ['about.issues', 'https://github.com/FiraSenax/KeyMelier/issues']];
 
+// "Build 4216033" – the source commit the app was built from (data/build.json);
+// "modified" when the tree had uncommitted changes, "unknown" without one
+function buildLabel(build) {
+  const commit = typeof build?.commit === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(build.commit) ? build.commit : null;
+  if (!commit) return t('about.buildUnknown');
+  return t(build.modified === false ? 'about.build' : 'about.buildModified', { commit: commit.slice(0, 7) });
+}
+
 function openAbout(open = true) {
   diagText = null;
   const el = $('about-dialog');
@@ -97,6 +105,7 @@ function openAbout(open = true) {
     <img src="${escHtml(document.querySelector('.brand img')?.src || '')}" width="64" height="64" alt="">
     <h2 id="about-title">KeyMelier</h2>
     ${v ? `<p class="muted">${escHtml(t('upd.version', { v }))}</p>` : ''}
+    <p class="muted about-build" id="about-build">${escHtml(buildLabel(appSettings.build))}</p>
     <p class="about-lead">${escHtml(t('app.tagline'))}</p>
     <p class="card-text">${escHtml(t('about.what'))}</p>
     <p class="field-hint">${escHtml(t('about.privacy'))}</p>

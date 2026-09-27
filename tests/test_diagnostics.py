@@ -137,6 +137,20 @@ class DiagnosticsTests(unittest.TestCase):
                          {"language", "history_enabled", "remember_sites", "stateless", "onboarding_done"})
         self.assertEqual(set(report["data"]["advisories"]), {"source", "updated", "count", "company_sources"})
 
+    def test_commit_in_the_report_matches_the_build(self):
+        full = "0123456789abcdef0123456789abcdef01234567"
+        svc = self.service([])
+        for build, expected in (({"commit": full, "modified": False}, (full, False)),
+                                ({"commit": full, "modified": True}, (full, True)),
+                                ({"commit": "not a commit /Users/alice"}, (None, None))):
+            with self.subTest(build=build):
+                info = {"signed": False, "notarized": False, "ci": False, "commit": build.get("commit"),
+                        "modified": build.get("modified")}
+                with patch.object(service_mod.build_info, "load", return_value=info):
+                    report = svc.diagnostics()
+                self.assertEqual((report["app"]["build"]["commit"], report["app"]["build"]["modified"]), expected)
+                self.assertNotIn("/Users/alice", json.dumps(report))
+
     def test_works_without_a_key(self):
         report = self.service([]).diagnostics()
         self.assertEqual(report["keys"]["connected"], 0)

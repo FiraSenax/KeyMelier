@@ -6,6 +6,7 @@ on Windows / by CI, so their logic is exercised here, including failures.
 """
 
 import hashlib
+import json
 import io
 import plistlib
 import shutil
@@ -70,24 +71,32 @@ APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", 
                   "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/fido2tool_core/version.py"}
 
 
-def fake_squashfs(version=VERSION, files=APPIMAGE_FILES):
-    return lambda path, offset: (set(files), lambda inner: f'__version__ = "{version}"\n')
+def build_json(commit=COMMIT, modified=False):
+    return json.dumps({"signed": False, "notarized": False, "ci": True, "commit": commit, "modified": modified})
+
+
+def fake_squashfs(version=VERSION, files=APPIMAGE_FILES, commit=COMMIT, modified=False):
+    def read(inner):
+        return build_json(commit, modified) if inner.endswith("data/build.json") else f'__version__ = "{version}"\n'
+    return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"}, read)
 
 
 LICENSES = "fido2 … cryptography … Simple Icons … PyInstaller bootloader"
 
 
-def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, signed=False):
+def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, signed=False, commit=COMMIT):
     (folder / "KeyMelier-macOS.zip").write_bytes(zip_bytes({
         "KeyMelier.app/Contents/Info.plist": plist(mac_version),
         "KeyMelier.app/Contents/MacOS/KeyMelier": b"\xcf\xfa\xed\xfe",
         "KeyMelier.app/Contents/Resources/static/index.html": b"<html>",
-        "KeyMelier.app/Contents/Resources/data/advisories.json.sig": b"sig"}))
+        "KeyMelier.app/Contents/Resources/data/advisories.json.sig": b"sig",
+        "KeyMelier.app/Contents/Resources/data/build.json": build_json(commit)}))
     (folder / "KeyMelier-macOS.dmg").write_bytes(b"\0" * 2048 + b"koly" + b"\0" * 508)
     (folder / "KeyMelier-Windows.zip").write_bytes(zip_bytes({
         "KeyMelier/KeyMelier.exe": pe(exe_version, signed),
         "KeyMelier/_internal/static/index.html": b"<html>",
-        "KeyMelier/_internal/data/advisories.json.sig": b"sig"}))
+        "KeyMelier/_internal/data/advisories.json.sig": b"sig",
+        "KeyMelier/_internal/data/build.json": build_json(commit)}))
     (folder / "KeyMelier-Windows-Setup.exe").write_bytes(pe(exe_version, signed))
     for arch in ca.LINUX_ARCHES:
         path = folder / f"KeyMelier-Linux-{arch}.AppImage"
@@ -224,6 +233,28 @@ class CheckArtifactsTests(unittest.TestCase):
                     "--mac-signed", "false", "--win-signed", "false"])
         ca.write_report(report, r, self.dir, COMMIT, "")
         self.assertIn("**FAILED**", report.read_text(encoding="utf-8"))
+
+    def test_packages_must_name_the_released_commit(self):
+        """SOURCE_COMMIT.txt, the commit in each package's build.json and 'unmodified' must agree."""
+        args = lambda notes: ["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),
+                              "--mac-signed", "false", "--win-signed", "false"]
+        cases = {
+            "another commit in the apps": dict(commit="b" * 40),
+            "no build.json commit": dict(commit=None),
+        }
+        for name, kw in cases.items():
+            with self.subTest(name):
+                shutil.rmtree(self.dir)
+                self.dir.mkdir()
+                notes = make_release(self.dir, **kw)
+                problems = ca.run(args(notes)).problems
+                self.assertTrue(any("built from commit" in p for p in problems), problems)
+        shutil.rmtree(self.dir)
+        self.dir.mkdir()
+        notes = make_release(self.dir)
+        with patch.object(ca, "squashfs_contents", fake_squashfs(modified=True)):
+            problems = ca.run(args(notes)).problems
+        self.assertTrue(any("unmodified tree" in p for p in problems), "a modified local build is not a release")
 
     def test_pe_reader(self):
         self.assertEqual(ca.pe_info(pe("1.7.1", signed=True)), {"file_version": (1, 7, 1, 0), "signed": True})

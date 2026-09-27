@@ -41,6 +41,9 @@ rm -f build/pip-report*.json
 "$PYTHON" -m pip install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt \
     --report build/pip-report.json
 
+# Source commit for About/diagnostics (CI writes it in its own step, with the signing state)
+[ -n "${CI:-}" ] || "$PYTHON" tools/write_build_info.py
+
 echo "Running PyInstaller..."
 "$PYTHON" -m PyInstaller --clean --noconfirm fido2tool.spec
 

@@ -102,9 +102,9 @@ jobs:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: bash tools/import-macos-signing.sh
-      - name: Record the signing state in the app (shown in the introduction)
+      - name: Record signing state and source commit in the app (introduction, About, diagnostics)
         run: |
-          printf '{"signed": %s, "notarized": %s, "ci": true}\n' "$SIGN_MAC" "$SIGN_MAC" > data/build.json
+          python tools/write_build_info.py --signed "$SIGN_MAC" --notarized "$SIGN_MAC" --ci
       - name: Build
         id: build
         env:
@@ -167,7 +167,7 @@ jobs:
       - name: Validate the macOS artifacts (structure, version, signing state, SBOM, licences)
         env:
           SIGNED: ${{ steps.build.outputs.signed }}
-        run: python tools/check_artifacts.py macos dist --signed "$SIGNED" --strict-sbom 1
+        run: python tools/check_artifacts.py macos dist --signed "$SIGNED" --strict-sbom 1 --commit "$GITHUB_SHA"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-macOS
@@ -204,10 +204,10 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
-      - name: Record the signing state in the app (shown in the introduction)
+      - name: Record signing state and source commit in the app (introduction, About, diagnostics)
         shell: bash
         run: |
-          printf '{"signed": %s, "ci": true}\n' "$SIGN_WIN" > data/build.json
+          python tools/write_build_info.py --signed "$SIGN_WIN" --ci
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico
@@ -306,7 +306,7 @@ jobs:
       - name: Validate the Windows artifacts (structure, versions, signing state, SBOM, licences)
         shell: pwsh
         run: |
-          python tools/check_artifacts.py windows dist --signed "$env:SIGN_WIN" --strict-sbom 1
+          python tools/check_artifacts.py windows dist --signed "$env:SIGN_WIN" --strict-sbom 1 --commit "$env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { throw "Artifact check failed" }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -348,9 +348,9 @@ jobs:
             libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2t64 libxkbfile1 libfontconfig1 \
             libdbus-1-3 libxshmfence1 libgbm1 \
             xvfb xauth imagemagick dbus-x11 gnome-keyring
-      - name: Record the signing state in the app (shown in the introduction)
+      - name: Record signing state and source commit in the app (introduction, About, diagnostics)
         run: |
-          printf '{"signed": false, "ci": true}\n' > data/build.json
+          python3 tools/write_build_info.py --signed false --ci
       # Hash-pinned install into a fresh venv (--force-reinstall, pip report
       # for the SBOM), PyInstaller, strict SBOM check, AppImage with pinned
       # and checksum-verified appimagetool/runtime
@@ -374,7 +374,7 @@ jobs:
         run: |
           cp build/THIRD_PARTY_LICENSES.txt "dist/THIRD_PARTY_LICENSES-Linux-$ARCH.txt"
           cp build/keymelier-sbom.cdx.json "dist/KeyMelier-Linux-$ARCH.cdx.json"
-          python3 tools/check_artifacts.py linux dist --arch "$ARCH" --strict-sbom 1
+          python3 tools/check_artifacts.py linux dist --arch "$ARCH" --strict-sbom 1 --commit "$GITHUB_SHA"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: KeyMelier-Linux-${{ matrix.arch }}

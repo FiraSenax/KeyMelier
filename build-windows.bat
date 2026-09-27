@@ -20,6 +20,9 @@ if exist build\pip-report*.json del /q build\pip-report*.json
 build-venv\Scripts\python -m pip install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt --report build\pip-report.json
 if errorlevel 1 exit /b 1
 
+rem Source commit for About/diagnostics (CI writes it in its own step)
+if not defined CI build-venv\Scripts\python tools\write_build_info.py
+
 echo Running PyInstaller...
 build-venv\Scripts\pyinstaller --clean --noconfirm fido2tool.spec
 if errorlevel 1 exit /b 1

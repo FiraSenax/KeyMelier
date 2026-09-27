@@ -18,8 +18,11 @@ Not covered by these tests: USB/key access, Wayland sessions, real desktops
 (GNOME, KDE, …), GPU drivers – the containers have none of those.
 """
 
+import hashlib
 import json
 import os
+import secrets
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -79,6 +82,19 @@ def validate_result(r) -> list[str]:
             problems.append(f"{checks - passed} of {checks} checks failed")
     if status == "failed":
         problems.append(f"start test failed: {r.get('detail', 'no detail')}")
+    # Bound to the requested package and run (written by `run` before the container started)
+    expected = r.get("expected")
+    if not isinstance(expected, dict):
+        problems.append("no expected package recorded (not produced by linux_compat.py run)")
+    else:
+        if sha != expected.get("sha256"):
+            problems.append(f"tested SHA-256 {str(sha)[:16]}… is not the requested package {str(expected.get('sha256'))[:16]}…")
+        if r.get("arch") != expected.get("arch"):
+            problems.append(f"ran on {r.get('arch')!r}, requested {expected.get('arch')!r}")
+        if r.get("mode") != expected.get("mode"):
+            problems.append(f"mode {r.get('mode')!r}, requested {expected.get('mode')!r}")
+        if not expected.get("run_id") or r.get("run_id") != expected.get("run_id"):
+            problems.append("the report is not from this run (run id differs)")
     return problems
 
 
@@ -99,22 +115,49 @@ def arch_of(appimage: Path) -> str:
     return next(a for a in PLATFORM if appimage.name.endswith(f"-{a}.AppImage"))
 
 
+RESULT_FILES = ("result.json", "sha256.txt", "glibc.txt", "missing-required.txt", "missing-optional.txt",
+                "install.log", "smoke.log", "container.log")
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def run(appimage: Path, image: str, emulated: bool, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
+    for name in RESULT_FILES:   # a report left from an earlier run must never count
+        (out / name).unlink(missing_ok=True)
+    shutil.rmtree(out / "smoke", ignore_errors=True)
     arch = arch_of(appimage)
+    expected = {"sha256": sha256_of(appimage), "arch": arch, "mode": "emulated" if emulated else "native",
+                "run_id": secrets.token_hex(16)}
     timeout = os.environ.get("SMOKE_TIMEOUT", "900" if emulated else "300")   # emulation is ~5-10x slower
     owner = ["-e", f"HOST_UID={os.getuid()}", "-e", f"HOST_GID={os.getgid()}"] if hasattr(os, "getuid") else []
     cmd = ["docker", "run", "--rm", "--platform", PLATFORM[arch], "-e", f"SMOKE_TIMEOUT={timeout}", *owner,
+           "-e", f"RUN_ID={expected['run_id']}",
            "-v", f"{ROOT}:/src:ro", "-v", f"{appimage.resolve().parent}:/app:ro", "-v", f"{out.resolve()}:/out",
            image, "bash", "/src/tests/linux/compat_inside.sh", f"/app/{appimage.name}",
            "emulated" if emulated else "native"]
     print(f"== {image} ({arch}, {'emulated' if emulated else 'native'})", flush=True)
     proc = subprocess.run(cmd, text=True, capture_output=True)
     (out / "container.log").write_text(proc.stdout + proc.stderr, encoding="utf-8")
+    raw = None
     if (out / "result.json").exists():
+        try:
+            raw = json.loads((out / "result.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw = None
+    if isinstance(raw, dict):
+        raw.update(expected=expected, image=image, container_exit=proc.returncode)
+        (out / "result.json").write_text(json.dumps(raw, indent=1), encoding="utf-8")
         result = load_result(out / "result.json")
     else:
-        result = {"status": "failed", "problems": [f"no result written (container exit {proc.returncode})"]}
+        result = {"status": "failed", "expected": expected, "image": image, "container_exit": proc.returncode,
+                  "problems": [f"no readable result written by this run (container exit {proc.returncode})"]}
     result.update(image=image, container_exit=proc.returncode)
     if proc.returncode != 0:
         result["status"] = "failed"
@@ -147,6 +190,15 @@ def report(folders: list[Path]) -> tuple[str, bool]:
     if not rows:
         ok = False
         lines.append("| – | no results | | | | **failed** | | | | no result files found | |")
+    # every distribution of one architecture must have tested the same package bytes
+    by_arch: dict = {}
+    for r in rows:
+        by_arch.setdefault(r.get("arch"), set()).add(r.get("sha256"))
+    for arch, shas in sorted(by_arch.items(), key=lambda kv: str(kv[0])):
+        if len(shas) != 1:
+            ok = False
+            lines.append(f"| – | {arch}: different packages tested | {arch} | | | **failed** | | | "
+                         f"| {len(shas)} different SHA-256 values in one architecture | |")
     lines += ["", "Container start tests only: no USB/key access, no Wayland, no real desktop or GPU driver."]
     return "\n".join(lines), ok
 
