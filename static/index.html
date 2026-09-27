@@ -27,6 +27,11 @@
         <span class="key-item-text"><span class="key-item-name" data-i18n="acc.nav"></span></span>
       </button>
 
+      <button type="button" id="nav-settings" class="key-item nav-item">
+        <span class="key-item-icon" id="nav-settings-icon"></span>
+        <span class="key-item-text"><span class="key-item-name" data-i18n="app.settings.nav"></span></span>
+      </button>
+
       <div class="sidebar-label" data-i18n="sidebar.keys"></div>
       <nav id="key-list" class="key-list"></nav>
       <p id="key-list-empty" class="key-list-empty" data-i18n="sidebar.none"></p>
@@ -90,6 +95,29 @@
           </div>
         </header>
         <div id="backup-content" class="pane-stack backup-content"></div>
+      </section>
+
+      <section id="replace-view" class="key-view hidden">
+        <header class="key-header">
+          <div class="key-avatar" id="replace-avatar"></div>
+          <div class="key-heading">
+            <h1 data-i18n="rp.title"></h1>
+            <p data-i18n="rp.text"></p>
+          </div>
+          <button type="button" class="btn btn-secondary" id="replace-back" data-i18n="rp.back"></button>
+        </header>
+        <div id="replace-content" class="pane-stack backup-content"></div>
+      </section>
+
+      <section id="settings-view" class="key-view hidden">
+        <header class="key-header">
+          <div class="key-avatar" id="settings-avatar"></div>
+          <div class="key-heading">
+            <h1 data-i18n="app.settings.title"></h1>
+            <p data-i18n="app.settings.subtitle"></p>
+          </div>
+        </header>
+        <div id="settings-content" class="pane-stack backup-content"></div>
       </section>
 
       <section id="key-view" class="key-view hidden">

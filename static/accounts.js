@@ -233,6 +233,24 @@ function rowsOfKey(model, keyId) {
   return model.rows.filter(r => r.holders.has(keyId) && !(r.kind === 'code' && r.linkedTo));
 }
 
+// Categories of the account overview (its summary cards) = the rating levels.
+// Filtering only selects rows; it never changes a rating.
+const ACCOUNT_FILTERS = ['', 'crit', 'warn', 'unclear', 'info', 'ok'];
+
+// Rows shown in the overview (codes linked to a passkey are shown with it)
+function overviewRows(model) {
+  return model.rows.filter(r => !(r.kind === 'code' && r.linkedTo));
+}
+
+// Rows for a category ('' = all) and a search text; a row matches when its
+// website, issuer, account, display name, domain or service name contains it.
+function filterAccountRows(model, { level = '', query = '' } = {}) {
+  const q = String(query || '').toLowerCase().trim();
+  const hay = r => [r.rpId, r.issuer, r.account, r.domain, r.groupLabel, ...(r.displays || []),
+    ...r.links.flatMap(c => [c.issuer, c.account])].map(v => String(v || '').toLowerCase());
+  return overviewRows(model).filter(r => (!level || r.level === level) && (!q || hay(r).some(v => v.includes(q))));
+}
+
 // Replacing an old key with a new one: what the old key holds, and what the
 // new key technically shows for it. "found" is only claimed when the new key
 // was read and holds the same identity (passkey: rpId + account name, code:
@@ -295,5 +313,5 @@ function replacePlanItems(plan) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
+  module.exports = { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
 }

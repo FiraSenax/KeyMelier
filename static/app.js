@@ -23,7 +23,9 @@ const cardRetries = new Map();
 let mainView = 'key';     // 'key' | 'backup' | 'accounts'
 let appSettings = {};     // persisted settings (remember_sites, ...)
 let lostKid = null;       // key selected in the lost-key assistant
-let replaceOld = null;    // key being replaced (backup view)
+let replaceOld = null;    // key being replaced (replace view)
+let replaceStep = 1;      // 1 choose · 2 compare · 3 test & confirm · 4 summary
+let replaceOpenOnly = false;
 let syncState = null;     // sync_status from the service
 let syncForm = { folder: '', error: null, busy: false, confirmOff: false };
 
@@ -87,6 +89,10 @@ const ICONS = {
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
   passkey: '<circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6"/><circle cx="18" cy="14" r="2.5"/><path d="M18 16.5V22m0-2h2"/>',
+  settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
 };
 
 function icon(name, size = 18) {
@@ -278,6 +284,9 @@ function renderMds() {
 
 // ── Key view ────────────────────────────────────────────────────────────────
 
+// Views that replace the key view (sidebar navigation)
+const PANEL_VIEWS = { backup: 'backup-view', accounts: 'accounts-view', settings: 'settings-view', replace: 'replace-view' };
+
 function render() {
   if (selectedId && !tokens.has(selectedId)) selectedId = null;
   if (selectedHist && !historyKeys.has(selectedHist)) selectedHist = null;
@@ -285,21 +294,15 @@ function render() {
 
   if (mainView === 'accounts' && !personalMode()) mainView = 'key';
   renderSidebar();
-  $('nav-backup').classList.toggle('active', mainView === 'backup');
+  $('nav-backup').classList.toggle('active', mainView === 'backup' || mainView === 'replace');
   $('nav-accounts').classList.toggle('active', mainView === 'accounts');
+  $('nav-settings').classList.toggle('active', mainView === 'settings');
   $('nav-accounts').classList.toggle('hidden', !personalMode());
-  $('backup-view').classList.toggle('hidden', mainView !== 'backup');
-  $('accounts-view').classList.toggle('hidden', mainView !== 'accounts');
-  if (mainView === 'accounts') {
+  for (const [view, id] of Object.entries(PANEL_VIEWS)) $(id).classList.toggle('hidden', mainView !== view);
+  if (PANEL_VIEWS[mainView]) {
     $('empty-view').classList.add('hidden');
     $('key-view').classList.add('hidden');
-    renderAccountsView();
-    return;
-  }
-  if (mainView === 'backup') {
-    $('empty-view').classList.add('hidden');
-    $('key-view').classList.add('hidden');
-    renderBackupView();
+    renderPanel();
     return;
   }
   const token = currentToken();
@@ -307,6 +310,12 @@ function render() {
   $('key-view').classList.toggle('hidden', !token);
   if (token) renderKeyView(token);
   for (const tok of tokens.values()) loadCardApps(tok);  // cached; drives tabs and sidebar actions
+}
+
+// Re-render the open panel view (backup, accounts, settings, replace)
+function renderPanel() {
+  ({ backup: renderBackupView, accounts: renderAccountsView, settings: renderSettingsView,
+    replace: renderReplaceView })[mainView]?.();
 }
 
 function renderKeyView(token) {
@@ -441,68 +450,106 @@ function renderBackupView() {
   $('backup-avatar').innerHTML = icon('shield', 30);
   const el = $('backup-content');
   const entries = [...historyKeys.values()];
-  const remember = appSettings.remember_sites !== false;
   const parts = [];
 
-  parts.push(`<section class="card">
-    <label class="switch-row">
-      <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
-      <span>${escHtml(t('bk.remember'))}</span>
-    </label>
-    <p class="field-hint bk-hint">${escHtml(t('bk.rememberText'))}</p>
-  </section>`);
-
-  parts.push(`<section class="card">
-    <label class="switch-row">
-      <input type="checkbox" id="history-enabled" ${appSettings.history_enabled ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
-      <span>${escHtml(t('privacy.history'))}</span>
-    </label>
-    <p class="field-hint bk-hint">${escHtml(t('privacy.hint'))}</p>
-    <div class="form-actions att-actions">
-      <button type="button" class="btn btn-secondary" data-act="hist-export" ${historyKeys.size ? '' : 'disabled'}>${escHtml(t('histx.export'))}</button>
-      <button type="button" class="btn btn-secondary" data-act="hist-import">${escHtml(t('histx.import'))}</button>
-    </div>
-    <p class="field-hint bk-hint">${escHtml(t('histx.hint'))}</p>
-  </section>`);
-
-  parts.push(`<section class="card">
-    <label class="switch-row">
-      <input type="checkbox" id="personal-mode" ${personalMode() ? 'checked' : ''}>
-      <span>${escHtml(t('acc.mode'))}</span>
-    </label>
-    <p class="field-hint bk-hint">${escHtml(t(personalMode() ? 'acc.mode.on' : 'acc.mode.off'))}</p>
-  </section>`);
-
-  parts.push(syncCardHtml());
-
-  // Coverage (one person's keys only): summary of the shared account model
+  // 1. How well the accounts are covered – the one thing to act on first
   if (personalMode()) {
     const m = accountModel();
     const rows = m.rows.filter(r => !(r.kind === 'code' && r.linkedTo));
-    const count = lvl => rows.filter(r => r.level === lvl).length;
-    parts.push(rows.length ? `<section class="card">
+    const todo = rows.filter(r => r.level === 'crit' || r.level === 'warn').length;
+    parts.push(rows.length ? `<section class="card bk-card">
       <div class="check-head"><h2>${escHtml(t('bk.coverage'))}</h2>
-        <button type="button" class="btn btn-secondary" data-act="open-accounts">${escHtml(t('bk.openAccounts'))}</button></div>
-      <div class="acc-summary">${accSummaryHtml(rows)}</div>
-      ${count('crit') + count('warn') ? `<p class="card-text">${escHtml(t('bk.coverageText', { n: count('crit') + count('warn') }))}</p>` : ''}
-      <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
-    </section>` : `<div class="callout"><div class="callout-title">${escHtml(t('bk.empty.title'))}</div>
-      <div class="callout-text">${escHtml(t('bk.empty.text'))}</div></div>`);
+        <button type="button" class="btn btn-primary" data-act="open-accounts">${escHtml(t('bk.review'))}</button></div>
+      <div class="acc-summary compact">${accSummaryHtml(rows, true)}</div>
+      <p class="card-text${todo ? ' warn-text' : ''}">${escHtml(todo ? t('bk.coverageText', { n: todo }) : t('bk.coverageOk'))}</p>
+    </section>` : `<section class="card bk-card"><h2>${escHtml(t('bk.coverage'))}</h2>
+      <p class="card-text">${escHtml(t('bk.empty.text'))}</p></section>`);
+  } else {
+    parts.push(`<section class="card bk-card"><h2>${escHtml(t('bk.coverage'))}</h2>
+      <p class="card-text">${escHtml(t('bk.sharedMode'))}</p>
+      <button type="button" class="btn-link" data-act="open-settings">${escHtml(t('sync.line.settings'))}</button></section>`);
   }
 
-  // Lost-key assistant
+  // 2. Lost a key
   const lost = lostKid && historyKeys.get(lostKid);
-  parts.push(`<section class="card">
-    <h2>${escHtml(t('bk.lost.title'))}</h2>
-    <p class="card-text">${escHtml(t('bk.lost.text'))}</p>
-    <select id="bk-lost-select" class="bk-select">
-      <option value="">${escHtml(t('bk.lost.choose'))}</option>
-      ${entries.map(e => `<option value="${escHtml(e.key_id)}"${e.key_id === lostKid ? ' selected' : ''}>${escHtml(keyLabel(e))}${e.lost_since ? ' – ' + escHtml(t('bk.lostBadge')) : ''}</option>`).join('')}
-    </select>
+  parts.push(`<section class="card bk-card">
+    <div class="check-head"><h2>${escHtml(t('bk.lost.title'))}</h2>
+      <select id="bk-lost-select" class="bk-select" aria-label="${escHtml(t('bk.lost.title'))}">
+        <option value="">${escHtml(t('bk.lost.choose'))}</option>
+        ${entries.map(e => `<option value="${escHtml(e.key_id)}"${e.key_id === lostKid ? ' selected' : ''}>${escHtml(keyLabel(e))}${e.lost_since ? ' – ' + escHtml(t('bk.lostBadge')) : ''}</option>`).join('')}
+      </select></div>
+    <p class="card-text">${escHtml(t('bk.lost.short'))}</p>
     ${lost ? lostAssistantHtml(lost) : ''}
   </section>`);
-  parts.push(replaceCardHtml(entries));
+
+  // 3. Replace a key (guided view)
+  const running = entries.find(e => e.replace?.new && historyKeys.has(e.replace.new));
+  let runningText = '';
+  if (running) {
+    const plan = buildReplacePlan(accountModel(), running.key_id, running.replace.new);
+    const done = new Set(running.replace.done || []);
+    const open = replacePlanItems(plan).filter(i => !(i.check === 'found' && done.has(i.id))).length;
+    runningText = t('rp.inProgress', { old: keyLabel(running), new: keyLabel(historyKeys.get(running.replace.new)), n: open });
+  }
+  parts.push(`<section class="card bk-card">
+    <div class="check-head"><h2>${escHtml(t('rp.title'))}</h2>
+      <button type="button" class="btn btn-secondary" data-act="open-replace" ${running ? `data-kid="${escHtml(running.key_id)}"` : ''}>${escHtml(t(running ? 'rp.continue' : 'rp.start'))}</button></div>
+    <p class="card-text">${escHtml(runningText || t('rp.short'))}</p>
+  </section>`);
+
+  // Sync: status only; configuration lives in the app settings
+  parts.push(syncLineHtml());
   el.innerHTML = parts.join('');
+}
+
+// ── App settings (global, not per key) ─────────────────────────────────────
+
+function renderSettingsView() {
+  $('settings-avatar').innerHTML = icon('settings', 30);
+  const remember = appSettings.remember_sites !== false;
+  $('settings-content').innerHTML = `
+    <div class="callout app-settings-note"><div class="callout-text">${escHtml(t('app.settings.keyHint'))}</div></div>
+    <section class="card">
+      <h2>${escHtml(t('app.settings.data'))}</h2>
+      <label class="switch-row">
+        <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
+        <span>${escHtml(t('bk.remember'))}</span>
+      </label>
+      <p class="field-hint bk-hint">${escHtml(t('bk.rememberText'))}</p>
+      <label class="switch-row">
+        <input type="checkbox" id="history-enabled" ${appSettings.history_enabled ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
+        <span>${escHtml(t('privacy.history'))}</span>
+      </label>
+      <p class="field-hint bk-hint">${escHtml(t('privacy.hint'))}</p>
+      <label class="switch-row">
+        <input type="checkbox" id="personal-mode" ${personalMode() ? 'checked' : ''}>
+        <span>${escHtml(t('acc.mode'))}</span>
+      </label>
+      <p class="field-hint bk-hint">${escHtml(t(personalMode() ? 'acc.mode.on' : 'acc.mode.off'))}</p>
+    </section>
+    <section class="card">
+      <h2>${escHtml(t('app.settings.transfer'))}</h2>
+      <p class="card-text">${escHtml(t('histx.hint'))}</p>
+      <div class="form-actions att-actions">
+        <button type="button" class="btn btn-secondary" data-act="hist-export" ${historyKeys.size ? '' : 'disabled'}>${escHtml(t('histx.export'))}</button>
+        <button type="button" class="btn btn-secondary" data-act="hist-import">${escHtml(t('histx.import'))}</button>
+      </div>
+    </section>
+    ${syncCardHtml()}`;
+}
+
+function showSettingsView() {
+  mainView = 'settings';
+  render();
+  loadSync();
+}
+
+function showReplaceView(kid) {
+  if (kid) replaceOld = kid;
+  const e = replaceOld && historyKeys.get(replaceOld);
+  replaceStep = e?.replace?.new && historyKeys.has(e.replace.new) ? Math.max(replaceStep, 2) : 1;
+  mainView = 'replace';
+  render();
 }
 
 // ── Sync between computers ──────────────────────────────────────────────────
@@ -511,7 +558,22 @@ function renderBackupView() {
 
 async function loadSync() {
   try { syncState = await call('sync_status'); } catch { syncState = null; }
-  if (mainView === 'backup') renderBackupView();
+  if (PANEL_VIEWS[mainView]) renderPanel();
+}
+
+// One line on the backup page; details and setup live in the app settings.
+// "Synced" means: this computer read the folder and wrote its file – not
+// that the cloud has already delivered it everywhere.
+function syncLineHtml() {
+  const st = syncState;
+  if (!st) return '';
+  const problem = st.active && (st.errors.length || st.notice);
+  const text = !st.available ? t('sync.line.unavailable')
+    : st.active ? t('sync.line.on', { when: st.last_sync ? relTime(st.last_sync) : '—', n: st.devices.length })
+      : t('sync.line.off');
+  return `<div class="sync-line${problem ? ' warn' : ''}" role="status">${icon('refresh', 15)}
+    <span>${escHtml(text)}${problem ? ` · ${escHtml(t('sync.line.problem'))}` : ''}</span>
+    <button type="button" class="btn-link" data-act="open-settings">${escHtml(t('sync.line.settings'))}</button></div>`;
 }
 
 function syncErrorText(e) {
@@ -579,12 +641,12 @@ function syncCardHtml() {
 async function syncAction(act) {
   if (act === 'sync-choose') {
     const folder = await window.pywebview.api.choose_folder();
-    if (folder) { syncForm.folder = folder; syncForm.error = null; renderBackupView(); }
+    if (folder) { syncForm.folder = folder; syncForm.error = null; renderPanel(); }
     return;
   }
   if (act === 'sync-off-ask' || act === 'sync-off-cancel') {
     syncForm.confirmOff = act === 'sync-off-ask';
-    return renderBackupView();
+    return renderPanel();
   }
   try {
     if (act === 'sync-now') syncState = await call('sync_now');
@@ -603,16 +665,16 @@ async function syncAction(act) {
 async function syncSubmit() {
   const pass = $('sync-pass'), pass2 = $('sync-pass2');
   const folder = syncForm.folder || syncState?.configured_folder;
-  if (pass.value !== pass2.value) { syncForm.error = t('sync.mismatch'); return renderBackupView(); }
+  if (pass.value !== pass2.value) { syncForm.error = t('sync.mismatch'); return renderPanel(); }
   if (pass.value.length < (syncState?.min_passphrase || 10)) {
     syncForm.error = t('sync.passHint', { n: syncState?.min_passphrase || 10 });
-    return renderBackupView();
+    return renderPanel();
   }
   syncForm.busy = true;
   syncForm.error = null;
   const passphrase = pass.value;
   pass.value = pass2.value = '';
-  renderBackupView();
+  renderPanel();
   try {
     syncState = await call('sync_enable', { folder, passphrase });
     syncForm = { folder: '', error: null, busy: false, confirmOff: false };
@@ -623,7 +685,7 @@ async function syncSubmit() {
     syncForm.busy = false;
     const code = e?.data?.code;
     syncForm.error = code && STRINGS.en[`sync.err.${code}`] ? syncErrorText({ code }) : errorMessage(e);
-    renderBackupView();
+    renderPanel();
   }
 }
 
@@ -657,71 +719,135 @@ function replaceItemLabel(i) {
   return inventoryLabel(i.item);
 }
 
-function replaceCardHtml(entries) {
+const RP_STEPS = ['rp.step.choose', 'rp.step.compare', 'rp.step.confirm', 'rp.step.summary'];
+
+// Guided replacement: 1 choose keys · 2 compare · 3 test at the service and
+// confirm · 4 what is still open. "Found on the new key" (technical) and
+// "confirmed by you" stay separate; a tick never replaces the technical check.
+function renderReplaceView() {
+  $('replace-avatar').innerHTML = icon('refresh', 30);
+  const el = $('replace-content');
+  const entries = [...historyKeys.values()];
   const old = replaceOld && historyKeys.get(replaceOld);
-  const newId = old?.replace?.new;
-  const head = `<h2>${escHtml(t('rp.title'))}</h2>
-    <p class="card-text">${escHtml(t('rp.text'))}</p>
-    <div class="rp-pick">
-      <label><span>${escHtml(t('rp.old'))}</span>
-        <select id="rp-old" class="bk-select"><option value="">${escHtml(t('rp.choose'))}</option>
-        ${entries.map(e => replaceKeyOption(e, e.key_id === replaceOld)).join('')}</select></label>
-      <label><span>${escHtml(t('rp.new'))}</span>
-        <select id="rp-new" class="bk-select" ${old ? '' : 'disabled'}><option value="">${escHtml(t('rp.choose'))}</option>
-        ${entries.filter(e => e.key_id !== replaceOld && !e.lost_since).map(e => replaceKeyOption(e, e.key_id === newId)).join('')}</select></label>
-    </div>`;
-  if (!old || !newId || !historyKeys.has(newId)) return `<section class="card" id="rp-card">${head}</section>`;
+  const newId = old?.replace?.new && historyKeys.has(old.replace.new) ? old.replace.new : null;
+  if (!newId && replaceStep > 1) replaceStep = 1;
+  const stepper = `<nav class="rp-steps" aria-label="${escHtml(t('rp.title'))}">${RP_STEPS.map((k, i) => {
+    const n = i + 1;
+    const enabled = n === 1 || newId;
+    return `<button type="button" class="rp-step${n === replaceStep ? ' active' : ''}" data-rp-step="${n}"
+      ${enabled ? '' : 'disabled'} ${n === replaceStep ? 'aria-current="step"' : ''}><b>${n}</b><span>${escHtml(t(k))}</span></button>`;
+  }).join('')}</nav>`;
+
+  if (replaceStep === 1) {
+    el.innerHTML = `${stepper}<section class="card">
+      <h2>${escHtml(t('rp.step.choose'))}</h2>
+      <div class="rp-pick">
+        <label><span>${escHtml(t('rp.old'))}</span>
+          <select id="rp-old" class="bk-select"><option value="">${escHtml(t('rp.choose'))}</option>
+          ${entries.map(e => replaceKeyOption(e, e.key_id === replaceOld)).join('')}</select></label>
+        <label><span>${escHtml(t('rp.new'))}</span>
+          <select id="rp-new" class="bk-select" ${old ? '' : 'disabled'}><option value="">${escHtml(t('rp.choose'))}</option>
+          ${entries.filter(e => e.key_id !== replaceOld && !e.lost_since).map(e => replaceKeyOption(e, e.key_id === newId)).join('')}</select></label>
+      </div>
+      <p class="field-hint bk-hint">${escHtml(t('rp.never'))}</p>
+      <div class="form-actions"><button type="button" class="btn btn-primary" data-rp-step="2" ${newId ? '' : 'disabled'}>${escHtml(t('rp.next'))}</button></div>
+    </section>`;
+    return;
+  }
 
   const m = accountModel();
   const plan = buildReplacePlan(m, old.key_id, newId);
   const items = replacePlanItems(plan);
   const done = new Set(old.replace.done || []);
   const remember = appSettings.remember_sites !== false && !appSettings.stateless;
-  const itemHtml = i => {
-    const [cls, key] = RP_CHECK[i.check];
-    const when = i.checked ? ` · ${relTime(i.checked)}` : '';
-    const src = i.source ? t(`acc.src.${i.source}`) : '';
-    return `<li class="${done.has(i.id) ? 'done' : ''}">
-      <label><input type="checkbox" data-rp-item="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''} ${remember ? '' : 'disabled'}>
-        <span class="bk-site">${escHtml(replaceItemLabel(i))}</span></label>
-      <span class="rp-state">
-        <span class="rp-chip ${cls}" title="${escHtml([src, when.slice(3)].filter(Boolean).join(' · '))}">${escHtml(t(key))}</span>
-        ${done.has(i.id) ? `<span class="rp-chip user">${escHtml(t('rp.confirmed'))}</span>` : ''}
-      </span></li>`;
-  };
-  const section = (list, title, hint) => (list.length ? `<h3 class="bk-group">${escHtml(t(title))}</h3>
-    <p class="field-hint bk-hint">${escHtml(t(hint))}</p>
-    <ul class="bk-lost-list rp-list">${list.map(itemHtml).join('')}</ul>` : '');
-
+  const isOpen = i => !(i.check === 'found' && done.has(i.id));
   const info = m.keyInfo.get(newId);
-  const found = items.filter(i => i.check === 'found').length;
-  const confirmed = items.filter(i => done.has(i.id)).length;
-  const connected = [...tokens.values()].some(tk => tk.history_id === newId && !tk.offline);
   const notes = [];
   if (info.coverage === 'none' || (plan.codes.length && !info.codesKnown)) notes.push(t('rp.readNew'));
   else if (info.coverage === 'probe') notes.push(t('rp.probeOnly', { n: info.probedCount }));
   if (!remember) notes.push(t('rp.noRemember'));
   else if (!appSettings.history_enabled) notes.push(t('rp.session'));
+  const connected = [...tokens.values()].some(tk => tk.history_id === newId && !tk.offline);
+  const pair = `<p class="rp-pair">${escHtml(keyLabel(old))} → ${escHtml(keyLabel(historyKeys.get(newId)))}</p>`;
+  const notesHtml = notes.map(n => `<p class="field-hint bk-hint warn-text">${escHtml(n)}</p>`).join('');
 
-  return `<section class="card" id="rp-card">${head}
-    ${items.length ? `<div class="acc-summary rp-summary">
+  const itemHtml = (i, withTick) => {
+    const [cls, key] = RP_CHECK[i.check];
+    const src = [i.source ? t(`acc.src.${i.source}`) : '', i.checked ? relTime(i.checked) : ''].filter(Boolean).join(' · ');
+    const chips = `<span class="rp-state">
+        <span class="rp-chip ${cls}">${escHtml(t(key))}${src ? `<span class="rp-src"> · ${escHtml(src)}</span>` : ''}</span>
+        ${done.has(i.id) ? `<span class="rp-chip user">${escHtml(t('rp.confirmed'))}</span>` : ''}
+        ${done.has(i.id) && i.check !== 'found' ? `<span class="rp-chip warn">${escHtml(t('rp.notProven'))}</span>` : ''}
+      </span>`;
+    const label = `<span class="bk-site">${escHtml(replaceItemLabel(i))}</span>`;
+    return `<li class="${done.has(i.id) ? 'done' : ''}">${withTick
+      ? `<label><input type="checkbox" data-rp-item="${escHtml(i.id)}" ${done.has(i.id) ? 'checked' : ''} ${remember ? '' : 'disabled'}>${label}</label>`
+      : label}${chips}</li>`;
+  };
+  const section = (list, title, hint, withTick) => {
+    const shown = replaceOpenOnly ? list.filter(isOpen) : list;
+    if (!list.length) return '';
+    return `<h3 class="bk-group">${escHtml(t(title))}</h3>
+      <details class="rp-howto"><summary>${escHtml(t('rp.howto'))}</summary><p class="field-hint">${escHtml(t(hint))}</p></details>
+      ${shown.length ? `<ul class="bk-lost-list rp-list">${shown.map(i => itemHtml(i, withTick)).join('')}</ul>`
+        : `<p class="field-hint">${escHtml(t('rp.noneOpen'))}</p>`}`;
+  };
+  const sections = withTick => [
+    section(plan.passkeys, 'rp.pk.title', 'rp.pk.hint', withTick),
+    section(plan.codes, 'hist.contents.oath', 'rp.oath.hint', withTick),
+    section(plan.openpgp, 'hist.contents.openpgp', 'rp.pgp.hint', withTick),
+    section(plan.piv, 'hist.contents.piv', 'rp.piv.hint', withTick),
+    section(plan.otp, 'hist.contents.otp', 'rp.otp.hint', withTick)].join('');
+  const openToggle = `<label class="check rp-open-only"><input type="checkbox" id="rp-open-only" ${replaceOpenOnly ? 'checked' : ''}><span>${escHtml(t('rp.openOnly'))}</span></label>`;
+  const nav = (back, next) => `<div class="form-actions">
+      ${back ? `<button type="button" class="btn btn-secondary" data-rp-step="${back}">${escHtml(t('rp.prev'))}</button>` : ''}
+      ${next ? `<button type="button" class="btn btn-primary" data-rp-step="${next}">${escHtml(t('rp.next'))}</button>` : ''}
+    </div>`;
+
+  if (!items.length) {
+    el.innerHTML = `${stepper}<section class="card">${pair}<p class="card-text">${escHtml(t(remember ? 'rp.empty' : 'rp.noRemember'))}</p>${nav(1)}</section>`;
+    return;
+  }
+  const found = items.filter(i => i.check === 'found').length;
+  const confirmed = items.filter(i => done.has(i.id)).length;
+  const complete = items.filter(i => !isOpen(i)).length;
+
+  if (replaceStep === 2) {
+    el.innerHTML = `${stepper}<section class="card">
+      <div class="check-head"><h2>${escHtml(t('rp.step.compare'))}</h2>${openToggle}</div>${pair}
+      <p class="card-text">${escHtml(t('rp.compare.text', { n: items.length, found }))}</p>
+      <p class="field-hint bk-hint">${escHtml(t('rp.legend'))}</p>
+      ${notesHtml}${sections(false)}
+      <div class="form-actions"><button type="button" class="btn btn-secondary" data-act="rp-open-new">${escHtml(t(connected ? 'rp.openNew' : 'rp.openNewOffline'))}</button></div>
+      ${nav(1, 3)}</section>`;
+  } else if (replaceStep === 3) {
+    el.innerHTML = `${stepper}<section class="card">
+      <div class="check-head"><h2>${escHtml(t('rp.step.confirm'))}</h2>${openToggle}</div>${pair}
+      <p class="card-text">${escHtml(t('rp.confirm.text'))}</p>
+      ${notesHtml}${sections(true)}${nav(2, 4)}</section>`;
+  } else {
+    const openItems = items.filter(isOpen);
+    const group = (list, key) => (list.length ? `<h3 class="bk-group">${escHtml(t(key, { n: list.length }))}</h3>
+      <ul class="bk-lost-list rp-list">${list.map(i => itemHtml(i, false)).join('')}</ul>` : '');
+    el.innerHTML = `${stepper}<section class="card">
+      <h2>${escHtml(t('rp.step.summary'))}</h2>${pair}
+      <div class="acc-summary rp-summary">
         <div class="acc-stat"><b>${items.length}</b><span>${escHtml(t('rp.sum.total'))}</span></div>
+        <div class="acc-stat ok"><b>${complete}</b><span>${escHtml(t('rp.sum.complete'))}</span></div>
         <div class="acc-stat ok"><b>${found}</b><span>${escHtml(t('rp.sum.found'))}</span></div>
         <div class="acc-stat info"><b>${confirmed}</b><span>${escHtml(t('rp.sum.confirmed'))}</span></div>
       </div>
-      <p class="field-hint bk-hint">${escHtml(t('rp.legend'))}</p>` : `<p class="card-text">${escHtml(t(remember ? 'rp.empty' : 'rp.noRemember'))}</p>`}
-    ${notes.map(n => `<p class="field-hint bk-hint warn-text">${escHtml(n)}</p>`).join('')}
-    ${section(plan.passkeys, 'rp.pk.title', 'rp.pk.hint')}
-    ${section(plan.codes, 'hist.contents.oath', 'rp.oath.hint')}
-    ${section(plan.openpgp, 'hist.contents.openpgp', 'rp.pgp.hint')}
-    ${section(plan.piv, 'hist.contents.piv', 'rp.piv.hint')}
-    ${section(plan.otp, 'hist.contents.otp', 'rp.otp.hint')}
-    <p class="field-hint bk-hint rp-never">${escHtml(t('rp.never'))}</p>
-    <div class="form-actions">
-      <button type="button" class="btn btn-secondary" data-act="rp-open-new">${escHtml(t(connected ? 'rp.openNew' : 'rp.openNewOffline'))}</button>
-      <button type="button" class="btn btn-secondary" data-act="rp-stop">${escHtml(t('rp.stop'))}</button>
-    </div>
-  </section>`;
+      ${notesHtml}
+      ${openItems.length ? `<p class="card-text warn-text">${escHtml(t('rp.summary.open', { n: openItems.length }))}</p>` : `<p class="card-text">${escHtml(t('rp.summary.done'))}</p>`}
+      ${group(openItems.filter(i => done.has(i.id)), 'rp.group.confirmedOnly')}
+      ${group(openItems.filter(i => !done.has(i.id) && i.check === 'found'), 'rp.group.foundOnly')}
+      ${group(openItems.filter(i => !done.has(i.id) && i.check !== 'found'), 'rp.group.open')}
+      <p class="field-hint bk-hint rp-never">${escHtml(t('rp.never'))}</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" data-rp-step="3">${escHtml(t('rp.prev'))}</button>
+        <button type="button" class="btn btn-secondary" data-act="rp-stop">${escHtml(t('rp.stop'))}</button>
+      </div></section>`;
+  }
 }
 
 function lostAssistantHtml(entry) {
@@ -794,8 +920,9 @@ function serviceAvatar(...names) {
   return `<span class="pk-avatar">${escHtml((first[0] || '?').toUpperCase())}</span>`;
 }
 
-let accFilter = '';
-let accOnlyProblems = false;
+let accFilter = '';        // search text
+let accLevel = '';         // category ('' = all), see ACCOUNT_FILTERS
+const accNextOpen = new Set();   // rows whose "next step" is expanded
 
 const STATUS_TEXT = {
   passkey_multi: r => t('acc.st.passkeyMulti', { n: r.activeKeys.length }),
@@ -810,11 +937,19 @@ const STATUS_TEXT = {
   linked: () => '',
 };
 
-function accSummaryHtml(rows) {
-  const count = lvl => rows.filter(r => r.level === lvl).length;
-  return [['', rows.length, 'acc.sum.accounts'], ['crit', count('crit'), 'acc.sum.lost'], ['warn', count('warn'), 'acc.sum.single'],
-    ['unclear', count('unclear'), 'acc.sum.unclear'], ['info', count('info'), 'acc.sum.codes'], ['ok', count('ok'), 'acc.sum.ok']]
-    .map(([cls, n, key]) => `<div class="acc-stat ${cls}"><b>${n}</b><span>${escHtml(t(key))}</span></div>`).join('');
+// Summary cards: totals per category; as buttons they filter the overview
+const ACC_CARDS = [['', 'acc.sum.accounts'], ['crit', 'acc.sum.lost'], ['warn', 'acc.sum.single'],
+  ['unclear', 'acc.sum.unclear'], ['info', 'acc.sum.codes'], ['ok', 'acc.sum.ok']];
+
+function accSummaryHtml(rows, clickable = false, active = null) {
+  const count = lvl => (lvl ? rows.filter(r => r.level === lvl).length : rows.length);
+  return ACC_CARDS.map(([lvl, key]) => {
+    const inner = `<b>${count(lvl)}</b><span>${escHtml(t(key))}</span>`;
+    if (!clickable) return `<div class="acc-stat ${lvl}">${inner}</div>`;
+    const on = active === lvl;
+    return `<button type="button" class="acc-stat ${lvl}${on ? ' active' : ''}" data-acc-filter="${lvl}"
+      ${active !== null ? `aria-pressed="${on}"` : ''}>${inner}</button>`;
+  }).join('');
 }
 
 function keyFreshness(info) {
@@ -826,22 +961,32 @@ function keyFreshness(info) {
   return [src, when ? t(info.stale ? 'acc.fresh.stale' : 'acc.fresh.read', { when: relTime(when) }) : ''].filter(Boolean).join(' · ');
 }
 
+// What to do next for a problem row – explanation only, nothing is done automatically
+const NEXT_STEP = {
+  lost_only: () => t('acc.next.lostOnly'),
+  passkey_single: () => t('acc.next.passkeySingle'),
+  code_single: () => t('acc.next.codeSingle'),
+  passkey_lost_code: r => t('acc.next.passkeyLostCode', { key: (r.codeKeys || []).map(k => keyLabel(historyKeys.get(k))).join(', ') }),
+  unclear: () => t('acc.next.unclear'),
+  unclear_lost: () => t('acc.next.unclearLost'),
+};
+
 function renderAccountsView() {
   $('accounts-avatar').innerHTML = icon('passkey', 30);
   const el = $('accounts-content');
   const m = accountModel();
-  const visible = m.rows.filter(r => !(r.kind === 'code' && r.linkedTo));
-  if (!visible.length) {
+  const all = overviewRows(m);
+  if (!all.length) {
     el.innerHTML = `<div class="callout"><div class="callout-title">${escHtml(t('acc.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('acc.empty.text'))}</div></div>`;
     return;
   }
-  const q = String(accFilter || '').toLowerCase().trim();
-  const rowMatches = r => !q || [r.rpId, r.issuer, r.account, r.domain].some(v => String(v || '').toLowerCase().includes(q));
+  const shown = new Set(filterAccountRows(m, { level: accLevel, query: accFilter }));
+  const cols = m.keys.length + 1;
   const head = m.keys.map(k => {
     const info = m.keyInfo.get(k.key_id);
     const free = k.snapshot?.remaining_disc_creds;
-    return `<th class="acc-key${k.lost_since ? ' lost' : ''}">${escHtml(keyLabel(k))}
+    return `<th class="acc-key${k.lost_since ? ' lost' : ''}" scope="col">${escHtml(keyLabel(k))}
       <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
       <span class="acc-sub${info.stale || info.probeIncomplete ? ' warn-text' : ''}">${escHtml(k.lost_since ? t('bk.lostBadge') : keyFreshness(info))}</span>
       ${!k.lost_since && free != null ? `<span class="acc-sub">${escHtml(t('acc.free', { n: free }))}</span>` : ''}</th>`;
@@ -850,8 +995,8 @@ function renderAccountsView() {
     const c = cellState(m, r, k.key_id);
     const lost = k.lost_since ? ' lost' : '';
     if (c.absent) {
-      return c.unknown ? `<td class="unknown${lost}" title="${escHtml(t('acc.cell.unknown'))}">?</td>`
-        : `<td class="no${lost}" title="${escHtml(t('acc.cell.absent'))}">–</td>`;
+      return c.unknown ? `<td class="unknown${lost}" title="${escHtml(t('acc.cell.unknown'))}"><span aria-hidden="true">?</span><span class="sr-only">${escHtml(t('acc.cell.unknown'))}</span></td>`
+        : `<td class="no${lost}" title="${escHtml(t('acc.cell.absent'))}"><span aria-hidden="true">–</span><span class="sr-only">${escHtml(t('acc.cell.absent'))}</span></td>`;
     }
     const tags = [c.passkey ? `<span class="pill on">${escHtml(c.passkey > 1 ? `${t('acc.passkey')} ×${c.passkey}` : t('acc.passkey'))}</span>` : '',
       c.code ? `<span class="pill">${escHtml(t('acc.code'))}</span>` : ''].join('');
@@ -859,35 +1004,54 @@ function renderAccountsView() {
     return `<td class="yes${lost}" title="${escHtml(src)}">${tags}${c.source && c.source !== 'list' ? `<span class="acc-src">${escHtml(t(`acc.src.${c.source}`))}</span>` : ''}</td>`;
   }).join('');
   const rowHtml = (r, g) => {
-    const label = r.kind === 'unknown' ? unknownAccountLabel(r)
-      : r.account || r.issuer;
+    const label = r.kind === 'unknown' ? unknownAccountLabel(r) : r.account || r.issuer;
     const sub = r.kind === 'code' ? t('acc.kind.code') : r.rpId !== g.domain ? r.rpId : '';
     const link = r.kind === 'passkey' && r.links.length ? `<span class="acc-note">${escHtml(t('acc.linkedByName'))}</span>` : '';
-    return `<tr class="acc-sub-row acc-${r.level}"><td class="acc-name acc-indent">
+    const next = NEXT_STEP[r.status];
+    const open = next && accNextOpen.has(r.id);
+    const nextId = `acc-next-${escHtml(r.id).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    return `<tr class="acc-sub-row acc-${r.level}"><th scope="row" class="acc-name acc-indent">
       <span><span class="acc-upn">${escHtml(label)}</span>${sub ? `<span class="acc-note">${escHtml(sub)}</span>` : ''}
-      <span class="acc-note acc-status">${escHtml(STATUS_TEXT[r.status](r))}</span>${link}</span></td>${cells(r)}</tr>`;
+      <span class="acc-note acc-status">${escHtml(STATUS_TEXT[r.status](r))}</span>${link}
+      ${next ? `<button type="button" class="btn-link acc-next-btn" data-next="${escHtml(r.id)}" aria-expanded="${!!open}" aria-controls="${nextId}">${escHtml(t('acc.next'))}</button>` : ''}</span></th>${cells(r)}</tr>
+      ${open ? `<tr class="acc-next-row" id="${nextId}"><td colspan="${cols}"><div class="acc-next-text">${escHtml(next(r))}</div></td></tr>` : ''}`;
   };
   const body = m.groups.map(g => {
-    const rows = g.rows.filter(r => !(r.kind === 'code' && r.linkedTo))
-      .filter(r => (!accOnlyProblems || r.level !== 'ok') && (rowMatches(r) || serviceKey(g.label).includes(serviceKey(q))));
+    const rows = g.rows.filter(r => shown.has(r));
     if (!rows.length) return '';
-    return `<tr class="acc-group acc-${g.level}"><td class="acc-name" colspan="${m.keys.length + 1}">${serviceAvatar(g.domain, g.label)}
-        <span><span class="acc-label">${escHtml(g.label)}</span>${g.domain && g.domain !== g.label ? `<span class="acc-note">${escHtml(g.domain)}</span>` : ''}</span></td></tr>`
+    return `<tr class="acc-group acc-${g.level}"><td class="acc-name" colspan="${cols}"><span class="acc-group-label">${serviceAvatar(g.domain, g.label)}
+        <span><span class="acc-label">${escHtml(g.label)}</span>${g.domain && g.domain !== g.label ? `<span class="acc-note">${escHtml(g.domain)}</span>` : ''}</span></span></td></tr>`
       + rows.map(r => rowHtml(r, g)).join('');
   }).join('');
+  const activeCard = ACC_CARDS.find(([lvl]) => lvl === accLevel);
+  const filtered = accLevel || accFilter.trim();
+  const status = filtered
+    ? `<div class="acc-filter-state" role="status">
+        <span>${escHtml(t('acc.filter.count', { n: shown.size, total: all.length }))}</span>
+        ${accLevel ? `<span class="pill on">${escHtml(t(activeCard[1]))}</span>` : ''}
+        ${accFilter.trim() ? `<span class="pill">„${escHtml(accFilter.trim())}“</span>` : ''}
+        <button type="button" class="btn-link" data-acc-reset>${escHtml(t('acc.filter.reset'))}</button></div>`
+    : `<div class="acc-filter-state" role="status"><span>${escHtml(t('acc.filter.all', { n: all.length }))}</span></div>`;
   el.innerHTML = `
-    <div class="acc-summary">${accSummaryHtml(visible)}</div>
+    <div class="acc-summary" role="group" aria-label="${escHtml(t('acc.filter.label'))}">${accSummaryHtml(all, true, accLevel)}</div>
     <section class="card">
       <div class="acc-tools">
-        <input type="search" id="acc-search" placeholder="${escHtml(t('acc.search'))}" value="${escHtml(accFilter)}" spellcheck="false">
-        <label class="check"><input type="checkbox" id="acc-problems" ${accOnlyProblems ? 'checked' : ''}><span>${escHtml(t('acc.onlyProblems'))}</span></label>
+        <input type="search" id="acc-search" placeholder="${escHtml(t('acc.search'))}" value="${escHtml(accFilter)}" spellcheck="false" aria-label="${escHtml(t('acc.search'))}">
       </div>
-      <div class="bk-table-wrap"><table class="bk-table acc-table">
-        <thead><tr><th>${escHtml(t('acc.service'))}</th>${head}</tr></thead>
-        <tbody>${body || `<tr><td colspan="${m.keys.length + 1}" class="muted">${escHtml(t('acc.noMatch'))}</td></tr>`}</tbody>
-      </table></div>
-      <p class="field-hint bk-hint">${escHtml(t('acc.legend'))}</p>
-      <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
+      ${status}
+      <ul class="acc-legend" aria-label="${escHtml(t('acc.legend.title'))}">
+        <li><span class="pill on">${escHtml(t('acc.passkey'))}</span> <span class="pill">${escHtml(t('acc.code'))}</span> ${escHtml(t('acc.legend.yes'))}</li>
+        <li><span class="acc-legend-mark">–</span> ${escHtml(t('acc.legend.no'))}</li>
+        <li><span class="acc-legend-mark">?</span> ${escHtml(t('acc.legend.unknown'))}</li>
+      </ul>
+      ${shown.size ? `<div class="bk-table-wrap acc-wrap" tabindex="0" aria-label="${escHtml(t('acc.title'))}"><table class="bk-table acc-table">
+        <thead><tr><th scope="col" class="acc-corner">${escHtml(t('acc.service'))}</th>${head}</tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>` : `<div class="acc-empty"><p>${escHtml(t('acc.filter.empty'))}</p>
+        <button type="button" class="btn btn-secondary" data-acc-reset>${escHtml(t('acc.filter.reset'))}</button></div>`}
+      <details class="acc-more"><summary>${escHtml(t('acc.limits.title'))}</summary>
+        <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
+        <p class="field-hint bk-hint">${escHtml(t('acc.legend.source'))}</p></details>
     </section>`;
 }
 
@@ -3704,6 +3868,9 @@ function init() {
     if (ev.key === 'Escape' && quickUnlock && !quickUnlock.busy) { quickUnlock = null; renderQuickUnlock(); }
   });
   $('nav-accounts-icon').innerHTML = icon('passkey', 18);
+  $('nav-settings-icon').innerHTML = icon('settings', 18);
+  $('nav-settings').addEventListener('click', showSettingsView);
+  $('replace-back').addEventListener('click', showBackupView);
   $('accounts-content').addEventListener('input', ev => {
     if (ev.target.id === 'acc-search') {
       accFilter = ev.target.value;
@@ -3714,14 +3881,35 @@ function init() {
       box.setSelectionRange(pos, pos);
     }
   });
-  $('accounts-content').addEventListener('change', ev => {
-    if (ev.target.id === 'acc-problems') { accOnlyProblems = ev.target.checked; renderAccountsView(); }
+  $('accounts-content').addEventListener('click', ev => {
+    const card = ev.target.closest('[data-acc-filter]');
+    if (card) {
+      accLevel = accLevel === card.dataset.accFilter ? '' : card.dataset.accFilter;
+      renderAccountsView();
+      document.querySelector(`#accounts-content [data-acc-filter="${accLevel}"]`)?.focus();
+      return;
+    }
+    if (ev.target.closest('[data-acc-reset]')) {
+      accLevel = '';
+      accFilter = '';
+      renderAccountsView();
+      $('acc-search')?.focus();
+      return;
+    }
+    const next = ev.target.closest('[data-next]');
+    if (next) {
+      const id = next.dataset.next;
+      if (accNextOpen.has(id)) accNextOpen.delete(id); else accNextOpen.add(id);
+      renderAccountsView();
+      document.querySelector(`#accounts-content [data-next="${CSS.escape(id)}"]`)?.focus();
+    }
   });
-  $('backup-content').addEventListener('change', async ev => {
+  for (const panel of ['backup-content', 'settings-content', 'replace-content']) $(panel).addEventListener('change', async ev => {
     const el = ev.target;
+    if (el.id === 'rp-open-only') { replaceOpenOnly = el.checked; return renderPanel(); }
     if (el.id === 'history-enabled') {
       appSettings = await call('set_settings', { values: { history_enabled: el.checked } }).catch(() => appSettings);
-      renderBackupView();
+      renderPanel();
     }
     if (el.id === 'personal-mode') {
       appSettings = await call('set_settings', { values: { personal_mode: el.checked } }).catch(() => appSettings);
@@ -3734,30 +3922,36 @@ function init() {
       render();
     } else if (el.id === 'rp-old') {
       replaceOld = el.value || null;
-      renderBackupView();
+      renderPanel();
     } else if (el.id === 'rp-new' && replaceOld) {
       const summary = await call('history_replace', { kid: replaceOld, new_kid: el.value || null })
         .catch(e => { showToast(errorMessage(e), 'error'); return null; });
       if (summary) historyKeys.set(summary.key_id, summary);
-      renderBackupView();
+      renderPanel();
     } else if (el.dataset.rpItem && replaceOld) {
       const summary = await call('history_replace_done', { kid: replaceOld, item: el.dataset.rpItem, done: el.checked })
         .catch(e => { showToast(errorMessage(e), 'error'); return null; });
       if (summary) historyKeys.set(summary.key_id, summary);
-      renderBackupView();
+      renderPanel();
     } else if (el.id === 'bk-lost-select') {
       lostKid = el.value || null;
-      renderBackupView();
+      renderPanel();
     } else if (el.dataset.site && lostKid) {
       const summary = await call('history_lost_done', { kid: lostKid, rp_id: el.dataset.site, done: el.checked }).catch(() => null);
-      if (summary) { historyKeys.set(summary.key_id, summary); renderBackupView(); }
+      if (summary) { historyKeys.set(summary.key_id, summary); renderPanel(); }
     }
   });
-  $('backup-content').addEventListener('submit', ev => {
+  for (const panel of ['backup-content', 'settings-content', 'replace-content']) $(panel).addEventListener('submit', ev => {
     if (ev.target.id === 'sync-form') { ev.preventDefault(); syncSubmit(); }
   });
-  $('backup-content').addEventListener('click', async ev => {
+  for (const panel of ['backup-content', 'settings-content', 'replace-content']) $(panel).addEventListener('click', async ev => {
+    const step = ev.target.closest('[data-rp-step]');
+    if (step && !step.disabled) { replaceStep = Number(step.dataset.rpStep); renderPanel(); $('replace-view').scrollTop = 0; return; }
+    const filter = ev.target.closest('[data-acc-filter]');
+    if (filter) { accLevel = filter.dataset.accFilter || ''; return showAccountsView(); }
     const b = ev.target.closest('[data-act]');
+    if (b?.dataset.act === 'open-settings') return showSettingsView();
+    if (b?.dataset.act === 'open-replace') return showReplaceView(b.dataset.kid);
     if (b?.dataset.act === 'open-accounts') return showAccountsView();
     if (b?.dataset.act === 'hist-export') return exportHistory();
     if (b?.dataset.act === 'hist-import') return importHistory();
@@ -3770,7 +3964,8 @@ function init() {
     if (b?.dataset.act === 'rp-stop') {
       const summary = await call('history_replace', { kid: replaceOld, new_kid: null }).catch(() => null);
       if (summary) historyKeys.set(summary.key_id, summary);
-      return renderBackupView();
+      replaceStep = 1;
+      return renderPanel();
     }
     if (!b || !lostKid || !['lost', 'unlost'].includes(b.dataset.act)) return;
     const summary = await call('history_set_lost', { kid: lostKid, lost: b.dataset.act === 'lost' }).catch(() => null);

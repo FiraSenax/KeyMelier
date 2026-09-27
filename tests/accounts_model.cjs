@@ -1,7 +1,7 @@
 // Regression tests for static/accounts.js – each case is a misclassification
 // that must not happen again (node tests/accounts_model.cjs).
 const assert = require('node:assert/strict');
-const { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
+const { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, overviewRows, filterAccountRows, ACCOUNT_FILTERS, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
 
 const NOW = Date.parse('2026-09-27T12:00:00Z');
 const day = n => new Date(NOW - n * 86400e3).toISOString();
@@ -250,6 +250,36 @@ const find = (m, pred) => m.rows.find(pred);
   const plan = buildReplacePlan(m, 'A', 'B');
   assert.equal(plan.passkeys.find(i => i.rpId === 'example.com').check, 'missing');
   assert.equal(plan.passkeys.find(i => i.rpId === 'shop.com').check, 'unknown');
+}
+
+// 10. Overview filters (summary cards) select rows only – ratings stay as they are
+{
+  const m = buildAccountModel([
+    key('LOST', { lost_since: day(2), sites: [site('lost.com', ['erika'])], sites_updated: day(9) }),
+    key('A', { sites: [site('github.com', ['erika']), site('login.microsoft.com', ['a@contoso.com', 'b@contoso.com']),
+      site('webauthn.io', [], { count: 1 })], sites_updated: day(1),
+      inventory: { oath: { items: [{ issuer: 'AWS', name: 'root' }, { issuer: 'GitHub', name: 'erika' }], updated: day(1) } } }),
+    key('B', { sites: [site('login.microsoft.com', ['a@contoso.com'])], sites_updated: day(1),
+      inventory: { oath: { items: [{ issuer: 'GitHub', name: 'erika' }], updated: day(1) } } }),
+  ], NOW);
+  const before = JSON.stringify(m.rows.map(r => [r.id, r.status, r.level]));
+  const all = overviewRows(m);
+  assert.equal(filterAccountRows(m).length, all.length, 'no filter = all rows');
+  const perLevel = ACCOUNT_FILTERS.filter(Boolean).map(level => filterAccountRows(m, { level }));
+  assert.equal(perLevel.reduce((n, rows) => n + rows.length, 0), all.length, 'every row is in exactly one category');
+  for (const level of ACCOUNT_FILTERS.filter(Boolean)) {
+    assert.ok(filterAccountRows(m, { level }).every(r => r.level === level), level);
+  }
+  assert.deepEqual(filterAccountRows(m, { level: 'crit' }).map(r => r.rpId), ['lost.com']);
+  assert.deepEqual(filterAccountRows(m, { level: 'ok' }).map(r => r.account), ['a@contoso.com']);
+  assert.equal(filterAccountRows(m, { level: 'unclear' })[0].rpId, 'webauthn.io');
+  // search and category together
+  assert.deepEqual(filterAccountRows(m, { level: 'warn', query: 'contoso' }).map(r => r.account), ['b@contoso.com']);
+  assert.equal(filterAccountRows(m, { level: 'ok', query: 'github' }).length, 0, 'empty result is possible');
+  // search finds the service name, the linked code and is case-insensitive
+  assert.ok(filterAccountRows(m, { query: 'MICROSOFT' }).length === 2);
+  assert.ok(filterAccountRows(m, { query: 'aws' }).some(r => r.issuer === 'AWS'));
+  assert.equal(JSON.stringify(m.rows.map(r => [r.id, r.status, r.level])), before, 'filtering never changes ratings');
 }
 
 console.log('Account model tests passed');
