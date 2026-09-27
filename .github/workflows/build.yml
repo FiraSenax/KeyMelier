@@ -93,9 +93,9 @@ jobs:
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
     permissions:
       contents: read
-      id-token: write
+      actions: read   # SignPath downloads the unsigned artifact of this run
     env:
-      SIGN_WIN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' }}
+      SIGN_WIN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
     outputs:
       signed: ${{ steps.signed.outputs.signed }}
     steps:
@@ -110,33 +110,39 @@ jobs:
         env:
           KEYMELIER_ICON: static\icon.ico
         run: pyinstaller --clean --noconfirm fido2tool.spec
-      - name: Azure login for signing
+      # Free code signing for open source by the SignPath Foundation: the
+      # unsigned build goes to SignPath, which signs KeyMelier.exe with a key
+      # held in its HSM (see CODE_SIGNING.md and .signpath/).
+      - name: Upload unsigned build for signing
         if: env.SIGN_WIN == 'true'
-        uses: Azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        id: unsigned
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Sign binaries
+          name: unsigned-windows-build  # must not match the release pattern KeyMelier-*
+          path: dist/KeyMelier
+          retention-days: 1
+      - name: Sign with SignPath
         if: env.SIGN_WIN == 'true'
-        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
         with:
-          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
-          files-folder: ${{ github.workspace }}\dist\KeyMelier
-          files-folder-filter: exe,dll,pyd
-          files-folder-recurse: true
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-      - name: Verify signatures
+          connector-url: https://githubactions.connector.signpath.io
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/KeyMelier-signed
+      - name: Use and verify the signed build
         if: env.SIGN_WIN == 'true'
         shell: pwsh
         run: |
-          Get-ChildItem dist\KeyMelier -Recurse -File | Where-Object { $_.Extension -in '.exe','.dll','.pyd' } | ForEach-Object {
-            if ((Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid') { throw "Invalid signature: $($_.Name)" }
-          }
+          $sig = Get-AuthenticodeSignature dist\KeyMelier-signed\KeyMelier.exe
+          if ($sig.Status -ne 'Valid') { throw "Invalid signature: $($sig.Status)" }
+          Write-Host "Signed by: $($sig.SignerCertificate.Subject)"
+          Remove-Item -Recurse -Force dist\KeyMelier
+          Move-Item dist\KeyMelier-signed dist\KeyMelier
       - name: Record signing state
         id: signed
         shell: bash
@@ -191,7 +197,7 @@ jobs:
               echo "- \`KeyMelier-macOS.zip\` – macOS app, **not notarized**. First launch: open it, click *Done*, then *System Settings → Privacy & Security → Open Anyway*. (Or: \`xattr -dr com.apple.quarantine /Applications/KeyMelier.app\`)"
             fi
             if [ "$WIN_SIGNED" = "true" ]; then
-              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, Authenticode signed. Run \`KeyMelier.exe\` as Administrator for FIDO access."
+              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, signed via SignPath Foundation. Run \`KeyMelier.exe\` as Administrator for FIDO access."
             else
               echo "- \`KeyMelier-Windows.zip\` – Windows app folder, **not signed**. Right-click \`KeyMelier.exe\` → *Run as administrator*; if SmartScreen appears: *More info* → *Run anyway*."
             fi

@@ -29,20 +29,27 @@ the bundled Python/native modules; review it when changing packaging.
 
 ## Windows
 
-Set up [Azure Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart)
-with a Public Trust certificate profile and completed identity validation.
-Use a GitHub OIDC federated identity scoped to the `release-signing` environment
-and assign the Artifact Signing Certificate Profile Signer role on the required
-profile. Configure:
+Windows builds are signed through the [SignPath Foundation](https://signpath.org)
+program for open-source projects (free; the certificate is issued to SignPath
+Foundation, which appears as the publisher). Azure Artifact Signing is not
+available to individuals in the EU.
 
-- Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
-- Variables: `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE`.
+1. Apply at <https://signpath.org/apply>. Requirements: OSI license, public
+   repository, automated build (GitHub Actions), released project, the policy in
+   `CODE_SIGNING.md` linked from the README, MFA on GitHub and SignPath.
+2. After approval, in SignPath: create the project (GitHub trusted build
+   system), paste `.signpath/artifact-configuration.xml` as the artifact
+   configuration, create a `release-signing` signing policy with manual approval,
+   and create a CI user with an API token.
+3. In the GitHub environment `release-signing` configure:
+   - Secret `SIGNPATH_API_TOKEN`.
+   - Variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+     `SIGNPATH_SIGNING_POLICY_SLUG`.
 
-The workflow signs EXE, DLL and PYD files with SHA-256 and RFC3161 timestamps,
-then checks their Authenticode status. Alternative CA/hardware-backed signing
-requires adapting this step to that provider; do not export a hardware-protected
-key merely to fit this workflow. Signing does not guarantee immediate SmartScreen
-reputation.
+On a version tag the workflow uploads the unsigned build, submits it to
+SignPath, waits for approval and signing, verifies the Authenticode signature
+of `KeyMelier.exe` and publishes the signed folder. Signing does not guarantee
+immediate SmartScreen reputation.
 
 ## Release
 

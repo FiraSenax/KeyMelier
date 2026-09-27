@@ -24,6 +24,27 @@ LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES
 import sbom  # noqa: E402
 SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION)
 
+# Windows file metadata: product name and version are required for signing
+WIN_VERSION = None
+if sys.platform == 'win32':
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo, StringFileInfo, StringStruct, StringTable, VarFileInfo, VarStruct, VSVersionInfo)
+    _v = tuple(int(x) for x in APP_VERSION.split('.')) + (0,)
+    WIN_VERSION = VSVersionInfo(
+        ffi=FixedFileInfo(filevers=_v, prodvers=_v),
+        kids=[
+            StringFileInfo([StringTable('040904B0', [
+                StringStruct('CompanyName', 'KeyMelier project'),
+                StringStruct('FileDescription', 'KeyMelier – security key manager'),
+                StringStruct('FileVersion', APP_VERSION),
+                StringStruct('InternalName', 'KeyMelier'),
+                StringStruct('LegalCopyright', 'MIT License'),
+                StringStruct('OriginalFilename', 'KeyMelier.exe'),
+                StringStruct('ProductName', 'KeyMelier'),
+                StringStruct('ProductVersion', APP_VERSION)])]),
+            VarFileInfo([VarStruct('Translation', [0x0409, 1200])]),
+        ])
+
 # Icon path can be overridden via env var (used by CI)
 icon_path = os.environ.get('KEYMELIER_ICON') or None
 
@@ -124,6 +145,7 @@ exe = EXE(
     codesign_identity=os.environ.get("KEYMELIER_SIGN_IDENTITY"),
     entitlements_file="data/macos-entitlements.plist" if os.environ.get("KEYMELIER_SIGN_IDENTITY") else None,
     icon=icon_path,
+    version=WIN_VERSION,
 )
 
 coll = COLLECT(

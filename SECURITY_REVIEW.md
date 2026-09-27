@@ -32,8 +32,6 @@ Open (documented, not changed in this pass):
   directory (no persisted high-water mark for MDS serial / CRL number).
 - `disable-library-validation` entitlement on macOS: remove after a notarized
   runtime test.
-- Windows signing job receives `id-token: write` on non-release runs; split
-  into a tag-only job and scope the federated credential.
 - `proxy-tools` is an sdist; its build backend is fetched without hashes.
 - Attestation certificates are not revocation-checked.
 
