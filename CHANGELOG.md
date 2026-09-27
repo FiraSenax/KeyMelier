@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-09-27
 
+- **About KeyMelier inside the app** (bottom of the sidebar) – also on Windows, which has no app menu: version, what KeyMelier does, privacy, links, open-source licenses and "check for updates".
+- Sync: a file that is still arriving through the cloud is read again instead of showing an error; an error appears only if it persists. Two computers with the same sync id (e.g. settings copied to a new Mac) are detected and one takes a new id.
 - **Check for updates** on request: at the bottom of the sidebar (with the installed version), in the macOS app menu below "About KeyMelier" and in the menu bar icon. It says clearly whether KeyMelier is up to date, a new version is available (then the usual download-and-install banner appears), or GitHub could not be reached.
 - **Sync between your computers** (Backup & loss): pick a folder you already sync (iCloud Drive, OneDrive, Dropbox, Syncthing, NAS) on each computer. KeyMelier writes one file per computer, encrypted with a passphrase (scrypt + AES-256-GCM; the passphrase stays in the Keychain / Credential Manager), and merges the others: key names, history, what is on each key, lost and replacement status – the newest decision wins, also "no longer lost" and "removed". No server, no network service; the cloud provider only sees random ids. Security ratings are never taken over. Needs the saved history; off in stateless mode.
 - **Display names no longer match accounts:** a passkey is assigned to an account only by the account name the service stored; entries with only a display name (e.g. "Administrator") stay "assignment unclear" and are never counted as each other's backup – in the account overview, backup rating, lost-key assistant and key replacement. The display name is still shown.
