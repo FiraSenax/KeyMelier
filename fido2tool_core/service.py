@@ -8,6 +8,7 @@ pushed through `emit(event_name, payload)`.
 import dataclasses
 import json
 import logging
+import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -157,6 +158,39 @@ class KeyService:
             self.check_updates()
             current = self._mds3 is None or self._mds3.is_current()
             threading.Event().wait(self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL)
+
+    def update_download(self) -> dict:
+        """Download and verify the newer release for this platform (in the
+        background; progress via update_progress events)."""
+        from fido2tool_core import app_update
+        info = self._app_update or {}
+        if not info.get("newer") or not info.get("asset"):
+            raise PinError("No update available for download.", "no_update")
+        if getattr(self, "_update_running", False):
+            return {"started": False}
+        self._update_running = True
+
+        def run():
+            try:
+                path = app_update.download(info["asset"], lambda pct: self.emit("update_progress", {"pct": pct}))
+                self._update_path = path
+                self.emit("update_ready", {"name": path.name, "platform": sys.platform})
+            except app_update.UpdateError as e:
+                code = "update_checksum" if str(e) == "checksum" else "update_failed"
+                self.emit("update_failed", {"code": code, "error": str(e)})
+            finally:
+                self._update_running = False
+
+        threading.Thread(target=run, daemon=True, name="update-download").start()
+        return {"started": True}
+
+    def update_open(self) -> dict:
+        from fido2tool_core import app_update
+        path = getattr(self, "_update_path", None)
+        if not path or not path.exists():
+            raise PinError("The update file is no longer there.", "no_update")
+        app_update.open_download(path)
+        return {"opened": True}
 
     def check_updates(self) -> dict:
         from fido2tool_core.updates import now_iso

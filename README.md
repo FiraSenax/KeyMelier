@@ -58,6 +58,12 @@ KeyMelier is MIT licensed (see `LICENSE`). The app bundles the Python runtime an
 ## Download
 
 Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest).
+
+- **macOS:** `KeyMelier-macOS.dmg` – open it and drag KeyMelier to Applications (also to update).
+- **Windows:** `KeyMelier-Windows-Setup.exe` – installs or updates KeyMelier.
+- Portable alternatives: `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip`.
+
+When a newer version exists, KeyMelier offers to download it, verifies it against the release's SHA-256 checksums and opens it; installing stays with you.
 Each release states whether its macOS build is Developer ID signed and notarized
 and whether its Windows build is Authenticode signed. Checksums (`SHA256SUMS.txt`),
 dependency locks and the source commit are attached to every release.

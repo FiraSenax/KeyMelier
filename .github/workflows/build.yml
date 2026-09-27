@@ -75,6 +75,21 @@ jobs:
       - name: Remove temporary signing keychain
         if: always() && env.SIGN_MAC == 'true'
         run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
+      - name: Disk image
+        env:
+          KEYMELIER_SIGN_IDENTITY: ${{ env.SIGN_MAC == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+        run: bash packaging/make-dmg.sh
+      - name: Notarize disk image
+        if: env.SIGN_MAC == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool submit dist/KeyMelier-macOS.dmg --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/KeyMelier-macOS.dmg
+          spctl --assess --type open --context context:primary-signature --verbose=2 dist/KeyMelier-macOS.dmg
       - run: |
           ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
           cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt
@@ -83,6 +98,7 @@ jobs:
         with:
           name: KeyMelier-macOS
           path: |
+            dist/KeyMelier-macOS.dmg
             dist/KeyMelier-macOS.zip
             dist/THIRD_PARTY_LICENSES-macOS.txt
             dist/KeyMelier-macOS.cdx.json
@@ -143,6 +159,40 @@ jobs:
           Write-Host "Signed by: $($sig.SignerCertificate.Subject)"
           Remove-Item -Recurse -Force dist\KeyMelier
           Move-Item dist\KeyMelier-signed dist\KeyMelier
+      - name: Installer
+        shell: pwsh
+        run: |
+          $version = python -c "from fido2tool_core.version import __version__; print(__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\keymelier.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+      - name: Upload unsigned installer for signing
+        if: env.SIGN_WIN == 'true'
+        id: unsigned_setup
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: unsigned-windows-setup  # must not match the release pattern KeyMelier-*
+          path: dist/KeyMelier-Windows-Setup.exe
+          retention-days: 1
+      - name: Sign installer with SignPath
+        if: env.SIGN_WIN == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          connector-url: https://githubactions.connector.signpath.io
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned_setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/setup-signed
+      - name: Use and verify the signed installer
+        if: env.SIGN_WIN == 'true'
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist\setup-signed\KeyMelier-Windows-Setup.exe
+          if ($sig.Status -ne 'Valid') { throw "Invalid installer signature: $($sig.Status)" }
+          Move-Item -Force dist\setup-signed\KeyMelier-Windows-Setup.exe dist\KeyMelier-Windows-Setup.exe
       - name: Record signing state
         id: signed
         shell: bash
@@ -155,6 +205,7 @@ jobs:
         with:
           name: KeyMelier-Windows
           path: |
+            dist/KeyMelier-Windows-Setup.exe
             dist/KeyMelier-Windows.zip
             dist/THIRD_PARTY_LICENSES-Windows.txt
             dist/KeyMelier-Windows.cdx.json
@@ -192,15 +243,16 @@ jobs:
           {
             echo "**Downloads**"
             if [ "$MAC_SIGNED" = "true" ]; then
-              echo "- \`KeyMelier-macOS.zip\` – macOS app, Developer ID signed and notarized."
+              echo "- \`KeyMelier-macOS.dmg\` – **macOS** (recommended): open it and drag KeyMelier to Applications (replaces an older version). Developer ID signed and notarized."
             else
-              echo "- \`KeyMelier-macOS.zip\` – macOS app, **not notarized**. First launch: open it, click *Done*, then *System Settings → Privacy & Security → Open Anyway*. (Or: \`xattr -dr com.apple.quarantine /Applications/KeyMelier.app\`)"
+              echo "- \`KeyMelier-macOS.dmg\` – **macOS** (recommended): open it and drag KeyMelier to Applications (replaces an older version). **Not notarized** – first launch: open it, click *Done*, then *System Settings → Privacy & Security → Open Anyway*."
             fi
             if [ "$WIN_SIGNED" = "true" ]; then
-              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, signed via SignPath Foundation. Run \`KeyMelier.exe\` as Administrator for FIDO access."
+              echo "- \`KeyMelier-Windows-Setup.exe\` – **Windows** installer (recommended): installs or updates KeyMelier. Signed via SignPath Foundation."
             else
-              echo "- \`KeyMelier-Windows.zip\` – Windows app folder, **not signed**. Right-click \`KeyMelier.exe\` → *Run as administrator*; if SmartScreen appears: *More info* → *Run anyway*."
+              echo "- \`KeyMelier-Windows-Setup.exe\` – **Windows** installer (recommended): installs or updates KeyMelier. **Not signed** – if SmartScreen appears: *More info* → *Run anyway*."
             fi
+            echo "- \`KeyMelier-macOS.zip\`, \`KeyMelier-Windows.zip\` – the same apps without installer (portable)."
             echo
             echo "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no verified publisher – compare the checksums if in doubt."
           } > release-notes.md

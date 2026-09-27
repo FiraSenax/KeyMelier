@@ -68,7 +68,7 @@ ALLOWED = {
     "piv_protect_management_key", "piv_reset",
     "otp", "otp_swap", "otp_delete", "otp_static", "otp_hmac", "interfaces", "interfaces_set",
     "open_privacy_settings",
-    "export_all", "history_export", "history_import",
+    "export_all", "history_export", "history_import", "update_download", "update_open",
 }
 
 

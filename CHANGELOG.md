@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Disk image and installer:** macOS releases come as `KeyMelier-macOS.dmg` (drag to Applications, also to update), Windows releases as `KeyMelier-Windows-Setup.exe` (installs or updates, Start menu entry, uninstaller). The zips remain as portable versions. On Windows KeyMelier requests administrator rights at start.
+- **Update download in the app:** the update notice downloads the disk image or installer for this system, verifies it against the release's SHA-256 checksums and opens it – installing stays with the user.
+- Documentation with screenshots on the website; layout fixes.
+
 ## 1.3.0 — 2026-09-27
 
 **Security review** (details in SECURITY_REVIEW.md):

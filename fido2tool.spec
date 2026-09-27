@@ -146,6 +146,7 @@ exe = EXE(
     entitlements_file="data/macos-entitlements.plist" if os.environ.get("KEYMELIER_SIGN_IDENTITY") else None,
     icon=icon_path,
     version=WIN_VERSION,
+    uac_admin=sys.platform == 'win32',  # FIDO access on Windows needs administrator rights
 )
 
 coll = COLLECT(

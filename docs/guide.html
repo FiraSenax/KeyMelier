@@ -61,16 +61,19 @@
   <p>Download the zip for your system from the <a href="https://github.com/FiraSenax/KeyMelier/releases/latest">latest release</a>. Each release lists SHA-256 checksums – compare them if in doubt.</p>
   <h3>macOS</h3>
   <ol>
-    <li>Unzip <code>KeyMelier-macOS.zip</code> and move <b>KeyMelier.app</b> to <b>Applications</b>.</li>
+    <li>Open <code>KeyMelier-macOS.dmg</code> and drag <b>KeyMelier</b> onto <b>Applications</b>. To update, do the same and choose <b>Replace</b>.</li>
     <li>Current releases are not yet notarized: on first launch macOS says it cannot verify the app. Click <b>Done</b>, then open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
     <li>For the OTP slots, macOS asks for the <b>Input Monitoring</b> permission (see <a href="#otp">OTP slots</a>).</li>
   </ol>
   <h3>Windows</h3>
   <ol>
-    <li>Unzip <code>KeyMelier-Windows.zip</code> and open the <code>KeyMelier</code> folder.</li>
-    <li>Right-click <code>KeyMelier.exe</code> → <b>Run as administrator</b> – Windows only lets administrators talk to FIDO keys directly.</li>
+    <li>Run <code>KeyMelier-Windows-Setup.exe</code>. It installs KeyMelier (Start menu entry, uninstaller) or updates an existing installation.</li>
     <li>If SmartScreen appears: <b>More info → Run anyway</b> (releases are not yet code-signed).</li>
+    <li>KeyMelier asks for administrator rights when it starts – Windows only lets administrators talk to FIDO keys directly.</li>
   </ol>
+  <p>Without installer: the <code>…-macOS.zip</code> and <code>…-Windows.zip</code> files contain the same apps.</p>
+  <h3>Updates</h3>
+  <p>When a new version is published, a notice appears in the sidebar. <b>Download update</b> fetches the disk image or installer for your system into <b>Downloads</b>, checks it against the SHA-256 checksum published with the release and opens it. You install it yourself: on macOS quit KeyMelier and drag the new version to Applications, on Windows follow the installer. KeyMelier never installs anything on its own.</p>
   <p>Plug in a key – it appears in the sidebar within a second. KeyMelier follows your system language (11 languages) and light/dark mode; the language can be changed at the bottom left.</p>
 
   <h2 id="overview">Overview &amp; security check</h2>

@@ -811,11 +811,47 @@ function fmtDate(iso) {
   return iso ? `${new Date(iso).toLocaleString(LANG)} (${relTime(iso)})` : '—';
 }
 
+// null | { stage: 'downloading', pct } | { stage: 'ready', platform } | { stage: 'failed' }
+let updateFlow = null;
+
 function renderUpdateBanner() {
   const app = dataStatus?.app;
   const show = !!(app && app.newer && app.url);
   $('update-banner').classList.toggle('hidden', !show);
-  if (show) $('update-text').textContent = t('upd.available', { v: app.latest });
+  if (!show) return;
+  const btn = $('update-btn');
+  btn.disabled = false;
+  if (updateFlow?.stage === 'downloading') {
+    $('update-text').textContent = t('upd.downloading', { pct: updateFlow.pct || 0 });
+    btn.textContent = t('upd.download');
+    btn.disabled = true;
+  } else if (updateFlow?.stage === 'ready') {
+    $('update-text').textContent = t(updateFlow.platform === 'win32' ? 'upd.ready.win' : 'upd.ready.mac', { v: app.latest });
+    btn.textContent = t('upd.open');
+  } else {
+    $('update-text').textContent = t('upd.available', { v: app.latest });
+    btn.textContent = t(app.asset && updateFlow?.stage !== 'failed' ? 'upd.downloadInstall' : 'upd.download');
+  }
+}
+
+async function onUpdateButton() {
+  const app = dataStatus?.app;
+  if (updateFlow?.stage === 'ready') {
+    return call('update_open').catch(e => showToast(errorMessage(e), 'error'));
+  }
+  if (!app?.asset || updateFlow?.stage === 'failed') {
+    if (app?.url) window.pywebview?.api?.open_url(app.url);
+    return;
+  }
+  updateFlow = { stage: 'downloading', pct: 0 };
+  renderUpdateBanner();
+  try {
+    await call('update_download');
+  } catch (e) {
+    updateFlow = { stage: 'failed' };
+    showToast(errorMessage(e), 'error');
+    renderUpdateBanner();
+  }
 }
 
 function renderDataStatus() {
@@ -2967,6 +3003,13 @@ const EVENT_HANDLERS = {
   mds_ready: p => { mdsInfo = p; renderMds(); },
   data_status: p => { dataStatus = p; mdsInfo = p.mds; renderMds(); renderDataStatus(); },
   app_update: p => { dataStatus = { ...(dataStatus || {}), app: p }; renderDataStatus(); },
+  update_progress: p => { updateFlow = { stage: 'downloading', pct: p.pct }; renderUpdateBanner(); },
+  update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); call('update_open').catch(() => {}); },
+  update_failed: p => {
+    updateFlow = { stage: 'failed' };
+    showToast(t(p.code === 'update_checksum' ? 'err.update_checksum' : 'upd.failed'), 'error');
+    renderUpdateBanner();
+  },
 };
 
 // Called from the macOS menu bar item: show a key
@@ -3085,9 +3128,7 @@ function init() {
   $('export-btn').addEventListener('click', exportTokens);
   $('data-check').addEventListener('click', checkDataNow);
   $('licenses-open').addEventListener('click', () => window.pywebview?.api?.open_licenses());
-  $('update-btn').addEventListener('click', () => {
-    if (dataStatus?.app?.url) window.pywebview?.api?.open_url(dataStatus.app.url);
-  });
+  $('update-btn').addEventListener('click', onUpdateButton);
 
   changeLang('', false);
   switchTab('overview');
