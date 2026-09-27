@@ -2072,6 +2072,8 @@ function handleActionError(e, state) {
 // ── Passkeys tab ────────────────────────────────────────────────────────────
 
 let pkState = null;       // last passkeys response for the selected token
+let pkFilter = '';        // search in the passkey list
+const pkOpenDetails = new Set();   // credentials whose details are open
 let pkConfirm = null;     // credential_id awaiting delete confirmation
 let pkRename = null;      // credential_id being renamed
 
@@ -2124,53 +2126,70 @@ function renderPasskeys() {
   let html = toolbarHtml(summary.join(' · '));
 
   if (!st.rps.length) {
-    html += `<div class="callout"><div class="callout-title">${escHtml(t('pk.empty.title'))}</div>
+    el.innerHTML = html + `<div class="callout"><div class="callout-title">${escHtml(t('pk.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('pk.empty.text'))}</div></div>`;
+    return;
   }
 
-  for (const rp of st.rps) {
+  // Search by website, service name or account
+  const q = pkFilter.toLowerCase().trim();
+  const hit = (rp, c) => !q || [rp.rp_id, rp.rp_name, c.user_name, c.display_name].some(v => String(v || '').toLowerCase().includes(q));
+  const groups = st.rps.map(rp => ({ rp, creds: rp.credentials.filter(c => hit(rp, c)) })).filter(g => g.creds.length);
+  html += `<div class="pk-search">${icon('search', 16)}
+    <input type="search" id="pk-search" value="${escHtml(pkFilter)}" placeholder="${escHtml(t('pk.search'))}" aria-label="${escHtml(t('pk.search'))}" spellcheck="false">
+    ${q ? `<span class="muted">${escHtml(t('pk.search.count', { n: groups.reduce((n, g) => n + g.creds.length, 0), total }))}</span>` : ''}</div>`;
+  if (!groups.length) {
+    el.innerHTML = html + `<p class="field-hint">${escHtml(t('pk.search.none'))}</p>`;
+    return;
+  }
+
+  html += '<section class="card pk-compact">' + groups.map(({ rp, creds }) => {
     const name = rp.rp_id || rp.rp_name || t('pk.unknownSite');
-    html += `<section class="card pk-rp">
-      <header class="pk-rp-head">
-        ${serviceAvatar(rp.rp_id, rp.rp_name)}
-        <div class="pk-rp-text">
-          <div class="pk-rp-name">${escHtml(name)}</div>
-          ${rp.rp_name && rp.rp_name !== name ? `<div class="pk-rp-sub">${escHtml(rp.rp_name)}</div>` : ''}
-        </div>
-      </header>
-      <ul class="pk-list">` + rp.credentials.map(c => {
-        const main = c.display_name || c.user_name || t('pk.noName');
-        const sub = c.display_name && c.user_name && c.user_name !== c.display_name ? c.user_name : '';
+    return `<div class="pk-group">
+      <div class="pk-group-head">${serviceAvatar(rp.rp_id, rp.rp_name)}
+        <span class="pk-rp-name">${escHtml(name)}</span>
+        ${rp.rp_name && rp.rp_name !== name ? `<span class="pk-rp-sub">${escHtml(rp.rp_name)}</span>` : ''}
+        ${creds.length > 1 ? `<span class="pill">${escHtml(t('pk.accountsN', { n: creds.length }))}</span>` : ''}
+      </div>
+      <ul class="pk-list">` + creds.map(c => {
+        const main = c.user_name || c.display_name || t('pk.noName');
+        const sub = c.display_name && c.user_name && c.user_name !== c.display_name ? c.display_name : '';
         const prot = credProtectLabel(c.cred_protect);
         const confirming = pkConfirm === c.credential_id;
         if (pkRename === c.credential_id) {
           return `<li class="pk-item">
             <form class="pk-rename-form" data-id="${escHtml(c.credential_id)}">
-              <input type="text" class="pk-rename-display" value="${escHtml(c.display_name)}" placeholder="${escHtml(t('pk.rename.display'))}" maxlength="64" spellcheck="false">
-              <input type="text" class="pk-rename-name" value="${escHtml(c.user_name)}" placeholder="${escHtml(t('pk.rename.name'))}" maxlength="64" spellcheck="false">
+              <input type="text" class="pk-rename-display" value="${escHtml(c.display_name)}" placeholder="${escHtml(t('pk.rename.display'))}" aria-label="${escHtml(t('pk.rename.display'))}" maxlength="64" spellcheck="false">
+              <input type="text" class="pk-rename-name" value="${escHtml(c.user_name)}" placeholder="${escHtml(t('pk.rename.name'))}" aria-label="${escHtml(t('pk.rename.name'))}" maxlength="64" spellcheck="false">
               <div class="pk-rename-actions">
                 <button type="button" class="btn btn-secondary" data-act="rename-cancel">${escHtml(t('pk.delete.cancel'))}</button>
                 <button type="submit" class="btn btn-primary">${escHtml(t('fp.save'))}</button>
               </div>
             </form></li>`;
         }
-        return `<li class="pk-item">
+        return `<li class="pk-item${confirming ? ' confirming' : ''}">
           <div class="pk-user">
-            <div class="pk-user-name">${escHtml(main)}</div>
-            ${sub ? `<div class="pk-user-sub">${escHtml(sub)}</div>` : ''}
-            ${prot ? `<div class="pk-user-sub">${escHtml(prot)}</div>` : ''}
+            <div class="pk-user-name">${escHtml(main)}${sub ? ` <span class="pk-user-sub">· ${escHtml(sub)}</span>` : ''}</div>
+            <details class="pk-details" data-cred="${escHtml(c.credential_id)}" ${pkOpenDetails.has(c.credential_id) ? 'open' : ''}>
+              <summary>${escHtml(t('pk.details'))}</summary>
+              <dl class="kv pk-kv">
+                ${prot ? `<dt>${escHtml(t('pk.protection'))}</dt><dd>${escHtml(prot)}</dd>` : ''}
+                <dt>${escHtml(t('pk.largeBlob'))}</dt><dd>${escHtml(t(c.large_blob ? 'pk.yes' : 'pk.no'))}</dd>
+                <dt>${escHtml(t('pk.credId'))}</dt><dd class="mono">${escHtml(String(c.credential_id).slice(0, 24))}…</dd>
+              </dl>
+            </details>
           </div>
           ${confirming ? `
-            <div class="pk-confirm">
+            <div class="pk-confirm" role="group" aria-label="${escHtml(t('pk.delete.confirm'))}">
               <span>${escHtml(t('pk.delete.confirm'))}</span>
               <button type="button" class="btn btn-secondary" data-act="cancel">${escHtml(t('pk.delete.cancel'))}</button>
               <button type="button" class="btn btn-danger" data-act="delete" data-id="${escHtml(c.credential_id)}">${escHtml(t('pk.delete.do'))}</button>
-            </div>` : `
-            ${st.rename ? `<button type="button" class="btn-icon" data-act="rename" data-id="${escHtml(c.credential_id)}" title="${escHtml(t('fp.rename'))}">${icon('pencil', 16)}</button>` : ''}
-            <button type="button" class="btn-icon danger" data-act="ask-delete" data-id="${escHtml(c.credential_id)}" title="${escHtml(t('pk.delete.do'))}">${icon('trash', 16)}</button>`}
+            </div>` : `<div class="pk-actions">
+            ${st.rename ? `<button type="button" class="btn-small" data-act="rename" data-id="${escHtml(c.credential_id)}">${icon('pencil', 14)}<span>${escHtml(t('fp.rename'))}</span></button>` : ''}
+            <button type="button" class="btn-small danger" data-act="ask-delete" data-id="${escHtml(c.credential_id)}">${icon('trash', 14)}<span>${escHtml(t('pk.delete.do'))}</span></button></div>`}
         </li>`;
-      }).join('') + '</ul></section>';
-  }
+      }).join('') + '</ul></div>';
+  }).join('') + '</section>';
   if (pkConfirm) html += `<p class="field-hint">${escHtml(t('pk.delete.warning'))}</p>`;
   el.innerHTML = html;
 }
@@ -4152,6 +4171,19 @@ function init() {
   initOtpPane();
   initInterfacesPane();
   initManagementPane('pk-content', passkeyAction);
+  $('pk-content').addEventListener('input', ev => {
+    if (ev.target.id !== 'pk-search') return;
+    pkFilter = ev.target.value;
+    const pos = ev.target.selectionStart;
+    renderPasskeys();
+    const box = $('pk-search');   // keep focus and caret while the list updates
+    box?.focus();
+    box?.setSelectionRange(pos, pos);
+  });
+  $('pk-content').addEventListener('toggle', ev => {
+    const id = ev.target.dataset?.cred;
+    if (id) ev.target.open ? pkOpenDetails.add(id) : pkOpenDetails.delete(id);
+  }, true);
   initManagementPane('fp-content', fingerprintAction);
   initManagementPane('cfg-content', configAction);
   $('cfg-content').addEventListener('change', ev => {

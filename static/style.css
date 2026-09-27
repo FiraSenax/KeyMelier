@@ -1422,3 +1422,23 @@ button.status-pill { border: none; font: inherit; cursor: pointer; }
 .tile-notes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 0.82rem; color: var(--text-2); }
 .tile-notes span { padding: 4px 10px; border-radius: 999px; background: var(--neutral-soft); }
 #check .check-head + .check-list + .check-head { margin-top: 18px; }
+
+/* Passkeys: compact groups per service */
+.pk-search { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; color: var(--text-2); }
+.pk-search input { flex: 1; min-width: 0; font: inherit; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.pk-compact { padding: 6px 18px; }
+.pk-group + .pk-group { border-top: 1px solid var(--border); }
+.pk-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 0 4px; }
+.pk-group-head .pk-avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+.pk-group-head .pk-rp-sub { font-size: 0.82rem; color: var(--text-2); }
+.pk-compact .pk-list { margin: 0 0 8px 38px; }
+.pk-compact .pk-item { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.pk-compact .pk-item:first-child { border-top: none; }
+.pk-compact .pk-user { min-width: 0; flex: 1 1 260px; }
+.pk-compact .pk-user-name { overflow-wrap: anywhere; }
+.pk-details summary { font-size: 0.8rem; color: var(--text-2); cursor: pointer; margin-top: 2px; }
+.pk-kv { margin-top: 6px; font-size: 0.82rem; }
+.pk-actions { display: flex; gap: 6px; }
+.btn-small { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: inherit; font-size: 0.82rem; cursor: pointer; }
+.btn-small:hover { color: var(--text); border-color: var(--text-3); }
+.btn-small.danger:hover { color: var(--crit); border-color: var(--crit); }
