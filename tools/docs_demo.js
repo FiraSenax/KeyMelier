@@ -92,6 +92,8 @@
       sites_updated: iso(50 * D), lost_since: iso(3 * D), events: [{ ts: iso(3 * D), type: 'marked_lost' }],
     },
   };
+  // #stress: many keys and accounts for the load tests (tools/demo_stress.js)
+  if (/^#stress/.test(location.hash) && window.__demoStress) window.__demoStressInfo = window.__demoStress(history, yk, now);
   const summary = (e) => { const { events, ...rest } = e; return rest; };
 
   const piv = {

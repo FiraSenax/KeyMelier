@@ -114,7 +114,8 @@ function renderAccountsView() {
   const head = m.keys.map(k => {
     const info = m.keyInfo.get(k.key_id);
     const free = k.snapshot?.remaining_disc_creds;
-    return `<th class="acc-key${k.lost_since ? ' lost' : ''}" scope="col">${escHtml(keyLabel(k))}
+    // long names: two lines in the header, the full name as tooltip (and for screen readers)
+    return `<th class="acc-key${k.lost_since ? ' lost' : ''}" scope="col"><span class="acc-key-name" title="${escHtml(keyLabel(k))}">${escHtml(keyLabel(k))}</span>
       <span class="acc-sub">${escHtml(serialLabel(k.snapshot))}</span>
       <span class="acc-sub${info.stale || info.probeIncomplete ? ' warn-text' : ''}">${escHtml(k.lost_since ? t('bk.lostBadge') : keyFreshness(info))}</span>
       ${!k.lost_since && free != null ? `<span class="acc-sub">${escHtml(t('acc.free', { n: free }))}</span>` : ''}</th>`;
@@ -190,6 +191,12 @@ function renderAccountsView() {
         <p class="field-hint bk-hint">${escHtml(t('acc.limits'))}</p>
         <p class="field-hint bk-hint">${escHtml(t('acc.legend.source'))}</p></details>
     </section>`;
+  // Keyboard focus and scrollIntoView keep rows clear of the sticky header and account column
+  const wrap = el.querySelector('.acc-wrap');
+  if (wrap) {
+    wrap.style.scrollPaddingTop = `${wrap.querySelector('thead').offsetHeight}px`;
+    wrap.style.scrollPaddingLeft = `${wrap.querySelector('thead .acc-corner').offsetWidth}px`;
+  }
 }
 
 function showAccountsView() {
