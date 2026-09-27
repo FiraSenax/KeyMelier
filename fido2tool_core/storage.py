@@ -59,13 +59,15 @@ def atomic_write(path, data):
             os.unlink(name)
 
 
+# Native OS credential stores only – never keyring's plaintext or "fail" backends.
+# Linux: the desktop's Secret Service (GNOME Keyring, KWallet ≥ 5.97, KeePassXC).
+NATIVE_BACKENDS = {'keyring.backends.macOS', 'keyring.backends.Windows', 'keyring.backends.SecretService'}
+
+
 def history_cipher(create=True):
     """Use only native OS credential stores, never a plaintext fallback backend."""
-    import keyring
     from cryptography.fernet import Fernet
-    backend = keyring.get_keyring()
-    if type(backend).__module__ not in {'keyring.backends.macOS', 'keyring.backends.Windows'}:
-        raise RuntimeError('Encrypted history requires macOS Keychain or Windows Credential Manager')
+    backend = _native_keyring()
     key = backend.get_password('KeyMelier', 'history-encryption-v1')
     if key is None:
         if not create:
@@ -78,8 +80,12 @@ def history_cipher(create=True):
 def _native_keyring():
     import keyring
     backend = keyring.get_keyring()
-    if type(backend).__module__ not in {'keyring.backends.macOS', 'keyring.backends.Windows'}:
-        raise RuntimeError('Needs macOS Keychain or Windows Credential Manager')
+    # With several usable stores keyring chains them; take the native one
+    for candidate in getattr(backend, 'backends', None) or []:
+        if type(candidate).__module__ in NATIVE_BACKENDS:
+            return candidate
+    if type(backend).__module__ not in NATIVE_BACKENDS:
+        raise RuntimeError('Needs macOS Keychain, Windows Credential Manager or a Secret Service (Linux)')
     return backend
 
 

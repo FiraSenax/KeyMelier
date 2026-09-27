@@ -10,7 +10,8 @@ failed checks and timeouts exit 1. The report and the app's log are copied
 to build/smoke-artifacts/ (SMOKE_ARTIFACTS to change).
 
 The app opens a real window, so it needs a desktop session (macOS runners
-and Windows runners have one).
+and Windows runners have one; on Linux run it under Xvfb with a D-Bus session
+and an unlocked Secret Service, see the CI job build-linux).
 """
 
 import json
@@ -46,14 +47,17 @@ def screenshot(target: Path) -> None:
                   "[System.Drawing.Graphics]::FromImage($i).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size);"
                   f"$i.Save('{target}')")
             subprocess.run(["powershell", "-NoProfile", "-Command", ps], timeout=30, check=False)
+        else:
+            subprocess.run(["import", "-window", "root", str(target)], timeout=30, check=False)   # ImageMagick
     except Exception as e:  # a missing screenshot must not hide the real failure
         print(f"(no screenshot: {e})")
 
 
 def main() -> int:
-    app = Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()
+    app = (Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()).resolve()   # it starts in a temporary folder
     if app.suffix == ".app":
         app = app / "Contents" / "MacOS" / "KeyMelier"
+    extra_env = {"APPIMAGE_EXTRACT_AND_RUN": "1"} if app.suffix == ".AppImage" else {}   # no FUSE on CI
     if not app.is_file():
         print(f"FAIL: no packaged app at {app}")
         return 1
@@ -62,7 +66,8 @@ def main() -> int:
     home = Path(tempfile.mkdtemp(prefix="km-smoke-home-"))
     result = home / "self-test.json"
     env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home),
-           "APPDATA": str(home / "AppData" / "Roaming"), "LOCALAPPDATA": str(home / "AppData" / "Local")}
+           "APPDATA": str(home / "AppData" / "Roaming"), "LOCALAPPDATA": str(home / "AppData" / "Local"),
+           **extra_env}
     env.pop("KEYMELIER_STATELESS", None)
     print(f"Starting {app} (temporary home {home})")
     proc = subprocess.Popen([str(app), "--self-test", str(result)], env=env, cwd=home,

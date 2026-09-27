@@ -930,7 +930,8 @@ function renderUpdateBanner() {
     btn.textContent = t('upd.download');
     btn.disabled = true;
   } else if (updateFlow?.stage === 'ready') {
-    $('update-text').textContent = t(updateFlow.platform === 'win32' ? 'upd.ready.win' : 'upd.ready.mac', { v: app.latest });
+    const readyKey = { win32: 'upd.ready.win', linux: 'upd.ready.linux' }[updateFlow.platform] || 'upd.ready.mac';
+    $('update-text').textContent = t(readyKey, { v: app.latest });
     btn.textContent = t('upd.open');
   } else {
     $('update-text').textContent = t('upd.available', { v: app.latest });
@@ -3380,6 +3381,8 @@ async function start() {
     appSettings = settings;
     SYSTEM_LANG = pickLanguage(settings.system_languages);
     changeLang(settings.lang || '', false);
+    // Linux: a key that does not appear usually lacks device permissions (udev)
+    $('empty-linux').classList.toggle('hidden', settings.platform !== 'linux');
     // A data file could not be read at start: it was kept aside, not overwritten
     for (const p of settings.problems || []) showToast(t(`problem.${p.code}`, { file: p.file }), 'error');
   } catch { /* defaults */ }

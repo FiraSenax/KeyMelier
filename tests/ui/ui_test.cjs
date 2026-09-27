@@ -346,6 +346,16 @@ async function main() {
     await press('Escape');
     await js('appSettings.platform = "darwin"; appSettings.build = { signed: false, notarized: false };');
   });
+  await test('Linux: introduction explains device access, pcscd and the keyring; empty screen hints at udev', async () => {
+    await js('appSettings.platform = "linux"; appSettings.build = { signed: false }; openOnboarding(); onboarding.step = 3; renderOnboarding();');
+    const text = await js('$("onboarding").textContent');
+    assert(/udev/.test(text) && /pcscd/.test(text) && /Secret Service/.test(text) && /SHA256SUMS/.test(text), text.slice(0, 300));
+    assert(!/administrator|SmartScreen|notarized/i.test(text), 'no Windows/macOS notes on Linux');
+    await press('Escape');
+    await js(`$('empty-linux').classList.toggle('hidden', appSettings.platform !== 'linux')`);
+    assert(/udev/.test(await js('$("empty-linux").textContent')), 'hint on the empty screen');
+    await js('appSettings.platform = "darwin"; appSettings.build = { signed: false, notarized: false }; $("empty-linux").classList.add("hidden");');
+  });
   await test('inventory export: JSON and CSV with filters, saved privately', async () => {
     await js('showSettingsView()');
     await until('!!$("inventory-card")', 'export card');

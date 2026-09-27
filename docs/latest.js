@@ -10,7 +10,9 @@
       document.querySelectorAll('[data-latest-version]').forEach((el) => { el.textContent = `${rel.tag_name} · ${date}`; });
       // Installer first (disk image / setup); the ZIP only for releases without one
       const links = [[['KeyMelier-macOS.dmg', 'KeyMelier-macOS.zip'], 'macOS'],
-        [['KeyMelier-Windows-Setup.exe', 'KeyMelier-Windows.zip'], 'Windows']];
+        [['KeyMelier-Windows-Setup.exe', 'KeyMelier-Windows.zip'], 'Windows'],
+        [['KeyMelier-Linux-x86_64.AppImage'], 'Linux'],
+        [['KeyMelier-Linux-aarch64.AppImage'], 'Linux ARM64']];
       document.querySelectorAll('[data-latest-downloads]').forEach((el) => {
         el.textContent = '';
         for (const [names, label] of links) {

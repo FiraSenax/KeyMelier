@@ -1,0 +1,33 @@
+# KeyMelier – access to FIDO security keys for the logged-in user (Linux)
+#
+# Only needed on systems without systemd's own rule for FIDO keys
+# (60-fido-id.rules, systemd 244 and newer tags every FIDO device for the
+# logged-in user) and without the libfido2 rules (70-u2f.rules).
+#
+# Install:
+#   sudo install -m 644 70-keymelier.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# then unplug the key and plug it in again.
+#
+# "uaccess" grants access only to the user at the local seat, not to
+# everybody (no MODE="0666").
+
+ACTION=="remove", GOTO="keymelier_end"
+SUBSYSTEM!="hidraw", GOTO="keymelier_end"
+
+# Vendors that make only security keys (all their devices)
+ATTRS{idVendor}=="1050", TAG+="uaccess"                          # Yubico
+ATTRS{idVendor}=="096e", TAG+="uaccess"                          # Feitian
+ATTRS{idVendor}=="349e", TAG+="uaccess"                          # Token2
+ATTRS{idVendor}=="20a0", TAG+="uaccess"                          # Nitrokey
+ATTRS{idVendor}=="311f", TAG+="uaccess"                          # TrustKey / eWBM
+
+# Single products of vendors that make other devices too. Keys not listed
+# here work through systemd's generic rule; report missing ones as an issue.
+ATTRS{idVendor}=="1209", ATTRS{idProduct}=="5070|beee", TAG+="uaccess"        # SoloKeys
+ATTRS{idVendor}=="0483", ATTRS{idProduct}=="a2ca", TAG+="uaccess"             # SoloKeys (old)
+ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="5026", TAG+="uaccess"             # Google Titan
+ATTRS{idVendor}=="2ccf", ATTRS{idProduct}=="0880", TAG+="uaccess"             # HyperFIDO
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60fc", TAG+="uaccess"             # OnlyKey
+
+LABEL="keymelier_end"

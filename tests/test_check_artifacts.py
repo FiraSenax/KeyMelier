@@ -52,6 +52,28 @@ def plist(version=VERSION) -> bytes:
     return plistlib.dumps({"CFBundleShortVersionString": version, "CFBundleVersion": version})
 
 
+def appimage(arch="x86_64") -> bytes:
+    """ELF header of a type 2 AppImage runtime, followed by the SquashFS magic."""
+    data = bytearray(0x200)
+    data[0:4], data[4], data[5] = b"\x7fELF", 2, 1
+    data[8:11] = b"AI\x02"
+    struct.pack_into("<H", data, 0x12, ca.LINUX_ARCHES[arch])
+    struct.pack_into("<Q", data, 0x28, 0x100)          # section headers at 0x100 …
+    struct.pack_into("<HH", data, 0x3A, 0x40, 2)       # … two of 64 bytes: image starts at 0x180
+    data[0x180:0x184] = b"hsqs"
+    return bytes(data)
+
+
+INTERNAL = "usr/lib/keymelier/_internal"
+APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", f"{INTERNAL}/static/index.html",
+                  f"{INTERNAL}/data/advisories.json.sig", f"{INTERNAL}/THIRD_PARTY_LICENSES.txt",
+                  "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/fido2tool_core/version.py"}
+
+
+def fake_squashfs(version=VERSION, files=APPIMAGE_FILES):
+    return lambda path, offset: (set(files), lambda inner: f'__version__ = "{version}"\n')
+
+
 LICENSES = "fido2 … cryptography … Simple Icons … PyInstaller bootloader"
 
 
@@ -67,9 +89,13 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
         "KeyMelier/_internal/static/index.html": b"<html>",
         "KeyMelier/_internal/data/advisories.json.sig": b"sig"}))
     (folder / "KeyMelier-Windows-Setup.exe").write_bytes(pe(exe_version, signed))
-    for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json"):
+    for arch in ca.LINUX_ARCHES:
+        path = folder / f"KeyMelier-Linux-{arch}.AppImage"
+        path.write_bytes(appimage(arch))
+        path.chmod(0o755)
+    for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json", *ca.LINUX_FILES[1::3]):
         (folder / name).write_text("{}")
-    for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt"):
+    for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *ca.LINUX_FILES[2::3]):
         (folder / name).write_text(LICENSES)
     for lock in ca.LOCKS:
         shutil.copy(ROOT / lock, folder / lock)
@@ -77,7 +103,8 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
     lines = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}" for p in sorted(folder.iterdir())]
     (folder / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
     notes = folder.parent / "notes.md"
-    notes.write_text("macOS … **Not notarized** …\nWindows … **Not signed** …\n")
+    notes.write_text("macOS … **Not notarized** …\nWindows … **Not signed** …\n"
+                     "Linux: KeyMelier-Linux-x86_64.AppImage, KeyMelier-Linux-aarch64.AppImage (unsigned)\n")
     return notes
 
 
@@ -91,11 +118,27 @@ class CheckArtifactsTests(unittest.TestCase):
         p = patch.object(ca, "check_sbom", lambda r, path, version, strict: r.check(path.exists(), f"{path.name} sbom"))
         p.start()
         self.addCleanup(p.stop)
+        q = patch.object(ca, "squashfs_contents", fake_squashfs())   # unsquashfs is not on every runner
+        q.start()
+        self.addCleanup(q.stop)
 
     def release(self, **kw):
         notes = make_release(self.dir, **kw)
         return ca.run(["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),
                        "--mac-signed", "false", "--win-signed", "false"])
+
+    def test_linux_build_job(self):
+        out = self.tmp / "linux"
+        out.mkdir()
+        for name, content in zip(ca.linux_files("x86_64"), (appimage(), "{}", LICENSES)):
+            (out / name).write_bytes(content) if isinstance(content, bytes) else (out / name).write_text(content)
+        (out / "KeyMelier-Linux-x86_64.AppImage").chmod(0o755)
+        self.assertEqual(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, [])
+        with patch.object(ca, "squashfs_contents", fake_squashfs(version="0.0.1")):
+            self.assertTrue(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, "wrong version found")
+        with patch.object(ca, "squashfs_contents", fake_squashfs(files=APPIMAGE_FILES - {"usr/share/keymelier/70-keymelier.rules"})):
+            self.assertTrue(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, "missing udev rules found")
+        self.assertTrue(ca.run(["linux", str(out), "--arch", "aarch64"]).problems, "files for another arch")
 
     def test_pe_reader(self):
         self.assertEqual(ca.pe_info(pe("1.7.1", signed=True)), {"file_version": (1, 7, 1, 0), "signed": True})
@@ -118,6 +161,11 @@ class CheckArtifactsTests(unittest.TestCase):
             "lock differs": lambda: (self.dir / "uv.lock").write_text("changed"),
             "notes claim nothing about signing": lambda: (self.tmp / "notes.md").write_text("all fine"),
             "license list incomplete": lambda: (self.dir / "THIRD_PARTY_LICENSES-Windows.txt").write_text("fido2"),
+            "AppImage for the wrong processor": lambda: (self.dir / "KeyMelier-Linux-aarch64.AppImage")
+                .write_bytes(appimage("x86_64")),
+            "AppImage without file system": lambda: (self.dir / "KeyMelier-Linux-x86_64.AppImage")
+                .write_bytes(appimage()[:0x180] + b"\0" * 128),
+            "Linux AppImage missing": lambda: (self.dir / "KeyMelier-Linux-aarch64.AppImage").unlink(),
         }
         for name, damage in cases.items():
             with self.subTest(name):

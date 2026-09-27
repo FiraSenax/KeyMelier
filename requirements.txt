@@ -222,7 +222,7 @@ more-itertools==11.1.0 \
     # via
     #   jaraco-classes
     #   jaraco-functools
-packaging==26.3 ; sys_platform == 'openbsd6' \
+packaging==26.3 ; sys_platform == 'linux' or sys_platform == 'openbsd6' \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
     --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
     # via qtpy
@@ -304,6 +304,16 @@ pyscard==2.3.1 \
     --hash=sha256:e228c78e028b74e5411a604c765852bdc8fd04321f03e62d25cad8e90de27597 \
     --hash=sha256:f58b46cd78455a29a0abceabff21b37da81a385a737b29e6dd5e25acb7e3f3da
     # via yubikey-manager
+pyside6-addons==6.11.2 ; sys_platform == 'linux' \
+    --hash=sha256:a2ca3c73e5f060d4aca49451abd9fba68dd0e1c66ff40cea3a1fe0415def579a \
+    --hash=sha256:a8b00956925fbdeffc7052cf933506391289f35ac4f3f71a0a167ec195cd47b4
+    # via keymelier
+pyside6-essentials==6.11.2 ; sys_platform == 'linux' \
+    --hash=sha256:aaf9f25f0f324874085fa5b26a610318db8a8e243cf85bb3e5400595191c7778 \
+    --hash=sha256:d3ec6e1885c46e57f16364f38ea8040ffc5dc0b18341058f608fede3ba930567
+    # via
+    #   keymelier
+    #   pyside6-addons
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
@@ -336,10 +346,12 @@ pywin32-ctypes==0.2.3 ; sys_platform == 'win32' \
     --hash=sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8 \
     --hash=sha256:d162dc04946d704503b2edc4d55f3dba5c1d539ead017afa00142c38b9885755
     # via keyring
-qtpy==2.4.3 ; sys_platform == 'openbsd6' \
+qtpy==2.4.3 ; sys_platform == 'linux' or sys_platform == 'openbsd6' \
     --hash=sha256:72095afe13673e017946cc258b8d5da43314197b741ed2890e563cf384b51aa1 \
     --hash=sha256:db744f7832e6d3da90568ba6ccbca3ee2b3b4a890c3d6fbbc63142f6e4cdf5bb
-    # via pywebview
+    # via
+    #   keymelier
+    #   pywebview
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
@@ -348,6 +360,12 @@ secretstorage==3.5.0 ; sys_platform == 'linux' \
     --hash=sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137 \
     --hash=sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be
     # via keyring
+shiboken6==6.11.2 ; sys_platform == 'linux' \
+    --hash=sha256:4bbbd6fa4d7cff5ec5e12bc4c10e1d845fa30c89457ecb13cc64f7bddb77f6f9 \
+    --hash=sha256:7a7a0a72a9ed26c9bf77d42246b1c736486befb8f31aa2fb29957ea4cdd1c1c2
+    # via
+    #   pyside6-addons
+    #   pyside6-essentials
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81

@@ -54,12 +54,15 @@ immediate SmartScreen reputation.
 ## Release
 
 1. Review changes; the automatic checks (see [TESTING.md](TESTING.md)) must pass in CI. Test with
-   physical supported keys on both OSes and record the results in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
+   physical supported keys on macOS and Windows (and Linux when possible) and record the results in
+   [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 2. Bump `fido2tool_core/version.py` and `pyproject.toml` consistently; refresh the lock.
 3. Commit and push the reviewed version tag (`vX.Y.Z`).
 4. Verify successful signing/notarization and the attached source/dependency evidence.
 
 Without the credentials above, version-tag builds are published unsigned (macOS
-ad-hoc signed) and labelled as such in the release notes. The signing branches
+ad-hoc signed) and labelled as such in the release notes. The Linux AppImages
+(x86_64, aarch64) are always unsigned; the release notes say so and
+`SHA256SUMS.txt` covers them. The signing branches
 require their first real CI run after provisioning; they cannot be validated with
 ad-hoc certificates.

@@ -2,9 +2,10 @@
 //
 // Four short steps: what KeyMelier does, what it stores (with the choice to
 // store nothing), what the platform warnings mean (admin rights on Windows,
-// unsigned / not notarized builds – from the real build state), and how to
-// start. Skippable (Escape), reopenable from About. Nothing is changed on
-// any key; the storage choice only changes the app settings.
+// unsigned / not notarized builds, device access on Linux – from the real
+// build state), and how to start. Skippable (Escape), reopenable from
+// About. Nothing is changed on any key; the storage choice only changes the
+// app settings.
 //
 // Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js only inside functions.
@@ -49,6 +50,9 @@ function onboardingPlatformHtml() {
   } else if (appSettings.platform === 'darwin') {
     parts.push(b.notarized ? `<p>${escHtml(t('ob.mac.notarized'))}</p>`
       : `<h3>${escHtml(t('ob.mac.unsigned.title'))}</h3><p>${escHtml(t('ob.mac.unsigned.text'))}</p>`);
+  } else if (appSettings.platform === 'linux') {
+    parts.push(`<h3>${escHtml(t('ob.linux.title'))}</h3><p>${escHtml(t('ob.linux.text'))}</p>
+      <p class="field-hint">${escHtml(t('ob.linux.keyring'))}</p>`);
   } else {
     parts.push(`<p>${escHtml(t('ob.other.text'))}</p>`);
   }

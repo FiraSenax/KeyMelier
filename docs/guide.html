@@ -26,6 +26,7 @@
   .shot { width: 100%; border-radius: 12px; border: 1px solid var(--line); margin: 10px 0 6px; }
   .note { background: var(--accent-soft); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
   code { font-size: 0.9em; background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  pre { font-size: 0.85em; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
   li { margin: 3px 0; }
   .muted { color: var(--muted); }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } nav { position: static; } }
@@ -36,6 +37,7 @@
 <nav>
   <a class="home" href="index.html"><img src="icon.svg" alt="">KeyMelier</a>
   <a href="#install">Install &amp; first launch</a>
+  <a href="#linux">Linux</a>
   <a href="#intro">First start</a>
   <a href="#overview">Overview &amp; checks</a>
   <a href="#allkeys">All keys</a>
@@ -66,7 +68,7 @@
   <p>The sidebar has three global areas – <b>Backup &amp; loss</b>, <b>Accounts</b> and <b>Settings</b> (app settings for this computer) – and below them your keys. The tab bar of a key shows the everyday areas directly – Overview, PIN, Passkeys, Fingerprints, Authenticator, History, Key check. OpenPGP, PIV, OTP, the <b>key settings</b> and the technical details are in the <b>Advanced</b> menu at its end (also by keyboard: arrow keys, Esc). Areas a key does not support are not shown.</p>
 
   <h2 id="install">Install &amp; first launch</h2>
-  <p>Download the disk image (macOS) or the installer (Windows) from the <a href="https://github.com/FiraSenax/KeyMelier/releases/latest">latest release</a> – the buttons on the home page link to them directly. Each release lists SHA-256 checksums – compare them if in doubt.</p>
+  <p>Download the disk image (macOS), the installer (Windows) or the AppImage (Linux) from the <a href="https://github.com/FiraSenax/KeyMelier/releases/latest">latest release</a> – the buttons on the home page link to them directly. Each release lists SHA-256 checksums – compare them if in doubt.</p>
   <h3>macOS</h3>
   <ol>
     <li>Open <code>KeyMelier-macOS.dmg</code> and drag <b>KeyMelier</b> onto <b>Applications</b>. To update, do the same and choose <b>Replace</b>.</li>
@@ -80,8 +82,21 @@
     <li>KeyMelier asks for administrator rights when it starts – Windows only lets administrators talk to FIDO keys directly.</li>
   </ol>
   <p>Without installer: the <code>…-macOS.zip</code> and <code>…-Windows.zip</code> files contain the same apps.</p>
+  <h3 id="linux">Linux</h3>
+  <ol>
+    <li>Download <code>KeyMelier-Linux-x86_64.AppImage</code> (ARM64: <code>…-aarch64.AppImage</code>), make it executable – <code>chmod +x KeyMelier-Linux-x86_64.AppImage</code> or in the file manager under <i>Properties → Permissions</i> – and start it. It is built on Ubuntu 24.04; much older distributions may not start it. The AppImage is not signed – compare the SHA-256 checksum.</li>
+    <li>AppImages need FUSE, which desktop distributions include. Without it: start it with <code>--appimage-extract-and-run</code>.</li>
+    <li><b>Access to the key:</b> distributions with systemd 244 or newer (practically all current ones) give the logged-in user access to FIDO keys automatically. If your key does not appear, install the udev rules that come with the AppImage:
+      <pre>./KeyMelier-Linux-x86_64.AppImage --appimage-extract usr/share/keymelier/70-keymelier.rules
+sudo install -m 644 squashfs-root/usr/share/keymelier/70-keymelier.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
+      then unplug the key and plug it in again. The rules grant access only to the user at the computer, not to everyone.</li>
+    <li><b>Authenticator, OpenPGP and PIV</b> talk to the key as a smart card and need the PC/SC service: <code>sudo apt install pcscd</code> (Fedora: <code>sudo dnf install pcsc-lite</code>), then <code>sudo systemctl enable --now pcscd.socket</code>.</li>
+    <li><b>Sync</b> keeps its passphrase in the desktop keyring (Secret Service: GNOME Keyring, KWallet, KeePassXC). Everything else works without one.</li>
+    <li>Copying codes and certificates uses <code>wl-copy</code> (Wayland) or <code>xclip</code>/<code>xsel</code> (X11) if installed.</li>
+  </ol>
   <h3>Updates</h3>
-  <p>When a new version is published, a notice appears in the sidebar. <b>Download update</b> fetches the disk image or installer for your system into <b>Downloads</b>, checks it against the SHA-256 checksum published with the release and opens it. You install it yourself: on macOS quit KeyMelier and drag the new version to Applications, on Windows follow the installer. KeyMelier never installs anything on its own. To check yourself, open <b>About KeyMelier</b> at the bottom of the sidebar and click <b>Check for updates</b>, or use <b>KeyMelier → Check for Updates…</b> in the macOS menu or the menu bar icon.</p>
+  <p>When a new version is published, a notice appears in the sidebar. <b>Download update</b> fetches the disk image or installer for your system into <b>Downloads</b>, checks it against the SHA-256 checksum published with the release and opens it. You install it yourself: on macOS quit KeyMelier and drag the new version to Applications, on Windows follow the installer, on Linux quit KeyMelier and start the new AppImage from the folder that opened (it is already executable; delete the old one). KeyMelier never installs anything on its own. To check yourself, open <b>About KeyMelier</b> at the bottom of the sidebar and click <b>Check for updates</b>, or use <b>KeyMelier → Check for Updates…</b> in the macOS menu or the menu bar icon.</p>
   <p>Plug in a key – it appears in the sidebar within a second. KeyMelier follows your system language (11 languages) and light/dark mode; the language can be changed at the bottom left.</p>
 
   <h2 id="intro">First start</h2>
@@ -215,6 +230,7 @@
   <h2 id="troubleshooting">Troubleshooting</h2>
   <ul>
     <li><b>Key not detected on Windows</b>: run KeyMelier as administrator.</li>
+    <li><b>Key not detected on Linux</b>: install the udev rules, and for Authenticator, OpenPGP and PIV start <code>pcscd</code> (see <a href="#linux">Linux</a>).</li>
     <li><b>"The smart card interface is used by another program"</b>: usually GnuPG. Run <code>gpgconf --kill scdaemon</code> and try again.</li>
     <li><b>Authenticator/OpenPGP/PIV missing</b> (OpenPGP and PIV are in the Advanced menu): the key has no smart card interface, it is disabled under Advanced → Key settings, or several keys of the same model are connected – plug in only one.</li>
     <li><b>Authenticity test "not performed"</b>: touch the key when it blinks right after plugging it in, or run the test again in the Key check tab (with PIN if asked).</li>

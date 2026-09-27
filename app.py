@@ -22,9 +22,13 @@ from pathlib import Path
 ROOT_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 sys.path.insert(0, str(ROOT_DIR))
 
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("QT_API", "pyside6")   # pywebview's Qt backend (bundled in the AppImage)
+
 import webview
 
 from fido2tool_core.advisories import AdvisoryChecker
+from fido2tool_core.desktop import host_env, linux_copy, open_with_system, private_page_file
 from fido2tool_core.exporter import CSVExporter
 from fido2tool_core.mds3 import MDS3Client
 from fido2tool_core.page import build_html
@@ -96,17 +100,25 @@ BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "choose_fol
           "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
 
 
-def _lock_navigation(window):
-    """The window only ever shows our inline document. If anything navigates
-    it elsewhere (drop, link), put the app back before that page can act."""
+def _lock_navigation(window, page_url=None):
+    """The window only ever shows our own document (inline, or on Linux the
+    private page file). If anything navigates it elsewhere (drop, link), put
+    the app back before that page can act."""
+    from urllib.parse import unquote
+
     def on_loaded(*_):
         try:
             url = window.get_current_url() or ""
         except Exception:
             url = ""
+        if page_url and unquote(url.split("#")[0]) == unquote(page_url):   # Qt reports it decoded
+            return
         if url and url not in ("about:blank",) and not url.startswith("data:"):
             logger.warning("Navigation to %s blocked", url[:80])
-            window.load_html(build_html())
+            if page_url:
+                window.load_url(page_url)
+            else:
+                window.load_html(build_html())
 
     window.events.loaded += on_loaded
 
@@ -197,11 +209,12 @@ class Api:
         if gpg is None or not text.startswith("-----BEGIN PGP PUBLIC KEY BLOCK-----"):
             return {"ok": False}
         try:
-            imp = subprocess.run([gpg, "--batch", "--import"], input=text.encode(), capture_output=True, timeout=60)
-            subprocess.run([gpg, "--batch", "--card-status"], capture_output=True, timeout=60)
+            imp = subprocess.run([gpg, "--batch", "--import"], input=text.encode(), capture_output=True, timeout=60,
+                                 env=host_env())
+            subprocess.run([gpg, "--batch", "--card-status"], capture_output=True, timeout=60, env=host_env())
             gpgconf = Path(gpg).with_name("gpgconf")
             if gpgconf.exists():
-                subprocess.run([str(gpgconf), "--kill", "scdaemon"], capture_output=True, timeout=30)
+                subprocess.run([str(gpgconf), "--kill", "scdaemon"], capture_output=True, timeout=30, env=host_env())
             return {"ok": imp.returncode == 0, "output": imp.stderr.decode(errors="replace")[-600:]}
         except Exception as e:
             logger.warning("gpg import failed: %s", e)
@@ -219,6 +232,8 @@ class Api:
                 subprocess.Popen(["open", "-e", str(path)])
             elif sys.platform == "win32":
                 os.startfile(str(path))  # noqa: S606 – fixed local file
+            else:
+                open_with_system(str(path))
             return True
         except Exception as e:
             logger.debug("Opening licenses failed: %s", e)
@@ -233,6 +248,8 @@ class Api:
             elif sys.platform == "win32":
                 subprocess.run(["clip"], input=text.encode("utf-16-le"), check=True,
                                creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                return linux_copy(text)
             return True
         except Exception as e:
             logger.debug("Clipboard failed: %s", e)
@@ -256,8 +273,11 @@ class Api:
         from urllib.parse import urlparse
         parsed = urlparse(str(url))
         if parsed.scheme == "https" and parsed.hostname in ALLOWED_LINK_HOSTS:
-            import webbrowser
-            webbrowser.open(parsed.geturl())
+            if sys.platform.startswith("linux"):
+                open_with_system(parsed.geturl())   # host browser, without the AppImage's libraries
+            else:
+                import webbrowser
+                webbrowser.open(parsed.geturl())
 
     def call(self, method, kwargs=None):
         if method not in ALLOWED:
@@ -410,9 +430,15 @@ def main():
 
     dark = sys.platform == "darwin" and _macos_dark_mode()
     api = Api(service)
+    # Linux (Qt): the page is too large for setHtml, so it is loaded from a private file
+    page_url, remove_page = None, None
+    if sys.platform.startswith("linux"):
+        page_path, remove_page = private_page_file(build_html())
+        page_url = page_path.as_uri()
     window = webview.create_window(
         "KeyMelier",
-        html=build_html(),
+        url=page_url,
+        html=None if page_url else build_html(),
         js_api=None,  # see _expose_bridge: never hand pywebview an object
         width=1180,
         height=780,
@@ -426,7 +452,7 @@ def main():
         api._selftest = selftest
         selftest.start(window)
     _expose_bridge(window, api, extra=("self_test_report",) if selftest else ())
-    _lock_navigation(window)
+    _lock_navigation(window, page_url)
 
     if sys.platform == "darwin":
         _macos_app_identity()
@@ -435,7 +461,12 @@ def main():
         menubar.start()
         api._menubar = menubar
 
-    webview.start(background_start, debug="--debug" in sys.argv)
+    try:
+        webview.start(background_start, debug="--debug" in sys.argv,
+                      gui="qt" if sys.platform.startswith("linux") else None)
+    finally:
+        if remove_page:
+            remove_page()
     service.sync_flush()
     scanner.stop()
     logger.info("Window closed, exiting.")

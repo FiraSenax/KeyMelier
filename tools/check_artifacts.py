@@ -3,6 +3,7 @@
 
     check_artifacts.py macos   DIST [--signed true|false]
     check_artifacts.py windows DIST [--signed true|false]
+    check_artifacts.py linux   DIST --arch x86_64|aarch64
     check_artifacts.py release DIR --commit SHA --notes NOTES.md --mac-signed X --win-signed Y
 
 macos/windows (build jobs): the expected files exist and are not empty; the
@@ -11,6 +12,9 @@ version resources (app and installer) equals fido2tool_core/version.py; the
 DMG mounts and holds the app and an Applications link (macOS); the signing
 state matches what the build reports (ad-hoc vs. Developer ID on macOS,
 Authenticode present or not on Windows); SBOM valid; license notices present.
+linux: the AppImage is an executable ELF for the architecture with a
+SquashFS image appended, which holds the app, the version, the page, the
+signed advisories and the udev rules (read with unsquashfs).
 
 release (release job, all files together): every expected file present and
 not empty, nothing unexpected; SOURCE_COMMIT.txt equals the built commit;
@@ -39,8 +43,17 @@ import sbom  # noqa: E402
 MAC_FILES = ("KeyMelier-macOS.dmg", "KeyMelier-macOS.zip", "KeyMelier-macOS.cdx.json", "THIRD_PARTY_LICENSES-macOS.txt")
 WIN_FILES = ("KeyMelier-Windows-Setup.exe", "KeyMelier-Windows.zip", "KeyMelier-Windows.cdx.json",
              "THIRD_PARTY_LICENSES-Windows.txt")
+LINUX_ARCHES = {"x86_64": 62, "aarch64": 183}   # ELF e_machine
+
+
+def linux_files(arch: str) -> tuple:
+    return (f"KeyMelier-Linux-{arch}.AppImage", f"KeyMelier-Linux-{arch}.cdx.json",
+            f"THIRD_PARTY_LICENSES-Linux-{arch}.txt")
+
+
+LINUX_FILES = tuple(f for arch in LINUX_ARCHES for f in linux_files(arch))
 LOCKS = ("requirements.txt", "requirements-build.txt", "uv.lock")
-RELEASE_FILES = MAC_FILES + WIN_FILES + LOCKS + ("SOURCE_COMMIT.txt", "SHA256SUMS.txt")
+RELEASE_FILES = MAC_FILES + WIN_FILES + LINUX_FILES + LOCKS + ("SOURCE_COMMIT.txt", "SHA256SUMS.txt")
 
 
 def app_version() -> str:
@@ -196,6 +209,56 @@ def check_mac_signing(r: Report, app: Path, signed: bool) -> None:
         r.check("Signature=adhoc" in out, "app is ad-hoc signed only (reported as not notarized)", out[-200:])
 
 
+def appimage_offset(data: bytes) -> int | None:
+    """Size of the ELF runtime = where the SquashFS image starts (64-bit little-endian ELF)."""
+    if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+        return None
+    shoff, = struct.unpack_from("<Q", data, 0x28)
+    shentsize, shnum = struct.unpack_from("<HH", data, 0x3A)
+    return shoff + shentsize * shnum
+
+
+def squashfs_contents(path: Path, offset: int):
+    """(set of paths, read(path) -> text) of the AppImage's file system, or None without unsquashfs."""
+    def run(*args):
+        return subprocess.run(["unsquashfs", "-o", str(offset), *args], capture_output=True, text=True,
+                              timeout=120).stdout
+    try:
+        listing = run("-l", "-d", "", str(path))
+    except FileNotFoundError:
+        return None
+    return {line.strip().lstrip("/") for line in listing.splitlines()}, lambda inner: run("-cat", str(path), inner)
+
+
+def check_appimage(r: Report, path: Path, arch: str, version: str) -> None:
+    try:
+        head = path.read_bytes()[:4 * 1024 * 1024]
+    except OSError as e:
+        r.check(False, f"{path.name} readable", str(e))
+        return
+    offset = appimage_offset(head)
+    r.check(offset is not None, f"{path.name} is a 64-bit ELF")
+    if offset is None:
+        return
+    machine, = struct.unpack_from("<H", head, 0x12)
+    r.check(machine == LINUX_ARCHES[arch], f"{path.name} runs on {arch}", f"e_machine {machine}")
+    r.check(head[8:11] == b"AI\x02", f"{path.name} is a type 2 AppImage")
+    r.check(head[offset:offset + 4] == b"hsqs", f"{path.name} holds a SquashFS image")
+    r.check(path.stat().st_mode & 0o111 != 0 or sys.platform == "win32", f"{path.name} is executable")
+    contents = squashfs_contents(path, offset)
+    if contents is None:
+        r.check(False, "unsquashfs available (squashfs-tools) to look inside the AppImage")
+        return
+    entries, read = contents
+    internal = "usr/lib/keymelier/_internal"
+    for entry in ("AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier",
+                  f"{internal}/static/index.html", f"{internal}/data/advisories.json.sig",
+                  f"{internal}/THIRD_PARTY_LICENSES.txt", "usr/share/keymelier/70-keymelier.rules"):
+        r.check(entry in entries, f"{path.name} contains {entry}")
+    m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/fido2tool_core/version.py"))
+    r.check(m is not None and m.group(1) == version, f"{path.name}: app version {version}", m.group(1) if m else "none")
+
+
 def check_sums(r: Report, folder: Path) -> None:
     sums = folder / "SHA256SUMS.txt"
     listed = {}
@@ -215,6 +278,9 @@ def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> N
     text = notes.read_text(encoding="utf-8")
     r.check(("Not notarized" in text) != mac_signed, "release notes state the macOS notarization correctly")
     r.check(("Not signed" in text) != win_signed, "release notes state the Windows signing correctly")
+    for arch in LINUX_ARCHES:
+        r.check(f"KeyMelier-Linux-{arch}.AppImage" in text, f"release notes name the Linux {arch} AppImage")
+    r.check("AppImage" in text and "unsigned" in text.lower(), "release notes say the AppImages are unsigned")
 
 
 def run(argv: list[str]) -> Report:
@@ -239,6 +305,16 @@ def run(argv: list[str]) -> Report:
         check_installer(r, folder / "KeyMelier-Windows-Setup.exe", version, flag("--signed"))
         check_sbom(r, folder / "KeyMelier-Windows.cdx.json", version, strict="--strict-sbom" in argv)
         check_licenses(r, folder / "THIRD_PARTY_LICENSES-Windows.txt")
+    elif mode == "linux":
+        arch = opts.get("--arch", "")
+        if arch not in LINUX_ARCHES:
+            r.check(False, f"--arch is one of {sorted(LINUX_ARCHES)}", arch)
+            return r
+        appimage, bom, licenses = linux_files(arch)
+        check_files(r, folder, (appimage, bom, licenses))
+        check_appimage(r, folder / appimage, arch, version)
+        check_sbom(r, folder / bom, version, strict="--strict-sbom" in argv)
+        check_licenses(r, folder / licenses)
     elif mode == "release":
         check_files(r, folder, RELEASE_FILES)
         present = {p.name for p in folder.iterdir() if p.is_file()}
@@ -253,9 +329,11 @@ def run(argv: list[str]) -> Report:
         check_dmg_container(r, folder / "KeyMelier-macOS.dmg")
         check_win_zip(r, folder / "KeyMelier-Windows.zip", version, flag("--win-signed"))
         check_installer(r, folder / "KeyMelier-Windows-Setup.exe", version, flag("--win-signed"))
-        for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json"):
+        for arch in LINUX_ARCHES:
+            check_appimage(r, folder / linux_files(arch)[0], arch, version)
+        for name in ("KeyMelier-macOS.cdx.json", "KeyMelier-Windows.cdx.json", *LINUX_FILES[1::3]):
             check_sbom(r, folder / name, version, strict=True)
-        for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt"):
+        for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *LINUX_FILES[2::3]):
             check_licenses(r, folder / name)
         if (folder / "SHA256SUMS.txt").exists():
             check_sums(r, folder)

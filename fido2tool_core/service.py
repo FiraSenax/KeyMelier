@@ -8,6 +8,7 @@ pushed through `emit(event_name, payload)`.
 import dataclasses
 import json
 import logging
+import os
 import sys
 import threading
 from contextlib import contextmanager
@@ -58,6 +59,8 @@ def system_languages() -> list[str]:
             name = locale.windows_locale.get(lang_id)
             if name:
                 langs = [name.replace("_", "-")]
+        else:
+            langs = _posix_languages(os.environ)
     except Exception as e:
         logger.debug("Could not read system languages: %s", e)
     if not langs:
@@ -65,6 +68,18 @@ def system_languages() -> list[str]:
         loc = locale.getlocale()[0]
         if loc:
             langs = [loc.replace("_", "-")]
+    return langs
+
+
+def _posix_languages(env) -> list[str]:
+    """Linux/BSD: LANGUAGE (a preference list), then LC_ALL / LC_MESSAGES / LANG."""
+    raw = env.get("LANGUAGE", "").split(":") if env.get("LANGUAGE") else []
+    raw += [env.get(v, "") for v in ("LC_ALL", "LC_MESSAGES", "LANG")]
+    langs = []
+    for value in raw:
+        tag = value.split(".")[0].split("@")[0].replace("_", "-")
+        if tag and tag not in ("C", "POSIX") and tag not in langs:
+            langs.append(tag)
     return langs
 
 
@@ -396,8 +411,8 @@ class KeyService:
             secret_set(sync_mod.KEYRING_NAME, passphrase)
         except sync_mod.SyncError as e:
             raise PinError(str(e), e.code, status=400) from None
-        except RuntimeError as e:   # no native credential store
-            raise PinError(str(e), "sync_keychain", status=409) from None
+        except RuntimeError as e:   # no native credential store (Linux without Secret Service)
+            raise PinError(str(e), "sync_no_keyring", status=409) from None
         settings.update(sync_folder=str(Path(folder)), sync_device=device)
         self._write_settings(settings)
         self._sync_configure()

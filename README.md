@@ -4,7 +4,7 @@
 
 Website: https://firasenax.github.io/KeyMelier/
 
-KeyMelier is a desktop app (macOS + Windows) that **checks, rates and keeps track of your security keys** – across vendors. Managing a PIN or deleting a passkey is something Chrome can do too; KeyMelier answers the questions around it:
+KeyMelier is a desktop app (macOS, Windows and Linux) that **checks, rates and keeps track of your security keys** – across vendors. Managing a PIN or deleting a passkey is something Chrome can do too; KeyMelier answers the questions around it:
 
 - **Is this key genuine and safe?** Attestation verified up to the FIDO Alliance root, a curated and signed vulnerability database that updates itself, certification and revocation status – summed up in a per-key security check with concrete fixes.
 - **What is on which key – and what if one is lost?** KeyMelier remembers every key it has seen and what was on it, shows which accounts exist on only one key, and walks you through a lost key.
@@ -62,6 +62,7 @@ Ready-made builds are attached to the [latest release](https://github.com/FiraSe
 
 - **macOS:** `KeyMelier-macOS.dmg` – open it and drag KeyMelier to Applications (also to update).
 - **Windows:** `KeyMelier-Windows-Setup.exe` – installs or updates KeyMelier.
+- **Linux:** `KeyMelier-Linux-x86_64.AppImage` (ARM64: `…-aarch64.AppImage`) – `chmod +x` and start it. Unsigned. Device access (udev rules), `pcscd` for the smart card functions and the keyring for sync: see [Linux](https://firasenax.github.io/KeyMelier/guide.html#linux) in the documentation.
 - Portable alternatives: `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip`.
 
 When a newer version exists, KeyMelier offers to download it, verifies it against the release's SHA-256 checksums and opens it; installing stays with you.
@@ -115,6 +116,14 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 > On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`.
 
+### Linux
+
+```bash
+./build-linux.sh             # produces dist/KeyMelier-Linux-<arch>.AppImage
+```
+
+Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` and the AppImage runtime are downloaded at fixed versions and checked against pinned SHA-256 sums. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
+
 ## Privacy and security
 
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
@@ -123,7 +132,7 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 - History is enabled by default: key models, serial numbers and events are saved locally so previously seen keys stay in the sidebar. Turn it off in the "Backup & loss" view (existing files are kept) or use stateless mode. Remembering what is on each key (passkey websites, authenticator account names, OpenPGP key fingerprints — never secrets or codes) is also on by default so you know what is affected when a key is lost; it can reveal accounts and internal domains, so turn it off in the same view if needed. Disabling it removes these lists and account details from history events.
 - CSV files are created only using the export button; exported metadata is plaintext. Formula-like cells are neutralized.
 - `python app.py --stateless` (or `KEYMELIER_STATELESS=1`) skips persistent settings, history, caches, the lock file and exports. Metadata remains in process memory. OS/browser runtime files are outside this application-level guarantee.
-- Optional encrypted history: start with `KEYMELIER_ENCRYPT_HISTORY=1` and enable history. `history.encrypted` uses authenticated encryption with its key held in macOS Keychain or Windows Credential Manager. There is no plaintext-keyring fallback. Existing plaintext history is not migrated or deleted automatically; remove/archive it separately if required. CSV exports remain plaintext. Losing the OS-stored key prevents recovery.
+- Optional encrypted history: start with `KEYMELIER_ENCRYPT_HISTORY=1` and enable history. `history.encrypted` uses authenticated encryption with its key held in macOS Keychain, Windows Credential Manager or the Linux Secret Service. There is no plaintext-keyring fallback. Existing plaintext history is not migrated or deleted automatically; remove/archive it separately if required. CSV exports remain plaintext. Losing the OS-stored key prevents recovery.
 - Local data when enabled: `~/keymelier/history.json` (or `history.encrypted`), `~/keymelier/settings.json`, explicitly generated `~/keymelier/exports/`, and public caches under `~/.keymelier/`. Writes are atomic with owner-only POSIX permissions or Windows user ACLs. Disabling history preserves existing files; it does not securely erase old copies or backups.
 
 ## Limitations
@@ -208,9 +217,12 @@ fido2tool_core/
   reset.py               # Factory reset flow
   history.py             # Persistent key history
   mds3.py / advisories.py / exporter.py
+  policy.py              # Managed configuration (ENTERPRISE.md)
+  desktop.py             # Browser, clipboard, page file (Linux specifics)
 static/                  # UI (HTML/CSS/JS, inlined into the window at start)
 data/advisories.json     # Curated advisory database
-fido2tool.spec           # PyInstaller spec (.app / .exe)
+fido2tool.spec           # PyInstaller spec (.app / .exe / Linux bundle)
+packaging/linux/         # AppImage entry point, desktop entry, udev rules
 ```
 
 ## License

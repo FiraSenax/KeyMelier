@@ -17,13 +17,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+QT_SOURCE = ("https://code.qt.io/cgit/pyside/pyside-setup.git and https://code.qt.io (Qt 6, LGPL-3.0-only; "
+             "the Qt libraries are shipped as separate, replaceable files inside the app)")
+
 # Copyleft packages: where their source code is available (LGPL/MPL)
 SOURCE = {
     "pyscard": "https://github.com/LudovicRousseau/pyscard (LGPL-2.1-or-later; the library is shipped "
                "as separate, replaceable files inside the app)",
     "certifi": "https://github.com/certifi/python-certifi (MPL-2.0)",
     "python-pskc": "https://github.com/arthurdejong/python-pskc (LGPL-2.1-or-later)",
+    # Linux build: Qt for Python and the Qt libraries it contains (used under the LGPL-3.0)
+    "pyside6-essentials": QT_SOURCE,
+    "pyside6-addons": QT_SOURCE + " Qt WebEngine contains Chromium; its third-party notices: "
+                      "https://doc.qt.io/qt-6/qtwebengine-licensing.html",
+    "shiboken6": QT_SOURCE,
 }
+
+# Packages that ship no license file although their license requires the text
+QT_TEXTS = ["LGPL-3.0.txt", "GPL-3.0.txt"]   # LGPL-3.0 is a set of additions to the GPL-3.0
+EXTRA_TEXTS = {"pyside6-essentials": QT_TEXTS, "pyside6-addons": QT_TEXTS, "shiboken6": QT_TEXTS}
 
 # Packages whose metadata has no usable license label
 LABELS = {"yubikey-manager": "BSD-2-Clause"}
@@ -66,6 +78,9 @@ def license_texts(dist) -> list[tuple[str, str]]:
                 texts.append((Path(str(f)).name, Path(dist.locate_file(f)).read_text(errors="replace").strip()))
             except OSError:
                 pass
+    if not texts:
+        for filename in EXTRA_TEXTS.get(dist.metadata["Name"].lower().replace("_", "-"), []):
+            texts.append((filename, (ROOT / "packaging" / "licenses" / filename).read_text().strip()))
     return texts
 
 

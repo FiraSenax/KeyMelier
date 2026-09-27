@@ -21,7 +21,9 @@ MAX_SIZE = 500 * 1024 * 1024
 ASSETS = {  # platform -> preferred download, fallback
     "darwin": ("KeyMelier-macOS.dmg", "KeyMelier-macOS.zip"),
     "win32": ("KeyMelier-Windows-Setup.exe", "KeyMelier-Windows.zip"),
+    "linux": ("KeyMelier-Linux-x86_64.AppImage", "KeyMelier-Linux-aarch64.AppImage"),
 }
+LINUX_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
 
 
 def _parse(version: str) -> tuple[int, ...] | None:
@@ -57,7 +59,11 @@ def check() -> dict:
     )
     assets = {a.get("name"): a.get("browser_download_url") for a in release.get("assets", [])
               if str(a.get("browser_download_url", "")).startswith(DOWNLOAD_PREFIX)}
+    import platform
+    arch = LINUX_ARCH.get(platform.machine().lower())
     for name in ASSETS.get(sys.platform, ()):
+        if name.endswith(".AppImage") and not name.endswith(f"-{arch}.AppImage"):
+            continue   # the build for another processor
         if name in assets and "SHA256SUMS.txt" in assets:
             result["asset"] = {"name": name, "url": assets[name], "sums": assets["SHA256SUMS.txt"]}
             break
@@ -131,10 +137,16 @@ def download(asset: dict, progress=None) -> Path:
 
 
 def open_download(path: Path) -> None:
-    """Open the verified disk image (Finder shows it) or start the installer."""
+    """Open the verified disk image (Finder shows it), start the installer, or
+    show the AppImage in the file manager (Linux)."""
     import os
     import subprocess
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(path)])
     elif sys.platform == "win32":
         os.startfile(str(path))  # noqa: S606 – verified installer chosen by the user
+    else:
+        # Linux: an AppImage is not installed – mark it executable and show it in the file manager
+        from fido2tool_core.desktop import open_with_system
+        path.chmod(0o755)
+        open_with_system(str(path.parent))

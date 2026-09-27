@@ -45,6 +45,21 @@ class ReleaseMetadataTests(unittest.TestCase):
                              capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout)
 
+    def test_workflows_are_valid_yaml(self):
+        """A plain `run:` value must not contain ": " (YAML reads it as a mapping and
+        GitHub rejects the whole workflow); use a block (`run: |`) instead."""
+        for wf in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+            for n, line in enumerate(wf.read_text(encoding="utf-8").splitlines(), 1):
+                m = re.match(r"\s*(?:- )?run: (?![|>'\"])(.*)$", line)
+                with self.subTest(f"{wf.name}:{n}"):
+                    self.assertFalse(m and (": " in m.group(1) or m.group(1).rstrip().endswith(":")), line.strip())
+            try:
+                import yaml
+            except ImportError:
+                continue
+            with self.subTest(wf.name):
+                self.assertIn("jobs", yaml.safe_load(wf.read_text(encoding="utf-8")))
+
     def test_changelog_has_an_entry_for_this_version(self):
         headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(), re.M)
         versions = [h.split(" ")[0] for h in headings if h != "Unreleased"]

@@ -1,0 +1,4 @@
+#!/bin/sh
+# KeyMelier AppImage entry point: start the PyInstaller bundle inside.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/lib/keymelier/KeyMelier" "$@"

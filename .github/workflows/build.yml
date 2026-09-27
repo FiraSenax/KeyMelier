@@ -12,7 +12,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [macos-14, windows-2022]
+        os: [macos-14, windows-2022, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
+      - name: PC/SC headers for pyscard (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev swig
       - run: python -m pip install --require-hashes -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python tools/advisories_sign.py verify
@@ -94,7 +97,8 @@ jobs:
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: bash tools/import-macos-signing.sh
       - name: Record the signing state in the app (shown in the introduction)
-        run: printf '{"signed": %s, "notarized": %s, "ci": true}\n' "$SIGN_MAC" "$SIGN_MAC" > data/build.json
+        run: |
+          printf '{"signed": %s, "notarized": %s, "ci": true}\n' "$SIGN_MAC" "$SIGN_MAC" > data/build.json
       - name: Build
         id: build
         env:
@@ -196,7 +200,8 @@ jobs:
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
       - name: Record the signing state in the app (shown in the introduction)
         shell: bash
-        run: printf '{"signed": %s, "ci": true}\n' "$SIGN_WIN" > data/build.json
+        run: |
+          printf '{"signed": %s, "ci": true}\n' "$SIGN_WIN" > data/build.json
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico
@@ -306,8 +311,74 @@ jobs:
             dist/THIRD_PARTY_LICENSES-Windows.txt
             dist/KeyMelier-Windows.cdx.json
           retention-days: 14
+  # Linux: AppImage for x86-64 and ARM64 (Qt web view, unsigned). The same
+  # script as locally (build-linux.sh); the start test runs the AppImage itself
+  # under Xvfb with a D-Bus session and an unlocked Secret Service.
+  build-linux:
+    needs: [test, ui]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: System packages (build, Qt WebEngine runtime, start test)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-venv python3-dev libpcsclite-dev swig squashfs-tools \
+            libminizip1t64 libopus0 libsnappy1v5 \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libegl1 libgl1 libopengl0 \
+            libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2t64 libxkbfile1 libfontconfig1 \
+            libdbus-1-3 libxshmfence1 libgbm1 \
+            xvfb xauth imagemagick dbus-x11 gnome-keyring
+      - name: Record the signing state in the app (shown in the introduction)
+        run: |
+          printf '{"signed": false, "ci": true}\n' > data/build.json
+      # Hash-pinned install into a fresh venv (--force-reinstall, pip report
+      # for the SBOM), PyInstaller, strict SBOM check, AppImage with pinned
+      # and checksum-verified appimagetool/runtime
+      - name: Build
+        run: ./build-linux.sh
+      - name: Start test of the packaged AppImage
+        env:
+          SMOKE_ARTIFACTS: build/smoke-artifacts
+        run: |
+          xvfb-run -a -s "-screen 0 1400x900x24" dbus-run-session -- bash -c '
+            echo -n ci | gnome-keyring-daemon --unlock --components=secrets > /dev/null
+            python3 tools/smoke_packaged.py "dist/KeyMelier-Linux-$ARCH.AppImage"'
+      - name: Keep start test logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: smoke-artifacts-linux-${{ matrix.arch }}
+          path: build/smoke-artifacts
+          if-no-files-found: ignore
+      - name: Validate the Linux artifacts (ELF, AppImage contents, version, SBOM, licences)
+        run: |
+          cp build/THIRD_PARTY_LICENSES.txt "dist/THIRD_PARTY_LICENSES-Linux-$ARCH.txt"
+          cp build/keymelier-sbom.cdx.json "dist/KeyMelier-Linux-$ARCH.cdx.json"
+          python3 tools/check_artifacts.py linux dist --arch "$ARCH" --strict-sbom 1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: KeyMelier-Linux-${{ matrix.arch }}
+          path: |
+            dist/KeyMelier-Linux-${{ matrix.arch }}.AppImage
+            dist/THIRD_PARTY_LICENSES-Linux-${{ matrix.arch }}.txt
+            dist/KeyMelier-Linux-${{ matrix.arch }}.cdx.json
+          retention-days: 14
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-linux]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -348,6 +419,7 @@ jobs:
             else
               echo "- \`KeyMelier-Windows-Setup.exe\` – **Windows** installer (recommended): installs or updates KeyMelier. **Not signed** – if SmartScreen appears: *More info* → *Run anyway*."
             fi
+            echo "- \`KeyMelier-Linux-x86_64.AppImage\`, \`KeyMelier-Linux-aarch64.AppImage\` – **Linux** (x86-64 / ARM64): make it executable (\`chmod +x\`) and start it. **Unsigned** – compare the checksum. If your key does not appear, see *Linux* in the documentation (udev rules)."
             echo "- \`KeyMelier-macOS.zip\`, \`KeyMelier-Windows.zip\` – the same apps without installer (portable)."
             echo
             echo "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no verified publisher – compare the checksums if in doubt."

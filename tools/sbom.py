@@ -58,6 +58,9 @@ SPDX_OVERRIDES = {
     "jeepney": "MIT",
     "secretstorage": "BSD-3-Clause",
     "qtpy": "MIT",
+    "pyside6-essentials": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",   # METADATA License field
+    "pyside6-addons": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "shiboken6": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
 }
 # Unambiguous license classifiers
 CLASSIFIER_SPDX = {
@@ -69,7 +72,8 @@ CLASSIFIER_SPDX = {
 }
 # Identifiers and exceptions an expression may use (checked by validate())
 SPDX_IDS = {"MIT", "MIT-0", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "MPL-2.0", "PSF-2.0", "ISC",
-            "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-2.0-or-later", "CC0-1.0", "Unlicense", "0BSD"}
+            "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-2.0-or-later",
+            "LGPL-3.0-only", "GPL-2.0-only", "GPL-3.0-only", "CC0-1.0", "Unlicense", "0BSD"}
 SPDX_EXCEPTIONS = {"Bootloader-exception"}
 
 

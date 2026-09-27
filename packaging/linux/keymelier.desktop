@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=KeyMelier
+GenericName=Security key manager
+Comment=Check and manage FIDO2 security keys
+Exec=KeyMelier %U
+Icon=keymelier
+Terminal=false
+Categories=Utility;Security;
+Keywords=FIDO2;passkey;YubiKey;security key;
+StartupWMClass=KeyMelier

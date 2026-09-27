@@ -10,6 +10,10 @@ dependencies = [
   "cryptography==50.0.1",
   "pyOpenSSL==26.4.0",
   "keyring==25.7.0",
+  # Linux: Qt web view (LGPL, self-contained in the AppImage)
+  "PySide6-Essentials==6.11.2 ; sys_platform == 'linux'",
+  "PySide6-Addons==6.11.2 ; sys_platform == 'linux'",
+  "qtpy==2.4.3 ; sys_platform == 'linux'",
 ]
 
 [dependency-groups]
