@@ -4568,6 +4568,21 @@ const NAV_STRINGS = {
 };
 for (const [code, strings] of Object.entries(NAV_STRINGS)) Object.assign(STRINGS[code], strings);
 
+const COVER_STRINGS = {
+  de: {"acc.shownAs": "angezeigt als „{name}“", "acc.probedN": "Suche: {n} Seiten abgefragt, andere unbekannt", "rp.probeOnly": "Für den neuen Key kennt KeyMelier nur die {n} per Suche abgefragten Seiten. Was dort nicht abgefragt wurde, bleibt „unbekannt“ – das heißt nicht, dass es fehlt."},
+  en: {"acc.shownAs": "shown as “{name}”", "acc.probedN": "search: {n} sites asked, others unknown", "rp.probeOnly": "For the new key KeyMelier only knows the {n} sites a search asked. Anything not asked stays “unknown” – that does not mean it is missing."},
+  es: {"acc.shownAs": "mostrado como «{name}»", "acc.probedN": "búsqueda: {n} sitios consultados, el resto desconocido", "rp.probeOnly": "De la llave nueva KeyMelier solo conoce los {n} sitios consultados en la búsqueda. Lo no consultado sigue como «desconocido»; no significa que falte."},
+  fr: {"acc.shownAs": "affiché comme « {name} »", "acc.probedN": "recherche : {n} sites interrogés, les autres inconnus", "rp.probeOnly": "Pour la nouvelle clé, KeyMelier ne connaît que les {n} sites interrogés par la recherche. Ce qui n'a pas été interrogé reste « inconnu » – cela ne veut pas dire que cela manque."},
+  it: {"acc.shownAs": "mostrato come «{name}»", "acc.probedN": "ricerca: {n} siti interrogati, gli altri sconosciuti", "rp.probeOnly": "Della chiave nuova KeyMelier conosce solo i {n} siti interrogati dalla ricerca. Ciò che non è stato interrogato resta «sconosciuto»: non significa che manchi."},
+  nl: {"acc.shownAs": "weergegeven als ‘{name}’", "acc.probedN": "zoekactie: {n} sites gevraagd, andere onbekend", "rp.probeOnly": "Van de nieuwe sleutel kent KeyMelier alleen de {n} sites die een zoekactie heeft gevraagd. Wat niet is gevraagd blijft ‘onbekend’ – dat betekent niet dat het ontbreekt."},
+  pl: {"acc.shownAs": "wyświetlane jako „{name}”", "acc.probedN": "wyszukiwanie: sprawdzono {n} stron, pozostałe nieznane", "rp.probeOnly": "O nowym kluczu KeyMelier wie tylko tyle, ile dało sprawdzenie {n} stron w wyszukiwaniu. To, czego nie sprawdzono, pozostaje „nieznane” – nie znaczy to, że tego brakuje."},
+  pt: {"acc.shownAs": "mostrado como «{name}»", "acc.probedN": "pesquisa: {n} sites consultados, os outros desconhecidos", "rp.probeOnly": "Da chave nova o KeyMelier só conhece os {n} sites consultados na pesquisa. O que não foi consultado fica «desconhecido» – não quer dizer que falte."},
+  ja: {"acc.shownAs": "表示名「{name}」", "acc.probedN": "検索：{n} サイトを確認、その他は不明", "rp.probeOnly": "新しいキーについて KeyMelier が把握しているのは、検索で確認した {n} サイトだけです。確認していないものは「不明」のままで、存在しないという意味ではありません。"},
+  ko: {"acc.shownAs": "표시 이름 “{name}”", "acc.probedN": "검색: {n}개 사이트 확인, 나머지는 알 수 없음", "rp.probeOnly": "새 키에 대해 KeyMelier는 검색으로 확인한 {n}개 사이트만 알고 있습니다. 확인하지 않은 항목은 ‘알 수 없음’으로 남으며, 없다는 뜻이 아닙니다."},
+  zh: {"acc.shownAs": "显示为“{name}”", "acc.probedN": "搜索：已查询 {n} 个网站，其余未知", "rp.probeOnly": "对于新密钥，KeyMelier 只了解搜索查询过的 {n} 个网站。未查询的内容仍为“未知”——并不表示缺失。"},
+};
+for (const [code, strings] of Object.entries(COVER_STRINGS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

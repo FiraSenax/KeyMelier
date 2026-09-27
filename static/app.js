@@ -518,9 +518,15 @@ const RP_CHECK = {
   unknown: ['muted', 'rp.check.unknown'],
 };
 
+// "2 accounts without a known name (shown as “Administrator”)" – display names only for reading
+function unknownAccountLabel(r) {
+  const base = t(r.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: r.count });
+  return r.displays?.length ? `${base} (${t('acc.shownAs', { name: r.displays.join(', ') })})` : base;
+}
+
 function replaceItemLabel(i) {
   if (i.kind === 'passkey') return `${i.rpId} · ${i.account}`;
-  if (i.kind === 'unknown') return `${i.rpId} · ${t(i.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: i.count })}`;
+  if (i.kind === 'unknown') return `${i.rpId} · ${unknownAccountLabel(i)}`;
   if (i.kind === 'code') return [i.issuer, i.account].filter(Boolean).join(' · ');
   return inventoryLabel(i.item);
 }
@@ -566,7 +572,8 @@ function replaceCardHtml(entries) {
   const confirmed = items.filter(i => done.has(i.id)).length;
   const connected = [...tokens.values()].some(tk => tk.history_id === newId && !tk.offline);
   const notes = [];
-  if (!info.passkeysKnown || (plan.codes.length && !info.codesKnown)) notes.push(t('rp.readNew'));
+  if (info.coverage === 'none' || (plan.codes.length && !info.codesKnown)) notes.push(t('rp.readNew'));
+  else if (info.coverage === 'probe') notes.push(t('rp.probeOnly', { n: info.probedCount }));
   if (!remember) notes.push(t('rp.noRemember'));
   else if (!appSettings.history_enabled) notes.push(t('rp.session'));
 
@@ -614,7 +621,7 @@ function lostAssistantHtml(entry) {
   const list = !entry.lost_since ? '' : passkeys.length ? `
     <p class="card-text bk-steps">${escHtml(t('bk.lost.steps'))}</p>
     <ul class="bk-lost-list">${passkeys.map(r => item(r.kind === 'unknown' ? r.rpId : `${r.rpId}|${r.account}`,
-      r.kind === 'unknown' ? `${r.rpId} · ${t(r.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: r.count })}` : `${r.rpId} · ${r.account}`, r)).join('')}</ul>
+      r.kind === 'unknown' ? `${r.rpId} · ${unknownAccountLabel(r)}` : `${r.rpId} · ${r.account}`, r)).join('')}</ul>
     <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>` : `<p class="field-hint bk-hint">${escHtml(t(entry.sites ? 'bk.lost.emptyKey' : 'bk.lost.notRecorded'))}</p>
     <p class="field-hint bk-hint">${escHtml(t('bk.lost.u2f'))}</p>`;
   const codes = mine.filter(r => r.kind === 'code');
@@ -685,8 +692,10 @@ function accSummaryHtml(rows) {
 }
 
 function keyFreshness(info) {
-  if (!info.passkeysKnown && !info.codesKnown) return t('acc.fresh.never');
-  const src = info.probeIncomplete ? t('acc.src.probeIncomplete') : info.sitesSource ? t(`acc.src.${info.sitesSource}`) : '';
+  if (info.coverage === 'none' && !info.codesKnown) return t('acc.fresh.never');
+  const src = info.probeIncomplete ? t('acc.src.probeIncomplete')
+    : info.coverage === 'probe' ? t('acc.probedN', { n: info.probedCount })
+      : info.sitesSource ? t(`acc.src.${info.sitesSource}`) : '';
   const when = info.checked || info.codesChecked;
   return [src, when ? t(info.stale ? 'acc.fresh.stale' : 'acc.fresh.read', { when: relTime(when) }) : ''].filter(Boolean).join(' · ');
 }
@@ -724,7 +733,7 @@ function renderAccountsView() {
     return `<td class="yes${lost}" title="${escHtml(src)}">${tags}${c.source && c.source !== 'list' ? `<span class="acc-src">${escHtml(t(`acc.src.${c.source}`))}</span>` : ''}</td>`;
   }).join('');
   const rowHtml = (r, g) => {
-    const label = r.kind === 'unknown' ? t(r.count === 1 ? 'acc.unknownAccount1' : 'acc.unknownAccounts', { n: r.count })
+    const label = r.kind === 'unknown' ? unknownAccountLabel(r)
       : r.account || r.issuer;
     const sub = r.kind === 'code' ? t('acc.kind.code') : r.rpId !== g.domain ? r.rpId : '';
     const link = r.kind === 'passkey' && r.links.length ? `<span class="acc-note">${escHtml(t('acc.linkedByName'))}</span>` : '';

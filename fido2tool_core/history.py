@@ -179,6 +179,7 @@ class History:
             entry["sites_updated"] = now
             entry.pop("sites_probed", None)
             entry.pop("probe", None)
+            entry.pop("probe_rp", None)
             self._save()
             return self._summary(entry)
 
@@ -186,14 +187,24 @@ class History:
         """Merge a passkey search (keys that cannot list passkeys). Only an
         explicit "no credentials" answer removes a known site; errors,
         unsupported queries and sites not asked (cancelled scan) keep what
-        was known before."""
+        was known before.
+
+        probe_rp records per rpId what the search found out and when – a
+        search only covers the sites it asked, so only those can ever be
+        "not there". A definite answer (found/none) is not overwritten by a
+        later error, unsupported or PIN-required answer."""
         with self._lock:
             entry = self._entry_for(record)
             now = _now()
             sites = {s["rp_id"]: s for s in entry.get("sites") or [] if isinstance(s, dict) and s.get("rp_id")}
             counts: dict[str, int] = {}
+            per_rp = dict(entry.get("probe_rp") or {})
             for r in results:
                 counts[r["status"]] = counts.get(r["status"], 0) + 1
+                if r["status"] in ("found", "none") or r["rp_id"] not in per_rp:
+                    per_rp[r["rp_id"]] = {"status": r["status"], "checked": now}
+                    if r.get("partial"):
+                        per_rp[r["rp_id"]]["partial"] = True
                 if r["status"] == "found":
                     sites[r["rp_id"]] = self._site(r, "probe", now)
                 elif r["status"] == "none":
@@ -201,6 +212,7 @@ class History:
             entry["sites"] = sorted(sites.values(), key=lambda s: s["rp_id"])
             entry["sites_updated"] = now
             entry["sites_probed"] = checked
+            entry["probe_rp"] = per_rp
             entry["probe"] = {"at": now, "complete": bool(complete), "asked": len(results), "counts": counts}
             self._save()
             return self._summary(entry)
@@ -225,6 +237,7 @@ class History:
                 entry.pop("sites_updated", None)
                 entry.pop("sites_probed", None)
                 entry.pop("probe", None)
+                entry.pop("probe_rp", None)
                 entry.pop("inventory", None)
                 entry.pop("lost_done", None)
                 entry.pop("replace", None)
@@ -363,6 +376,9 @@ _SNAPSHOT_TEXT = {"product_name": 120, "serial_number": 40, "manufacturer": 80, 
 _SNAPSHOT_INT = ("vendor_id", "product_id", "firmware_version_raw", "max_cred_count", "min_pin_length")
 
 
+_PROBE_STATUS = ("found", "none", "unsupported", "uv_required", "error")
+
+
 def _text(v, n=200):
     return v[:n] if isinstance(v, str) else ""
 
@@ -449,6 +465,11 @@ def _clean_entry(raw) -> dict | None:
             entry[field] = raw[field][:40]
     if isinstance(raw.get("sites_probed"), int) and not isinstance(raw.get("sites_probed"), bool):
         entry["sites_probed"] = raw["sites_probed"]
+    if isinstance(raw.get("probe_rp"), dict):
+        entry["probe_rp"] = {rp[:253]: {"status": v["status"], "checked": _text(v.get("checked"), 40),
+                                        **({"partial": True} if v.get("partial") is True else {})}
+                             for rp, v in list(raw["probe_rp"].items())[:1000]
+                             if isinstance(rp, str) and rp and isinstance(v, dict) and v.get("status") in _PROBE_STATUS}
     return entry
 
 
@@ -470,6 +491,12 @@ def _merge_entry(current: dict, other: dict) -> None:
     current["events"] = sorted(events, key=lambda e: e.get("ts", ""))[-MAX_EVENTS:]
     if other.get("sites") is not None and other.get("sites_updated", "") > current.get("sites_updated", ""):
         current["sites"], current["sites_updated"] = other["sites"], other["sites_updated"]
+        # coverage belongs to the site list it describes
+        for field in ("sites_probed", "probe_rp", "probe"):
+            if field in other:
+                current[field] = other[field]
+            else:
+                current.pop(field, None)
     for section, inv in (other.get("inventory") or {}).items():
         mine = current.setdefault("inventory", {}).get(section)
         if not isinstance(mine, dict):

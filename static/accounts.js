@@ -9,11 +9,15 @@
 //   domains only group rows for display; they never make two entries "the same".
 // - Passkeys whose account name is unknown are never assigned to a named
 //   account – they stay "unclear" until the key is searched with the PIN.
+//   A display name ("Administrator") is shown, but never identifies an account.
 // - A passkey and a code are linked only if their account names are equal
 //   (case-insensitive); such a link is shown as "by name, not verified".
 // - Only keys that are not marked as lost count as protection.
-// - A key that was never read, or whose search was incomplete, is "unknown"
-//   for that account – never "not there".
+// - "Not there" needs proof for that exact website: a complete list from the
+//   key (credential management), or a search answer "no credentials" for that
+//   rpId. A search only covers the sites it asked; everything else, errors,
+//   unsupported or PIN-required answers and incompletely listed sites stay
+//   "unknown".
 
 const MULTI_TLD = new Set(['co.uk', 'com.au', 'co.jp', 'co.nz', 'com.br', 'co.za', 'com.tr', 'co.in', 'com.mx']);
 const STALE_DAYS = 90;
@@ -32,8 +36,21 @@ function serviceKey(value) {
   return v.replace(/[^a-z0-9]/g, '');
 }
 
+// The account name the service stored (user.name) – the only identity.
 function accountName(u) {
-  return String((u && (u.name || u.display)) || '').trim();
+  return String((u && u.name) || '').trim();
+}
+
+// Display name – for showing only
+function userDisplay(u) {
+  return String((u && u.display) || '').trim();
+}
+
+// How much a key's passkey data covers: 'full' (complete list from the key),
+// 'probe' (only the sites a search asked, see e.probe_rp) or 'none'
+function passkeyCoverage(e) {
+  if (!e.sites) return e.probe || e.sites_probed != null ? 'probe' : 'none';
+  return e.probe || e.sites_probed != null ? 'probe' : 'full';
 }
 
 function buildAccountModel(entries, now = Date.now()) {
@@ -64,13 +81,18 @@ function buildAccountModel(entries, now = Date.now()) {
   const keyInfo = new Map();
   for (const e of keys) {
     const imported = !!e.snapshot?.imported;
-    const sitesSource = !e.sites ? null
-      : e.probe || e.sites_probed ? 'probe'
+    const coverage = passkeyCoverage(e);
+    const sitesSource = coverage === 'none' ? null
+      : coverage === 'probe' ? 'probe'
         : e.sites.find(s => s.source)?.source || (imported ? 'import' : 'list');
     const checked = e.sites_updated || null;
+    const probeRp = e.probe_rp && typeof e.probe_rp === 'object' ? e.probe_rp : {};
     keyInfo.set(e.key_id, {
-      // an interrupted search proves nothing about the sites it did not reach
-      passkeysKnown: !!e.sites && !(e.probe && e.probe.complete === false),
+      coverage,
+      probeRp,
+      probedCount: Object.keys(probeRp).length,
+      // the complete passkey list of this key is known (not just searched sites)
+      passkeysKnown: coverage === 'full',
       codesKnown: !!e.inventory?.oath,
       sitesSource,
       probeIncomplete: e.probe?.complete === false,
@@ -96,8 +118,9 @@ function buildAccountModel(entries, now = Date.now()) {
       }
       const unnamed = Math.max(0, (s.count || 1) - named.length);
       if (unnamed) {
-        // never merged: one row per key and site
-        const r = row(`pk?|${s.rp_id}|${e.key_id}`, { ...base, kind: 'unknown', account: '', count: unnamed });
+        // never merged: one row per key and site (display names only shown)
+        const displays = [...new Set((s.users || []).filter(u => !accountName(u)).map(userDisplay).filter(Boolean))];
+        const r = row(`pk?|${s.rp_id}|${e.key_id}`, { ...base, kind: 'unknown', account: '', count: unnamed, displays });
         hold(r, e.key_id, 'passkey', unnamed, source, checked);
       }
     }
@@ -171,14 +194,38 @@ function buildAccountModel(entries, now = Date.now()) {
   return { keys, groups: sorted, rows: [...rows.values()], keyInfo };
 }
 
+// Is there provably NO passkey for rpId (and, if given, this account) on the
+// key? 'absent' needs proof for exactly this website; otherwise 'unknown'.
+// (Holding it is checked by the caller via the row's holders.)
+function passkeyAbsence(model, keyId, rpId, account) {
+  const e = model.keys.find(k => k.key_id === keyId);
+  const info = model.keyInfo.get(keyId);
+  if (!e || !info) return 'unknown';
+  const site = (e.sites || []).find(s => s && s.rp_id === rpId);
+  const fullyNamed = site && !site.partial && (site.count || 1) <= (site.users || []).map(accountName).filter(Boolean).length;
+  if (info.coverage === 'full') {
+    if (!site) return 'absent';
+    // other accounts of this site are listed by name: this one is not there
+    return account && fullyNamed ? 'absent' : 'unknown';
+  }
+  if (info.coverage === 'probe') {
+    const p = info.probeRp[rpId];
+    if (!p) return 'unknown';                        // never asked
+    if (p.status === 'none') return 'absent';        // the key said "no credentials" for this rpId
+    if (p.status === 'found' && account && !p.partial && fullyNamed) return 'absent';
+    return 'unknown';                                // error, unsupported, PIN required, partial
+  }
+  return 'unknown';
+}
+
 // What a key shows for a row: 'passkey'/'code'/both, or 'none' (known absent) / 'unknown'
 function cellState(model, r, keyId) {
   const h = r.holders.get(keyId);
   const linked = r.kind === 'passkey' ? r.links.map(c => c.holders.get(keyId)).find(Boolean) : null;
   if (h || linked) return { passkey: h?.passkey || 0, code: (h?.code || 0) + (linked?.code || 0), source: (h || linked).source, checked: (h || linked).checked };
-  const info = model.keyInfo.get(keyId);
-  const known = r.kind === 'code' ? info.codesKnown : info.passkeysKnown;
-  return { absent: true, unknown: !known };
+  if (r.kind === 'code') return { absent: true, unknown: !model.keyInfo.get(keyId)?.codesKnown };
+  const absent = passkeyAbsence(model, keyId, r.rpId, r.kind === 'passkey' ? r.account : '') === 'absent';
+  return { absent: true, unknown: !absent };
 }
 
 // Rows of one key whose protection depends on it (for the security check and the lost-key assistant)
@@ -198,6 +245,8 @@ function buildReplacePlan(model, oldId, newId) {
   if (!oldKey || !newKey || oldId === newId) return null;
   const newInfo = model.keyInfo.get(newId);
   const verdict = (found, known) => (found ? 'found' : known ? 'missing' : 'unknown');
+  const pkVerdict = (found, rpId, account) => (found ? 'found'
+    : passkeyAbsence(model, newId, rpId, account) === 'absent' ? 'missing' : 'unknown');
 
   const passkeys = model.rows
     .filter(r => (r.kind === 'passkey' || r.kind === 'unknown') && r.holders.get(oldId)?.passkey > 0)
@@ -206,12 +255,12 @@ function buildReplacePlan(model, oldId, newId) {
         // account unknown: at most "the new key has some passkey for this site"
         const other = model.rows.find(o => o.rpId === r.rpId && o.kind !== 'code' && o.holders.get(newId)?.passkey > 0);
         const h = other?.holders.get(newId);
-        return { id: `pk?:${r.rpId}`, kind: 'unknown', rpId: r.rpId, account: '', count: r.count,
-          group: r.groupLabel, check: other ? 'similar' : verdict(false, newInfo.passkeysKnown), source: h?.source, checked: h?.checked };
+        return { id: `pk?:${r.rpId}`, kind: 'unknown', rpId: r.rpId, account: '', count: r.count, displays: r.displays,
+          group: r.groupLabel, check: other ? 'similar' : pkVerdict(false, r.rpId, ''), source: h?.source, checked: h?.checked };
       }
       const h = r.holders.get(newId);
       return { id: `pk:${r.rpId}|${r.account.toLowerCase()}`, kind: 'passkey', rpId: r.rpId, account: r.account,
-        group: r.groupLabel, check: verdict(h?.passkey > 0, newInfo.passkeysKnown), source: h?.source, checked: h?.checked };
+        group: r.groupLabel, check: pkVerdict(h?.passkey > 0, r.rpId, r.account), source: h?.source, checked: h?.checked };
     });
 
   const codes = model.rows
@@ -246,5 +295,5 @@ function replacePlanItems(plan) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { buildAccountModel, cellState, rowsOfKey, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
+  module.exports = { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, buildReplacePlan, replacePlanItems, registrableDomain, serviceKey, STALE_DAYS };
 }

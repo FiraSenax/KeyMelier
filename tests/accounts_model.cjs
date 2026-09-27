@@ -1,7 +1,7 @@
 // Regression tests for static/accounts.js – each case is a misclassification
 // that must not happen again (node tests/accounts_model.cjs).
 const assert = require('node:assert/strict');
-const { buildAccountModel, cellState, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
+const { buildAccountModel, cellState, passkeyAbsence, rowsOfKey, registrableDomain, buildReplacePlan, replacePlanItems } = require('../static/accounts.js');
 
 const NOW = Date.parse('2026-09-27T12:00:00Z');
 const day = n => new Date(NOW - n * 86400e3).toISOString();
@@ -143,6 +143,113 @@ const find = (m, pred) => m.rows.find(pred);
   m = buildAccountModel([oldKey, partial], NOW);
   p = buildReplacePlan(m, 'OLD', 'NEW');
   assert.ok(p.passkeys.every(i => i.check === 'unknown'));
+}
+
+// 8. Display names never identify an account (review 1.5.0, task 1)
+{
+  const shown = (rp, display, extra = {}) => ({ rp_id: rp, count: 1, users: [{ name: '', display }], source: 'list', checked: day(1), ...extra });
+  // repro: same display name on two keys was rated passkey_multi
+  let m = buildAccountModel([
+    key('A', { sites: [shown('example.com', 'Administrator')], sites_updated: day(1) }),
+    key('B', { sites: [shown('example.com', 'Administrator')], sites_updated: day(1) }),
+  ], NOW);
+  assert.ok(m.rows.every(r => r.kind === 'unknown' && r.status === 'unclear'), 'equal display names are no identity');
+  assert.equal(m.rows.length, 2, 'never merged');
+  assert.ok(!m.rows.some(r => r.level === 'ok' || r.level === 'info'));
+  assert.deepEqual(m.rows[0].displays, ['Administrator'], 'display name kept for showing only');
+
+  // named account on one key, same text only as display name on the other
+  m = buildAccountModel([
+    key('A', { sites: [site('example.com', ['erika'])], sites_updated: day(1) }),
+    key('B', { sites: [shown('example.com', 'erika')], sites_updated: day(1) }),
+  ], NOW);
+  assert.equal(find(m, r => r.account === 'erika').status, 'passkey_single');
+  assert.equal(find(m, r => r.kind === 'unknown').status, 'unclear');
+  assert.equal(cellState(m, find(m, r => r.account === 'erika'), 'B').unknown, true, 'B may or may not hold it');
+
+  // completely nameless entries
+  m = buildAccountModel([
+    key('A', { sites: [{ rp_id: 'example.com', count: 2, users: [] }], sites_updated: day(1) }),
+    key('B', { sites: [{ rp_id: 'example.com', count: 1, users: [{ name: '', display: '' }] }], sites_updated: day(1) }),
+  ], NOW);
+  assert.ok(m.rows.every(r => r.status === 'unclear'));
+  assert.equal(m.rows.find(r => r.holders.has('A')).count, 2);
+
+  // lost-key assistant: a lost key's display-only entry never shows a backup
+  m = buildAccountModel([
+    key('L', { lost_since: day(1), sites: [shown('example.com', 'Administrator')], sites_updated: day(5) }),
+    key('B', { sites: [shown('example.com', 'Administrator')], sites_updated: day(1) }),
+  ], NOW);
+  const mine = rowsOfKey(m, 'L');
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].status, 'unclear_lost');
+  assert.deepEqual(mine[0].activeKeys, [], 'no backup via display name');
+
+  // key replacement: display-only on the new key is at most "similar"
+  m = buildAccountModel([
+    key('OLD', { sites: [shown('example.com', 'Administrator'), site('github.com', ['erika'])], sites_updated: day(1) }),
+    key('NEW', { sites: [shown('example.com', 'Administrator'), shown('github.com', 'erika')], sites_updated: day(0) }),
+  ], NOW);
+  const p = buildReplacePlan(m, 'OLD', 'NEW');
+  assert.equal(p.passkeys.find(i => i.id === 'pk?:example.com').check, 'similar');
+  assert.equal(p.passkeys.find(i => i.id === 'pk:github.com|erika').check, 'unknown',
+    'a display name "erika" on the new key neither proves nor disproves the account');
+}
+
+// 9. Search coverage per rpId (review 1.5.0, task 2)
+{
+  const A = key('A', { sites: [site('example.com', ['erika']), site('shop.com', ['erika'])], sites_updated: day(1) });
+  const probed = (probe_rp, extra = {}) => key('B', { sites: [], sites_updated: day(0), sites_probed: Object.keys(probe_rp).length,
+    probe: { complete: true, asked: Object.keys(probe_rp).length }, probe_rp, ...extra });
+  const at = (m, rp) => cellState(m, find(m, r => r.rpId === rp), 'B');
+
+  // repro: a complete search only for different.com said "not there" for example.com
+  let m = buildAccountModel([A, probed({ 'different.com': { status: 'none', checked: day(0) } })], NOW);
+  assert.equal(at(m, 'example.com').unknown, true, 'not asked = unknown');
+  assert.equal(m.keyInfo.get('B').coverage, 'probe');
+  assert.equal(m.keyInfo.get('B').passkeysKnown, false, 'search finished ≠ complete list');
+
+  // explicit "no credentials" proves absence for exactly that rpId
+  m = buildAccountModel([A, probed({ 'example.com': { status: 'none', checked: day(0) } })], NOW);
+  assert.equal(at(m, 'example.com').unknown, false);
+  assert.equal(at(m, 'shop.com').unknown, true);
+
+  // errors, unsupported, PIN required prove nothing
+  for (const status of ['error', 'unsupported', 'uv_required']) {
+    m = buildAccountModel([A, probed({ 'example.com': { status, checked: day(0) } })], NOW);
+    assert.equal(at(m, 'example.com').unknown, true, status);
+  }
+
+  // a hit with an incomplete account list does not prove other accounts missing
+  const hitB = (partial) => key('B', { sites: [{ rp_id: 'example.com', count: partial ? 3 : 1, users: [{ name: 'other', display: '' }], ...(partial ? { partial: true } : {}) }],
+    sites_updated: day(0), sites_probed: 1, probe: { complete: true, asked: 1 },
+    probe_rp: { 'example.com': { status: 'found', checked: day(0), ...(partial ? { partial: true } : {}) } } });
+  m = buildAccountModel([A, hitB(true)], NOW);
+  assert.equal(at(m, 'example.com').unknown, true, 'partial hit');
+  m = buildAccountModel([A, hitB(false)], NOW);
+  assert.equal(at(m, 'example.com').unknown, false, 'complete, fully named hit: erika is not there');
+
+  // cancelled search: the answers it got still count, the rest stays unknown
+  m = buildAccountModel([A, probed({ 'example.com': { status: 'none', checked: day(0) } }, { probe: { complete: false, asked: 1 } })], NOW);
+  assert.equal(at(m, 'example.com').unknown, false);
+  assert.equal(at(m, 'shop.com').unknown, true);
+
+  // old or imported search data without per-site results: unknown
+  m = buildAccountModel([A, key('B', { sites: [], sites_updated: day(0), sites_probed: 70, probe: { complete: true, asked: 70 } })], NOW);
+  assert.equal(at(m, 'example.com').unknown, true, 'legacy probe');
+  m = buildAccountModel([A, key('B', { sites: [], sites_updated: day(0), sites_probed: 70, snapshot: { imported: true } })], NOW);
+  assert.equal(at(m, 'example.com').unknown, true, 'imported probe');
+
+  // a complete list from the key still proves absence
+  m = buildAccountModel([A, key('B', { sites: [], sites_updated: day(0) })], NOW);
+  assert.equal(at(m, 'example.com').unknown, false);
+  assert.equal(passkeyAbsence(m, 'B', 'example.com', 'erika'), 'absent');
+
+  // key replacement uses the same rule: missing only with proof
+  m = buildAccountModel([A, probed({ 'example.com': { status: 'none', checked: day(0) } })], NOW);
+  const plan = buildReplacePlan(m, 'A', 'B');
+  assert.equal(plan.passkeys.find(i => i.rpId === 'example.com').check, 'missing');
+  assert.equal(plan.passkeys.find(i => i.rpId === 'shop.com').check, 'unknown');
 }
 
 console.log('Account model tests passed');

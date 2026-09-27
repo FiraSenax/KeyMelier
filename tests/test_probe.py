@@ -154,5 +154,51 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(sites['x.com']['source'], 'list')
 
 
+class CoverageTests(unittest.TestCase):
+    """probe_rp: what each search found out per rpId (review 1.5.0, task 2)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.h = History(Path(self.tmp.name) / 'h.json', enabled=True)
+
+    def per_rp(self):
+        return {rp: v['status'] for rp, v in self.h.list()[0]['probe_rp'].items()}
+
+    def test_only_asked_sites_are_recorded(self):
+        self.h.merge_probe(record(), [{'rp_id': 'a.com', 'status': 'none'},
+                                      {'rp_id': 'b.com', 'status': 'error'}], False, 2)
+        self.assertEqual(self.per_rp(), {'a.com': 'none', 'b.com': 'error'})
+        self.assertIn('checked', self.h.list()[0]['probe_rp']['a.com'])
+
+    def test_successive_searches_keep_definite_answers(self):
+        self.h.merge_probe(record(), [{'rp_id': 'a.com', 'status': 'none'},
+                                      {'rp_id': 'b.com', 'status': 'uv_required'}], True, 2)
+        self.h.merge_probe(record(), [{'rp_id': 'a.com', 'status': 'error'},
+                                      {'rp_id': 'b.com', 'status': 'found', 'count': 2, 'users': [{'name': 'x'}], 'partial': True},
+                                      {'rp_id': 'c.com', 'status': 'unsupported'}], True, 3)
+        self.assertEqual(self.per_rp(), {'a.com': 'none', 'b.com': 'found', 'c.com': 'unsupported'})
+        self.assertTrue(self.h.list()[0]['probe_rp']['b.com']['partial'])
+        self.h.merge_probe(record(), [{'rp_id': 'b.com', 'status': 'none'}], True, 1)
+        self.assertEqual(self.per_rp()['b.com'], 'none')
+        self.assertFalse(any(s['rp_id'] == 'b.com' for s in self.h.list()[0]['sites']))
+
+    def test_complete_list_replaces_search_coverage(self):
+        self.h.merge_probe(record(), [{'rp_id': 'a.com', 'status': 'none'}], True, 1)
+        self.h.set_sites(record(), [])
+        entry = self.h.list()[0]
+        self.assertNotIn('probe_rp', entry)
+        self.assertNotIn('sites_probed', entry)
+
+    def test_import_keeps_valid_coverage_only(self):
+        from fido2tool_core.history import _clean_entry
+        entry = _clean_entry({'key_id': 'a' * 16, 'sites': [], 'sites_probed': 3, 'probe_rp': {
+            'a.com': {'status': 'none', 'checked': '2026-09-27'}, 'b.com': {'status': 'gone'},
+            'c.com': 'none', '': {'status': 'none'}}})
+        self.assertEqual(entry['probe_rp'], {'a.com': {'status': 'none', 'checked': '2026-09-27'}})
+        legacy = _clean_entry({'key_id': 'a' * 16, 'sites': [], 'sites_probed': 3})
+        self.assertNotIn('probe_rp', legacy)   # the model then treats every site as unknown
+
+
 if __name__ == '__main__':
     unittest.main()
