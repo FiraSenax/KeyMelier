@@ -93,7 +93,8 @@ class KeyService:
         self.emit = lambda name, payload: None
         self._attestation_logged: set[str] = set()
         # Sync between the user's computers through a folder (off unless set up)
-        self._syncer = sync_mod.Syncer(self.history, lambda n, p: self.emit(n, p), self._remember_contents)
+        self._syncer = sync_mod.Syncer(self.history, lambda n, p: self.emit(n, p), self._remember_contents,
+                                       on_new_device=self._sync_new_device)
         self._sync_problem = None
         self._sync_configure()
 
@@ -341,6 +342,11 @@ class KeyService:
             self._syncer.configure(None, None, None)
             return
         self._syncer.configure(Path(folder), device, passphrase)
+
+    def _sync_new_device(self, device: str) -> None:
+        settings = self._stored_settings()
+        settings["sync_device"] = device
+        self._write_settings(settings)
 
     def sync_status(self) -> dict:
         st = self._stored_settings()

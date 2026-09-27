@@ -4584,17 +4584,17 @@ const COVER_STRINGS = {
 for (const [code, strings] of Object.entries(COVER_STRINGS)) Object.assign(STRINGS[code], strings);
 
 const ABOUTP_STRINGS = {
-  de: {"about.what": "Prüft FIDO2-Schlüssel auf Echtheit und bekannte Schwachstellen, verwaltet Passkeys, PIN, Codes, OpenPGP und PIV – und zeigt, welche Konten auf welchem Schlüssel liegen.", "about.privacy": "Alles bleibt auf diesem Mac: kein Konto, keine Telemetrie.", "about.site": "Webseite", "about.source": "Quellcode", "about.issues": "Fehler melden"},
-  en: {"about.what": "Checks FIDO2 keys for authenticity and known vulnerabilities, manages passkeys, PIN, codes, OpenPGP and PIV – and shows which accounts are on which key.", "about.privacy": "Everything stays on this Mac: no account, no telemetry.", "about.site": "Website", "about.source": "Source code", "about.issues": "Report a problem"},
-  es: {"about.what": "Comprueba la autenticidad y las vulnerabilidades conocidas de las llaves FIDO2, gestiona passkeys, PIN, códigos, OpenPGP y PIV, y muestra qué cuentas hay en cada llave.", "about.privacy": "Todo se queda en este Mac: sin cuenta, sin telemetría.", "about.site": "Sitio web", "about.source": "Código fuente", "about.issues": "Informar de un problema"},
-  fr: {"about.what": "Vérifie l'authenticité et les vulnérabilités connues des clés FIDO2, gère passkeys, PIN, codes, OpenPGP et PIV – et montre quels comptes sont sur quelle clé.", "about.privacy": "Tout reste sur ce Mac : aucun compte, aucune télémétrie.", "about.site": "Site web", "about.source": "Code source", "about.issues": "Signaler un problème"},
-  it: {"about.what": "Verifica autenticità e vulnerabilità note delle chiavi FIDO2, gestisce passkey, PIN, codici, OpenPGP e PIV e mostra quali account sono su quale chiave.", "about.privacy": "Tutto resta su questo Mac: nessun account, nessuna telemetria.", "about.site": "Sito web", "about.source": "Codice sorgente", "about.issues": "Segnala un problema"},
-  nl: {"about.what": "Controleert FIDO2-sleutels op echtheid en bekende kwetsbaarheden, beheert passkeys, pincode, codes, OpenPGP en PIV – en toont welke accounts op welke sleutel staan.", "about.privacy": "Alles blijft op deze Mac: geen account, geen telemetrie.", "about.site": "Website", "about.source": "Broncode", "about.issues": "Probleem melden"},
-  pl: {"about.what": "Sprawdza autentyczność i znane podatności kluczy FIDO2, zarządza passkeys, PIN-em, kodami, OpenPGP i PIV – i pokazuje, które konta są na którym kluczu.", "about.privacy": "Wszystko zostaje na tym Macu: bez konta, bez telemetrii.", "about.site": "Strona", "about.source": "Kod źródłowy", "about.issues": "Zgłoś problem"},
-  pt: {"about.what": "Verifica a autenticidade e vulnerabilidades conhecidas das chaves FIDO2, gere passkeys, PIN, códigos, OpenPGP e PIV – e mostra que contas estão em que chave.", "about.privacy": "Tudo fica neste Mac: sem conta, sem telemetria.", "about.site": "Site", "about.source": "Código-fonte", "about.issues": "Reportar um problema"},
-  ja: {"about.what": "FIDO2 キーの真正性と既知の脆弱性を確認し、パスキー・PIN・コード・OpenPGP・PIV を管理。どのアカウントがどのキーにあるかも表示します。", "about.privacy": "すべてこの Mac 内に保存：アカウント不要、テレメトリなし。", "about.site": "Web サイト", "about.source": "ソースコード", "about.issues": "問題を報告"},
-  ko: {"about.what": "FIDO2 키의 정품 여부와 알려진 취약점을 확인하고 패스키, PIN, 코드, OpenPGP, PIV를 관리하며, 어떤 계정이 어느 키에 있는지 보여 줍니다.", "about.privacy": "모든 데이터는 이 Mac에만 남습니다. 계정도, 원격 측정도 없습니다.", "about.site": "웹사이트", "about.source": "소스 코드", "about.issues": "문제 신고"},
-  zh: {"about.what": "检查 FIDO2 密钥的真伪和已知漏洞，管理通行密钥、PIN、验证码、OpenPGP 和 PIV，并显示哪些账户在哪把密钥上。", "about.privacy": "一切都留在这台 Mac 上：无需账户，没有遥测。", "about.site": "网站", "about.source": "源代码", "about.issues": "报告问题"},
+  de: {"about.what": "Prüft FIDO2-Schlüssel auf Echtheit und bekannte Schwachstellen, verwaltet Passkeys, PIN, Codes, OpenPGP und PIV – und zeigt, welche Konten auf welchem Schlüssel liegen.", "about.privacy": "Alles bleibt auf diesem Computer: kein Konto, keine Telemetrie.", "about.site": "Webseite", "about.source": "Quellcode", "about.issues": "Fehler melden"},
+  en: {"about.what": "Checks FIDO2 keys for authenticity and known vulnerabilities, manages passkeys, PIN, codes, OpenPGP and PIV – and shows which accounts are on which key.", "about.privacy": "Everything stays on this computer: no account, no telemetry.", "about.site": "Website", "about.source": "Source code", "about.issues": "Report a problem"},
+  es: {"about.what": "Comprueba la autenticidad y las vulnerabilidades conocidas de las llaves FIDO2, gestiona passkeys, PIN, códigos, OpenPGP y PIV, y muestra qué cuentas hay en cada llave.", "about.privacy": "Todo se queda en este ordenador: sin cuenta, sin telemetría.", "about.site": "Sitio web", "about.source": "Código fuente", "about.issues": "Informar de un problema"},
+  fr: {"about.what": "Vérifie l'authenticité et les vulnérabilités connues des clés FIDO2, gère passkeys, PIN, codes, OpenPGP et PIV – et montre quels comptes sont sur quelle clé.", "about.privacy": "Tout reste sur cet ordinateur : aucun compte, aucune télémétrie.", "about.site": "Site web", "about.source": "Code source", "about.issues": "Signaler un problème"},
+  it: {"about.what": "Verifica autenticità e vulnerabilità note delle chiavi FIDO2, gestisce passkey, PIN, codici, OpenPGP e PIV e mostra quali account sono su quale chiave.", "about.privacy": "Tutto resta su questo computer: nessun account, nessuna telemetria.", "about.site": "Sito web", "about.source": "Codice sorgente", "about.issues": "Segnala un problema"},
+  nl: {"about.what": "Controleert FIDO2-sleutels op echtheid en bekende kwetsbaarheden, beheert passkeys, pincode, codes, OpenPGP en PIV – en toont welke accounts op welke sleutel staan.", "about.privacy": "Alles blijft op deze computer: geen account, geen telemetrie.", "about.site": "Website", "about.source": "Broncode", "about.issues": "Probleem melden"},
+  pl: {"about.what": "Sprawdza autentyczność i znane podatności kluczy FIDO2, zarządza passkeys, PIN-em, kodami, OpenPGP i PIV – i pokazuje, które konta są na którym kluczu.", "about.privacy": "Wszystko zostaje na tym komputerze: bez konta, bez telemetrii.", "about.site": "Strona", "about.source": "Kod źródłowy", "about.issues": "Zgłoś problem"},
+  pt: {"about.what": "Verifica a autenticidade e vulnerabilidades conhecidas das chaves FIDO2, gere passkeys, PIN, códigos, OpenPGP e PIV – e mostra que contas estão em que chave.", "about.privacy": "Tudo fica neste computador: sem conta, sem telemetria.", "about.site": "Site", "about.source": "Código-fonte", "about.issues": "Reportar um problema"},
+  ja: {"about.what": "FIDO2 キーの真正性と既知の脆弱性を確認し、パスキー・PIN・コード・OpenPGP・PIV を管理。どのアカウントがどのキーにあるかも表示します。", "about.privacy": "すべてこのコンピューター内に保存：アカウント不要、テレメトリなし。", "about.site": "Web サイト", "about.source": "ソースコード", "about.issues": "問題を報告"},
+  ko: {"about.what": "FIDO2 키의 정품 여부와 알려진 취약점을 확인하고 패스키, PIN, 코드, OpenPGP, PIV를 관리하며, 어떤 계정이 어느 키에 있는지 보여 줍니다.", "about.privacy": "모든 데이터는 이 컴퓨터에만 남습니다. 계정도, 원격 측정도 없습니다.", "about.site": "웹사이트", "about.source": "소스 코드", "about.issues": "문제 신고"},
+  zh: {"about.what": "检查 FIDO2 密钥的真伪和已知漏洞，管理通行密钥、PIN、验证码、OpenPGP 和 PIV，并显示哪些账户在哪把密钥上。", "about.privacy": "一切都留在这台电脑上：无需账户，没有遥测。", "about.site": "网站", "about.source": "源代码", "about.issues": "报告问题"},
 };
 for (const [code, strings] of Object.entries(ABOUTP_STRINGS)) Object.assign(STRINGS[code], strings);
 
@@ -4627,6 +4627,21 @@ const UPDCHK_STRINGS = {
   zh: {"upd.check": "检查更新", "upd.checkMenu": "检查更新…", "upd.checking": "正在检查更新…", "upd.current": "KeyMelier {v} 已是最新版本。", "upd.checkFailed": "无法检查更新——无法连接到 GitHub？"},
 };
 for (const [code, strings] of Object.entries(UPDCHK_STRINGS)) Object.assign(STRINGS[code], strings);
+
+const ABOUTD_STRINGS = {
+  de: {"about.open": "Über KeyMelier", "about.close": "Schließen", "upd.version": "Version {v}"},
+  en: {"about.open": "About KeyMelier", "about.close": "Close", "upd.version": "Version {v}"},
+  es: {"about.open": "Acerca de KeyMelier", "about.close": "Cerrar", "upd.version": "Versión {v}"},
+  fr: {"about.open": "À propos de KeyMelier", "about.close": "Fermer", "upd.version": "Version {v}"},
+  it: {"about.open": "Informazioni su KeyMelier", "about.close": "Chiudi", "upd.version": "Versione {v}"},
+  nl: {"about.open": "Over KeyMelier", "about.close": "Sluiten", "upd.version": "Versie {v}"},
+  pl: {"about.open": "KeyMelier – informacje", "about.close": "Zamknij", "upd.version": "Wersja {v}"},
+  pt: {"about.open": "Sobre o KeyMelier", "about.close": "Fechar", "upd.version": "Versão {v}"},
+  ja: {"about.open": "KeyMelier について", "about.close": "閉じる", "upd.version": "バージョン {v}"},
+  ko: {"about.open": "KeyMelier 정보", "about.close": "닫기", "upd.version": "버전 {v}"},
+  zh: {"about.open": "关于 KeyMelier", "about.close": "关闭", "upd.version": "版本 {v}"},
+};
+for (const [code, strings] of Object.entries(ABOUTD_STRINGS)) Object.assign(STRINGS[code], strings);
 
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {

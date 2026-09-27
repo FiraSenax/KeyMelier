@@ -28,13 +28,13 @@ ABOUT_TEXTS = {
     "de": {
         "about.lead": "Der Sommelier für deine Sicherheitsschlüssel",
         "about.what": "Prüft FIDO2-Schlüssel auf Echtheit und bekannte Schwachstellen, verwaltet Passkeys, PIN, Codes, OpenPGP und PIV – und zeigt, welche Konten auf welchem Schlüssel liegen.",
-        "about.privacy": "Alles bleibt auf diesem Mac: kein Konto, keine Telemetrie.",
+        "about.privacy": "Alles bleibt auf diesem Computer: kein Konto, keine Telemetrie.",
         "about.site": "Webseite", "about.source": "Quellcode", "about.issues": "Fehler melden",
     },
     "en": {
         "about.lead": "The sommelier for your security keys",
         "about.what": "Checks FIDO2 keys for authenticity and known vulnerabilities, manages passkeys, PIN, codes, OpenPGP and PIV – and shows which accounts are on which key.",
-        "about.privacy": "Everything stays on this Mac: no account, no telemetry.",
+        "about.privacy": "Everything stays on this computer: no account, no telemetry.",
         "about.site": "Website", "about.source": "Source code", "about.issues": "Report a problem",
     },
 }

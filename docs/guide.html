@@ -183,12 +183,17 @@
   <h2 id="sync">Sync between computers</h2>
   <img class="shot" src="img/sync.png" alt="Sync between computers: folder, this computer and the other computers">
   <p>Using KeyMelier on several computers? Under <b>Backup &amp; loss → Sync between computers</b>, pick a folder that you already sync – iCloud Drive, OneDrive, Dropbox, Syncthing or a NAS share – and set a passphrase. Do the same on every computer with the same passphrase. KeyMelier writes one file per computer into that folder and merges the files of the others every half minute: key names, history, what is on each key, lost and replacement status. The newest decision wins, including "no longer lost" and "removed from history".</p>
+  <p>Every computer only writes its own file and replaces it in one step, so two computers never write the same file. A file that is still arriving through the cloud is simply read again at the next check; an error is shown only if it stays unreadable.</p>
   <p class="note">The files are encrypted with your passphrase (scrypt, AES-256-GCM). Whoever can see the folder only sees random ids. The passphrase is kept in the macOS Keychain or Windows Credential Manager and cannot be recovered. Security ratings are never synced – each computer checks a key when it is plugged in there. Sync needs the saved history and is off in stateless mode.</p>
 
   <h2 id="data">Data, updates &amp; privacy</h2>
   <img class="shot" src="img/details.png" alt="Technical details">
   <p>KeyMelier does not send any information about you or your keys. It downloads FIDO Alliance metadata (verified against the FIDO root and revocation lists), its own signed vulnerability database and the latest release number for an update notice. The data freshness is shown at the bottom of the <b>Security</b> tab; <b>Check now</b> updates immediately.</p>
   <p>Stored locally in your home folder (<code>keymelier</code>): settings and the history. Start with <code>--stateless</code> to store nothing. The open-source licenses of all components are one click away next to it (<b>Open-source licenses</b>).</p>
+
+  <h3>About KeyMelier</h3>
+  <img class="shot" src="img/about.png" alt="About KeyMelier dialog">
+  <p>Click <b>About KeyMelier</b> at the bottom of the sidebar (on macOS also in the KeyMelier menu) for the version, links to the website, source code and issue tracker, the open-source licenses and <b>Check for updates</b>.</p>
 
   <h2 id="troubleshooting">Troubleshooting</h2>
   <ul>

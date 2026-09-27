@@ -14,6 +14,14 @@ and times. The computer's name travels inside the encrypted part only.
 
 The passphrase is kept in the OS credential store (macOS Keychain, Windows
 Credential Manager) – never in a plain file.
+
+Concurrency: a computer only ever writes its own file, atomically (temporary
+file + rename), and only reads the others. A file that is still arriving
+through the cloud fails authentication and is simply read again later; it is
+reported only if it stays unreadable (ERROR_AFTER checks). Two computers with
+the same device id (e.g. settings copied by a migration tool) are detected by
+a per-run instance id inside the encrypted file; the one that notices takes
+a new device id.
 """
 
 import base64
@@ -38,6 +46,7 @@ MAX_FILE = 20_000_000
 FILE_RE = re.compile(r"^KeyMelier-([0-9a-f]{16})\.kmsync$")
 SCRYPT = {"n": 2 ** 17, "r": 8, "p": 1}
 INTERVAL = 30          # seconds between checks of the folder
+ERROR_AFTER = 2        # report an unreadable file only after this many checks in a row
 KEYRING_NAME = "sync-passphrase-v1"
 
 
@@ -137,7 +146,10 @@ class SyncFolder:
         self.device = device
         self._passphrase = passphrase
         self._salt = os.urandom(16)        # one salt per session: derive once
+        self.instance = secrets.token_hex(8)   # this run of KeyMelier
         self._written_hash = None
+        self._own_stamp = None             # (mtime, size) of our file after our last write
+        self._last_written = ""
         self._seen: dict[str, tuple] = {}  # file name -> (mtime, size) already merged
 
     @property
@@ -154,8 +166,9 @@ class SyncFolder:
         digest = hashlib.sha256(json.dumps(history_state, sort_keys=True).encode()).hexdigest()
         if digest == self._written_hash and not force and self.own_path.exists():
             return False
-        payload = {"device_name": platform.node()[:80], "written": datetime.now(timezone.utc).isoformat(),
-                   "history": history_state}
+        self._last_written = datetime.now(timezone.utc).isoformat()
+        payload = {"device_name": platform.node()[:80], "written": self._last_written,
+                   "instance": self.instance, "history": history_state}
         data = seal(payload, self._passphrase, self.device, self._salt)
         if self.own_path.is_symlink():
             raise SyncError("The sync file must not be a symbolic link.", "sync_folder")
@@ -170,7 +183,33 @@ class SyncFolder:
             if os.path.exists(tmp):
                 os.unlink(tmp)
         self._written_hash = digest
+        st = os.lstat(self.own_path)
+        self._own_stamp = (st.st_mtime_ns, st.st_size)
         return True
+
+    def taken_over(self) -> bool:
+        """Did another computer write our file since our last write (same device id)?"""
+        if self._own_stamp is None:
+            return False
+        try:
+            st = os.lstat(self.own_path)
+        except OSError:
+            return False
+        if (st.st_mtime_ns, st.st_size) == self._own_stamp:
+            return False
+        data = _read_regular(self.own_path)
+        if data is None:
+            return False
+        try:
+            _device, payload = unseal(data, self._passphrase)
+        except SyncError:
+            return False
+        return payload.get("instance") != self.instance and str(payload.get("written", "")) > self._last_written
+
+    def change_device(self, device: str) -> None:
+        self.device = device
+        self._written_hash = self._own_stamp = None
+        self._seen.clear()
 
     def read_others(self, only_new=True) -> tuple[list[dict], list[dict]]:
         """Files of the other computers: ([{device, name, written, history}], [{file, code}])."""
@@ -211,8 +250,10 @@ class SyncFolder:
 class Syncer:
     """Checks the folder every INTERVAL seconds and after local changes."""
 
-    def __init__(self, history, emit, keep_contents):
+    def __init__(self, history, emit, keep_contents, on_new_device=None):
         self._history = history
+        self._on_new_device = on_new_device or (lambda device: None)
+        self._fails: dict[str, int] = {}
         self._emit = emit
         self._keep_contents = keep_contents
         self._folder: SyncFolder | None = None
@@ -261,27 +302,42 @@ class Syncer:
             if folder is None or not self._history.enabled:
                 return self.status()
             try:
+                if folder.taken_over():
+                    # another computer writes under our id: we take a new one
+                    new = new_device_id()
+                    logger.warning("Sync file %s is also written by another computer; this one now uses %s",
+                                   folder.device, new)
+                    folder.change_device(new)
+                    self._on_new_device(new)
+                    self._last_revision = None
                 others, errors = folder.read_others(only_new=not full)
                 changed = False
                 for other in others:
                     self.devices[other["device"]] = {"device": other["device"], "name": other["name"],
                                                      "written": other["written"]}
                     changed |= self._history.merge_sync(other["history"], keep_contents=self._keep_contents())
-                self.errors = errors   # unreadable files are re-read every time, so this is complete
+                self.errors = self._settle(errors)
                 if changed or self._history.revision != self._last_revision or full:
                     folder.write(self._history.sync_state(), force=full)
                     self._last_revision = self._history.revision
                 self.last_sync = datetime.now(timezone.utc).isoformat()
             except SyncError as e:
-                self.errors = [{"file": "", "code": e.code}]
+                self.errors = self._settle([{"file": "", "code": e.code}])
                 changed = False
             except OSError as e:
                 logger.info("Sync folder not usable: %s", e)
-                self.errors = [{"file": "", "code": "sync_folder"}]
+                self.errors = self._settle([{"file": "", "code": "sync_folder"}])
                 changed = False
         if changed:
             self._emit("history_synced", {})
         return self.status()
+
+    def _settle(self, errors: list[dict]) -> list[dict]:
+        """Report a problem only if it persists: a file still arriving through
+        the cloud, or a folder that is briefly offline, heals by itself."""
+        current = {e["file"] for e in errors}
+        self._fails = {k: self._fails.get(k, 0) + 1 for k in current}
+        return [e for e in errors if self._fails[e["file"]] >= ERROR_AFTER]
 
     def status(self) -> dict:
         f = self._folder

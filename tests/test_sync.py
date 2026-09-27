@@ -133,10 +133,58 @@ class FolderTests(unittest.TestCase):
         (self.dir / "KeyMelier-0123456789abcdef.kmsync").write_bytes(victim.read_bytes())   # renamed copy
         if hasattr(os, "symlink"):
             os.symlink("/etc/hosts", self.dir / "KeyMelier-fedcba9876543210.kmsync")
+        self.assertEqual(s.run_once(full=True)["errors"], [], "first sight: may still be arriving")
         status = s.run_once(full=True)
         codes = sorted(e["code"] for e in status["errors"])
         self.assertIn("sync_passphrase", codes)
         self.assertEqual(h.list(), [], "nothing from unreadable files")
+
+    def test_file_still_arriving_is_retried_not_reported(self):
+        h, s, _ = self.computer("a")
+        other_h, other_s, _ = self.computer("b")
+        other_h.update_snapshot(record('1'))
+        other_s.run_once()
+        path = next(self.dir.glob("KeyMelier-*.kmsync"))
+        full = path.read_bytes()
+        path.write_bytes(full[: len(full) // 2])          # cloud client still downloading
+        self.assertEqual(s.run_once()["errors"], [])
+        self.assertEqual(h.list(), [])
+        path.write_bytes(full)                            # download finished
+        self.assertEqual(s.run_once()["errors"], [])
+        self.assertEqual(len(h.list()), 1)
+
+    def test_both_writing_at_the_same_time(self):
+        pcs = [self.computer(n) for n in "ab"]
+        for i, (h, s, _e) in enumerate(pcs):
+            h.set_sites(record(str(i)), [])
+        for _ in range(3):   # interleaved rounds; every change of either side arrives
+            for i, (h, s, _e) in enumerate(pcs):
+                h.rename(h.list()[0]["key_id"], f"from {i}")
+                s.run_once()
+        for h, s, _e in pcs:
+            s.run_once()
+        a, b = (sorted((e["key_id"], e["label"]) for e in h.list()) for h, _s, _e in pcs)
+        self.assertEqual(a, b, "both computers end with the same state")
+        self.assertEqual(len(list(self.dir.glob("*.tmp"))), 0, "no temporary files left")
+
+    def test_same_device_id_on_two_computers(self):
+        a_h, a_s, _ = self.computer("a")
+        b_h, b_s, _ = self.computer("b")
+        new_ids = []
+        b_s._on_new_device = new_ids.append
+        b_s._folder.change_device(a_s._folder.device)     # e.g. settings copied to a new Mac
+        a_h.update_snapshot(record('1'))
+        b_h.update_snapshot(record('2'))
+        b_s.run_once()
+        a_s.run_once()                                    # overwrites the shared file
+        b_s.run_once()                                    # notices, takes a new id
+        self.assertEqual(len(new_ids), 1)
+        self.assertNotEqual(b_s._folder.device, a_s._folder.device)
+        for _ in range(2):
+            a_s.run_once()
+            b_s.run_once()
+        self.assertEqual(len(a_h.list()), 2)
+        self.assertEqual(len(b_h.list()), 2)
 
     def test_probe_folder(self):
         with self.assertRaises(sync.SyncError) as e:

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 SCENES = ["overview", "security", "pin", "passkeys", "oath", "openpgp", "openpgp-generate", "piv", "otp",
-          "settings", "history", "details", "accounts", "backup", "lost", "replace", "sync"]
+          "settings", "history", "details", "accounts", "backup", "lost", "replace", "sync", "about"]
 CHROME_CANDIDATES = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",

@@ -1332,9 +1332,19 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .sync-off { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 
 /* Sidebar: version and "check for updates" */
+.sidebar-meta { display: flex; flex-direction: column; align-items: flex-start; margin: 0 0 4px; font-size: 0.75rem; }
 .version-check {
   border: none; background: none; font: inherit; font-size: 0.75rem; color: var(--text-3);
-  text-align: left; padding: 6px 8px; margin: 0 0 4px; border-radius: 7px; cursor: pointer;
+  text-align: left; padding: 5px 6px; border-radius: 7px; cursor: pointer;
 }
 .version-check:hover, .version-check:focus-visible { color: var(--text); background: var(--neutral-soft); }
 .version-check:disabled { opacity: 0.6; cursor: default; }
+
+/* About dialog */
+.about-dialog { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(460px, calc(100vw - 32px)); }
+.about-dialog img { margin-top: 4px; }
+.about-dialog h2 { margin: 0; }
+.about-dialog p { margin: 0; }
+.about-lead { font-weight: 600; }
+.about-links { font-size: 0.88rem; }
+.about-actions { justify-content: center; flex-wrap: wrap; margin-top: 6px; }

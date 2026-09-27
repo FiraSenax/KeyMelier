@@ -74,7 +74,7 @@ ALLOWED = {
 
 
 # Hosts the UI may open in the external browser (advisory references)
-ALLOWED_LINK_HOSTS = {"github.com", "www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
+ALLOWED_LINK_HOSTS = {"github.com", "firasenax.github.io", "www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
 
 
 def _gpg():

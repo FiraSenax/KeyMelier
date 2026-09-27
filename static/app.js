@@ -1199,7 +1199,7 @@ let updateFlow = null;
 
 function renderUpdateBanner() {
   const app = dataStatus?.app;
-  $('version-text').textContent = app?.current ? `KeyMelier ${app.current}` : 'KeyMelier';
+  $('version-text').textContent = app?.current || '';
   const show = !!(app && app.newer && app.url);
   $('update-banner').classList.toggle('hidden', !show);
   if (!show) return;
@@ -1281,6 +1281,34 @@ async function checkForUpdates() {
   }
 }
 window.__kmCheckUpdates = () => checkForUpdates();
+
+// "About KeyMelier" inside the app (Windows has no app menu; also from the sidebar on macOS)
+const ABOUT_LINKS = [['about.site', 'https://firasenax.github.io/KeyMelier/'],
+  ['about.source', 'https://github.com/FiraSenax/KeyMelier'],
+  ['about.issues', 'https://github.com/FiraSenax/KeyMelier/issues']];
+
+function openAbout(open = true) {
+  const el = $('about-dialog');
+  el.classList.toggle('hidden', !open);
+  if (!open) { el.innerHTML = ''; $('about-open').focus(); return; }
+  const v = dataStatus?.app?.current;
+  el.innerHTML = `<div class="ql-dialog card about-dialog">
+    <img src="${escHtml(document.querySelector('.brand img')?.src || '')}" width="64" height="64" alt="">
+    <h2 id="about-title">KeyMelier</h2>
+    ${v ? `<p class="muted">${escHtml(t('upd.version', { v }))}</p>` : ''}
+    <p class="about-lead">${escHtml(t('app.tagline'))}</p>
+    <p class="card-text">${escHtml(t('about.what'))}</p>
+    <p class="field-hint">${escHtml(t('about.privacy'))}</p>
+    <p class="about-links">${ABOUT_LINKS.map(([k, url]) => `<button type="button" class="btn-link" data-url="${escHtml(url)}">${escHtml(t(k))}</button>`).join(' · ')}</p>
+    <div class="form-actions about-actions">
+      <button type="button" class="btn btn-secondary" data-about="licenses">${escHtml(t('about.licenses'))}</button>
+      <button type="button" class="btn btn-secondary" data-about="updates">${escHtml(t('upd.check'))}</button>
+      <button type="button" class="btn btn-primary" data-about="close">${escHtml(t('about.close'))}</button>
+    </div>
+    <p class="field-hint">© 2026 Sven Frank · MIT License</p>
+  </div>`;
+  el.querySelector('[data-about="close"]').focus();
+}
 
 async function checkDataNow() {
   const btn = $('data-check');
@@ -3784,6 +3812,25 @@ function init() {
   document.addEventListener('click', ev => { if (!ev.target.closest('#tab-more')) setTabMenu(false); });
   $('lang-select').addEventListener('change', ev => changeLang(ev.target.value));
   $('version-check').addEventListener('click', checkForUpdates);
+  $('about-open').addEventListener('click', () => openAbout());
+  $('about-dialog').addEventListener('click', ev => {
+    if (ev.target.id === 'about-dialog') return openAbout(false);   // backdrop
+    const link = ev.target.closest('[data-url]');
+    if (link) return window.pywebview?.api?.open_url(link.dataset.url);
+    const act = ev.target.closest('[data-about]')?.dataset.about;
+    if (act === 'close') openAbout(false);
+    if (act === 'licenses') window.pywebview?.api?.open_licenses();
+    if (act === 'updates') { openAbout(false); checkForUpdates(); }
+  });
+  $('about-dialog').addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') { ev.preventDefault(); openAbout(false); }
+    if (ev.key === 'Tab') {   // keep focus inside the dialog
+      const f = [...$('about-dialog').querySelectorAll('button')];
+      const i = f.indexOf(document.activeElement);
+      if (ev.shiftKey && i <= 0) { ev.preventDefault(); f[f.length - 1].focus(); }
+      else if (!ev.shiftKey && i === f.length - 1) { ev.preventDefault(); f[0].focus(); }
+    }
+  });
   $('pin-form').addEventListener('submit', submitPinForm);
   $('rs-confirm').addEventListener('change', ev => { $('rs-start').disabled = !ev.target.checked; });
   $('rs-start').addEventListener('click', startReset);
