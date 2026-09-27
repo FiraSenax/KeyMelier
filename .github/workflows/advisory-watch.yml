@@ -31,6 +31,8 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: PC/SC headers (pyscard is built from source on Linux)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev
       - name: Install dependencies
         run: python -m pip install --require-hashes -r requirements.txt
 
@@ -54,6 +56,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
+      - name: PC/SC headers (pyscard is built from source on Linux)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev
       - run: python -m pip install --require-hashes -r requirements.txt
       - name: The published advisory database must be validly signed
         run: python tools/advisories_sign.py verify
