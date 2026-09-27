@@ -27,6 +27,11 @@
         <span class="key-item-text"><span class="key-item-name" data-i18n="acc.nav"></span></span>
       </button>
 
+      <button type="button" id="nav-keys" class="key-item nav-item">
+        <span class="key-item-icon" id="nav-keys-icon"></span>
+        <span class="key-item-text"><span class="key-item-name" data-i18n="keys.nav"></span></span>
+      </button>
+
       <button type="button" id="nav-settings" class="key-item nav-item">
         <span class="key-item-icon" id="nav-settings-icon"></span>
         <span class="key-item-text"><span class="key-item-name" data-i18n="app.settings.nav"></span></span>
@@ -106,6 +111,17 @@
           <button type="button" class="btn btn-secondary" id="replace-back" data-i18n="rp.back"></button>
         </header>
         <div id="replace-content" class="pane-stack backup-content"></div>
+      </section>
+
+      <section id="keys-view" class="key-view hidden">
+        <header class="key-header">
+          <div class="key-avatar" id="keys-avatar"></div>
+          <div class="key-heading">
+            <h1 data-i18n="keys.title"></h1>
+            <p data-i18n="keys.subtitle"></p>
+          </div>
+        </header>
+        <div id="keys-content" class="pane-stack backup-content"></div>
       </section>
 
       <section id="settings-view" class="key-view hidden">
@@ -363,6 +379,7 @@
   <script src="view-sync.js"></script>
   <script src="view-replace.js"></script>
   <script src="onboarding.js"></script>
+  <script src="view-keys.js"></script>
   <script src="app.js"></script>
   <div id="quick-unlock" class="ql-overlay hidden"></div>
   <div id="about-dialog" class="ql-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-title"></div>

@@ -104,12 +104,14 @@ async function main() {
     await press('Tab');
     assert(await active() === 'nav-accounts', `focus after Tab: ${await active()}`);
     await press('Tab');
-    assert(await active() === 'nav-settings', `focus after 2×Tab: ${await active()}`);
+    assert(await active() === 'nav-keys', `focus after 2×Tab: ${await active()}`);
+    await press('Tab');
+    assert(await active() === 'nav-settings', `focus after 3×Tab: ${await active()}`);
     await press('Enter');
     await until('mainView === "settings"', 'settings view');
     assert(await js('!!$("history-enabled") && !!$("personal-mode") && !!$("bk-remember") && !!$("sync-card")'), 'app settings present');
     await press('Tab', { shift: true });
-    assert(await active() === 'nav-accounts', `Shift+Tab goes back: ${await active()}`);
+    assert(await active() === 'nav-keys', `Shift+Tab goes back: ${await active()}`);
   });
 
   // ── 2. Account filters and search ──
@@ -372,6 +374,50 @@ async function main() {
     assert(/FIDO 2.1/.test(msg), `specific reason instead of a generic "cannot": ${msg}`);
     const generic = await js(`errorMessage(Object.assign(new Error('x'), { data: { code: 'unsupported' } }))`);
     assert(generic.length > 0, 'still a message without a reason');
+  });
+  await test('all keys: table, re-check and read all without extra PIN prompts for unlocked keys', async () => {
+    await focus('#nav-keys'); await press('Enter');
+    await until('mainView === "keys"', 'all keys view');
+    assert(await js('document.querySelectorAll("#keys-content .keys-table tbody tr").length') === 3, 'two plugged in + one from history');
+    await js('window.__demoCalls.length = 0');
+    await click('#keys-content [data-act=keys-recheck]');
+    await until('window.__demoCalls.includes("check_updates") && !keysBusy', 're-checked');
+    await js('for (const id of ["demo-yk5", "demo-t2"]) { tokens.get(id).options = { ...tokens.get(id).options, credMgmt: true, clientPin: true }; markUnlocked(id, 300); } window.__demoCalls.length = 0;');
+    await click('#keys-content [data-act=keys-readall]');
+    await until('!keysBusy && window.__demoCalls.filter(c => c === "read_contents").length === 2', 'both read');
+    assert(await js('!window.__demoCalls.includes("unlock")'), 'no PIN asked for keys that are unlocked');
+  });
+  await test('PIN on several keys: each key confirmed, stop at the first error, nothing retried, PIN not kept', async () => {
+    await js('window.__demoCalls.length = 0; showKeysView()');
+    await click('#kpin [data-act=kpin-start]');
+    await focus('#kpin [data-kpin-key="demo-yk5"]'); await press(' ');
+    await focus('#kpin [data-kpin-key="demo-t2"]'); await press(' ');
+    await focus('#kpin [data-act=kpin-next]'); await press('Enter');
+    await until('keysPin.step === "pin"', 'PIN step');
+    await focus('#kpin-new'); await type('246810');
+    await focus('#kpin-new2'); await type('246811');
+    await press('Enter');
+    await until('keysPin.error', 'mismatch reported');
+    await focus('#kpin-new'); await type('246810');
+    await focus('#kpin-new2'); await type('246810');
+    await press('Enter');
+    await until('keysPin.step === "run" && !!$("kpin-current")', 'first key');
+    assert(await js('window.__demoCalls.filter(c => c === "pin_update").length') === 0, 'nothing sent before the explicit click');
+    await focus('#kpin-current'); await type('000000');       // wrong current PIN on the first key
+    await press('Enter');
+    await until('keysPin.step === "done"', 'stopped');
+    assert(await js('window.__demoCalls.filter(c => c === "pin_update").length') === 1, 'exactly one attempt, no retry, second key untouched');
+    assert(await js('keysPin.results["demo-yk5"] === "error" && !keysPin.results["demo-t2"] && keysPin.newPin === ""'), 'result per key; new PIN cleared');
+    assert(await js('/7/.test(keysPin.error)'), 'the error says how many attempts are left');
+    await click('#kpin [data-act=kpin-close]');
+    await click('#kpin [data-act=kpin-start]');
+    await focus('#kpin [data-kpin-key="demo-t2"]'); await press(' ');
+    await click('#kpin [data-act=kpin-next]');
+    await focus('#kpin-new'); await type('246810'); await focus('#kpin-new2'); await type('246810'); await press('Enter');
+    await until('!!$("kpin-current")', 'key step');
+    await focus('#kpin-current'); await type('123456'); await press('Enter');
+    await until('keysPin.step === "done" && keysPin.results["demo-t2"] === "changed"', 'changed');
+    await click('#kpin [data-act=kpin-close]');
   });
   await test('no uncaught errors or console errors on the page', async () => {
     assert(!pageErrors.length, pageErrors.join('\n'));

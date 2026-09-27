@@ -282,7 +282,8 @@ function renderMds() {
 // ── Key view ────────────────────────────────────────────────────────────────
 
 // Views that replace the key view (sidebar navigation)
-const PANEL_VIEWS = { backup: 'backup-view', accounts: 'accounts-view', settings: 'settings-view', replace: 'replace-view' };
+const PANEL_VIEWS = { backup: 'backup-view', accounts: 'accounts-view', settings: 'settings-view', replace: 'replace-view',
+  keys: 'keys-view' };
 
 function render() {
   if (selectedId && !tokens.has(selectedId)) selectedId = null;
@@ -294,6 +295,8 @@ function render() {
   $('nav-backup').classList.toggle('active', mainView === 'backup' || mainView === 'replace');
   $('nav-accounts').classList.toggle('active', mainView === 'accounts');
   $('nav-settings').classList.toggle('active', mainView === 'settings');
+  $('nav-keys').classList.toggle('active', mainView === 'keys');
+  $('nav-keys').classList.toggle('hidden', historyKeys.size + tokens.size < 2);
   $('nav-accounts').classList.toggle('hidden', !personalMode());
   for (const [view, id] of Object.entries(PANEL_VIEWS)) $(id).classList.toggle('hidden', mainView !== view);
   if (PANEL_VIEWS[mainView]) {
@@ -312,7 +315,7 @@ function render() {
 // Re-render the open panel view (backup, accounts, settings, replace)
 function renderPanel() {
   ({ backup: renderBackupView, accounts: renderAccountsView, settings: renderSettingsView,
-    replace: renderReplaceView })[mainView]?.();
+    replace: renderReplaceView, keys: renderKeysView })[mainView]?.();
 }
 
 function renderKeyView(token) {
@@ -3425,6 +3428,9 @@ function init() {
   $('nav-accounts-icon').innerHTML = icon('passkey', 18);
   $('nav-settings-icon').innerHTML = icon('settings', 18);
   $('nav-settings').addEventListener('click', showSettingsView);
+  $('nav-keys-icon').innerHTML = icon('key', 18);
+  $('nav-keys').addEventListener('click', showKeysView);
+  initKeysView();
   $('replace-back').addEventListener('click', showBackupView);
   $('accounts-content').addEventListener('input', ev => {
     if (ev.target.id === 'acc-search') {

@@ -14,7 +14,7 @@ STATIC_DIR = ROOT_DIR / "static"
 
 # Loaded in this order (classic scripts sharing one global scope)
 SCRIPTS = ("i18n.js", "service-icons.js", "accounts.js", "ui-dialogs.js", "view-accounts.js", "view-sync.js",
-           "view-replace.js", "onboarding.js", "app.js")
+           "view-replace.js", "onboarding.js", "view-keys.js", "app.js")
 
 
 def build_html(static_dir: Path = STATIC_DIR) -> str:

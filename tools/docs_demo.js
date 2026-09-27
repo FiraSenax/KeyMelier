@@ -127,6 +127,7 @@
       mds: { cached: true, fetched_at: iso(6 * H), entry_count: 531, serial: 291, current: true, next_update: new Date(now + 20 * D).toISOString().slice(0, 10), revocation_checked: true, verified: true },
       last_check: iso(6 * H), app: { current: '1.7.0', latest: '1.7.0', newer: false } }),
     mds_status: () => api.data_status().mds,
+    check_updates: () => api.data_status(),
     tokens: () => ({ tokens }),
     history_list: () => ({ keys: Object.values(history).map(summary) }),
     history_get: ({ kid }) => history[kid],
@@ -145,6 +146,10 @@
       if (done) list.add(item); else list.delete(item);
       history[kid].replace.done = [...list];
       return summary(history[kid]);
+    },
+    pin_update: ({ token_id, current_pin }) => {
+      if (current_pin === '000000') throw Object.assign(new Error('Wrong PIN.'), { demo: { code: 'pin_invalid', retries: 7 } });
+      return { result: current_pin ? 'changed' : 'set' };
     },
     pin_status: () => ({ supported: true, is_set: true, retries: 8, power_cycle_required: false, min_length: 6, max_bytes: 63, force_change: false, uv: null, uv_retries: null }),
     config: () => ({ supported: true, pin_set: true, uv_unlock: false, min_pin_length: 6, can_set_min_pin: true, force_pin_change: false, always_uv: false, unlocked: true }),
@@ -179,7 +184,11 @@
         window.__demoCalls.push(method);   // observed by tests/ui (e.g. no unlock after a cancel)
         const fn = api[method];
         if (!fn) return { ok: false, error: 'Not available in the demo', code: 'demo' };
-        return { ok: true, data: JSON.parse(JSON.stringify(fn(args || {}))) };
+        try {
+          return { ok: true, data: JSON.parse(JSON.stringify(fn(args || {}))) };
+        } catch (e) {   // demo error in the envelope shape of the real bridge
+          return { ok: false, error: e.message, ...(e.demo || { code: 'error' }) };
+        }
       },
       client_log: async () => true, client_error: async () => true, set_ui_language: async () => true,
       copy_text: async () => true, open_url: async () => true, gpg_available: async () => false,

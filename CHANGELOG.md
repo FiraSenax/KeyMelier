@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **All keys at once** (sidebar, with two or more keys): status table of every key; re-check all plugged-in keys; read them one after another; change the PIN on several keys – each key confirmed on its own, stop at the first error, never an automatic retry, the new PIN is not kept afterwards.
 - **Transparency about key support:** the overview says *What this key can do* (full, partly – e.g. passkeys by search only on FIDO 2.0 –, not, not checked yet); "this key cannot do that" errors now name the reason; a public [tested keys](https://firasenax.github.io/KeyMelier/hardware.html) page is generated from HARDWARE_TESTS.md; community reports through the *Tested with a security key* issue form.
 - **Inventory export** (Settings): keys with passkeys, authenticator, OpenPGP, PIV, OTP and the account rating as JSON or CSV, filterable by key and account category; names only, saved readable only by you, spreadsheet formulas in CSV neutralised.
 - **Account overview easier to read:** rows are tinted by risk with a coloured edge and a symbol (✕ ! ? i ✓, always with text), and cells where a key in use lacks a risky account are marked as backup gaps; a legend explains both.
