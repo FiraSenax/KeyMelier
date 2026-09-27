@@ -3523,21 +3523,10 @@ function init() {
     if (act === 'licenses') window.pywebview?.api?.open_licenses();
     if (act === 'updates') { openAbout(false); checkForUpdates(); }
   });
-  $('quick-unlock').addEventListener('keydown', ev => {   // keep focus inside the dialog
-    if (ev.key !== 'Tab') return;
-    const f = [...$('quick-unlock').querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')];
-    const i = f.indexOf(document.activeElement);
-    if (ev.shiftKey && i <= 0) { ev.preventDefault(); f[f.length - 1]?.focus(); }
-    else if (!ev.shiftKey && i === f.length - 1) { ev.preventDefault(); f[0]?.focus(); }
-  });
+  trapFocus($('quick-unlock'));
+  trapFocus($('about-dialog'));
   $('about-dialog').addEventListener('keydown', ev => {
     if (ev.key === 'Escape') { ev.preventDefault(); openAbout(false); }
-    if (ev.key === 'Tab') {   // keep focus inside the dialog
-      const f = [...$('about-dialog').querySelectorAll('button')];
-      const i = f.indexOf(document.activeElement);
-      if (ev.shiftKey && i <= 0) { ev.preventDefault(); f[f.length - 1].focus(); }
-      else if (!ev.shiftKey && i === f.length - 1) { ev.preventDefault(); f[0].focus(); }
-    }
   });
   $('pin-form').addEventListener('submit', submitPinForm);
   $('rs-confirm').addEventListener('change', ev => { $('rs-start').disabled = !ev.target.checked; });

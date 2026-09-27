@@ -6,6 +6,18 @@
 // shares the global scope. Uses helpers from app.js ($, t, escHtml, call,
 // icon, render …) only inside functions, never while loading.
 
+// Modal dialogs: Tab and Shift+Tab stay inside the dialog
+function trapFocus(dialog) {
+  dialog.addEventListener('keydown', ev => {
+    if (ev.key !== 'Tab') return;
+    const f = [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')];
+    if (!f.length) return;
+    const i = f.indexOf(document.activeElement);
+    if (ev.shiftKey && i <= 0) { ev.preventDefault(); f[f.length - 1].focus(); }
+    else if (!ev.shiftKey && i === f.length - 1) { ev.preventDefault(); f[0].focus(); }
+  });
+}
+
 // "Advanced" menu of the tab bar: shown when it has an item for this key;
 // names the active area when one of its items is open
 function syncTabMore() {
