@@ -63,14 +63,15 @@ class SettingsTests(unittest.TestCase):
         spec.loader.exec_module(wbi)
         full = "0123456789abcdef0123456789abcdef01234567"
         answers = {("rev-parse", "HEAD"): full, ("status", "--porcelain", "--untracked-files=no"): ""}
-        with patch.object(wbi, "git", lambda *a: answers[a]):
+        # in CI the runner sets GITHUB_SHA; here it is the commit the fake Git reports
+        with patch.object(wbi, "git", lambda *a: answers[a]), patch.dict("os.environ", {"GITHUB_SHA": full}):
             self.assertEqual(wbi.build_info(False, False, True)["commit"], full)
             self.assertIs(wbi.build_info(False, False, True)["modified"], False)
             answers[("status", "--porcelain", "--untracked-files=no")] = " M static/app.js"
             self.assertIs(wbi.build_info(False, False, False)["modified"], True, "local changes are declared")
             with patch.dict("os.environ", {"GITHUB_SHA": "f" * 40}), self.assertRaises(SystemExit):
                 wbi.build_info(False, False, True)          # CI: must be the commit that was checked out
-        with patch.object(wbi, "git", lambda *a: None):
+        with patch.object(wbi, "git", lambda *a: None), patch.dict("os.environ", {"GITHUB_SHA": ""}):
             self.assertEqual((wbi.build_info(False, False, False)["commit"], wbi.build_info(False, False, False)["modified"]),
                              (None, None), "no Git: unknown, nothing invented")
         if (Path(__file__).resolve().parent.parent / ".git").exists():
