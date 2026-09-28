@@ -96,6 +96,8 @@ class UpgradeCompatTests(unittest.TestCase):
                     st = svc.get_settings()
                     self.assertEqual((st["lang"], st["personal_mode"], st["remember_sites"], st["history_enabled"]),
                                      ("de", True, True, True))
+                    # 1.8+: whoever finished the introduction does not get it again after an update
+                    self.assertEqual(st.get("onboarding_done", False), self.features.get("onboarding", False))
                     if self.features["sync"]:
                         self.assertEqual(st["sync_device"], "0123456789abcdef")
                         status = svc.sync_status()

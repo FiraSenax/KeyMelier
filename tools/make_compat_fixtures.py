@@ -1,6 +1,8 @@
 """Create upgrade test data with the code of published releases.
 
-    venv/bin/python tools/make_compat_fixtures.py [v1.5.0 v1.6.1 v1.7.0]
+    venv/bin/python tools/make_compat_fixtures.py [v1.5.0 v1.6.1 v1.7.0 v1.8.0]
+
+After each release: run it for the new tag only (existing fixtures stay as they are).
 
 For each tag, the release's own fido2tool_core (from git) writes
 history.json and settings.json into a temporary home – exactly the format
@@ -23,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "tests" / "fixtures" / "compat"
-TAGS = sys.argv[1:] or ["v1.4.0", "v1.5.0", "v1.6.0", "v1.6.1", "v1.7.0"]
+TAGS = sys.argv[1:] or ["v1.4.0", "v1.5.0", "v1.6.0", "v1.6.1", "v1.7.0", "v1.8.0"]
 
 WRITER = r'''
 import json, sys
@@ -79,6 +81,11 @@ if features["replace"]:                             # 1.5+: guided key replaceme
     h.set_replace(a, b)
     h.set_replace_done(a, "pk:github.com|erika", True)
 service.set_settings({"lang": "de", "personal_mode": True})
+try:                                                # 1.8+: the introduction was finished
+    service.set_settings({"onboarding_done": True})
+except Exception:
+    pass
+features["onboarding"] = service._stored_settings().get("onboarding_done") is True
 if features["sync"]:                                # 1.6+: sync configuration
     s = service._stored_settings()
     s.update(sync_folder="/Users/fixture/CloudSync/KeyMelier", sync_device="0123456789abcdef")
