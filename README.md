@@ -138,7 +138,7 @@ Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclit
 ## Limitations
 
 - Only passkeys stored **on** the key (discoverable credentials) can be listed. Classic two-factor registrations (U2F / "security key as second factor") are not stored on the key and cannot be listed by any tool.
-- FIDO keys expose no unique serial number over FIDO. YubiKeys are told apart by the serial read via yubikit; for other vendors, two keys of the same model and firmware batch share one history entry.
+- FIDO keys expose no unique serial number over FIDO. YubiKeys are told apart by the serial read via yubikit, other keys by their USB serial when they report one; two keys of the same model without any serial share one history entry. Planned for 1.9: [recognise them individually](ROADMAP.md).
 - A factory reset deletes passkeys, PIN and fingerprints but does not fix firmware vulnerabilities.
 
 ## FIDO Alliance MDS3
