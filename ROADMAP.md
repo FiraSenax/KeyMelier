@@ -4,6 +4,10 @@ Planned work after 1.8.0. Nothing here is implemented yet.
 
 ## 1.9 – Tell apart keys of the same model without a serial number
 
+**Detailed implementation plan: [plans/1.9-key-identity.md](plans/1.9-key-identity.md)**
+(identity model, states, assistant, repair of mixed entries, sync conflicts, tests,
+open hardware questions). The overview below is the original sketch.
+
 ### Problem
 
 The history identifies a key by `hash(AAGUID | USB serial)` (`fido2tool_core/history.py`,
