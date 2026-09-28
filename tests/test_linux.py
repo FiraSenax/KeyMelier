@@ -274,7 +274,7 @@ class CompatReportTests(unittest.TestCase):
         import hashlib
 
         def docker(cmd, **kw):
-            out = Path(next(v.split(":")[0] for v in cmd if v.endswith(":/out")))
+            out = Path(next(v[:-len(":/out")] for v in cmd if v.endswith(":/out")))   # Windows paths have a colon
             run_id = next(v.split("=", 1)[1] for v in cmd if v.startswith("RUN_ID="))
             if write:
                 data = {**result}
