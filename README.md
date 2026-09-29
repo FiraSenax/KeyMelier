@@ -185,6 +185,13 @@ uv export --frozen --no-dev --no-emit-project -o requirements.txt
 uv export --frozen --only-group build --no-emit-project -o requirements-build.txt
 ```
 
+**Automated updates:** Dependabot opens weekly pull requests for the Python lock (minor and
+patch grouped) and the pinned GitHub Actions, plus security updates as soon as an advisory
+appears. Every PR runs the full build. For Python updates a test fails until the exports
+above are regenerated on the PR branch (`uv export …`, commit, push). Pull requests are also
+checked by *Dependency review* (no dependency with a known moderate-or-higher vulnerability),
+and CodeQL, secret scanning with push protection and private vulnerability reporting are on.
+
 CI actions are pinned to commit IDs. The build uses committed icons. Dependency
 locking improves traceability; it does not promise bit-for-bit identical binaries
 across different operating systems, SDKs or signing timestamps.

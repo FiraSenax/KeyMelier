@@ -1,0 +1,33 @@
+# Dependency updates as pull requests. Every PR runs the full Build workflow
+# (tests, all platform builds, strict SBOM, Linux compatibility), so an update
+# that breaks packaging or licensing fails there.
+#
+# Python: Dependabot updates uv.lock (and pyproject.toml). The hash-pinned
+# requirements*.txt that CI installs are exports of the lock – a test fails the
+# PR until they are regenerated (see README, "Dependencies and releases").
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
+    labels: [dependencies]
+    commit-message:
+      prefix: ci

@@ -77,6 +77,33 @@ class ReleaseMetadataTests(unittest.TestCase):
                                 cwd=ROOT, capture_output=True, text=True, check=True).stdout
         self.assertEqual(binary.count(": text: unset"), 2, "signed files are never converted")
 
+    def test_requirement_exports_match_the_lock(self):
+        """CI installs requirements*.txt; they must be the current export of uv.lock.
+        Dependabot updates only uv.lock – this fails its PR until the exports are regenerated:
+            uv export --frozen --no-dev --no-emit-project -o requirements.txt
+            uv export --frozen --only-group build --no-emit-project -o requirements-build.txt"""
+        lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+        norm = lambda name: re.sub(r"[-_.]+", "-", name).lower()
+        locked = {}
+        for pkg in lock["package"]:
+            hashes = {pkg["sdist"]["hash"]} if "sdist" in pkg and "hash" in pkg["sdist"] else set()
+            hashes |= {w["hash"] for w in pkg.get("wheels", []) if "hash" in w}
+            locked[norm(pkg["name"])] = (pkg["version"], hashes)
+        exported = {}
+        for name in ("requirements.txt", "requirements-build.txt"):
+            text = (ROOT / name).read_text(encoding="utf-8").replace("\\\n", " ")
+            for line in text.splitlines():
+                m = re.match(r"^([A-Za-z0-9_.-]+)==([^\s;]+)", line)
+                if m:
+                    exported[norm(m.group(1))] = (m.group(2), set(re.findall(r"--hash=(sha256:[0-9a-f]{64})", line)), name)
+        for pkg, (version, hashes, source) in exported.items():
+            with self.subTest(pkg):
+                self.assertIn(pkg, locked, f"{source} pins {pkg}, uv.lock does not have it")
+                self.assertEqual(version, locked[pkg][0], f"{source} pins {pkg}=={version}, uv.lock has {locked[pkg][0]}")
+                self.assertTrue(hashes and hashes <= locked[pkg][1], f"{source}: hashes of {pkg} are not the lock's")
+        missing = set(locked) - set(exported) - {"keymelier"}
+        self.assertEqual(missing, set(), "packages in uv.lock that no export installs – regenerate the exports")
+
     def test_changelog_has_an_entry_for_this_version(self):
         headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
         versions = [h.split(" ")[0] for h in headings if h != "Unreleased"]

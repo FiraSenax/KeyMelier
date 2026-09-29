@@ -24,7 +24,9 @@ devices.
 | Release rehearsal (*Run workflow* on `Build`) | The same builds, the real upload/download of the artifacts and the same preparation and checks as a release (shared action `.github/actions/prepare-release`), without publishing; the checked packages, notes and a report (commit, version, every file with SHA-256, job results, checks) are kept as the artifact `release-rehearsal` | CI job `release-rehearsal` (manual runs only; read-only) |
 | `python tools/check_artifacts.py restore-exec artifacts` | After the artifact download (which drops the execute bit): exactly the two AppImages are executable again, no other file changes, a missing AppImage fails | CI job `release`, before the checksums |
 | `python tools/check_artifacts.py release artifacts …` | Everything to be published: no file missing or extra, source commit, locks equal the repository's, versions, SBOMs, `SHA256SUMS.txt` lists exactly the files and every hash verifies, release notes state the real signing state | CI job `release` before publishing |
-| `python -m unittest tests.test_release_metadata` | One version in `version.py`, `pyproject.toml`, `uv.lock`, app bundle and installer sources, and a changelog entry for it; the workflows are valid YAML | CI job `test` |
+| `python -m unittest tests.test_release_metadata` | One version in `version.py`, `pyproject.toml`, `uv.lock`, app bundle and installer sources, and a changelog entry for it; the workflows are valid YAML; `requirements*.txt` are the current export of `uv.lock` (versions and hashes) | CI job `test` |
+| Dependency review (`.github/workflows/dependency-review.yml`) | A pull request adds or updates no dependency with a known vulnerability (moderate or higher) | on pull requests |
+| CodeQL (GitHub default setup) | Static security analysis of Python, JavaScript and the workflows | on pushes and pull requests, weekly |
 | `python tools/advisories_sign.py verify` | The bundled vulnerability database is validly signed | CI job `test`, daily *Advisory watch* |
 
 A failure in any of these stops the release: the builds need `test` and
