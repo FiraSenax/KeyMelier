@@ -87,6 +87,21 @@ def _is_yubikey(record) -> bool:
     return record.vendor_id == 0x1050 or "yubi" in (record.product_name or "").lower()
 
 
+def _yubikey_usb_interfaces(record) -> set[str] | None:
+    """The USB interfaces a YubiKey announces in its product name
+    ("YubiKey OTP+FIDO+CCID", "YubiKey FIDO" on a YubiKey Bio), or None."""
+    words = (record.product_name or "").split()
+    if len(words) != 2 or words[0] != "YubiKey":
+        return None
+    parts = set(words[1].split("+"))
+    return parts if parts <= {"OTP", "FIDO", "CCID"} else None
+
+
+
+def _perm(name: str):
+    from fido2.ctap2.pin import ClientPin
+    return ClientPin.PERMISSION[name]
+
 class KeyService:
     def __init__(self, scanner, exporter, mds3_client=None, history: History | None = None,
                  advisories=None):
@@ -690,7 +705,9 @@ class KeyService:
     def _fingerprints(self, token_id, ctap2) -> dict:
         caps = fingerprints_mod.capabilities(ctap2)
         caps["enrolling"] = fingerprints_mod.is_enrolling(token_id)
-        if not caps["supported"] or not auth.is_unlocked(token_id):
+        if auth.uv_limited(token_id):
+            caps["uv_unlock"] = False   # this key manages fingerprints only after the PIN
+        if not caps["supported"] or not auth.is_unlocked(token_id, _perm("BIO_ENROLL")):
             return {**caps, "unlocked": False}
         return {**caps, "unlocked": True, "fingerprints": fingerprints_mod.list_fingerprints(token_id, ctap2)}
 
@@ -798,12 +815,17 @@ class KeyService:
 
     def card_apps(self, token_id: str) -> dict:
         """Which non-FIDO applications (OATH, PIV, OpenPGP) the key offers."""
+        record = self._scanner.get(token_id)
+        usb = _yubikey_usb_interfaces(record) if _is_yubikey(record) else None
+        if usb is not None and "CCID" not in usb:
+            # no smart card interface (e.g. YubiKey Bio): nothing to wait for
+            return {"reader": False, "apps": {"oath": False, "openpgp": False, "piv": False, "otp": "OTP" in usb}}
         try:
             record, reader = self._card(token_id)
             apps = self._cards.applets(reader)
             if _is_yubikey(record):
                 # OTP lives on the keyboard interface, not the smart card
-                apps["otp"] = True
+                apps["otp"] = usb is None or "OTP" in usb
                 apps["interfaces"] = True
             return {"reader": True, "apps": apps}
         except CardError as e:
@@ -1087,7 +1109,9 @@ class KeyService:
 
     def _config(self, token_id, ctap2) -> dict:
         caps = key_config.capabilities(ctap2)
-        return {**caps, "unlocked": auth.is_unlocked(token_id)}
+        if auth.uv_limited(token_id):
+            caps["uv_unlock"] = False   # this key changes settings only after the PIN
+        return {**caps, "unlocked": auth.is_unlocked(token_id, _perm("AUTHENTICATOR_CFG"))}
 
     def config(self, token_id: str) -> dict:
         with self._scanner.session(token_id, refresh=False) as (_record, ctap2):

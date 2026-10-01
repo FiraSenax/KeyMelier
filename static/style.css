@@ -1529,7 +1529,9 @@ code.nowrap { white-space: nowrap; font-size: 0.95em; }
 .inv-options label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--text-2); }
 
 /* What this key can do */
-.cap-card summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.cap-card { margin-top: 14px; }
+.cap-card summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.cap-card summary .check-score { margin-left: auto; }
 .cap-card summary::-webkit-details-marker { display: none; }
 .cap-card summary h2 { margin: 0; }
 .cap-card summary::after { content: '▸'; color: var(--text-2); margin-left: 8px; }

@@ -313,3 +313,82 @@ class FingerprintUnlockCancelTests(unittest.TestCase):
             service_mod.auth.unlock("cancel-test", ctap2, use_uv=True, cancel=event)
         service_mod.auth.forget("cancel-test")
         self.assertIs(seen["event"], event)
+
+
+class FingerprintPermissionTests(unittest.TestCase):
+    """A YubiKey Bio refuses fingerprint and settings management to a finger
+    (UNAUTHORIZED_PERMISSION, checked before it asks for the finger): the
+    unlock then asks for passkey management alone, once, and those tabs ask
+    for the PIN."""
+
+    def unlock(self, answers):
+        from fido2.ctap import CtapError
+        from fido2.ctap2.pin import ClientPin
+        info = type("Info", (), {"options": {"clientPin": True, "uv": True}})()
+        ctap2 = type("Ctap2", (), {"info": info})()
+        asked = []
+        full = ClientPin.PERMISSION.CREDENTIAL_MGMT | ClientPin.PERMISSION.BIO_ENROLL | ClientPin.PERMISSION.AUTHENTICATOR_CFG
+
+        def get_uv_token(self_, permissions=None, permissions_rpid=None, event=None, on_keepalive=None):
+            asked.append(permissions)
+            answer = answers[len(asked) - 1]
+            if answer is not None:
+                raise CtapError(answer)
+            return b"token"
+        self.addCleanup(service_mod.auth.forget, "perm-test")
+        self.addCleanup(service_mod.auth._uv_limited.discard, "perm-test")
+        with patch.object(ClientPin, "__init__", lambda self_, c: setattr(self_, "protocol", type("P", (), {"VERSION": 2})())), \
+                patch.object(ClientPin, "get_uv_token", get_uv_token), \
+                patch.object(service_mod.auth, "_permissions", return_value=full), \
+                patch.object(service_mod.auth, "uv_unlock_available", return_value=True):
+            try:
+                service_mod.auth.unlock("perm-test", ctap2, use_uv=True)
+            except service_mod.auth.AuthError as e:
+                return asked, e.code
+        return asked, None
+
+    def test_refused_permissions_fall_back_to_passkeys_only(self):
+        from fido2.ctap import CtapError
+        from fido2.ctap2.pin import ClientPin
+        P = ClientPin.PERMISSION
+        asked, err = self.unlock([CtapError.ERR.UNAUTHORIZED_PERMISSION, None])
+        self.assertIsNone(err)
+        self.assertEqual(asked[1], P.CREDENTIAL_MGMT)
+        self.assertTrue(service_mod.auth.is_unlocked("perm-test", P.CREDENTIAL_MGMT))
+        self.assertFalse(service_mod.auth.is_unlocked("perm-test", P.BIO_ENROLL), "fingerprints still need the PIN")
+        self.assertFalse(service_mod.auth.is_unlocked("perm-test", P.AUTHENTICATOR_CFG))
+        self.assertTrue(service_mod.auth.uv_limited("perm-test"))
+
+    def test_an_unrecognised_finger_is_not_asked_again(self):
+        from fido2.ctap import CtapError
+        asked, err = self.unlock([CtapError.ERR.UV_INVALID])
+        self.assertEqual((len(asked), err), (1, "uv_invalid"))
+
+    def test_refused_again_ends_with_the_error(self):
+        from fido2.ctap import CtapError
+        asked, err = self.unlock([CtapError.ERR.UNAUTHORIZED_PERMISSION] * 2)
+        self.assertEqual(len(asked), 2)
+        self.assertIsNotNone(err)
+        self.assertFalse(service_mod.auth.is_unlocked("perm-test"))
+
+
+class YubiKeyInterfacesTests(unittest.TestCase):
+    """A YubiKey without a smart card interface (YubiKey Bio: "YubiKey FIDO")
+    says Authenticator/OpenPGP/PIV/OTP are not there instead of "not checked yet"."""
+
+    def apps(self, product):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        rec = record("5")
+        rec.product_name, rec.vendor_id = product, 0x1050
+        with patch.object(service_mod, "SETTINGS_FILE", Path(tmp.name) / "settings.json"):
+            svc = service_mod.KeyService(FakeScanner(rec), None, history=History(Path(tmp.name) / "h.json", enabled=True))
+        svc._card = lambda token_id: (_ for _ in ()).throw(service_mod.CardError("no reader", "no_card"))
+        return svc.card_apps("tok")
+
+    def test_fido_only_yubikey_has_no_card_apps(self):
+        got = self.apps("YubiKey FIDO")
+        self.assertEqual(got["apps"], {"oath": False, "openpgp": False, "piv": False, "otp": False})
+
+    def test_a_yubikey_with_ccid_still_waits_for_its_reader(self):
+        self.assertEqual(self.apps("YubiKey OTP+FIDO+CCID")["apps"], {})

@@ -8,6 +8,8 @@
 
 **Fixed**
 
+- **Fingerprint unlock on a YubiKey Bio** failed with "UNAUTHORIZED_PERMISSION": the key grants fingerprint and settings management only with the PIN. The fingerprint unlock now asks for passkey management alone when the key refuses more (it refuses before asking for the finger, so no attempt is used); the *Fingerprints* and *Settings* tabs then ask for the PIN.
+- **What this key can do** on a YubiKey without a smart card interface (YubiKey Bio): Authenticator, OpenPGP, PIV and OTP now say *no* instead of *not checked yet* forever; the card has space above it and the count sits on the right.
 - **Small windows:** the sidebar scrolls as one, so key rows are no longer cut off; version, status and language stay at the bottom; the tabs stay on one line with faded edges; the *Advanced* menu stays inside the window.
 
 ## 1.8.0 — 2026-09-27

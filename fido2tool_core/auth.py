@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 TOKEN_TTL = 300  # seconds; the key may expire it earlier
 
-_tokens: dict[str, tuple[int, bytes, float]] = {}  # token_id -> (protocol, token, expires)
+_tokens: dict[str, tuple[int, bytes, float, int]] = {}  # token_id -> (protocol, token, expires, permissions)
+# Keys that grant only passkey management to a fingerprint (others need the PIN)
+_uv_limited: set[str] = set()
 _tokens_lock = threading.Lock()
 
 
@@ -55,13 +57,20 @@ def forget(token_id: str) -> None:
         _tokens.pop(token_id, None)
 
 
-def is_unlocked(token_id: str) -> bool:
+def is_unlocked(token_id: str, need=None) -> bool:
+    """need: a ClientPin.PERMISSION the unlock must include (a fingerprint
+    unlock may only cover passkey management)."""
     with _tokens_lock:
         entry = _tokens.get(token_id)
         if entry and entry[2] <= time.monotonic():
             del _tokens[token_id]  # do not keep expired tokens in memory
             return False
-        return bool(entry)
+        return bool(entry) and (need is None or (int(need) & entry[3]) == int(need))
+
+
+def uv_limited(token_id: str) -> bool:
+    """The fingerprint unlock of this key covers passkeys only."""
+    return token_id in _uv_limited
 
 
 def uv_unlock_available(info) -> bool:
@@ -107,7 +116,19 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
         if use_uv:
             if not uv_unlock_available(info):
                 raise AuthError("Fingerprint unlock is not available on this key.", "unsupported", reason="uv_unlock")
-            token = client_pin.get_uv_token(permissions=perm, event=cancel)
+            try:
+                token = client_pin.get_uv_token(permissions=perm, event=cancel)
+            except CtapError as e:
+                # Some keys (e.g. YubiKey Bio) grant fingerprint and settings
+                # management only with the PIN. The key checks permissions
+                # before it asks for the finger, so asking again for passkey
+                # management alone uses up no attempt.
+                cm = ClientPin.PERMISSION.CREDENTIAL_MGMT
+                if e.code != CtapError.ERR.UNAUTHORIZED_PERMISSION or not perm & cm or perm == cm:
+                    raise
+                perm = cm
+                token = client_pin.get_uv_token(permissions=perm, event=cancel)
+                _uv_limited.add(token_id)
         else:
             if not pin:
                 raise AuthError("Please enter the PIN.", "invalid_input")
@@ -121,7 +142,7 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
         raise map_ctap_error(e, client_pin) from None
 
     with _tokens_lock:
-        _tokens[token_id] = (client_pin.protocol.VERSION, token, time.monotonic() + TOKEN_TTL)
+        _tokens[token_id] = (client_pin.protocol.VERSION, token, time.monotonic() + TOKEN_TTL, int(perm))
     logger.info("Key unlocked for management (%s)", "fingerprint" if use_uv else "PIN")
 
 
@@ -134,7 +155,7 @@ def get_token(token_id: str):
     if not entry or entry[2] <= time.monotonic():
         forget(token_id)
         raise AuthError("Unlock the key first.", "locked", status=401)
-    version, token, _ = entry
+    version, token = entry[0], entry[1]
     protocol = next(p for p in ClientPin.PROTOCOLS if p.VERSION == version)()
     return protocol, token
 

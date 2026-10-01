@@ -432,7 +432,9 @@ function keyCapabilities(token) {
     ['config', o.authnrCfg ? 'full' : 'none'],
     ['oath', card('oath')], ['openpgp', card('openpgp')], ['piv', card('piv')],
     ['otp', card('otp')],
-  ].map(([area, state]) => ({ area, state }));
+  ].map(([area, state]) => ({ area, state,
+    // "only YubiKeys have OTP slots" is wrong on a YubiKey without them (YubiKey Bio)
+    text: area === 'otp' && state === 'none' && token.vendor_id === 0x1050 ? 'cap.otp.noneYubiKey' : `cap.${area}.${state}` }));
 }
 
 function renderCapabilities(token) {
@@ -448,7 +450,7 @@ function renderCapabilities(token) {
     <ul class="cap-list">${caps.map(c => `<li class="cap-${c.state}">
       <span class="cap-icon" aria-hidden="true">${icons[c.state]}</span>
       <span><b>${escHtml(t(`cap.area.${c.area}`))}</b> – <span class="cap-state">${escHtml(t(`cap.state.${c.state}`))}</span>
-      <span class="cap-text">${escHtml(t(`cap.${c.area}.${c.state}`))}</span></span></li>`).join('')}</ul>
+      <span class="cap-text">${escHtml(t(c.text))}</span></span></li>`).join('')}</ul>
     <p class="field-hint">${escHtml(t('cap.report'))} <button type="button" class="btn-link" data-url="https://github.com/FiraSenax/KeyMelier/issues/new?template=tested-with.yml">${escHtml(t('cap.reportLink'))}</button></p>
   </details>`;
 }
