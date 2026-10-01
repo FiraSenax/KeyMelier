@@ -59,7 +59,7 @@ ALLOWED = {
     "sync_status", "sync_enable", "sync_disable", "sync_now",
     "get_settings", "set_settings", "diagnostics",
     "pin_status", "pin_update", "attestation_rerun",
-    "unlock", "lock",
+    "unlock", "unlock_cancel", "lock",
     "passkeys", "passkey_delete", "passkey_rename",
     "fingerprints", "fingerprint_rename", "fingerprint_delete",
     "fingerprint_enroll", "fingerprint_enroll_cancel",

@@ -788,6 +788,9 @@ dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 }
 
 .uv-icon { display: grid; animation: blink 1.4s ease-in-out infinite; }
+.ql-dialog .uv-wait { margin-bottom: 12px; }
+.ql-switch { margin: 0 0 16px; }
+.ql-switch .btn-link { display: inline-flex; align-items: center; gap: 6px; }
 
 .pk-toolbar {
   display: flex;

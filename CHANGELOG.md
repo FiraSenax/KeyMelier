@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Changed**
+
+- **Unlocking a key with a fingerprint:** for a key with an enrolled fingerprint the unlock dialog now asks for the finger first – the key waits for it as soon as the dialog opens. *Enter PIN instead* and *Cancel* stop that wait on the key (no attempt is used up). A finger that is not recognised offers *Try again* – a new attempt never starts by itself; after too many unrecognised fingers the dialog switches to the PIN. Keys without a fingerprint (or that cannot unlock with one) still ask for the PIN.
+
+**Fixed**
+
+- **Small windows:** the sidebar scrolls as one, so key rows are no longer cut off; version, status and language stay at the bottom; the tabs stay on one line with faded edges; the *Advanced* menu stays inside the window.
+
 ## 1.8.0 — 2026-09-27
 
 The first release since 1.7.0 (1.7.1 was prepared but never published; its changes are included here).

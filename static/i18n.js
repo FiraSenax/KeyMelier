@@ -4853,6 +4853,21 @@ const I18N_BUILD = {
 };
 for (const [code, strings] of Object.entries(I18N_BUILD)) Object.assign(STRINGS[code], strings);
 
+const I18N_QUICK_UV = {
+  de: {"ql.uv.usePin": "Stattdessen PIN eingeben", "ql.uv.useFinger": "Stattdessen Fingerabdruck verwenden", "ql.uv.text": "Mit deinem Fingerabdruck liest KeyMelier, was auf dem Schlüssel ist, und aktualisiert die Übersicht. Die Entsperrung gilt nur ein paar Minuten."},
+  en: {"ql.uv.usePin": "Enter PIN instead", "ql.uv.useFinger": "Use fingerprint instead", "ql.uv.text": "With your fingerprint, KeyMelier reads what is on the key and updates the overview. The unlock lasts only a few minutes."},
+  es: {"ql.uv.usePin": "Introducir el PIN en su lugar", "ql.uv.useFinger": "Usar la huella en su lugar", "ql.uv.text": "Con tu huella, KeyMelier lee lo que hay en la llave y actualiza el resumen. El desbloqueo dura solo unos minutos."},
+  fr: {"ql.uv.usePin": "Saisir le PIN à la place", "ql.uv.useFinger": "Utiliser l’empreinte à la place", "ql.uv.text": "Avec votre empreinte, KeyMelier lit le contenu de la clé et met à jour la vue d'ensemble. Le déverrouillage ne dure que quelques minutes."},
+  it: {"ql.uv.usePin": "Inserisci invece il PIN", "ql.uv.useFinger": "Usa invece l’impronta", "ql.uv.text": "Con l’impronta, KeyMelier legge il contenuto della chiave e aggiorna la panoramica. Lo sblocco dura solo pochi minuti."},
+  ja: {"ql.uv.usePin": "代わりにPINを入力", "ql.uv.useFinger": "代わりに指紋を使用", "ql.uv.text": "指紋で認証すると、KeyMelier がキーの中身を読み取り一覧を更新します。ロック解除は数分間だけ有効です。"},
+  ko: {"ql.uv.usePin": "대신 PIN 입력", "ql.uv.useFinger": "대신 지문 사용", "ql.uv.text": "지문으로 인증하면 KeyMelier가 키의 내용을 읽고 개요를 업데이트합니다. 잠금 해제는 몇 분만 유지됩니다."},
+  nl: {"ql.uv.usePin": "In plaats daarvan pincode invoeren", "ql.uv.useFinger": "In plaats daarvan vingerafdruk gebruiken", "ql.uv.text": "Met je vingerafdruk leest KeyMelier wat er op de sleutel staat en werkt het overzicht bij. De ontgrendeling geldt maar een paar minuten."},
+  pl: {"ql.uv.usePin": "Zamiast tego wpisz PIN", "ql.uv.useFinger": "Zamiast tego użyj odcisku palca", "ql.uv.text": "Odciskiem palca KeyMelier odczyta zawartość klucza i zaktualizuje przegląd. Odblokowanie trwa tylko kilka minut."},
+  pt: {"ql.uv.usePin": "Introduzir o PIN em vez disso", "ql.uv.useFinger": "Usar a impressão digital em vez disso", "ql.uv.text": "Com a impressão digital, o KeyMelier lê o que está na chave e atualiza o resumo. O desbloqueio dura só alguns minutos."},
+  zh: {"ql.uv.usePin": "改为输入 PIN", "ql.uv.useFinger": "改用指纹", "ql.uv.text": "验证指纹后，KeyMelier 会读取密钥上的内容并更新总览。解锁只持续几分钟。"},
+};
+for (const [code, strings] of Object.entries(I18N_QUICK_UV)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

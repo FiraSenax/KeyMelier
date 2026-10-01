@@ -1327,7 +1327,7 @@ function loadManagement(token) {
 // ── Quick unlock from the sidebar ───────────────────────────────────────────
 
 const unlockedUntil = new Map();   // token id -> ms timestamp (mirrors the server-side TTL)
-let quickUnlock = null;            // { id, busy, error }
+let quickUnlock = null;            // { id, mode: 'uv' | 'pin' | 'probe', busy, error, run }
 
 // Something a PIN unlock gives access to (passkey list, fingerprints, settings)
 function canManage(tok) {
@@ -1417,6 +1417,7 @@ function renderQuickUnlock() {
   }
   if (!wasOpen) dialogOpener = document.activeElement;
   if (quickUnlock.mode === 'probe') return renderProbeDialog(el, tok);
+  if (quickUnlock.mode === 'uv') return renderUvDialog(el, tok);
   const uv = tok.options?.uv === true;
   el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
     <h2>${escHtml(t('ql.title', { name: displayName(tok) }))}</h2>
@@ -1424,23 +1425,80 @@ function renderQuickUnlock() {
     ${tok.options?.clientPin ? `<label class="field"><span>${escHtml(t('pin.form.current'))}</span>
       <input type="password" class="ql-pin" autocomplete="off" spellcheck="false" ${quickUnlock.busy ? 'disabled' : ''}></label>` : ''}
     ${quickUnlock.error ? `<p class="field-error">${escHtml(quickUnlock.error)}</p>` : ''}
+    ${uv ? `<p class="ql-switch"><button type="button" class="btn-link" data-ql="uv" ${quickUnlock.busy ? 'disabled' : ''}>${icon('fingerprint', 15)} ${escHtml(t('ql.uv.useFinger'))}</button></p>` : ''}
     <div class="form-actions">
       <button type="button" class="btn btn-secondary" data-ql="cancel">${escHtml(t('pk.delete.cancel'))}</button>
-      ${uv ? `<button type="button" class="btn btn-secondary" data-ql="uv" ${quickUnlock.busy ? 'disabled' : ''}>${icon('fingerprint', 15)} ${escHtml(t('sec.att.withUv'))}</button>` : ''}
       ${tok.options?.clientPin ? `<button type="submit" class="btn btn-primary" ${quickUnlock.busy ? 'disabled' : ''}>${quickUnlock.busy ? `<span class="spinner"></span>${escHtml(t('ql.reading'))}` : escHtml(t('ql.do'))}</button>` : ''}
     </div></form>`;
   el.querySelector('.ql-pin')?.focus();
 }
 
-async function quickUnlockSubmit(method) {
+// Fingerprint first: the key already waits for a finger when the dialog opens.
+// "Enter PIN instead" and "Cancel" stop that wait on the key; a new attempt
+// only starts when the user asks for it.
+function renderUvDialog(el, tok) {
+  const q = quickUnlock;
+  el.innerHTML = `<form class="ql-dialog card" autocomplete="off">
+    <h2>${escHtml(t('ql.title', { name: displayName(tok) }))}</h2>
+    <p class="card-text">${escHtml(t('ql.uv.text'))}</p>
+    <div role="status">${q.busy ? `<div class="uv-wait"><span class="uv-icon">${icon('fingerprint', 30)}</span>
+      <span>${escHtml(t('pk.unlock.uvWaiting'))}</span></div>` : ''}</div>
+    ${q.error ? `<p class="field-error" role="alert">${escHtml(q.error)}</p>` : ''}
+    ${tok.options?.clientPin ? `<p class="ql-switch"><button type="button" class="btn-link" data-ql="pin">${escHtml(t('ql.uv.usePin'))}</button></p>` : ''}
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-ql="cancel">${escHtml(t('pk.delete.cancel'))}</button>
+      ${q.busy ? '' : `<button type="submit" class="btn btn-primary">${icon('fingerprint', 15)} ${escHtml(t('pin.retry'))}</button>`}
+    </div></form>`;
+  el.querySelector(q.busy ? '[data-ql="pin"]' : 'button[type="submit"]')?.focus();
+}
+
+async function quickUnlockUv() {
+  const tok = quickUnlock && tokens.get(quickUnlock.id);
+  if (!tok || (quickUnlock.mode === 'uv' && quickUnlock.busy)) return;
+  const run = {};
+  quickUnlock = { ...quickUnlock, mode: 'uv', busy: true, error: null, run };
+  renderQuickUnlock();
+  try {
+    const res = await call('unlock', { token_id: tok.id, method: 'uv' });
+    if (quickUnlock?.run !== run) { markUnlocked(tok.id, res.ttl); return; }   // finger was faster than the switch
+    markUnlocked(tok.id, res.ttl);
+    quickUnlock = null;
+    renderQuickUnlock();
+    await readContentsNow(tok);
+    if (selectedId === tok.id && ['passkeys', 'fingerprints', 'settings'].includes(activeTab)) loadManagement(tok);
+  } catch (e) {
+    if (quickUnlock?.run !== run) return;   // the user switched to the PIN or closed the dialog
+    const code = e.data?.code;
+    if ((code === 'unsupported' && e.data.reason === 'uv_unlock') || code === 'uv_blocked') {
+      // the key cannot (or may no longer) unlock with a finger: the PIN is the way
+      quickUnlock = { ...quickUnlock, mode: 'pin', busy: false, run: null, error: code === 'uv_blocked' ? errorMessage(e) : null };
+    } else {
+      quickUnlock = { ...quickUnlock, busy: false, run: null, error: errorMessage(e) };
+    }
+    renderQuickUnlock();
+  }
+}
+
+// Leave the fingerprint wait (switch to the PIN or close): tell the key to stop waiting.
+function stopUvWait() {
+  if (quickUnlock?.mode === 'uv' && quickUnlock.busy) call('unlock_cancel', { token_id: quickUnlock.id }).catch(() => {});
+}
+
+function closeQuickUnlock() {
+  stopUvWait();
+  quickUnlock = null;
+  renderQuickUnlock();
+}
+
+async function quickUnlockSubmit() {
   const tok = quickUnlock && tokens.get(quickUnlock.id);
   if (!tok) return;
   const pin = $('quick-unlock').querySelector('.ql-pin')?.value || '';
-  if (method !== 'uv' && !pin) { quickUnlock.error = t('pin.v.current'); return renderQuickUnlock(); }
+  if (!pin) { quickUnlock.error = t('pin.v.current'); return renderQuickUnlock(); }
   quickUnlock = { ...quickUnlock, busy: true, error: null };
   renderQuickUnlock();
   try {
-    const res = await call('unlock', method === 'uv' ? { token_id: tok.id, method: 'uv' } : { token_id: tok.id, pin });
+    const res = await call('unlock', { token_id: tok.id, pin });
     markUnlocked(tok.id, res.ttl);
     quickUnlock = null;
     renderQuickUnlock();
@@ -1461,8 +1519,9 @@ async function quickLockToggle(id) {
     if (tok && selectedId === id) loadManagement(tok);
     return;
   }
-  quickUnlock = { id, busy: false, error: null };
-  renderQuickUnlock();
+  const tok = tokens.get(id);
+  quickUnlock = { id, mode: 'pin', busy: false, error: null };
+  if (tok?.options?.uv === true) quickUnlockUv(); else renderQuickUnlock();
 }
 
 async function unlockKey(method) {
@@ -3427,12 +3486,20 @@ function init() {
   $('nav-accounts').addEventListener('click', showAccountsView);
   $('quick-unlock').addEventListener('submit', ev => {
     ev.preventDefault();
-    if (quickUnlock?.mode === 'probe') probeSubmit(); else quickUnlockSubmit();
+    if (quickUnlock?.mode === 'probe') probeSubmit();
+    else if (quickUnlock?.mode === 'uv') quickUnlockUv();
+    else quickUnlockSubmit();
   });
   $('quick-unlock').addEventListener('click', ev => {
     const b = ev.target.closest('[data-ql]');
-    if ((ev.target.id === 'quick-unlock' && !quickUnlock?.busy) || b?.dataset.ql === 'cancel') { quickUnlock = null; renderQuickUnlock(); return; }
-    if (b?.dataset.ql === 'uv') quickUnlockSubmit('uv');
+    const waitingUv = quickUnlock?.mode === 'uv' && quickUnlock.busy;
+    if ((ev.target.id === 'quick-unlock' && (!quickUnlock?.busy || waitingUv)) || b?.dataset.ql === 'cancel') { closeQuickUnlock(); return; }
+    if (b?.dataset.ql === 'uv') { quickUnlock = { ...quickUnlock, error: null }; quickUnlockUv(); }
+    if (b?.dataset.ql === 'pin' && quickUnlock) {
+      stopUvWait();
+      quickUnlock = { ...quickUnlock, mode: 'pin', busy: false, error: null, run: null };
+      renderQuickUnlock();
+    }
     if (b?.dataset.ql === 'stop' && quickUnlock) {
       quickUnlock = { ...quickUnlock, stopping: true };
       call('passkeys_probe_cancel', { token_id: quickUnlock.id }).catch(() => {});
@@ -3440,7 +3507,7 @@ function init() {
     }
   });
   document.addEventListener('keydown', ev => {
-    if (ev.key === 'Escape' && quickUnlock && !quickUnlock.busy) { quickUnlock = null; renderQuickUnlock(); }
+    if (ev.key === 'Escape' && quickUnlock && (!quickUnlock.busy || quickUnlock.mode === 'uv')) closeQuickUnlock();
   });
   $('nav-accounts-icon').innerHTML = icon('passkey', 18);
   $('nav-settings-icon').innerHTML = icon('settings', 18);

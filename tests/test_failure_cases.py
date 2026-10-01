@@ -251,3 +251,65 @@ class InterruptedSaveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FingerprintUnlockCancelTests(unittest.TestCase):
+    """The unlock dialog asks for the finger first; "Enter PIN instead" and
+    closing the dialog must stop the key waiting for a finger."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        p = patch.object(service_mod, "SETTINGS_FILE", Path(tmp.name) / "settings.json")
+        p.start()
+        self.addCleanup(p.stop)
+        self.svc = service_mod.KeyService(FakeScanner(record("9")), None, history=History(Path(tmp.name) / "h.json", enabled=True))
+
+    def test_cancel_stops_a_waiting_fingerprint_unlock(self):
+        import threading
+        waiting, outcome = threading.Event(), {}
+
+        def unlock(token_id, ctap2, pin=None, use_uv=False, cancel=None):
+            waiting.set()
+            if cancel.wait(5):                      # what the key does on a CTAP cancel
+                raise service_mod.auth.AuthError("Cancelled.", "cancelled")
+            outcome["timed_out"] = True
+
+        def run():
+            try:
+                self.svc.unlock("tok", method="uv")
+            except service_mod.auth.AuthError as e:
+                outcome["code"] = e.code
+        with patch.object(service_mod.auth, "unlock", side_effect=unlock):
+            worker = threading.Thread(target=run, daemon=True)
+            worker.start()
+            self.assertTrue(waiting.wait(5))
+            self.assertEqual(self.svc.unlock_cancel("tok"), {"cancelled": True})
+            worker.join(5)
+        self.assertEqual(outcome, {"code": "cancelled"})
+        self.assertEqual(self.svc.unlock_cancel("tok"), {"cancelled": False}, "nothing left waiting afterwards")
+
+    def test_pin_unlock_has_nothing_to_cancel(self):
+        seen = []
+        with patch.object(service_mod.auth, "unlock", side_effect=lambda *a, **kw: seen.append(kw)):
+            self.svc.unlock("tok", pin="123456")
+        self.assertIsNone(seen[0]["cancel"])
+        self.assertEqual(self.svc.unlock_cancel("tok"), {"cancelled": False})
+
+    def test_the_cancel_event_reaches_the_key(self):
+        import threading
+        from fido2.ctap2.pin import ClientPin
+        info = type("Info", (), {"options": {"clientPin": True, "uv": True}})()
+        ctap2 = type("Ctap2", (), {"info": info})()
+        event, seen = threading.Event(), {}
+
+        def get_uv_token(self_, permissions=None, permissions_rpid=None, event=None, on_keepalive=None):
+            seen["event"] = event
+            return b"token"
+        with patch.object(ClientPin, "__init__", lambda self_, c: setattr(self_, "protocol", type("P", (), {"VERSION": 2})())), \
+                patch.object(ClientPin, "get_uv_token", get_uv_token), \
+                patch.object(service_mod.auth, "_permissions", return_value=ClientPin.PERMISSION.CREDENTIAL_MGMT), \
+                patch.object(service_mod.auth, "uv_unlock_available", return_value=True):
+            service_mod.auth.unlock("cancel-test", ctap2, use_uv=True, cancel=event)
+        service_mod.auth.forget("cancel-test")
+        self.assertIs(seen["event"], event)

@@ -86,8 +86,11 @@ def _permissions(info):
     return perm
 
 
-def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False) -> None:
-    """Obtain a management token with the PIN or the fingerprint sensor."""
+def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, cancel=None) -> None:
+    """Obtain a management token with the PIN or the fingerprint sensor.
+
+    cancel: a threading.Event; setting it stops a key that waits for a finger
+    (CTAP cancel – reported as "cancelled", no attempt is used up)."""
     from fido2.ctap import CtapError
     from fido2.ctap2.pin import ClientPin
 
@@ -104,7 +107,7 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False) -
         if use_uv:
             if not uv_unlock_available(info):
                 raise AuthError("Fingerprint unlock is not available on this key.", "unsupported", reason="uv_unlock")
-            token = client_pin.get_uv_token(permissions=perm)
+            token = client_pin.get_uv_token(permissions=perm, event=cancel)
         else:
             if not pin:
                 raise AuthError("Please enter the PIN.", "invalid_input")

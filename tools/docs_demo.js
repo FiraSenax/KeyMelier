@@ -182,7 +182,9 @@
       name: 'Erika Mustermann', url: 'https://example.com/erika.asc', can_touch: true, algorithms: ['ed25519', 'p256', 'rsa2048', 'rsa4096'] }),
     piv: () => piv,
     otp: () => ({ slots: [{ slot: 1, configured: true, touch: true }, { slot: 2, configured: true, touch: false }], led_inverted: false, input_monitoring: true }),
-    unlock: () => ({ unlocked: true, ttl: 300 }),
+    // a test can play the key's fingerprint sensor: window.__demoUv(args) returns a promise
+    unlock: (a) => (a.method === 'uv' && window.__demoUv ? window.__demoUv(a) : { unlocked: true, ttl: 300 }),
+    unlock_cancel: () => { window.__demoUvCancel?.(); return { cancelled: true }; },
     read_contents: () => ({ sites: 5, oath: 4, openpgp: 3, piv: 1 }),
     lock: () => ({ unlocked: false }),
     interfaces: () => ({ locked: false, transports: {
@@ -198,7 +200,7 @@
         const fn = api[method];
         if (!fn) return { ok: false, error: 'Not available in the demo', code: 'demo' };
         try {
-          return { ok: true, data: JSON.parse(JSON.stringify(fn(args || {}))) };
+          return { ok: true, data: JSON.parse(JSON.stringify(await fn(args || {}))) };
         } catch (e) {   // demo error in the envelope shape of the real bridge
           return { ok: false, error: e.message, ...(e.demo || { code: 'error' }) };
         }

@@ -92,6 +92,7 @@ class KeyService:
                  advisories=None):
         self._scanner = scanner
         self._advisories = advisories
+        self._uv_waits: dict[str, threading.Event] = {}   # fingerprint unlocks waiting for a finger
         self.error_log = diagnostics.ErrorLog(())   # app.py replaces it with the bridge's operation list
         self.gui_backend = lambda: None
         self._last_update_check = None
@@ -520,9 +521,23 @@ class KeyService:
     # ── Unlock ───────────────────────────────────────────────────────────────
 
     def unlock(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
-        with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
-            auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv")
+        cancel = threading.Event() if method == "uv" else None
+        if cancel is not None:
+            self._uv_waits[token_id] = cancel
+        try:
+            with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
+                auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv", cancel=cancel)
+        finally:
+            if cancel is not None and self._uv_waits.get(token_id) is cancel:
+                del self._uv_waits[token_id]
         return {"unlocked": True, "ttl": auth.TOKEN_TTL}
+
+    def unlock_cancel(self, token_id: str) -> dict:
+        """Stop a fingerprint unlock that is waiting for a finger (e.g. to use the PIN instead)."""
+        cancel = self._uv_waits.get(token_id)
+        if cancel is not None:
+            cancel.set()
+        return {"cancelled": cancel is not None}
 
     def read_contents(self, token_id: str) -> dict:
         """After an unlock: read what is on the key in one go (passkeys, and

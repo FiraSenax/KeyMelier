@@ -222,6 +222,54 @@ async function main() {
     const calls = await js('window.__demoCalls.filter(c => c === "unlock" || c === "read_contents")');
     assert(JSON.stringify(calls) === '["unlock","read_contents"]', `exactly one unlock, then reading: ${calls}`);
   });
+  await test('fingerprint key: the dialog waits for the finger first; PIN instead and Escape stop the wait; no automatic retry; blocked falls back to the PIN', async () => {
+    // demo-t2 plays a key with an enrolled fingerprint; the test answers for its sensor
+    await js(`(() => {
+      tokens.get('demo-t2').options.uv = true; unlockedUntil.delete('demo-t2'); renderSidebar();
+      window.__demoCalls.length = 0;
+      window.__demoUv = () => new Promise((resolve, reject) => { window.__uvPending = { resolve, reject }; });
+      window.__demoUvCancel = () => window.__uvPending?.reject(Object.assign(new Error('Cancelled.'), { demo: { code: 'cancelled' } }));
+      window.__uvFail = code => window.__uvPending.reject(Object.assign(new Error(code), { demo: { code } }));
+      return true; })()`);
+    const count = m => js(`window.__demoCalls.filter(c => c === ${JSON.stringify(m)}).length`);
+    const waiting = '!!document.querySelector("#quick-unlock .uv-wait")';
+    await click('[data-unlock="demo-t2"]');
+    await until(waiting, 'the dialog waiting for a finger');
+    assert(await js('!document.querySelector("#quick-unlock .ql-pin")'), 'no PIN field while waiting for the finger');
+    assert(await count('unlock') === 1, 'the fingerprint request started once');
+    await press('Escape');                                    // closing stops the wait on the key
+    await until('$("quick-unlock").classList.contains("hidden")', 'closed by Escape');
+    assert(await count('unlock_cancel') === 1, 'Escape cancelled the fingerprint request');
+
+    await click('[data-unlock="demo-t2"]');
+    await until(waiting, 'waiting again');
+    await click('#quick-unlock [data-ql=pin]');               // switch to the PIN
+    await until('!!document.querySelector("#quick-unlock .ql-pin")', 'PIN field after the switch');
+    assert(await count('unlock_cancel') === 2, 'the switch cancelled the fingerprint request');
+    await sleep(150);
+    assert(await js('!document.querySelector("#quick-unlock .field-error")'), 'the own cancel shows no error');
+
+    await click('#quick-unlock [data-ql=uv]');                // and back to the finger
+    await until(waiting, 'waiting after switching back');
+    await js('window.__uvFail("uv_invalid")');
+    await until('!!document.querySelector("#quick-unlock .field-error")', 'not recognised message');
+    await sleep(300);
+    assert(await count('unlock') === 3, `no automatic retry: ${await count('unlock')} unlock calls`);
+    await click('#quick-unlock button[type=submit]');         // deliberate retry
+    await until(waiting, 'waiting after the retry');
+    assert(await count('unlock') === 4, 'exactly one new request for one retry');
+    await js('window.__uvFail("uv_blocked")');
+    await until('!!document.querySelector("#quick-unlock .ql-pin")', 'blocked: PIN field');
+    assert(/PIN/.test(await js('$("quick-unlock").querySelector(".field-error")?.textContent || ""')), 'blocked says to use the PIN');
+    await press('Escape');
+    await until('$("quick-unlock").classList.contains("hidden")', 'closed');
+
+    await js('window.__demoUv = null; window.__demoCalls.length = 0');   // a recognised finger
+    await click('[data-unlock="demo-t2"]');
+    await until('$("quick-unlock").classList.contains("hidden") && isUnlocked("demo-t2")', 'unlocked by the finger');
+    await until('window.__demoCalls.includes("read_contents")', 'contents read after the unlock');
+    await js(`(() => { delete tokens.get('demo-t2').options.uv; unlockedUntil.delete('demo-t2'); renderSidebar(); return true; })()`);
+  });
   await test('reading: a key pulled out mid-read shows an error with the next step, never success', async () => {
     await js(`(() => { const real = window.pywebview.api.call;
       window.__realCall = real;
