@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.8.1 — 2026-10-01
+## 1.8.2 — 2026-10-02
+
+The first release since 1.8.0 (1.8.1 was tagged but never published: in CI the signing keychain was removed before the disk image was signed; its changes are included here).
 
 **macOS: signed and notarized.** The first release whose macOS app is signed with the maintainer's Apple Developer ID and notarized by Apple – it opens without the "cannot verify" warning. The hardened runtime now runs without exceptions (the `disable-library-validation` entitlement is gone). Windows and Linux builds are still unsigned.
 

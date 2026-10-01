@@ -126,9 +126,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash tools/sign-macos.sh
-      - name: Remove temporary signing keychain
-        if: always() && env.SIGN_MAC == 'true'
-        run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
       # The built app itself (not app.py): real window, temporary home, no
       # key access, no network; checks libraries, bundled data, translations,
       # icons and the page <-> backend bridge. Failure stops the build.
@@ -159,6 +156,10 @@ jobs:
             --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
           xcrun stapler staple dist/KeyMelier-macOS.dmg
           spctl --assess --type open --context context:primary-signature --verbose=2 dist/KeyMelier-macOS.dmg
+      # Only after the last use of the identity (the disk image is signed too)
+      - name: Remove temporary signing keychain
+        if: always() && env.SIGN_MAC == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
       - run: |
           ditto -c -k --keepParent dist/KeyMelier.app dist/KeyMelier-macOS.zip
           cp build/THIRD_PARTY_LICENSES.txt dist/THIRD_PARTY_LICENSES-macOS.txt

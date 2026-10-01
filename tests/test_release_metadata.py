@@ -60,6 +60,20 @@ class ReleaseMetadataTests(unittest.TestCase):
             with self.subTest(wf.name):
                 self.assertIn("jobs", yaml.safe_load(wf.read_text(encoding="utf-8")))
 
+    def test_signing_keychain_outlives_every_signing_step(self):
+        """1.8.1 failed in CI: the keychain was removed after notarizing the app,
+        before the disk image was signed. Only the release run signs, so the
+        rehearsal could not catch it – this checks the step order instead."""
+        workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        job = workflow.split("\n  build-macos:\n", 1)[1].split("\n  build-", 1)[0]
+        steps = re.split(r"\n      - ", job)
+        removal = next(i for i, step in enumerate(steps) if "security delete-keychain" in step)
+        users = [i for i, step in enumerate(steps)
+                 if re.search(r"MACOS_SIGN_IDENTITY|notarytool|make-dmg\.sh|sign-macos\.sh", step)]
+        self.assertTrue(users)
+        self.assertGreater(removal, max(users), "the signing keychain is removed before a step that signs")
+        self.assertIn("always()", steps[removal])
+
     def test_shipped_files_have_the_same_bytes_on_every_platform(self):
         """Git must not convert line endings on Windows: the SBOM hashes the shipped files."""
         import shutil
