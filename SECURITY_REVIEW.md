@@ -30,8 +30,6 @@ This is an internal review, not an independent audit.
 Open (documented, not changed in this pass):
 - MDS cache and CRL rollback by someone who can write to the user's home
   directory (no persisted high-water mark for MDS serial / CRL number).
-- `disable-library-validation` entitlement on macOS: remove after a notarized
-  runtime test.
 - `proxy-tools` is an sdist; its build backend is fetched without hashes.
 - Attestation certificates are not revocation-checked.
 

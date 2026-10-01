@@ -24,8 +24,8 @@ Configure these GitHub environment secrets:
 PyInstaller signs nested binaries with the Developer ID and hardened runtime.
 The workflow verifies the bundle, submits it to Apple's notary service, staples
 and validates the ticket, then assesses Gatekeeper acceptance. A temporary signing
-keychain is removed even on failure. The library-validation entitlement supports
-the bundled Python/native modules; review it when changing packaging.
+keychain is removed even on failure. The hardened runtime runs without entitlements
+(`data/macos-entitlements.plist` is empty); keep it that way when changing packaging.
 
 ## Windows
 

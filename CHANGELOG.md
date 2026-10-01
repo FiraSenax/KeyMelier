@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.8.1 — 2026-10-01
+
+**macOS: signed and notarized.** The first release whose macOS app is signed with the maintainer's Apple Developer ID and notarized by Apple – it opens without the "cannot verify" warning. The hardened runtime now runs without exceptions (the `disable-library-validation` entitlement is gone). Windows and Linux builds are still unsigned.
 
 **Changed**
 
