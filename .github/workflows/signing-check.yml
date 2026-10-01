@@ -1,0 +1,68 @@
+name: Signing check
+# Checks the macOS signing secrets of the release-signing environment before a
+# release: import the Developer ID, sign a tiny test app with the hardened
+# runtime, notarize it, staple the ticket and let Gatekeeper assess it.
+# Triggered by a tag vsigncheck-* (the environment only admits v* tags; the
+# Build workflow ignores these tags). Publishes nothing; delete the tag after.
+on:
+  push:
+    tags: ['vsigncheck-*']
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-14
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Import Developer ID
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash tools/import-macos-signing.sh
+      - name: Identity is usable for code signing
+        env:
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          security find-identity -v -p codesigning "$RUNNER_TEMP/keymelier-signing.keychain-db" | tee "$RUNNER_TEMP/ids.txt"
+          grep -qF "\"$IDENTITY\"" "$RUNNER_TEMP/ids.txt" || { echo "::error::MACOS_SIGN_IDENTITY is not a valid identity in the imported P12"; exit 1; }
+      - name: Sign a test app (hardened runtime, timestamp)
+        env:
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          app="$RUNNER_TEMP/SignCheck.app"
+          mkdir -p "$app/Contents/MacOS"
+          printf 'int main(void){return 0;}\n' > "$RUNNER_TEMP/main.c"
+          clang -arch arm64 -o "$app/Contents/MacOS/SignCheck" "$RUNNER_TEMP/main.c"
+          cat > "$app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleIdentifier</key><string>io.github.firasenax.keymelier.signcheck</string>
+          <key>CFBundleName</key><string>SignCheck</string>
+          <key>CFBundleExecutable</key><string>SignCheck</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          </dict></plist>
+          PLIST
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+      - name: Notarize, staple, Gatekeeper
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          app="$RUNNER_TEMP/SignCheck.app"
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/signcheck.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/signcheck.zip" --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait --timeout 20m | tee "$RUNNER_TEMP/notary.txt"
+          grep -q "status: Accepted" "$RUNNER_TEMP/notary.txt" || { echo "::error::notarization not accepted"; exit 1; }
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+      - name: Remove temporary signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
