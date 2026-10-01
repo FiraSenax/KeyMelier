@@ -33,6 +33,11 @@ function setTabMenu(open, focusFirst = false) {
   menu.classList.toggle('hidden', !open);
   $('tab-more-btn').setAttribute('aria-expanded', String(open));
   if (open) {
+    // fixed to the window, under its button (the tab bar scrolls sideways and would clip it)
+    const btn = $('tab-more-btn').getBoundingClientRect();
+    const width = menu.offsetWidth;
+    menu.style.top = `${Math.round(btn.bottom + 6)}px`;
+    menu.style.left = `${Math.round(Math.max(8, Math.min(btn.left, innerWidth - width - 8)))}px`;
     const items = [...menu.querySelectorAll('.tab:not(.hidden)')];
     (focusFirst ? items[0] : items.find(b => b.dataset.tab === activeTab) || items[0])?.focus();
   }

@@ -884,6 +884,13 @@ function selectToken(id) {
   switchTab(activeTab);
 }
 
+function syncTabsOverflow() {
+  const bar = document.querySelector('.tabs');
+  if (!bar) return;
+  bar.classList.toggle('more-left', bar.scrollLeft > 2);
+  bar.classList.toggle('more-right', bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+}
+
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(b => {
@@ -891,6 +898,9 @@ function switchTab(tab) {
     b.setAttribute(b.getAttribute('role') === 'tab' ? 'aria-selected' : 'aria-current', String(b.dataset.tab === tab));
   });
   syncTabMore();
+  // the tab bar scrolls sideways in small windows: keep the active tab in view
+  document.querySelector('.tabs .tab.active, .tabs .tab-more-btn.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  syncTabsOverflow();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== tab));
   const current = currentToken();
   if (tab === 'history' && current) loadHistoryDetail(current.history_id);
@@ -3595,6 +3605,22 @@ function init() {
     if (b.closest('#tab-more-menu')) { setTabMenu(false); $('tab-more-btn').focus(); }
   }));
   $('tab-more-btn').addEventListener('click', () => setTabMenu($('tab-more-menu').classList.contains('hidden')));
+  // Tab bar in small windows: fade the edge where more tabs are; the mouse wheel scrolls it sideways
+  const tabsBar = document.querySelector('.tabs');
+  tabsBar.addEventListener('scroll', syncTabsOverflow, { passive: true });
+  tabsBar.addEventListener('wheel', ev => {
+    if (Math.abs(ev.deltaY) > Math.abs(ev.deltaX) && tabsBar.scrollWidth > tabsBar.clientWidth) {
+      tabsBar.scrollLeft += ev.deltaY;
+      ev.preventDefault();
+    }
+  }, { passive: false });
+  new ResizeObserver(syncTabsOverflow).observe(tabsBar);
+  // the menu is fixed to the window: close it when its button moves
+  for (const ev of ['resize', 'scroll']) {
+    addEventListener(ev, e => {
+      if (!$('tab-more-menu').classList.contains('hidden') && !$('tab-more-menu').contains(e.target)) setTabMenu(false);
+    }, { capture: true, passive: true });
+  }
   $('tab-more-btn').addEventListener('keydown', ev => {
     if (ev.key === 'ArrowDown') { ev.preventDefault(); setTabMenu(true, true); }
     if (ev.key === 'Escape') setTabMenu(false);

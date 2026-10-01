@@ -390,11 +390,18 @@ button { font: inherit; color: inherit; }
 /* Tabs */
 .tabs {
   display: flex;
-  flex-wrap: wrap;           /* small windows and long translations: wrap, never clip */
-  gap: 0 4px;
+  flex-wrap: nowrap;          /* small windows and long translations: one line that scrolls sideways */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;      /* no bulky bar: the edges fade where more tabs are (see syncTabsOverflow) */
+  gap: 0 2px;
   margin: 24px 0 22px;
   border-bottom: 1px solid var(--border);
 }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs.more-right { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.tabs.more-left { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.tabs.more-left.more-right { mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 
 .tab {
   border: none;
@@ -1317,7 +1324,7 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .tab-more-btn.active { color: var(--text); border-bottom-color: var(--accent); }
 .tab-more-current { color: var(--text-2); }
 .tab-more-menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 220px; max-width: min(320px, 90vw);
+  position: fixed; top: 0; left: 0; z-index: 30;   /* placed under its button by setTabMenu() */ min-width: 220px; max-width: min(320px, 90vw);
   display: flex; flex-direction: column; padding: 6px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
@@ -1542,3 +1549,16 @@ code.nowrap { white-space: nowrap; font-size: 0.95em; }
 .kpin-results li { display: flex; justify-content: space-between; gap: 12px; }
 .keys-table th[scope=row] { font-weight: 400; }
 .keys-table .acc-sub { display: block; font-size: 0.8rem; color: var(--text-2); }
+
+/* Sidebar: one scrolling area for navigation and keys (no nested scroll boxes
+   that cut rows in half); version, update, data status and language stay below */
+.sidebar-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  margin: 0 -6px; padding: 0 6px 4px; }
+.sidebar-scroll .key-list { flex: none; overflow: visible; min-height: auto; }
+.sidebar-scroll .nav-item { margin-bottom: 4px; }
+.sidebar-scroll .nav-item:last-of-type { margin-bottom: 14px; }
+.sidebar-meta { margin-top: 8px; }
+@media (max-width: 760px) {
+  .sidebar-scroll { overflow: visible; }
+  .sidebar-scroll .key-list { flex-direction: row; overflow-x: auto; }
+}

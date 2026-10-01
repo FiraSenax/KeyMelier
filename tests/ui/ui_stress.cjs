@@ -268,6 +268,35 @@ async function main() {
 
   for (const size of SIZES) {
     const tag = `${size.width}x${size.height}`;
+    await test(`${tag}: sidebar scrolls as one (every key row whole), tabs stay on one line, Advanced menu inside the window`, async () => {
+      await setSize(size);
+      await js('selectToken("demo-yk5"); switchTab("overview")');
+      await sleep(150);
+      const r = await js(`(() => {
+        const scroller = document.querySelector('.sidebar-scroll');
+        const nested = [...document.querySelectorAll('.sidebar .key-list')].filter(l => /auto|scroll/.test(getComputedStyle(l).overflowY));
+        const cut = [];
+        for (const row of document.querySelectorAll('.sidebar .key-list .key-item')) {
+          row.scrollIntoView({ block: 'nearest' });
+          const b = row.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+          if (b.top < s.top - 1 || b.bottom > s.bottom + 1) cut.push(row.textContent.trim().slice(0, 20));
+        }
+        const bar = document.querySelector('.tabs');
+        const tabs = [...bar.querySelectorAll(':scope > .tab:not(.hidden), :scope > .tab-more .tab-more-btn')];
+        const rows = new Set(tabs.map(t => Math.round(t.getBoundingClientRect().top)));
+        const active = bar.querySelector('.tab.active').getBoundingClientRect(), b = bar.getBoundingClientRect();
+        return { nested: nested.length, cut, rows: rows.size, activeVisible: active.left >= b.left - 1 && active.right <= b.right + 1 };
+      })()`);
+      assert(r.nested === 0, 'no nested scroll boxes in the sidebar');
+      assert(r.cut.length === 0, `key rows cut off: ${r.cut}`);
+      assert(r.rows === 1, `tabs on ${r.rows} lines`);
+      assert(r.activeVisible, 'active tab in view');
+      await js('setTabMenu(true)');
+      const menu = await js('__layout.dialog("#tab-more-menu")');
+      assert(menu === '', `Advanced menu: ${menu}`);
+      await js('setTabMenu(false)');
+    });
+
     await test(`${tag}: header row and account column stay in place while the matrix scrolls`, async () => {
       await setSize(size);
       await js('showAccountsView()');
