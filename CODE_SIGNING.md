@@ -1,10 +1,9 @@
 # Code signing policy
 
-> **Status (September 2026):** releases so far are **unsigned**; each
-> release's notes state the actual signing state. KeyMelier has applied to
-> the SignPath Foundation program for Windows, and Apple Developer ID
-> signing is being set up for macOS. This policy describes how signing works
-> once active.
+> **Status (October 2026):** from version 1.8.2 the macOS app is signed with
+> the maintainer's Apple Developer ID and notarized by Apple. Windows builds
+> are still **unsigned**: KeyMelier has applied to the SignPath Foundation
+> program. Each release's notes state the actual signing state per platform.
 
 Windows (once accepted): free code signing provided by
 [SignPath.io](https://about.signpath.io), certificate by

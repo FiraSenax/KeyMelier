@@ -103,9 +103,9 @@
 
   <section id="signing">
     <h2>Code signing</h2>
-    <p class="note"><strong>Current status:</strong> releases up to now are <strong>not signed</strong> – the release notes of each version say so and explain the first launch. Signing is being set up.</p>
+    <p class="note"><strong>Current status:</strong> from version 1.8.2 the <strong>macOS app is signed and notarized by Apple</strong> and opens without a warning. Windows and Linux builds are not signed yet – the release notes of each version state the signing state per platform.</p>
     <p><strong>Windows:</strong> KeyMelier has applied to the SignPath Foundation's free code signing program for open-source projects. Once accepted, Windows releases will carry: <em>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</em><br>
-    <strong>macOS:</strong> signing with an Apple Developer ID and notarization by Apple is being set up.</p>
+    <strong>macOS:</strong> signed with the maintainer's Apple Developer ID (Sven Frank, team ZBLGQ3A56F) and notarized by Apple, from version 1.8.2. To check: <code>spctl -a -vv /Applications/KeyMelier.app</code> shows <code>source=Notarized Developer ID</code>.</p>
     <p>Every release is already built by GitHub Actions from a tagged commit and lists the source commit, dependency locks, SHA-256 checksums, an SBOM and third-party licenses – compare the checksums if in doubt. Read the full <a href="https://github.com/FiraSenax/KeyMelier/blob/main/CODE_SIGNING.md">code signing policy</a>, including team roles.</p>
   </section>
 

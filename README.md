@@ -50,7 +50,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Code signing
 
-Releases are currently **unsigned** (each release's notes say so). Signing is being set up: Windows via the SignPath Foundation's open-source program (applied; once accepted: free code signing provided by SignPath.io, certificate by SignPath Foundation), macOS via Apple Developer ID with notarization. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
+From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux builds are still **unsigned** (each release's notes say so). Windows signing is being set up via the SignPath Foundation's open-source program (applied; once accepted: free code signing provided by SignPath.io, certificate by SignPath Foundation). See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
 ## License
 
@@ -70,7 +70,7 @@ Each release states whether its macOS build is Developer ID signed and notarized
 and whether its Windows build is Authenticode signed. Checksums (`SHA256SUMS.txt`),
 dependency locks and the source commit are attached to every release.
 
-### First launch of an unsigned macOS build
+### First launch of an unsigned macOS build (before 1.8.2)
 
 1. Unzip `KeyMelier-macOS.zip` and move **KeyMelier.app** to **Applications**.
 2. Open it. macOS says it "cannot verify" the app – click **Done** (not "Move to Trash").
