@@ -107,17 +107,38 @@ def _unb64(text) -> bytes:
         raise SyncError("Damaged sync file.", "sync_damaged") from None
 
 
-_key_cache: dict[tuple[str, bytes], bytes] = {}
-
-
 def _derive(passphrase: str, salt: bytes) -> bytes:
     from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-    tag = (hashlib.sha256(passphrase.encode()).hexdigest(), salt)
-    if tag not in _key_cache:
-        if len(_key_cache) > 32:
-            _key_cache.clear()
-        _key_cache[tag] = Scrypt(salt=salt, length=32, **SCRYPT).derive(passphrase.encode())
-    return _key_cache[tag]
+    return Scrypt(salt=salt, length=32, **SCRYPT).derive(passphrase.encode())
+
+
+class _SessionKeys:
+    """Bounded salt-to-key cache for one configured passphrase, never a password hash.
+
+    Closing drops our references; Python cannot promise secure memory erasure.
+    The lock also bounds concurrent scrypt work for a single session.
+    """
+
+    def __init__(self, passphrase: str):
+        self._passphrase = passphrase
+        self._keys: dict[bytes, bytes] = {}
+        self._lock = threading.Lock()
+
+    def derive(self, salt: bytes) -> bytes:
+        with self._lock:
+            if self._passphrase is None:
+                raise SyncError("Sync is no longer configured.", "sync_disabled")
+            if salt not in self._keys:
+                key = _derive(self._passphrase, salt)
+                if len(self._keys) >= 32:
+                    del self._keys[next(iter(self._keys))]
+                self._keys[salt] = key
+            return self._keys[salt]
+
+    def close(self):
+        with self._lock:
+            self._keys.clear()
+            self._passphrase = None
 
 
 def _aad(header: dict) -> bytes:
@@ -125,17 +146,26 @@ def _aad(header: dict) -> bytes:
 
 
 def seal(payload: dict, passphrase: str, device: str, salt: bytes | None = None) -> bytes:
+    """Encrypt without retaining the caller's passphrase or derived key globally."""
+    return _seal(payload, device, salt, lambda s: _derive(passphrase, s))
+
+
+def _seal(payload, device, salt, derive_key) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     salt = salt or os.urandom(16)
     header = {"format": FORMAT, "v": VERSION, "device": device, "salt": _b64(salt)}
     nonce = os.urandom(12)
-    ct = AESGCM(_derive(passphrase, salt)).encrypt(nonce, json.dumps(payload).encode(), _aad(header))
+    ct = AESGCM(derive_key(salt)).encrypt(nonce, json.dumps(payload).encode(), _aad(header))
     return json.dumps({**header, "nonce": _b64(nonce), "ct": _b64(ct)}).encode()
 
 
 def unseal(data: bytes, passphrase: str) -> tuple[str, dict]:
     """Returns (device id, payload). Raises SyncError (sync_damaged,
     sync_passphrase) – a wrong passphrase and a manipulated file look the same."""
+    return _unseal(data, lambda s: _derive(passphrase, s))
+
+
+def _unseal(data, derive_key) -> tuple[str, dict]:
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     try:
@@ -149,7 +179,7 @@ def unseal(data: bytes, passphrase: str) -> tuple[str, dict]:
     if len(salt) != 16 or len(nonce) != 12:
         raise SyncError("Damaged sync file.", "sync_damaged")
     try:
-        plain = AESGCM(_derive(passphrase, salt)).decrypt(nonce, ct, _aad(header))
+        plain = AESGCM(derive_key(salt)).decrypt(nonce, ct, _aad(header))
     except InvalidTag:
         raise SyncError("Wrong passphrase, or the file was changed.", "sync_passphrase") from None
     payload = json.loads(plain)
@@ -192,13 +222,16 @@ class SyncFolder:
         self.folder = Path(folder)
         self.device = device
         self.machine = machine
-        self._passphrase = passphrase
+        self._keys = _SessionKeys(passphrase)
         self._salt = os.urandom(16)        # one salt per session: derive once
         self.instance = secrets.token_hex(8)   # this run of KeyMelier
         self._written_hash = None
         self._own_stamp = None             # (mtime, size) of our file when we last wrote or read it
         self._last_written = ""
         self._seen: dict[str, tuple] = {}  # file name -> (mtime, size) already merged
+
+    def close(self):
+        self._keys.close()
 
     @property
     def own_path(self) -> Path:
@@ -217,7 +250,7 @@ class SyncFolder:
         self._last_written = datetime.now(timezone.utc).isoformat()
         payload = {"device_name": platform.node()[:80], "written": self._last_written,
                    "instance": self.instance, "machine": self.machine, "history": history_state}
-        data = seal(payload, self._passphrase, self.device, self._salt)
+        data = _seal(payload, self.device, self._salt, self._keys.derive)
         if self.own_path.is_symlink():
             raise SyncError("The sync file must not be a symbolic link.", "sync_folder")
         fd, tmp = tempfile.mkstemp(prefix=".KeyMelier-", suffix=".tmp", dir=self.folder)
@@ -252,7 +285,7 @@ class SyncFolder:
         if data is None:
             return "unreadable", "sync_damaged", None
         try:
-            device, payload = unseal(data, self._passphrase)
+            device, payload = _unseal(data, self._keys.derive)
         except SyncError as e:
             return "unreadable", e.code, None
         if device != self.device:
@@ -291,7 +324,7 @@ class SyncFolder:
                 errors.append({"file": path.name, "code": "sync_damaged"})
                 continue
             try:
-                device, payload = unseal(data, self._passphrase)
+                device, payload = _unseal(data, self._keys.derive)
             except SyncError as e:
                 errors.append({"file": path.name, "code": e.code})
                 continue
@@ -328,7 +361,10 @@ class Syncer:
 
     def configure(self, folder: Path | None, device: str | None, passphrase: str | None, machine: str = ""):
         with self._lock:
+            previous = self._folder
             self._folder = SyncFolder(folder, device, passphrase, machine) if folder and device and passphrase else None
+            if previous is not None:
+                previous.close()
             self._last_revision = None
             self.devices, self.errors, self.notice, self.last_sync = {}, [], None, None
         self._history.track_forgotten = self._folder is not None
@@ -432,7 +468,10 @@ def probe_folder(folder: Path, passphrase: str, device: str) -> dict:
     if len(passphrase) < MIN_PASSPHRASE:
         raise SyncError(f"The passphrase needs at least {MIN_PASSPHRASE} characters.", "sync_passphrase_short")
     probe = SyncFolder(folder, device, passphrase)
-    others, errors = probe.read_others(only_new=False)
+    try:
+        others, errors = probe.read_others(only_new=False)
+    finally:
+        probe.close()
     if errors and not others and any(e["code"] == "sync_passphrase" for e in errors):
         raise SyncError("The passphrase does not open the files of your other computers.", "sync_passphrase")
     try:

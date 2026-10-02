@@ -15,6 +15,7 @@ behaviour, and test failure and cancellation paths before broad refactoring.
 | Connection lifecycle | `fido2tool_core/scanner.py` | Fresh runtime ID for each observed connection/replacement; recheck observable identity before CTAP operations; discard retired connection updates |
 | Protocol operations | `passkeys.py`, `fingerprints.py`, `key_config.py`, `piv_app.py`, other protocol modules | Check authorization at the operation boundary; never interpret an unexpected read error as an empty slot |
 | Network input | `network.py`, `mds3.py`, `updates.py`, `app_update.py` | Bound downloaded data; preserve signature/trust checks; verify updates before exposing a completed download |
+| Sync key lifetime | `sync.py` | Cache derived keys by salt within one passphrase session; clear session references on reconfiguration/disable; never retain a global fast passphrase hash |
 | Page assembly | `fido2tool_core/page.py`, `static/index.html` | Keep script order consistent in packaged and development pages |
 
 ## Frontend ownership

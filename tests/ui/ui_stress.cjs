@@ -18,7 +18,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { launch, sleep, killAll } = require('./cdp.cjs');
+const { launch, sleep, killAll, callPage } = require('./cdp.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const ARTIFACTS = process.env.UI_ARTIFACTS || path.join(ROOT, 'build', 'ui-test-artifacts');
@@ -81,8 +81,11 @@ async function main() {
   };
   const type = async text => { for (const ch of text) { await send('Input.insertText', { text: ch }); await sleep(15); } };
   const click = async selector => {
-    const r = await js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
-      el.scrollIntoView({ block: 'center', inline: 'nearest' }); const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+    const r = await callPage(send, selector => {
+      const el = document.querySelector(selector); if (!el) return null;
+      el.scrollIntoView({ block: 'center', inline: 'nearest' }); const b = el.getBoundingClientRect();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    }, selector);
     if (!r) throw new Error(`nothing to click: ${selector}`);
     for (const t of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type: t, x: r.x, y: r.y, button: 'left', clickCount: 1 });
     await sleep(60);

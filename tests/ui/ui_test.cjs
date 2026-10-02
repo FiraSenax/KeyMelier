@@ -12,7 +12,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { launch, sleep, killAll } = require('./cdp.cjs');
+const { launch, sleep, killAll, callPage } = require('./cdp.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const ARTIFACTS = process.env.UI_ARTIFACTS || path.join(ROOT, 'build', 'ui-test-artifacts');
@@ -73,13 +73,18 @@ async function main() {
   };
   const type = async text => { await send('Input.insertText', { text }); await sleep(60); };
   const click = async selector => {
-    const r = await js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
-      el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+    const r = await callPage(send, selector => {
+      const el = document.querySelector(selector); if (!el) return null;
+      el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    }, selector);
     if (!r) throw new Error(`nothing to click: ${selector}`);
     for (const t of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type: t, x: r.x, y: r.y, button: 'left', clickCount: 1 });
     await sleep(60);
   };
-  const focus = selector => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el?.focus(); return !!el; })()`);
+  const focus = selector => callPage(send, selector => {
+    const el = document.querySelector(selector); el?.focus(); return !!el;
+  }, selector);
   const active = () => js(`(() => { const a = document.activeElement; return a ? (a.id || a.dataset.accFilter !== undefined && 'filter:' + a.dataset.accFilter || a.dataset.act || a.dataset.tab || a.dataset.rpStep && 'step:' + a.dataset.rpStep || a.dataset.next && 'next' || a.dataset.unlock && 'unlock:' + a.dataset.unlock || a.dataset.about || a.dataset.ql || a.className || a.tagName) : null; })()`);
   const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 
@@ -90,6 +95,15 @@ async function main() {
 
   await until('typeof tokens !== "undefined" && tokens.size > 0 && historyKeys.size > 0', 'the app to load its demo data', 15000);
   await js('selectToken("demo-yk5")');   // a defined start: first key selected (no demo scene runs with #none)
+
+  await test('CDP arguments remain data, including quotes and script-like text', async () => {
+    const samples = ['\"); globalThis.__cdpInjected = true; //', '</script><script>globalThis.__cdpInjected = true</script>',
+      '\\u2028\u2028\u2029\n\r\t\\"\''];
+    for (const sample of samples) {
+      assert(await callPage(send, value => value, sample) === sample, 'argument preserved verbatim');
+    }
+    assert(await js('globalThis.__cdpInjected === undefined'), 'argument never executed');
+  });
 
   await test('late updates cannot restore a disconnected connection', async () => {
     const count = await js('tokens.size');

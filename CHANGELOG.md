@@ -4,6 +4,7 @@
 
 Quality release candidate. No new product features. Not yet published or signed.
 
+- Remove the global fast hash of the sync passphrase. Derived keys are cached per sync session by salt and released on reconfiguration/disable; existing encrypted sync files remain compatible.
 - Close HID connections even when the initial device handshake fails; retain the original error and release the device lock if cleanup also fails.
 - Split the UI into focused view modules and keep dialog event handling with its state. Extract the service bridge and cancellable-operation registry into independently testable modules.
 - Ignore late PIN/UV/search responses belonging to a closed or replaced dialog; prevent duplicate PIN submissions. Correct the function test's initial PIN prompt and prevent a previous key's result from replacing the selected key's result.
