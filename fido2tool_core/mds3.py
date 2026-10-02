@@ -1,10 +1,9 @@
-import base64
 import json
 import logging
-import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
+from fido2tool_core.network import read_limited
 from fido2tool_core.storage import atomic_write, stateless
 
 import requests
@@ -61,7 +60,7 @@ class MDS3Client:
             return {"fetched_at": datetime.fromisoformat(data["fetched_at"]), "payload": payload}
         except FileNotFoundError:
             return None
-        except (MdsVerificationError, KeyError, ValueError) as e:
+        except (MdsVerificationError, KeyError, ValueError, TypeError, OSError) as e:
             logger.warning("Ignoring MDS3 cache: %s", e)
             return None
 
@@ -74,9 +73,9 @@ class MDS3Client:
         from fido2tool_core.mds_verify import verify_jwt
 
         logger.info("Fetching MDS3 from %s", MDS3_URL)
-        resp = requests.get(MDS3_URL, timeout=20)
-        resp.raise_for_status()
-        payload = verify_jwt(resp.text, require_revocation=False)  # raises MdsVerificationError
+        with requests.get(MDS3_URL, timeout=20, stream=True) as resp:
+            jwt = read_limited(resp, 16 * 1024 * 1024).decode("utf-8")
+        payload = verify_jwt(jwt, require_revocation=False)  # raises MdsVerificationError
         cached = self._read_cache()
         if cached and payload.get("no", 0) < cached["payload"].get("no", 0):
             raise ValueError(f"MDS3 blob #{payload.get('no')} is older than cached #{cached['payload'].get('no')}")
@@ -87,7 +86,7 @@ class MDS3Client:
         self._next_update = payload["nextUpdate"]
         self._verified_until = payload["_verified_until"]
         self._serial = payload.get("no")
-        self._save_cache(resp.text)
+        self._save_cache(jwt)
         entries = payload.get("entries", [])
         logger.info("MDS3 fetched and verified: blob #%s, %d entries", payload.get("no"), len(entries))
         return entries

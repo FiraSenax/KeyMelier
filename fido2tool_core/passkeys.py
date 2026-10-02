@@ -6,6 +6,8 @@ Requires the key to be unlocked first (see fido2tool_core.auth).
 import base64
 import logging
 
+from fido2.ctap2.pin import ClientPin
+
 from fido2tool_core import auth
 from fido2tool_core.auth import AuthError
 
@@ -40,7 +42,7 @@ def _credman(token_id: str, ctap2):
 
     if not CredentialManagement.is_supported(ctap2.info):
         raise AuthError("This key does not support passkey management.", "unsupported", reason="passkey_management")
-    protocol, token = auth.get_token(token_id)
+    protocol, token = auth.get_token(token_id, ClientPin.PERMISSION.CREDENTIAL_MGMT)
     return CredentialManagement(ctap2, protocol, token)
 
 

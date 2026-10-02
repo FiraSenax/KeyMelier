@@ -130,3 +130,26 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 - **Not tested automatically:** screen readers, high-contrast modes,
   installer updates (manual procedure above), notarized/signed builds
   (signing credentials are not configured yet).
+
+## Quality-release regression checks
+
+The Linux test job additionally installs `requirements-quality.txt` with
+`--require-hashes --only-binary=:all:` and runs Ruff correctness checks. This
+separate pinned development-tool manifest is never installed in package builds.
+Update it intentionally using official wheel hashes; runtime/build dependencies
+continue to come from `uv.lock` and the existing exports.
+
+```bash
+ruff check app.py fido2tool_core
+ruff check tools tests --select E9,F63,F7,F82
+python -m unittest tests.test_auth_lifecycle tests.test_bridge tests.test_function_test
+python -m unittest tests.test_network tests.test_app_update tests.test_piv_read_safety
+python -m unittest tests.test_build_environment tests.test_rc_ref tests.test_release_metadata
+```
+
+New tests cover late unlock results and duplicate submissions (real browser),
+cancellation ownership, lock-vs-unlock races, scoped tokens, response binding
+with real synthetic signatures, bounded HTTP reads, update-file collisions,
+PIV read failures, copied dependency scripts and non-publishing RC workflow
+conditions. None requires a hardware key or signing credentials. The spec's
+build-environment check runs on all platforms, including signed RCs.

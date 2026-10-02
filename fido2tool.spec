@@ -19,6 +19,8 @@ APP_VERSION = _version_ns['__version__']
 # Licenses of everything bundled on this platform (MIT/BSD need their notices
 # in binary distributions; LGPL/MPL their source locations)
 sys.path.insert(0, str(Path('tools').resolve()))
+import check_build_environment
+check_build_environment.check()  # fail before stale dependency scripts can enter a bundle
 import third_party_licenses  # noqa: E402
 LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt')
 import sbom  # noqa: E402

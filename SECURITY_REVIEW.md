@@ -1,3 +1,30 @@
+# Quality remediation — 2026-10-02
+
+The local 1.8.3 candidate tightens management-token permissions and cancellation,
+bridge error handling, async dialog ownership, function-test response binding,
+download bounds/file creation and PIV read failure handling. It also rejects
+contaminated pywebview build resources and adds artifact-only signed macOS RCs.
+The follow-up also registers queued PIN requests for cancellation, separates
+runtime device connections from reused HID paths, rechecks observable device
+identity before CTAP access, and drops retired connection updates. PIV/OpenPGP
+checks and generation now share a locked card connection; OTP occupancy checks
+and programming share the operation locks. PIV slot aliases are canonicalized
+before checking occupancy, and application-key generation excludes the reserved
+attestation slot.
+See [the candidate review](plans/1.8.3-quality-review.md) for evidence and limits,
+and [the maintainer guide](ARCHITECTURE.md) for code ownership and invariants.
+This is an internal implementation review, not independent certification. Earlier
+review entries below are historical and are not a claim of fresh verification.
+
+These guards have limits: serials/model identifiers are device-supplied, and
+identical keys without serials can be exchanged between polls without detection.
+The HID descriptor lookup/open race is not eliminated at the OS/library level.
+Card/OTP locks serialize this process's operations, not other applications or a
+physical unplug. Full cross-interface connection binding is not established here.
+Older PIV firmware without slot metadata cannot reliably expose a private key
+whose certificate has been removed. No claim of complete overwrite detection on
+that firmware or cryptographic physical-device identification is made.
+
 # Security review — 2026-09-27
 
 Scope: the whole application after the smart card features (OATH, OpenPGP,

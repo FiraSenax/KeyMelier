@@ -194,8 +194,11 @@ class CheckArtifactsTests(unittest.TestCase):
         self.assertLess(release.index("prepare-release"), release.index("action-gh-release"))
         self.assertNotIn("action-gh-release", rehearsal)
         self.assertNotIn("contents: write", rehearsal)
-        self.assertIn("if: always() && github.event_name == 'workflow_dispatch'", rehearsal,
-                      "manual runs only – and also after a failed job, so the report says which")
+        self.assertIn("if: always() && (github.event_name == 'workflow_dispatch'", rehearsal,
+                      "manual runs still report after a failed job")
+        self.assertIn("github.event_name == 'push'", rehearsal)
+        self.assertIn("startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.')", rehearsal,
+                      "RC tag pushes produce checked artifacts without publishing")
         import fnmatch
         import re
         uploaded = re.findall(r"^\s+name: ([\w.-]+)", rehearsal.split("upload-artifact")[1], re.M)

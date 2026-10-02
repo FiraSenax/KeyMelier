@@ -74,6 +74,30 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertGreater(removal, max(users), "the signing keychain is removed before a step that signs")
         self.assertIn("always()", steps[removal])
 
+    def test_signed_rc_uses_signing_but_never_the_publish_job(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
+        trigger = workflow.get('on', workflow.get(True))
+        self.assertFalse(trigger['workflow_dispatch']['inputs']['signed_rc']['default'])
+        mac = workflow['jobs']['build-macos']
+        self.assertIn('inputs.signed_rc', mac['environment'])
+        self.assertIn('release-signing', mac['environment'])
+        self.assertIn('inputs.signed_rc', mac['env']['SIGN_MAC'])
+        required = next(s for s in mac['steps'] if s.get('name') == 'Require signing and notarization for a signed RC')
+        self.assertIn('exit 1', required['run'])
+        for secret in ('MACOS_CERTIFICATE_P12', 'MACOS_SIGN_IDENTITY', 'APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_PASSWORD'):
+            self.assertIn(secret, required['env'])
+        release = workflow['jobs']['release']
+        self.assertIn("github.event_name == 'push'", release['if'])
+        self.assertIn("startsWith(github.ref, 'refs/tags/v')", release['if'])
+        self.assertNotIn('signed_rc', release['if'])
+        self.assertIn("!contains(github.ref_name, '-rc.')", release['if'])
+        rc = workflow['jobs']['release-rehearsal']
+        self.assertEqual(rc['permissions'], {'contents':'read'})
+        self.assertTrue(any(s.get('uses') == './.github/actions/prepare-release' for s in rc['steps']))
+        self.assertFalse(any('action-gh-release' in s.get('uses', '') for s in rc['steps']))
+        self.assertTrue(any(s.get('name') == 'Verify signed RC result' for s in rc['steps']))
+
     def test_shipped_files_have_the_same_bytes_on_every_platform(self):
         """Git must not convert line endings on Windows: the SBOM hashes the shipped files."""
         import shutil

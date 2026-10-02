@@ -27,14 +27,14 @@ if sys.platform.startswith("linux"):
 
 import webview
 
+from fido2tool_core.bridge import ALLOWED, dispatch
 from fido2tool_core import diagnostics
 from fido2tool_core.advisories import AdvisoryChecker
 from fido2tool_core.desktop import host_env, linux_copy, open_with_system, private_page_file
 from fido2tool_core.exporter import CSVExporter
 from fido2tool_core.mds3 import MDS3Client
 from fido2tool_core.page import build_html
-from fido2tool_core.pin import PinError
-from fido2tool_core.scanner import DeviceBusy, DeviceNotFound, TokenScanner
+from fido2tool_core.scanner import TokenScanner
 from fido2tool_core.service import KeyService
 
 logging.basicConfig(
@@ -50,32 +50,6 @@ LOCK_FILE = Path.home() / "keymelier" / "app.lock"
 
 
 # ── JS bridge ────────────────────────────────────────────────────────────────
-
-# Service methods the UI may call. Everything else is unreachable from JS.
-ALLOWED = {
-    "tokens", "mds_status", "data_status", "check_updates",
-    "history_list", "history_get", "history_rename", "history_forget",
-    "history_set_lost", "history_lost_done", "history_replace", "history_replace_done",
-    "sync_status", "sync_enable", "sync_disable", "sync_now",
-    "get_settings", "set_settings", "diagnostics",
-    "pin_status", "pin_update", "attestation_rerun",
-    "unlock", "unlock_cancel", "lock",
-    "passkeys", "passkey_delete", "passkey_rename",
-    "fingerprints", "fingerprint_rename", "fingerprint_delete",
-    "fingerprint_enroll", "fingerprint_enroll_cancel",
-    "reset_arm", "reset_disarm", "config", "config_update",
-    "function_test", "function_test_info",
-    "card_apps", "oath", "oath_unlock", "oath_code", "oath_add", "oath_rename", "oath_delete",
-    "oath_password", "oath_reset",
-    "openpgp", "openpgp_change_pin", "openpgp_unblock_pin", "openpgp_touch", "openpgp_signature_pin",
-    "openpgp_cardholder", "openpgp_reset", "openpgp_generate",
-    "piv", "piv_change_pin", "piv_unblock_pin", "piv_generate", "piv_import", "piv_export", "piv_delete",
-    "piv_protect_management_key", "piv_reset",
-    "otp", "otp_swap", "otp_delete", "otp_static", "otp_hmac", "interfaces", "interfaces_set",
-    "open_privacy_settings",
-    "export_all", "history_export", "history_import", "update_download", "update_open", "read_contents", "passkeys_probe", "passkeys_probe_cancel",
-}
-
 
 # Hosts the UI may open in the external browser (advisory references)
 ALLOWED_LINK_HOSTS = {"github.com", "firasenax.github.io", "www.yubico.com", "nvd.nist.gov", "fidoalliance.org", "www.ftsafe.com", "www.token2.com"}
@@ -286,28 +260,7 @@ class Api:
                 webbrowser.open(parsed.geturl())
 
     def call(self, method, kwargs=None):
-        if method not in ALLOWED:
-            return {"ok": False, "error": "Unknown method.", "code": "unknown_method", "status": 400}
-        try:
-            return {"ok": True, "data": getattr(self._service, method)(**(kwargs or {}))}
-        except PinError as e:
-            logger.warning("%s -> %s: %s", method, e.code, e.message)
-            self._service.error_log.record(method, e.code, e.extra.get("reason"))
-            return {"ok": False, "error": e.message, "code": e.code, "status": e.status, **e.extra}
-        except DeviceBusy:
-            self._service.error_log.record(method, "busy")
-            return {"ok": False, "error": "The key is busy.", "code": "busy", "status": 409}
-        except DeviceNotFound:
-            self._service.error_log.record(method, "not_found")
-            return {"ok": False, "error": "The key is no longer connected.", "code": "not_found", "status": 404}
-        except TypeError as e:
-            logger.warning("%s: bad arguments (%s)", method, e)
-            self._service.error_log.record(method, "invalid_input")
-            return {"ok": False, "error": "Invalid request.", "code": "invalid_input", "status": 400}
-        except Exception as e:
-            logger.exception("%s failed", method)
-            self._service.error_log.record(method, "error")   # the message stays in the log, not in the report
-            return {"ok": False, "error": str(e), "code": "error", "status": 500}
+        return dispatch(self._service, method, kwargs)
 
 
 class EventPump:

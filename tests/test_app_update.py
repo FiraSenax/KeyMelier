@@ -14,8 +14,11 @@ PAYLOAD = b"disk image bytes" * 1000
 def fake_get(sums_digest):
     def get(url, **kwargs):
         resp = MagicMock()
+        resp.__enter__.return_value = resp
+        resp.headers = {}
         if url.endswith("SHA256SUMS.txt"):
             resp.text = f"{sums_digest}  KeyMelier-macOS.dmg\n{'0' * 64}  KeyMelier-Windows-Setup.exe\n"
+            resp.iter_content.side_effect = lambda **kw: [resp.text.encode()]
             return resp
         resp.__enter__.return_value = resp
         resp.headers = {"Content-Length": str(len(PAYLOAD))}
@@ -51,6 +54,52 @@ class AppUpdateTests(unittest.TestCase):
                     {**ASSET, "name": "../../evil.dmg"}):
             with self.assertRaises(app_update.UpdateError):
                 app_update.download(bad)
+
+    def test_existing_files_and_dangling_symlinks_are_not_overwritten(self):
+        directory = Path(self.tmp.name)
+        existing = directory / ASSET['name']
+        existing.write_bytes(b'keep me')
+        with patch("requests.get", side_effect=fake_get(hashlib.sha256(PAYLOAD).hexdigest())):
+            result = app_update.download(ASSET)
+        self.assertEqual(existing.read_bytes(), b'keep me')
+        self.assertEqual(result.read_bytes(), PAYLOAD)
+        self.assertNotEqual(result, existing)
+        self.assertFalse(list(directory.glob('.keymelier-*.part')))
+
+    def test_predictable_partial_symlink_is_not_followed(self):
+        victim = Path(self.tmp.name) / 'important'
+        victim.write_bytes(b'private')
+        trap = Path(self.tmp.name) / (ASSET['name'] + '.part')
+        try:
+            trap.symlink_to(victim)
+        except OSError:
+            self.skipTest('symlinks unavailable')
+        with patch("requests.get", side_effect=fake_get(hashlib.sha256(PAYLOAD).hexdigest())):
+            app_update.download(ASSET)
+        self.assertEqual(victim.read_bytes(), b'private')
+        self.assertTrue(trap.is_symlink())
+
+    def test_same_release_and_exact_checksum_filename_required(self):
+        with self.assertRaises(app_update.UpdateError):
+            app_update.download({**ASSET, 'sums':ASSET['sums'].replace('v9.9.9', 'v8.8.8')})
+        get = fake_get(hashlib.sha256(PAYLOAD).hexdigest())
+        def misleading(url, **kwargs):
+            response = get(url, **kwargs)
+            if url.endswith('SHA256SUMS.txt'):
+                response.text = response.text.replace('  KeyMelier-macOS.dmg', '  OtherKeyMelier-macOS.dmg')
+            return response
+        with patch('requests.get', side_effect=misleading), self.assertRaises(app_update.UpdateError):
+            app_update.download(ASSET)
+
+    def test_checksum_http_error_is_not_parsed_as_valid_data(self):
+        get = fake_get(hashlib.sha256(PAYLOAD).hexdigest())
+        def failed(url, **kwargs):
+            response = get(url, **kwargs)
+            response.raise_for_status.side_effect = OSError('private URL')
+            return response
+        with patch('requests.get', side_effect=failed), self.assertRaises(app_update.UpdateError):
+            app_update.download(ASSET)
+        self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
 
 
 

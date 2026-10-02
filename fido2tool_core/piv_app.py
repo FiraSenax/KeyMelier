@@ -40,6 +40,15 @@ def _slot(name: str):
         raise CardError("Invalid slot.", "invalid_input") from None
 
 
+def normalize_slot(name: str) -> str:
+    """Canonical application-key slot; the attestation key is never a target."""
+    from yubikit.piv import SLOT
+    slot = _slot(name)
+    if slot == SLOT.ATTESTATION:
+        raise CardError("The attestation slot cannot hold an application key.", "invalid_input")
+    return f"{int(slot):02x}"
+
+
 def _has(session, version) -> bool:
     return session.version >= version
 
@@ -87,6 +96,7 @@ def _cert_info(cert) -> dict:
 
 
 def info(conn) -> dict:
+    from yubikit.core.smartcard import ApduError, SW
     from yubikit.piv import PIN_POLICY, SLOT, TOUCH_POLICY
     from ykman.piv import get_pivman_data
 
@@ -116,8 +126,9 @@ def info(conn) -> dict:
             entry = {"slot": name, "cert": None, "key": None}
             try:
                 entry["cert"] = _cert_info(session.get_certificate(slot))
-            except Exception:
-                pass
+            except ApduError as e:
+                if e.sw != SW.FILE_NOT_FOUND:
+                    raise
             if metadata:
                 try:
                     sm = session.get_slot_metadata(slot)
@@ -127,8 +138,9 @@ def info(conn) -> dict:
                         "pin_policy": PIN_POLICY(sm.pin_policy).name.lower(),
                         "touch_policy": TOUCH_POLICY(sm.touch_policy).name.lower(),
                     }
-                except Exception:
-                    pass
+                except ApduError as e:
+                    if e.sw != SW.REFERENCE_DATA_NOT_FOUND:
+                        raise
             if name in MAIN_SLOTS or entry["cert"] or entry["key"]:
                 slots.append(entry)
     except CardError:

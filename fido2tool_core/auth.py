@@ -11,6 +11,7 @@ the UI, or rejected by the key.
 import logging
 import threading
 import time
+from dataclasses import dataclass, field
 
 from fido2tool_core.pin import PinError, _ctap_error_to_pin_error
 
@@ -18,7 +19,16 @@ logger = logging.getLogger(__name__)
 
 TOKEN_TTL = 300  # seconds; the key may expire it earlier
 
-_tokens: dict[str, tuple[int, bytes, float, int]] = {}  # token_id -> (protocol, token, expires, permissions)
+@dataclass(frozen=True)
+class ManagementToken:
+    protocol: int
+    secret: bytes = field(repr=False)
+    expires: float
+    permissions: int
+
+
+_tokens: dict[str, ManagementToken] = {}
+_pending: dict[str, object] = {}  # invalidated by lock/disconnect, even during a device call
 # Keys that grant only passkey management to a fingerprint (others need the PIN)
 _uv_limited: set[str] = set()
 _tokens_lock = threading.Lock()
@@ -52,25 +62,35 @@ def map_ctap_error(e, client_pin=None) -> AuthError:
     return AuthError(err.message, err.code, **err.extra)
 
 
-def forget(token_id: str) -> None:
+def forget(token_id: str, *, disconnected: bool = False) -> None:
     with _tokens_lock:
         _tokens.pop(token_id, None)
+        _pending.pop(token_id, None)
+        if disconnected:
+            _uv_limited.discard(token_id)
+
+
+def _current_token(token_id: str):
+    """Caller holds _tokens_lock. Expiration never removes a newer token."""
+    entry = _tokens.get(token_id)
+    if entry and entry.expires <= time.monotonic():
+        del _tokens[token_id]
+        return None
+    return entry
 
 
 def is_unlocked(token_id: str, need=None) -> bool:
     """need: a ClientPin.PERMISSION the unlock must include (a fingerprint
     unlock may only cover passkey management)."""
     with _tokens_lock:
-        entry = _tokens.get(token_id)
-        if entry and entry[2] <= time.monotonic():
-            del _tokens[token_id]  # do not keep expired tokens in memory
-            return False
-        return bool(entry) and (need is None or (int(need) & entry[3]) == int(need))
+        entry = _current_token(token_id)
+        return bool(entry) and (need is None or (int(need) & entry.permissions) == int(need))
 
 
 def uv_limited(token_id: str) -> bool:
     """The fingerprint unlock of this key covers passkeys only."""
-    return token_id in _uv_limited
+    with _tokens_lock:
+        return token_id in _uv_limited
 
 
 def uv_unlock_available(info) -> bool:
@@ -111,7 +131,15 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
         raise AuthError("This key cannot list or manage passkeys – that needs FIDO 2.1 "
                         "(on YubiKeys firmware 5.2 or newer). Its passkeys still work.", "no_management")
 
+    if cancel is not None and cancel.is_set():
+        raise AuthError("Cancelled.", "cancelled")
     client_pin = ClientPin(ctap2)
+    attempt = object()
+    with _tokens_lock:
+        if token_id in _pending:
+            raise AuthError("The key is busy.", "busy", status=409)
+        _pending[token_id] = attempt
+    limited = False
     try:
         if use_uv:
             if not uv_unlock_available(info):
@@ -128,11 +156,21 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
                     raise
                 perm = cm
                 token = client_pin.get_uv_token(permissions=perm, event=cancel)
-                _uv_limited.add(token_id)
+                limited = True
         else:
             if not pin:
                 raise AuthError("Please enter the PIN.", "invalid_input")
             token = client_pin.get_pin_token(pin, permissions=perm)
+        with _tokens_lock:
+            if _pending.get(token_id) is not attempt or (cancel is not None and cancel.is_set()):
+                raise AuthError("Cancelled.", "cancelled")
+            _tokens[token_id] = ManagementToken(client_pin.protocol.VERSION, token,
+                                                time.monotonic() + TOKEN_TTL, int(perm))
+            if use_uv:
+                if limited:
+                    _uv_limited.add(token_id)
+                else:
+                    _uv_limited.discard(token_id)
     except CtapError as e:
         if e.code == CtapError.ERR.PIN_POLICY_VIOLATION and getattr(info, "force_pin_change", False):
             raise AuthError(
@@ -140,22 +178,24 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
                 "force_pin_change",
             ) from None
         raise map_ctap_error(e, client_pin) from None
-
-    with _tokens_lock:
-        _tokens[token_id] = (client_pin.protocol.VERSION, token, time.monotonic() + TOKEN_TTL, int(perm))
+    finally:
+        with _tokens_lock:
+            if _pending.get(token_id) is attempt:
+                del _pending[token_id]
     logger.info("Key unlocked for management (%s)", "fingerprint" if use_uv else "PIN")
 
 
-def get_token(token_id: str):
+def get_token(token_id: str, need=None):
     """Return (PinProtocol instance, token) or raise AuthError('locked')."""
     from fido2.ctap2.pin import ClientPin
 
     with _tokens_lock:
-        entry = _tokens.get(token_id)
-    if not entry or entry[2] <= time.monotonic():
-        forget(token_id)
+        entry = _current_token(token_id)
+    if not entry:
         raise AuthError("Unlock the key first.", "locked", status=401)
-    version, token = entry[0], entry[1]
+    if need is not None and (int(need) & entry.permissions) != int(need):
+        raise AuthError("Unlock with the PIN for this operation.", "locked", status=401)
+    version, token = entry.protocol, entry.secret
     protocol = next(p for p in ClientPin.PROTOCOLS if p.VERSION == version)()
     return protocol, token
 

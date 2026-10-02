@@ -9,6 +9,8 @@ Requires the key to be unlocked (see fido2tool_core.auth).
 
 import logging
 
+from fido2.ctap2.pin import ClientPin
+
 from fido2tool_core import auth
 from fido2tool_core.auth import AuthError
 
@@ -39,7 +41,7 @@ def _config(token_id: str, ctap2):
 
     if not Config.is_supported(ctap2.info):
         raise AuthError("This key has no configurable settings.", "unsupported", reason="no_config")
-    protocol, token = auth.get_token(token_id)
+    protocol, token = auth.get_token(token_id, ClientPin.PERMISSION.AUTHENTICATOR_CFG)
     return Config(ctap2, protocol, token)
 
 
