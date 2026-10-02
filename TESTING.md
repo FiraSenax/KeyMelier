@@ -133,13 +133,15 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 
 ## Quality-release regression checks
 
-The Linux test job additionally installs `requirements-quality.txt` with
-`--require-hashes --only-binary=:all:` and runs Ruff correctness checks. This
+All test jobs install `requirements-quality.txt` with
+`--require-hashes --only-binary=:all:`. It supplies PyYAML for workflow regression
+tests and Ruff; the Linux job runs the Ruff correctness checks. This
 separate pinned development-tool manifest is never installed in package builds.
 Update it intentionally using official wheel hashes; runtime/build dependencies
 continue to come from `uv.lock` and the existing exports.
 
 ```bash
+python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 ruff check app.py fido2tool_core
 ruff check tools tests --select E9,F63,F7,F82
 python -m unittest tests.test_auth_lifecycle tests.test_bridge tests.test_function_test

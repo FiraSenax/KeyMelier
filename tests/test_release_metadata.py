@@ -6,6 +6,8 @@ import tomllib
 import unittest
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -53,10 +55,6 @@ class ReleaseMetadataTests(unittest.TestCase):
                 m = re.match(r"\s*(?:- )?run: (?![|>'\"])(.*)$", line)
                 with self.subTest(f"{wf.name}:{n}"):
                     self.assertFalse(m and (": " in m.group(1) or m.group(1).rstrip().endswith(":")), line.strip())
-            try:
-                import yaml
-            except ImportError:
-                continue
             with self.subTest(wf.name):
                 self.assertIn("jobs", yaml.safe_load(wf.read_text(encoding="utf-8")))
 
@@ -75,7 +73,6 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertIn("always()", steps[removal])
 
     def test_signed_rc_uses_signing_but_never_the_publish_job(self):
-        import yaml
         workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
         trigger = workflow.get('on', workflow.get(True))
         self.assertFalse(trigger['workflow_dispatch']['inputs']['signed_rc']['default'])

@@ -32,10 +32,12 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev swig
       - run: python -m pip install --require-hashes -r requirements.txt
-      - name: Static correctness checks (isolated development tool)
-        if: runner.os == 'Linux'
+      - name: Install isolated test and lint dependencies (hash-pinned wheels)
         run: |
           python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
+      - name: Static correctness checks
+        if: runner.os == 'Linux'
+        run: |
           ruff check app.py fido2tool_core
           ruff check tools tests --select E9,F63,F7,F82
       - run: python -m unittest discover -s tests -v
