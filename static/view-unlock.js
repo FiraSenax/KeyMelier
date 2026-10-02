@@ -269,7 +269,14 @@ async function quickUnlockSubmit() {
     await readContentsNow(tok);
     if (selectedId === tok.id && ['passkeys', 'fingerprints', 'settings'].includes(activeTab)) loadManagement(tok);
   } catch (e) {
-    if (quickUnlock?.run !== run) return;
+    if (quickUnlock?.run !== run) {
+      // The dialog was closed while the key checked the PIN. A wrong PIN has
+      // still used up an attempt there – say so instead of dropping it.
+      if (['pin_invalid', 'pin_blocked', 'pin_auth_blocked'].includes(e.data?.code)) {
+        showToast(`${displayName(tok)}: ${errorMessage(e)}`, 'error');
+      }
+      return;
+    }
     quickUnlock = { ...quickUnlock, busy: false, run: null, error: errorMessage(e) };
     renderQuickUnlock();
   }
@@ -339,7 +346,10 @@ function initUnlockDialog() {
   });
   $('quick-unlock').addEventListener('click', ev => {
     const b = ev.target.closest('[data-ql]');
-    const waitingUv = quickUnlock?.busy;
+    // A click beside the dialog closes it, except while a PIN check or a
+    // passkey search runs (Escape behaves the same); waiting for a finger can
+    // always be left. The Cancel/Stop buttons stay the explicit way out.
+    const waitingUv = quickUnlock?.mode === 'uv' && quickUnlock.busy;
     if ((ev.target.id === 'quick-unlock' && (!quickUnlock?.busy || waitingUv)) || b?.dataset.ql === 'cancel') { closeQuickUnlock(); return; }
     if (b?.dataset.ql === 'uv') { quickUnlock = { ...quickUnlock, error: null }; quickUnlockUv(); }
     if (b?.dataset.ql === 'pin' && quickUnlock) {

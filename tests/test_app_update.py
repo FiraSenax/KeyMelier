@@ -1,4 +1,5 @@
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -113,14 +114,24 @@ class CheckTests(unittest.TestCase):
         self.assertFalse(result["newer"])
 
     def test_no_release_yet_is_not_a_failure(self):
-        resp = MagicMock(status_code=404)
-        with patch("requests.get", return_value=resp):
+        with patch("requests.get", return_value=self.response(b"", status=404)):
             self.assertFalse(app_update.check()["failed"])
 
+    @staticmethod
+    def response(body: bytes, status=200, length=None):
+        resp = MagicMock(status_code=status)
+        resp.__enter__.return_value = resp
+        resp.headers = {} if length is None else {"Content-Length": str(length)}
+        resp.iter_content.return_value = [body]
+        return resp
+
+    def test_oversized_answer_is_a_failed_check(self):
+        with patch("requests.get", return_value=self.response(b"{" + b" " * (2 * 1024 * 1024) + b"}")):
+            self.assertTrue(app_update.check()["failed"])
+
     def test_newer_release(self):
-        resp = MagicMock(status_code=200)
-        resp.json.return_value = {"tag_name": "v99.0.0", "html_url": "https://github.com/FiraSenax/KeyMelier/releases/tag/v99.0.0",
-                                  "assets": []}
+        resp = self.response(json.dumps({"tag_name": "v99.0.0", "html_url": "https://github.com/FiraSenax/KeyMelier/releases/tag/v99.0.0",
+                                         "assets": []}).encode())
         with patch("requests.get", return_value=resp):
             result = app_update.check()
         self.assertTrue(result["newer"])

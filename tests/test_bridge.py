@@ -1,4 +1,5 @@
 """Service boundary rejects malformed calls and never leaks unexpected errors."""
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -39,3 +40,15 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(result['error'], 'Please enter the PIN.')
         self.assertEqual(result['code'], 'pin_required')
         self.assertNotIn('Please enter the PIN.', str(logs.output))
+
+    def test_unexpected_error_logs_where_it_happened_but_not_its_message(self):
+        def failing_handler():
+            raise RuntimeError('pin=123456 for erika@example.com')
+        self.service.unlock = lambda: failing_handler()
+        with self.assertLogs('fido2tool_core.bridge', level='ERROR') as logs:
+            dispatch(self.service, 'unlock', {})
+        text = str(logs.output)
+        self.assertIn('failing_handler', text, 'the stack names the failing function')
+        self.assertNotIn('123456', text)
+        self.assertNotIn('erika@example.com', text)
+        self.assertNotIn(os.path.expanduser('~'), text, 'no full paths (they contain the user name)')

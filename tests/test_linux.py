@@ -9,7 +9,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path, PurePosixPath
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fido2tool_core import app_update, desktop, storage
 from fido2tool_core import service as service_mod
@@ -173,7 +173,10 @@ class UpdateAssetTests(unittest.TestCase):
         for n in ("KeyMelier-Linux-x86_64.AppImage", "KeyMelier-Linux-aarch64.AppImage", "SHA256SUMS.txt")]}
 
     def check(self, machine):
-        response = types.SimpleNamespace(status_code=200, raise_for_status=lambda: None, json=lambda: self.RELEASE)
+        body = json.dumps(self.RELEASE).encode()
+        response = MagicMock(status_code=200, headers={})
+        response.__enter__.return_value = response
+        response.iter_content.return_value = [body]
         with patch.object(sys, "platform", "linux"), patch("platform.machine", return_value=machine), \
                 patch("requests.get", return_value=response):
             return app_update.check().get("asset", {}).get("name")

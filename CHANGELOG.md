@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.8.4 — 2026-10-02
+
+Fixes for 1.8.3. No new features.
+
+- **Keys seemed to be unplugged and plugged in again** (YubiKeys whose serial number is not in the USB descriptor, which is most of them): 1.8.3 re-read the serial number through the management application on every poll, once a second, and a single failed read made the key look like a different device – the unlock was lost, the authenticity test ran again and the selection jumped. The serial is now re-checked at most every 10 seconds, a failed read never counts as another device, and a swapped key of the same model is still noticed. Before an action, a failed read is tried once more and then reported as "busy, try again" instead of "key no longer connected".
+- **A click beside the unlock dialog** closed it while a passkey search or a PIN check was running – the search went on invisibly and its result was lost. Such a click is ignored now (like Escape); waiting for a finger can still be left that way.
+- **"Enter PIN instead"** could fail with "busy" when the key took a moment to end the fingerprint wait; the PIN request now waits for it.
+- **A wrong PIN after closing the dialog** used up an attempt without telling you; it is now reported.
+- **PIV:** one unreadable certificate no longer stops the whole PIV page – that slot shows "Certificate unreadable" and can be deleted or set up again (it still counts as occupied, so nothing is overwritten by accident).
+- Unexpected errors are logged with file, line and function again (no messages, values or paths), so reports can be diagnosed.
+- The update check reads GitHub's answer with a size limit, like the other downloads.
+
 ## 1.8.3 — 2026-10-02
 
 Quality, stability and security release. No new product features.

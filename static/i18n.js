@@ -4868,6 +4868,21 @@ const I18N_QUICK_UV = {
 };
 for (const [code, strings] of Object.entries(I18N_QUICK_UV)) Object.assign(STRINGS[code], strings);
 
+const I18N_PIV_UNREADABLE = {
+  de: {"piv.unreadable": "Zertifikat nicht lesbar", "piv.unreadableHint": "In diesem Slot liegen Daten, die kein lesbares Zertifikat sind. Du kannst sie löschen oder den Slot neu belegen."},
+  en: {"piv.unreadable": "Certificate unreadable", "piv.unreadableHint": "This slot holds data that is not a readable certificate. You can delete it or set up the slot again."},
+  es: {"piv.unreadable": "Certificado ilegible", "piv.unreadableHint": "Esta ranura contiene datos que no son un certificado legible. Puedes eliminarlos o volver a configurar la ranura."},
+  fr: {"piv.unreadable": "Certificat illisible", "piv.unreadableHint": "Cet emplacement contient des données qui ne sont pas un certificat lisible. Vous pouvez les supprimer ou reconfigurer l'emplacement."},
+  it: {"piv.unreadable": "Certificato illeggibile", "piv.unreadableHint": "Questo slot contiene dati che non sono un certificato leggibile. Puoi eliminarli o configurare di nuovo lo slot."},
+  ja: {"piv.unreadable": "証明書を読み取れません", "piv.unreadableHint": "このスロットには読み取り可能な証明書ではないデータがあります。削除するか、スロットを設定し直してください。"},
+  ko: {"piv.unreadable": "인증서를 읽을 수 없음", "piv.unreadableHint": "이 슬롯에는 읽을 수 있는 인증서가 아닌 데이터가 있습니다. 삭제하거나 슬롯을 다시 설정할 수 있습니다."},
+  nl: {"piv.unreadable": "Certificaat onleesbaar", "piv.unreadableHint": "Dit slot bevat gegevens die geen leesbaar certificaat zijn. Je kunt ze verwijderen of het slot opnieuw instellen."},
+  pl: {"piv.unreadable": "Certyfikat nieczytelny", "piv.unreadableHint": "W tym slocie są dane, które nie są czytelnym certyfikatem. Możesz je usunąć albo skonfigurować slot od nowa."},
+  pt: {"piv.unreadable": "Certificado ilegível", "piv.unreadableHint": "Este slot contém dados que não são um certificado legível. Pode eliminá-los ou configurar o slot de novo."},
+  zh: {"piv.unreadable": "证书无法读取", "piv.unreadableHint": "此插槽中的数据不是可读取的证书。你可以删除它，或重新设置此插槽。"},
+};
+for (const [code, strings] of Object.entries(I18N_PIV_UNREADABLE)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

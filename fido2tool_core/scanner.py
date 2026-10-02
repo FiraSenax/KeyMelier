@@ -101,6 +101,24 @@ def _aaguid_bytes_to_str(aaguid) -> str:
     return str(aaguid).lower()
 
 
+# A YubiKey whose serial number is only readable through the management
+# application (not in the USB descriptor) is re-read at most this often while
+# it stays connected – enough to notice a same-model key swapped on a reused
+# path, without a management round-trip on every poll.
+VENDOR_RECHECK = 10.0
+
+
+def _same_model(first: TokenRecord, second: TokenRecord) -> bool:
+    return all(getattr(first, field) == getattr(second, field) for field in
+               ('aaguid', 'vendor_id', 'product_id', 'product_name'))
+
+
+def _carry_vendor_info(known: TokenRecord, record: TokenRecord) -> None:
+    """Keep what the management application told us about this connection."""
+    for name in ('serial_number', 'firmware_version_raw', 'firmware_version_str', 'form_factor', 'fips', 'nfc'):
+        setattr(record, name, getattr(known, name))
+
+
 def _same_identity(first: TokenRecord, second: TokenRecord) -> bool:
     """Compare observable identity, never treating a path as proof of identity."""
     return all(getattr(first, field) == getattr(second, field) for field in
@@ -152,6 +170,7 @@ class TokenScanner:
         # the poll loop skips locked devices and treats them as still present.
         self._device_locks: dict[str, threading.Lock] = {}
         self._model_status: dict[str, str] = {}  # path -> status from MDS/advisories only
+        self._vendor_checked: dict[str, float] = {}  # path -> last successful management read
 
         self.on_connect: Callable[[TokenRecord], None] = lambda r: None
         self.on_disconnect: Callable[[TokenRecord], None] = lambda r: None
@@ -253,10 +272,23 @@ class TokenScanner:
                     _apply_info(record, info)
                     record.vendor_id = getattr(desc, "vid", None)
                     record.product_id = getattr(desc, "pid", None)
-                    if known is None or (known.serial_number and not serial) or not _same_identity(known, record):
-                        # A management-only serial must be re-read; otherwise a
-                        # replacement YubiKey at the same path would inherit it.
-                        _apply_vendor_info(record, vendor_info.read(dev, record.vendor_id, record.product_id))
+                    if known is not None and known.serial_number and not serial and _same_model(known, record):
+                        # Serial only from the management application: re-read it
+                        # now and then so a swapped key of the same model is noticed.
+                        # A failed read is no evidence of another device.
+                        details = None
+                        if time.monotonic() - self._vendor_checked.get(path_key, 0.0) >= VENDOR_RECHECK:
+                            details = vendor_info.read(dev, record.vendor_id, record.product_id)
+                        if details and details.get("serial"):
+                            _apply_vendor_info(record, details)
+                            self._vendor_checked[path_key] = time.monotonic()
+                        else:
+                            _carry_vendor_info(known, record)
+                    elif known is None or not _same_identity(known, record):
+                        details = vendor_info.read(dev, record.vendor_id, record.product_id)
+                        _apply_vendor_info(record, details)
+                        if details and details.get("serial"):
+                            self._vendor_checked[path_key] = time.monotonic()
                     result[path_key] = record
             except Exception as e:
                 logger.debug("Could not read CTAP2 info from device: %s", e)
@@ -298,8 +330,15 @@ class TokenScanner:
                     raise DeviceNotFound(record.id)
                 serial = getattr(desc, 'serial_number', None) or None
                 if record.serial_number and serial is None:
-                    details = vendor_info.read(dev, record.vendor_id, record.product_id)
-                    serial = (details or {}).get('serial') or None
+                    # One retry: the management read can fail once. Still
+                    # unreadable means busy (try again), not "another key".
+                    for _attempt in range(2):
+                        details = vendor_info.read(dev, record.vendor_id, record.product_id)
+                        serial = (details or {}).get('serial') or None
+                        if serial:
+                            break
+                    if serial is None:
+                        raise DeviceBusy(record.path)
                 if serial != record.serial_number:
                     raise DeviceNotFound(record.id)
                 yield ctap2
@@ -475,6 +514,8 @@ class TokenScanner:
                 # Keep per-path locks: old workers may still hold them.
                 for path in removed:
                     self._model_status.pop(path, None)
+                    if path not in current:
+                        self._vendor_checked.pop(path, None)
             for record in disconnected:
                 try:
                     self.on_disconnect(record)

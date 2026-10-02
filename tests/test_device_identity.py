@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from fido2tool_core.scanner import DeviceNotFound, TokenRecord, TokenScanner
+from fido2tool_core.scanner import VENDOR_RECHECK, DeviceBusy, DeviceNotFound, TokenRecord, TokenScanner
 
 
 def record(token_id='old-connection', serial='100'):
@@ -60,11 +60,13 @@ class DeviceIdentityTests(unittest.TestCase):
     def test_vendor_serial_is_rechecked_on_the_open_connection(self):
         self.old.vendor_id = self.descriptor.vid = 0x1050
         self.descriptor.serial_number = None
-        for details in ({'serial': '200'}, None):
-            with self.subTest(details=details), patch('fido2tool_core.scanner.vendor_info.read', return_value=details):
-                with self.assertRaises(DeviceNotFound):
+        for details, error in (({'serial': '200'}, DeviceNotFound), (None, DeviceBusy)):
+            with self.subTest(details=details), patch('fido2tool_core.scanner.vendor_info.read', return_value=details) as read:
+                with self.assertRaises(error):
                     with self.scanner.session(self.old.id, refresh=False):
                         self.fail('a changed/unverifiable vendor serial must stop the request')
+                if details is None:
+                    self.assertEqual(read.call_count, 2, 'one retry before giving up')
         with patch('fido2tool_core.scanner.vendor_info.read', return_value={'serial': '100'}) as read:
             with self.scanner.session(self.old.id, refresh=False):
                 pass
@@ -118,3 +120,55 @@ class DeviceIdentityTests(unittest.TestCase):
         self.scanner.on_update = Mock()
         self.scanner._run_attestation(self.old)
         self.scanner.on_update.assert_not_called()
+
+
+class VendorSerialPollingTests(unittest.TestCase):
+    """A YubiKey whose serial comes only from the management application
+    (1.8.3 read it on every poll, and one failed read looked like a replug)."""
+
+    scan = DeviceIdentityTests.scan
+
+    def setUp(self):
+        DeviceIdentityTests.setUp(self)
+        self.old.vendor_id = self.descriptor.vid = 0x1050
+        self.descriptor.serial_number = None
+        self.clock = [1000.0]
+        patch('fido2tool_core.scanner.time.monotonic', side_effect=lambda: self.clock[0]).start()
+        self.scanner._vendor_checked[self.old.path] = self.clock[0]
+
+    def poll(self, details):
+        with patch('fido2tool_core.scanner.vendor_info.read', return_value=details) as read:
+            current, _busy = self.scanner._enumerate_devices()
+        return current[self.old.path], read.call_count
+
+    def test_serial_is_not_reread_on_every_poll(self):
+        reads = 0
+        for _ in range(5):
+            self.clock[0] += 1
+            seen, n = self.poll({'serial': '100'})
+            reads += n
+            self.assertEqual(seen.serial_number, '100')
+        self.assertEqual(reads, 0, 'within the recheck interval the known serial is kept')
+        self.clock[0] += VENDOR_RECHECK
+        self.assertEqual(self.poll({'serial': '100'})[1], 1, 'rechecked after the interval')
+
+    def test_a_failed_read_is_not_another_device(self):
+        events = []
+        self.scanner.on_disconnect = lambda r: events.append('removed')
+        self.scanner.on_connect = lambda r: events.append('added')
+        self.clock[0] += VENDOR_RECHECK
+        seen, reads = self.poll(None)
+        self.assertEqual((reads, seen.serial_number), (1, '100'))
+        self.scan({self.old.path: seen})
+        self.assertEqual(events, [], 'no phantom unplug/replug')
+        self.assertIs(self.scanner.get(self.old.id), self.old)
+
+    def test_a_swapped_key_of_the_same_model_is_still_noticed(self):
+        self.clock[0] += VENDOR_RECHECK
+        seen, _ = self.poll({'serial': '200'})
+        self.assertEqual(seen.serial_number, '200')
+        events = []
+        self.scanner.on_disconnect = lambda r: events.append('removed')
+        self.scanner.on_connect = lambda r: events.append('added')
+        self.scan({self.old.path: seen})
+        self.assertEqual(events, ['removed', 'added'])

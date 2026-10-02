@@ -28,10 +28,22 @@ class PivReadSafetyTests(unittest.TestCase):
         self.assertTrue(all(s['cert'] is None and s['key'] is None for s in result['slots']))
 
     def test_read_and_parse_failures_abort_instead_of_returning_empty_slots(self):
-        for method, failure in [('get_certificate',OSError('card removed')), ('get_certificate',ValueError('malformed certificate')),
+        for method, failure in [('get_certificate',OSError('card removed')),
                                 ('get_slot_metadata',ApduError(b'', SW.SECURITY_CONDITION_NOT_SATISFIED))]:
             with self.subTest(method=method):
                 session = self.session()
                 getattr(session,method).side_effect = failure
                 with self.assertRaises(CardError):
                     self.info(session)
+
+    def test_a_malformed_certificate_marks_its_slot_occupied_not_the_page_failed(self):
+        session = self.session()
+
+        def certificate(slot):
+            if int(slot) == 0x9a:
+                raise ValueError('malformed certificate')
+            raise ApduError(b'', SW.FILE_NOT_FOUND)
+        session.get_certificate.side_effect = certificate
+        slots = {s['slot']: s for s in self.info(session)['slots']}
+        self.assertEqual(slots['9a']['cert'], {'unreadable': True}, 'occupied, so the overwrite guard sees it')
+        self.assertIsNone(slots['9c']['cert'])

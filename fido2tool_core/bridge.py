@@ -5,6 +5,8 @@ from unexpected failures in UI responses. Domain errors retain actionable text.
 """
 
 import inspect
+import os
+import traceback
 import logging
 
 from fido2tool_core.pin import PinError
@@ -72,5 +74,9 @@ def dispatch(service, method, kwargs=None):
     except Exception as e:
         # Exception strings can contain PINs, URLs or private device data.
         # Keep the operation/type for debugging, never arguments or messages.
-        logger.error("%s failed (%s)", method, type(e).__name__)
+        # Where it happened (file name, line, function) keeps field reports
+        # diagnosable; no source lines (literals) and no full paths (user name).
+        where = " < ".join(f"{os.path.basename(f.filename)}:{f.lineno} {f.name}"
+                           for f in reversed(traceback.extract_tb(e.__traceback__)))
+        logger.error("%s failed (%s) at %s", method, type(e).__name__, where)
         return _failure(service, method, "error", "The operation could not be completed.", 500)

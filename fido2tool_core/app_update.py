@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import tempfile
+import json
 import re
 import sys
 from pathlib import Path
@@ -42,11 +43,11 @@ def check() -> dict:
     result = {"current": __version__, "latest": None, "newer": False, "url": None, "published_at": None,
               "failed": False}
     try:
-        resp = requests.get(RELEASES_API, timeout=15, headers={"Accept": "application/vnd.github+json"})
-        if resp.status_code == 404:
-            return result  # no release published yet
-        resp.raise_for_status()
-        release = resp.json()
+        with requests.get(RELEASES_API, timeout=15, stream=True,
+                          headers={"Accept": "application/vnd.github+json"}) as resp:
+            if resp.status_code == 404:
+                return result  # no release published yet
+            release = json.loads(read_limited(resp, 1024 * 1024))
     except Exception as e:
         logger.info("App update check failed: %s", e)
         result["failed"] = True   # offline or GitHub unreachable – say so when asked

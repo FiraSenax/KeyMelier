@@ -129,6 +129,11 @@ def info(conn) -> dict:
             except ApduError as e:
                 if e.sw != SW.FILE_NOT_FOUND:
                     raise
+            except ValueError:
+                # Data is there but is no certificate we can parse: the slot is
+                # occupied (the overwrite guard must see that), it just cannot be
+                # shown – one odd object must not hide the whole PIV page.
+                entry["cert"] = {"unreadable": True}
             if metadata:
                 try:
                     sm = session.get_slot_metadata(slot)

@@ -88,9 +88,10 @@ function renderPiv() {
       const status = c ? (c.expired ? `<span class="pill bad">${escHtml(t('piv.expired'))}</span>` : c.expires_soon ? `<span class="pill warn">${escHtml(t('piv.expiresSoon'))}</span>` : '') : '';
       return `<li class="pgp-key${c || k ? '' : ' empty'}">
         <div class="pgp-key-head"><span class="pgp-slot">${escHtml(slotName(s.slot))}</span>
-          ${c ? `<span class="pill">${escHtml(c.algorithm)}</span>` : k ? `<span class="pill">${escHtml(k.type)}</span>` : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}
+          ${c?.unreadable ? `<span class="pill warn">${escHtml(t('piv.unreadable'))}</span>` : c ? `<span class="pill">${escHtml(c.algorithm)}</span>` : k ? `<span class="pill">${escHtml(k.type)}</span>` : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}
           ${status}</div>
-        ${c ? `<div class="piv-subject">${escHtml(c.subject)}</div>
+        ${c?.unreadable ? `<div class="muted pgp-meta">${escHtml(t('piv.unreadableHint'))}</div>` : ''}
+        ${c && !c.unreadable ? `<div class="piv-subject">${escHtml(c.subject)}</div>
           <div class="muted pgp-meta">${escHtml([c.self_signed ? t('piv.selfSigned') : t('piv.issuer', { name: c.issuer }),
             t('piv.validUntil', { date: new Date(c.not_after).toLocaleDateString(LANG) })].join(' · '))}</div>` : ''}
         ${k ? `<div class="muted pgp-meta">${escHtml([t(k.generated ? 'pgp.origin.generated' : 'pgp.origin.imported'),
@@ -99,7 +100,7 @@ function renderPiv() {
         <div class="piv-actions">
           <button type="button" class="btn-link" data-act="form" data-form="gen:${s.slot}">${escHtml(t('piv.gen.short'))}</button>
           <button type="button" class="btn-link" data-act="form" data-form="import:${s.slot}">${escHtml(t('piv.import.short'))}</button>
-          ${c ? `<button type="button" class="btn-link" data-act="export" data-slot="${s.slot}">${escHtml(t('piv.export'))}</button>` : ''}
+          ${c && !c.unreadable ? `<button type="button" class="btn-link" data-act="export" data-slot="${s.slot}">${escHtml(t('piv.export'))}</button>` : ''}
           ${c || k ? `<button type="button" class="btn-link danger-link" data-act="form" data-form="delete:${s.slot}">${escHtml(t('pk.delete.do'))}</button>` : ''}
         </div>
       </li>`;

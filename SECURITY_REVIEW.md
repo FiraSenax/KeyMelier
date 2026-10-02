@@ -1,6 +1,6 @@
 # Quality remediation — 2026-10-02
 
-The local 1.8.3 candidate tightens management-token permissions and cancellation,
+1.8.3 (released 2026-10-02) tightens management-token permissions and cancellation,
 bridge error handling, async dialog ownership, function-test response binding,
 download bounds/file creation and PIV read failure handling. It also rejects
 contaminated pywebview build resources and adds artifact-only signed macOS RCs.

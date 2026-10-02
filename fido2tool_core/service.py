@@ -540,7 +540,7 @@ class KeyService:
     def unlock(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
         if method not in (None, "pin", "uv"):
             raise auth.AuthError("Invalid unlock method.", "invalid_input")
-        with self._unlock_waits.start(token_id) as cancel:
+        with self._unlock_waits.start(token_id, wait=UNLOCK_WAIT) as cancel:
             with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
                 auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv", cancel=cancel)
         return {"unlocked": True, "ttl": auth.TOKEN_TTL}
@@ -956,7 +956,7 @@ class KeyService:
         record, reader = self._card(token_id)
         data = self._cards.read(reader, piv_app.info)
         self._remember_inventory(record, "piv", [
-            {"slot": s["slot"], "label": f'{s["slot"].upper()}: {s["cert"]["subject"]}'}
+            {"slot": s["slot"], "label": f'{s["slot"].upper()}: {s["cert"].get("subject") or "?"}'}
             for s in data["slots"] if s["cert"]])
         return data
 

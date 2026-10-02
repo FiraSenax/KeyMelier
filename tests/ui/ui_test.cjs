@@ -276,6 +276,36 @@ async function main() {
     }
     await js('window.pywebview.api.call = window.__savedCall; markUnlocked("demo-yk5",300)');
   });
+  await test('a click beside the dialog never hides a running search or PIN check; a wrong PIN after closing is reported', async () => {
+    await js(`(() => {
+      window.__savedCall = window.pywebview.api.call;
+      window.__pending = {};
+      window.pywebview.api.call = (m, a) => (m === 'passkeys_probe' || m === 'unlock')
+        ? new Promise(resolve => { window.__pending[m] = resolve; }) : window.__savedCall(m, a);
+      unlockedUntil.delete('demo-t2'); renderSidebar(); return true; })()`);
+    const backdrop = `$('quick-unlock').dispatchEvent(new MouseEvent('click', { bubbles: true })), true`;
+    await js('openProbe("demo-t2")');
+    await click('#quick-unlock button[type=submit]');
+    await until('!!window.__pending.passkeys_probe', 'search running');
+    await js(backdrop);
+    assert(await js('!$("quick-unlock").classList.contains("hidden") && !!document.querySelector("#quick-unlock [data-ql=stop]")'),
+      'the running search keeps its dialog and Stop button');
+    await js('window.__pending.passkeys_probe({ ok: true, data: { found: [], complete: true } })');
+    await until('$("quick-unlock").classList.contains("hidden")', 'search finished');
+
+    await js('quickLockToggle("demo-t2")');
+    await until('!!document.querySelector("#quick-unlock .ql-pin")', 'PIN dialog');
+    await focus('#quick-unlock .ql-pin');
+    await type('000000');
+    await press('Enter');
+    await until('!!window.__pending.unlock', 'PIN check running');
+    await js(backdrop);
+    assert(await js('!$("quick-unlock").classList.contains("hidden")'), 'a click beside it does not hide the PIN check');
+    await click('#quick-unlock [data-ql=cancel]');                 // closing explicitly is still possible
+    await js(`window.__pending.unlock({ ok: false, code: 'pin_invalid', retries: 6, error: 'Wrong PIN.' })`);
+    await until('[...document.querySelectorAll(".toast")].some(e => /6/.test(e.textContent))', 'the used attempt is reported');
+    await js('window.pywebview.api.call = window.__savedCall; true');
+  });
   await test('function test asks for PIN from backend needs_pin', async () => {
     await js(`(() => {
       window.__savedCall = window.pywebview.api.call;

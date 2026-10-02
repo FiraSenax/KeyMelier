@@ -74,3 +74,33 @@ class UnlockQueueTests(unittest.TestCase):
                 auth.unlock('pin-in-flight', ctap, pin='synthetic-pin', cancel=cancel)
         self.assertEqual(caught.exception.code, 'cancelled')
         self.assertFalse(auth.is_unlocked('pin-in-flight'))
+
+
+class PendingSlotTests(unittest.TestCase):
+    """"Enter PIN instead" while the key still ends the finger wait: the PIN
+    request waits for the cancelled request's slot instead of failing busy."""
+
+    def test_waits_for_a_cancelled_operation_but_not_for_a_running_one(self):
+        from fido2tool_core.operations import PendingOperations
+        ops = PendingOperations()
+        entered, leave, got = threading.Event(), threading.Event(), []
+
+        def finger_wait():
+            with ops.start('key'):
+                entered.set()
+                leave.wait(3)
+        worker = threading.Thread(target=finger_wait, daemon=True)
+        worker.start()
+        self.assertTrue(entered.wait(3))
+        with self.assertRaises(auth.AuthError) as busy:
+            with ops.start('key', wait=1):
+                pass
+        self.assertEqual(busy.exception.code, 'busy', 'a running request is not queued behind')
+
+        ops.cancel('key')
+        threading.Timer(0.1, leave.set).start()   # the key confirms the cancel a moment later
+
+        with ops.start('key', wait=3):
+            got.append('pin request ran')
+        worker.join(3)
+        self.assertEqual(got, ['pin request ran'])

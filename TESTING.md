@@ -128,8 +128,10 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 - **No security keys in CI:** detection, reading, PIN entry, unplugging and
   reconnecting real keys are covered by [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
 - **Not tested automatically:** screen readers, high-contrast modes,
-  installer updates (manual procedure above), notarized/signed builds
-  (signing credentials are not configured yet).
+  installer updates (manual procedure above). Signing and notarization run
+  only on version tags (`vX.Y.Z`, `vX.Y.Z-rc.N`) – the rehearsal never signs;
+  `signing-check.yml` (tag `vsigncheck-*`) checks the signing secrets without
+  a release.
 
 ## Quality-release regression checks
 
