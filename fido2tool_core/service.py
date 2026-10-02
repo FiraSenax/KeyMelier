@@ -13,6 +13,8 @@ import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
+
+from fido2tool_core.operations import PendingOperations
 from fido2tool_core.storage import atomic_write, retry_sharing, secret_delete, secret_get, secret_set, set_aside, stateless
 from fido2tool_core import build_info, diagnostics
 from fido2tool_core import sync as sync_mod
@@ -107,7 +109,7 @@ class KeyService:
                  advisories=None):
         self._scanner = scanner
         self._advisories = advisories
-        self._uv_waits: dict[str, threading.Event] = {}   # fingerprint unlocks waiting for a finger
+        self._unlock_waits = PendingOperations()   # PIN/UV requests, including those queued for a device
         self.error_log = diagnostics.ErrorLog(())   # app.py replaces it with the bridge's operation list
         self.gui_backend = lambda: None
         self._last_update_check = None
@@ -164,7 +166,8 @@ class KeyService:
         self.emit("token_connected", self._record_dict(record))
 
     def _on_disconnect(self, record):
-        auth.forget(record.id)
+        self._unlock_waits.cancel(record.id)
+        auth.forget(record.id, disconnected=True)
         # OATH access keys are per application, not per FIDO token: a key
         # that leaves takes every unlocked authenticator with it
         oath_app.forget_all()
@@ -241,11 +244,10 @@ class KeyService:
     def check_updates(self) -> dict:
         from fido2tool_core.updates import now_iso
 
-        changed = False
-        if self._mds3 and self._mds3.refresh_if_stale():
-            changed = True
-        if self._advisories and self._advisories.check_for_update():
-            changed = True
+        if self._mds3:
+            self._mds3.refresh_if_stale()
+        if self._advisories:
+            self._advisories.check_for_update()
         self._last_update_check = now_iso()
         from fido2tool_core import app_update
         self._app_update = app_update.check()
@@ -536,23 +538,16 @@ class KeyService:
     # ── Unlock ───────────────────────────────────────────────────────────────
 
     def unlock(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
-        cancel = threading.Event() if method == "uv" else None
-        if cancel is not None:
-            self._uv_waits[token_id] = cancel
-        try:
+        if method not in (None, "pin", "uv"):
+            raise auth.AuthError("Invalid unlock method.", "invalid_input")
+        with self._unlock_waits.start(token_id) as cancel:
             with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
                 auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv", cancel=cancel)
-        finally:
-            if cancel is not None and self._uv_waits.get(token_id) is cancel:
-                del self._uv_waits[token_id]
         return {"unlocked": True, "ttl": auth.TOKEN_TTL}
 
     def unlock_cancel(self, token_id: str) -> dict:
-        """Stop a fingerprint unlock that is waiting for a finger (e.g. to use the PIN instead)."""
-        cancel = self._uv_waits.get(token_id)
-        if cancel is not None:
-            cancel.set()
-        return {"cancelled": cancel is not None}
+        """Invalidate a pending PIN/UV unlock, including a queued device call."""
+        return {"cancelled": self._unlock_waits.cancel(token_id)}
 
     def read_contents(self, token_id: str) -> dict:
         """After an unlock: read what is on the key in one go (passkeys, and
@@ -594,6 +589,7 @@ class KeyService:
         return result
 
     def lock(self, token_id: str) -> dict:
+        self._unlock_waits.cancel(token_id)
         auth.forget(token_id)
         oath_app.forget_all()
         return {"unlocked": False}
@@ -733,7 +729,7 @@ class KeyService:
         """Start an enrollment. Progress arrives as `enroll_progress` events,
         the outcome as `enroll_done`."""
         record = self._scanner.get(token_id)  # DeviceNotFound early if the key is gone
-        auth.get_token(token_id)  # 'locked' early
+        auth.get_token(token_id, _perm("BIO_ENROLL"))  # 'locked' early
         cancel = fingerprints_mod.begin_enrollment(token_id)
 
         def progress(payload):
@@ -804,7 +800,8 @@ class KeyService:
             cm = self._scanner.hold(token_id)
             cm.__enter__()
         except DeviceNotFound:
-            yield  # FIDO side already gone; the card call reports it
+            # FIDO may already be gone; the card operation reports its own state.
+            yield
             return
         except DeviceBusy:
             raise CardError("The key is busy. Try again in a moment.", "busy", status=409) from None
@@ -941,9 +938,9 @@ class KeyService:
                          expire_days: int = 0, admin_pin: str = "", user_pin: str = "",
                          replace: bool = False) -> dict:
         record, reader = self._card(token_id)
-        if replace is not True and any(k["present"] for k in self._cards.read(reader, openpgp_app.info)["keys"]):
-            raise CardError("This key already holds OpenPGP keys. Confirm replacing them.", "confirm_replace")
         with self._cards.connect(reader, timeout=30.0) as conn:
+            if replace is not True and any(k["present"] for k in openpgp_app.info(conn)["keys"]):
+                raise CardError("This key already holds OpenPGP keys. Confirm replacing them.", "confirm_replace")
             result = openpgp_app.generate_keys(conn, algorithm, name, email, expire_days, admin_pin, user_pin)
         self._log(record, "pgp_generated", site=result["user_id"] if self._remember_contents() else None)
         return {**result, "state": self.openpgp(token_id)}
@@ -980,17 +977,17 @@ class KeyService:
         self._piv_do(token_id, piv_app.unblock_pin, puk, new_pin, event="piv_pin_unblocked")
         return self.piv(token_id)
 
-    def _piv_slot_used(self, token_id, slot) -> bool:
-        data = self.piv(token_id)
-        return any(s["slot"] == str(slot).lower() and (s["cert"] or s["key"]) for s in data["slots"])
-
     def piv_generate(self, token_id: str, slot: str, key_type: str, subject: str, days: int, pin: str,
                      management_key: str | None = None, pin_policy: str = "default",
                      touch_policy: str = "default", replace: bool = False) -> dict:
-        if replace is not True and self._piv_slot_used(token_id, slot):
-            raise CardError("This slot is in use. Confirm replacing it.", "confirm_replace")
-        self._piv_do(token_id, piv_app.generate, slot, key_type, subject, days, pin, management_key,
-                     pin_policy, touch_policy, event="piv_generated", detail={"slot": slot})
+        slot = piv_app.normalize_slot(slot)
+        record, reader = self._card(token_id)
+        with self._cards.connect(reader) as conn:
+            if replace is not True and any(s["slot"] == slot and (s["cert"] or s["key"])
+                                            for s in piv_app.info(conn)["slots"]):
+                raise CardError("This slot is in use. Confirm replacing it.", "confirm_replace")
+            piv_app.generate(conn, slot, key_type, subject, days, pin, management_key, pin_policy, touch_policy)
+        self._log(record, "piv_generated", slot=slot)
         return self.piv(token_id)
 
     def piv_import(self, token_id: str, slot: str, pem: str, pin: str | None = None,
@@ -1060,25 +1057,26 @@ class KeyService:
         self._log(record, "otp_deleted", slot=int(slot))
         return self.otp(token_id)
 
-    def _otp_guard(self, token_id, slot, replace):
+    def _otp_guard(self, record, slot, replace):
+        """Check occupancy while the caller holds the OTP and device locks."""
         if replace is not True and any(s["slot"] == int(slot) and s["configured"]
-                                       for s in self.otp(token_id)["slots"]):
+                                       for s in yubikey_apps.otp_status(record.serial_number)["slots"]):
             raise CardError("This slot is in use. Confirm replacing it.", "confirm_replace")
 
     def otp_static(self, token_id: str, slot: int, password: str, access_code: str | None = None,
                    replace: bool = False) -> dict:
-        self._otp_guard(token_id, slot, replace)
         record = self._yubikey(token_id)
         with self._otp_lock, self._otp_hold(token_id):
+            self._otp_guard(record, slot, replace)
             yubikey_apps.otp_static_password(record.serial_number, int(slot), password, access_code)
         self._log(record, "otp_programmed", slot=int(slot))
         return self.otp(token_id)
 
     def otp_hmac(self, token_id: str, slot: int, secret: str | None = None, touch: bool = False,
                  access_code: str | None = None, replace: bool = False) -> dict:
-        self._otp_guard(token_id, slot, replace)
         record = self._yubikey(token_id)
         with self._otp_lock, self._otp_hold(token_id):
+            self._otp_guard(record, slot, replace)
             key = yubikey_apps.otp_challenge_response(record.serial_number, int(slot), secret,
                                                      touch is True, access_code)
         self._log(record, "otp_programmed", slot=int(slot))
@@ -1149,7 +1147,7 @@ class KeyService:
             with self._scanner.session(record.id, timeout=5.0) as (_record, ctap2):
                 reset_mod.perform(ctap2, lambda: self.emit("reset_progress", {"id": record.id, "stage": "touch"}))
             result["ok"] = True
-            auth.forget(record.id)
+            auth.forget(record.id, disconnected=True)
             record.attestation = {"ran": False, "passed": False, "error": "Skipped after factory reset", "checks": []}
             self._attestation_logged.add(record.id)
             self._log(record, "reset")

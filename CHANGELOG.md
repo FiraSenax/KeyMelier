@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.8.3 — 2026-10-02
+
+Quality release candidate. No new product features. Not yet published or signed.
+
+- Close HID connections even when the initial device handshake fails; retain the original error and release the device lock if cleanup also fails.
+- Split the UI into focused view modules and keep dialog event handling with its state. Extract the service bridge and cancellable-operation registry into independently testable modules.
+- Ignore late PIN/UV/search responses belonging to a closed or replaced dialog; prevent duplicate PIN submissions. Correct the function test's initial PIN prompt and prevent a previous key's result from replacing the selected key's result.
+- Clear fingerprint permission hints on disconnect, check token scopes before management operations, and prevent a late unlock from restoring a locked/cancelled session. A second fingerprint wait cannot replace the first wait's cancellation target.
+- Register queued PIN requests for cancellation too; closing their dialog or locking the key prevents a late result from restoring access.
+- Give each observed device connection a fresh runtime ID. Check observable identity again before CTAP access, treat replacements as disconnect/reconnect, and discard late updates from disconnected keys.
+- Keep occupancy checks and key generation under the same locks for PIV, OpenPGP and OTP. Normalize PIV slot aliases before overwrite checks and reject application-key generation in the reserved attestation slot.
+- Verify RP binding, user presence, required user verification and credential identity in the existing function test in addition to its signature.
+- Download updates through private random temporary files; exclusively create the verified destination without overwriting existing files or following pre-existing symlinks. Require exact checksum filenames, matching release URLs and successful HTTP responses.
+- Bound downloaded metadata, advisories and checksum bodies before parsing/verification. Reject malformed bridge calls and keep unexpected exception text out of UI responses and bridge logs.
+- Treat PIV certificate/metadata read failures as errors instead of empty slots, preserving overwrite protection.
+- Reject stale or modified pywebview scripts before packaging; a fresh build environment fixes the reproduced local Cocoa startup crash.
+- Support signed/notarized macOS RC tags (`vX.Y.Z-rc.N`) with checked Actions artifacts only, without publishing a release or updating the website.
+- Add regression tests for these failure cases. Platform builds, signing and physical hardware checks remain release gates; local automated checks are recorded in `plans/1.8.3-quality-review.md`.
+
 ## 1.8.2 — 2026-10-02
 
 The first release since 1.8.0 (1.8.1 was tagged but never published: in CI the signing keychain was removed before the disk image was signed; its changes are included here).

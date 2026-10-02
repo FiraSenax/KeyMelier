@@ -289,11 +289,11 @@ class FingerprintUnlockCancelTests(unittest.TestCase):
         self.assertEqual(outcome, {"code": "cancelled"})
         self.assertEqual(self.svc.unlock_cancel("tok"), {"cancelled": False}, "nothing left waiting afterwards")
 
-    def test_pin_unlock_has_nothing_to_cancel(self):
+    def test_pin_unlock_has_a_cancel_event_only_while_pending(self):
         seen = []
         with patch.object(service_mod.auth, "unlock", side_effect=lambda *a, **kw: seen.append(kw)):
             self.svc.unlock("tok", pin="123456")
-        self.assertIsNone(seen[0]["cancel"])
+        self.assertFalse(seen[0]["cancel"].is_set())
         self.assertEqual(self.svc.unlock_cancel("tok"), {"cancelled": False})
 
     def test_the_cancel_event_reaches_the_key(self):

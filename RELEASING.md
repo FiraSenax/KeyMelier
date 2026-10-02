@@ -51,6 +51,66 @@ SignPath, waits for approval and signing, verifies the Authenticode signature
 of `KeyMelier.exe` and publishes the signed folder. Signing does not guarantee
 immediate SmartScreen reputation.
 
+## Signed release candidates without publication
+
+RCs use reviewed tags **`v<version>-rc.N`**, for example `v1.8.3-rc.1`.
+They use the existing `release-signing` environment (its `v*` tag restriction
+stays in force), the same builds, macOS Developer ID signing, notarization of
+both app and DMG, stapling, Gatekeeper checks, smoke tests and final package
+verification as a release. A signed RC fails if the Apple credentials are missing;
+it never silently falls back to an unsigned macOS candidate.
+
+After reviewing and committing a candidate (including this workflow):
+
+```bash
+git tag v1.8.3-rc.1
+git push origin v1.8.3-rc.1
+```
+
+A tag push starts the workflow even when the candidate commit is on a review
+branch. Do not move an existing RC tag; use `rc.2`, `rc.3`, etc. for fixes.
+The packaged application version remains `1.8.3`; the RC tag, source commit,
+Actions run and `RC-MANIFEST.json` identify the candidate. Installing the later
+stable build with the same version is manual: the normal updater compares
+release versions, not RC run numbers.
+
+The output is the **`release-rehearsal` artifact**, retained for 30 days, with
+packages, checksums, source commit, dependency locks, SBOMs and a check report:
+
+```bash
+python3 tools/fetch_rc.py RUN_ID
+```
+
+No GitHub Release is created, no tag is marked latest, and nothing writes to
+GitHub Pages. The normal `/releases/latest` update check cannot discover these
+artifacts. **Artifact-only does not mean confidential:** tags and workflow
+metadata in this public repository remain visible, and artifact access follows
+GitHub's repository permissions.
+
+You can also repeat a reviewed tag via **Actions → Build → Run workflow** with
+**`signed_rc` enabled**. Select a tag permitted by `release-signing`; arbitrary
+branches are intentionally blocked by the environment. The default manual branch run
+remains the unsigned rehearsal. Existing environment/SignPath approval rules
+still apply. Windows signing runs when its credentials are configured; Linux
+remains unsigned. Apple notarization applies only to macOS.
+
+Only the separate stable tag `v1.8.3` publishes a normal release. The RC tag
+condition explicitly excludes RCs from that publishing job.
+
+## Clean build environments
+
+Before collecting files, the PyInstaller spec verifies pywebview's JavaScript
+against its installed wheel manifest. Missing, modified or extra scripts stop
+the build. In particular, copied files such as `customize 2.js` are loaded by
+pywebview and can cause a native Cocoa abort (`KeyError: text_select`).
+
+If this check fails, preserve the old environment for diagnosis and create a
+new virtual environment, then install `requirements.txt` and
+`requirements-build.txt` with `--require-hashes`. `pip --force-reinstall` in the
+old environment does not remove files absent from the package manifest. Do not
+suppress the check or manually alter the packaged scripts. Always run
+`tools/smoke_packaged.py` on the rebuilt application before distributing it.
+
 ## Release
 
 1. Review changes; the automatic checks (see [TESTING.md](TESTING.md)) must pass in CI. Test with

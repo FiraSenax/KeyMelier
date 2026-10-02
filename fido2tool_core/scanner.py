@@ -1,4 +1,3 @@
-import hashlib
 import threading
 import time
 import uuid
@@ -102,9 +101,10 @@ def _aaguid_bytes_to_str(aaguid) -> str:
     return str(aaguid).lower()
 
 
-def _token_id(path_key: str) -> str:
-    """Stable, URL-safe id for a HID path (raw paths contain slashes/backslashes)."""
-    return hashlib.sha256(path_key.encode()).hexdigest()[:16]
+def _same_identity(first: TokenRecord, second: TokenRecord) -> bool:
+    """Compare observable identity, never treating a path as proof of identity."""
+    return all(getattr(first, field) == getattr(second, field) for field in
+               ('aaguid', 'vendor_id', 'product_id', 'product_name', 'serial_number'))
 
 
 def _apply_info(record: "TokenRecord", info) -> None:
@@ -121,6 +121,22 @@ def _apply_info(record: "TokenRecord", info) -> None:
     record.algorithms = algs
 
 
+@contextmanager
+def _hid_device(descriptor):
+    """Own the transport even when the CTAPHID handshake fails to construct a device."""
+    from fido2.hid import CtapHidDevice, open_connection
+
+    connection = open_connection(descriptor)
+    try:
+        yield CtapHidDevice(descriptor, connection)
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            # A disconnect can also make close fail; preserve the original error.
+            logger.debug("HID connection cleanup failed")
+
+
 class TokenScanner:
     def __init__(self, poll_interval: float = 1.0, mds3_client=None, advisory_checker=None):
         self.poll_interval = poll_interval
@@ -128,6 +144,9 @@ class TokenScanner:
         self._advisory = advisory_checker
         self._known: dict[str, TokenRecord] = {}
         self._lock = threading.Lock()
+        # Serialize connection/update notifications without holding the state lock
+        # during callbacks (callbacks may query the scanner).
+        self._events_lock = threading.RLock()
         self._running = False
         # One lock per HID path. Whoever holds it owns the device's CTAP channel;
         # the poll loop skips locked devices and treats them as still present.
@@ -151,6 +170,21 @@ class TokenScanner:
         with self._lock:
             return self._device_locks.setdefault(path_key, threading.Lock())
 
+    def _require_current(self, record: TokenRecord) -> None:
+        with self._lock:
+            if self._known.get(record.path) is not record:
+                raise DeviceNotFound(record.id)
+
+    def _notify_update(self, record: TokenRecord) -> None:
+        with self._events_lock:
+            with self._lock:
+                if self._known.get(record.path) is not record:
+                    return
+            try:
+                self.on_update(record)
+            except Exception as e:
+                logger.error("on_update callback error: %s", e)
+
     @contextmanager
     def hold(self, token_id: str, timeout: float = 10.0):
         """Keep the poll loop off a key's FIDO interface (without opening it).
@@ -163,6 +197,7 @@ class TokenScanner:
         if not lock.acquire(timeout=timeout):
             raise DeviceBusy(record.path)
         try:
+            self._require_current(record)
             yield record
         finally:
             lock.release()
@@ -172,7 +207,7 @@ class TokenScanner:
         result = {}
         busy = set()
         try:
-            from fido2.hid import CtapHidDevice, list_descriptors, open_connection
+            from fido2.hid import list_descriptors
             from fido2.ctap2 import Ctap2
             descriptors = list(list_descriptors())
         except Exception as e:
@@ -185,50 +220,47 @@ class TokenScanner:
             if not lock.acquire(blocking=False):
                 busy.add(path_key)
                 continue
-            dev = None
             try:
-                dev = CtapHidDevice(desc, open_connection(desc))
-                info = Ctap2(dev).info
-                with self._lock:
-                    is_new = path_key not in self._known
+                with _hid_device(desc) as dev:
+                    info = Ctap2(dev).info
+                    with self._lock:
+                        known = self._known.get(path_key)
 
-                aaguid_str = _aaguid_bytes_to_str(info.aaguid)
-                fw_raw = getattr(info, "firmware_version", None)
-                product = getattr(desc, "product_name", None) or ""
-                serial = getattr(desc, "serial_number", None)
-                manufacturer = _infer_manufacturer(product)
+                    aaguid_str = _aaguid_bytes_to_str(info.aaguid)
+                    fw_raw = getattr(info, "firmware_version", None)
+                    product = getattr(desc, "product_name", None) or ""
+                    serial = getattr(desc, "serial_number", None)
+                    manufacturer = _infer_manufacturer(product)
 
-                record = TokenRecord(
-                    id=_token_id(path_key),
-                    path=path_key,
-                    product_name=product,
-                    serial_number=serial or None,
-                    manufacturer=manufacturer,
-                    aaguid=aaguid_str,
-                    fido2_versions=list(info.versions or []),
-                    extensions=list(info.extensions or []),
-                    options={},
-                    pin_protocols=list(info.pin_uv_protocols or []),
-                    max_cred_count=getattr(info, "max_creds_in_list", None),
-                    firmware_version_raw=fw_raw,
-                    firmware_version_str=_decode_firmware(fw_raw, manufacturer),
-                    first_seen=datetime.now(timezone.utc).isoformat(),
-                )
-                _apply_info(record, info)
-                record.vendor_id = getattr(desc, "vid", None)
-                record.product_id = getattr(desc, "pid", None)
-                if is_new:
-                    # Serial, real firmware, form factor – only once per plug-in
-                    _apply_vendor_info(record, vendor_info.read(dev, record.vendor_id, record.product_id))
-                result[path_key] = record
+                    record = TokenRecord(
+                        # Only adopted for a newly observed connection. Old API
+                        # requests must not become valid again when a path is reused.
+                        id=uuid.uuid4().hex,
+                        path=path_key,
+                        product_name=product,
+                        serial_number=serial or None,
+                        manufacturer=manufacturer,
+                        aaguid=aaguid_str,
+                        fido2_versions=list(info.versions or []),
+                        extensions=list(info.extensions or []),
+                        options={},
+                        pin_protocols=list(info.pin_uv_protocols or []),
+                        max_cred_count=getattr(info, "max_creds_in_list", None),
+                        firmware_version_raw=fw_raw,
+                        firmware_version_str=_decode_firmware(fw_raw, manufacturer),
+                        first_seen=datetime.now(timezone.utc).isoformat(),
+                    )
+                    _apply_info(record, info)
+                    record.vendor_id = getattr(desc, "vid", None)
+                    record.product_id = getattr(desc, "pid", None)
+                    if known is None or (known.serial_number and not serial) or not _same_identity(known, record):
+                        # A management-only serial must be re-read; otherwise a
+                        # replacement YubiKey at the same path would inherit it.
+                        _apply_vendor_info(record, vendor_info.read(dev, record.vendor_id, record.product_id))
+                    result[path_key] = record
             except Exception as e:
                 logger.debug("Could not read CTAP2 info from device: %s", e)
             finally:
-                if dev is not None:
-                    try:
-                        dev.close()
-                    except Exception:
-                        pass
                 lock.release()
 
         return result, busy
@@ -243,27 +275,35 @@ class TokenScanner:
     @contextmanager
     def _open(self, record: TokenRecord, timeout: float):
         """Lock the device and yield a fresh Ctap2 session on it."""
-        from fido2.hid import CtapHidDevice, list_descriptors, open_connection
+        from fido2.hid import list_descriptors
         from fido2.ctap2 import Ctap2
 
         lock = self._device_lock(record.path)
         if not lock.acquire(timeout=timeout):
             raise DeviceBusy(record.path)
-        dev = None
         try:
+            self._require_current(record)
             desc = next(
                 (d for d in list_descriptors() if str(d.path) == record.path), None
             )
             if desc is None:
                 raise DeviceNotFound(record.id)
-            dev = CtapHidDevice(desc, open_connection(desc))
-            yield Ctap2(dev)
+            if (getattr(desc, 'vid', None), getattr(desc, 'pid', None),
+                getattr(desc, 'product_name', None) or '') != (
+                    record.vendor_id, record.product_id, record.product_name):
+                raise DeviceNotFound(record.id)
+            with _hid_device(desc) as dev:
+                ctap2 = Ctap2(dev)
+                if _aaguid_bytes_to_str(ctap2.info.aaguid) != record.aaguid:
+                    raise DeviceNotFound(record.id)
+                serial = getattr(desc, 'serial_number', None) or None
+                if record.serial_number and serial is None:
+                    details = vendor_info.read(dev, record.vendor_id, record.product_id)
+                    serial = (details or {}).get('serial') or None
+                if serial != record.serial_number:
+                    raise DeviceNotFound(record.id)
+                yield ctap2
         finally:
-            if dev is not None:
-                try:
-                    dev.close()
-                except Exception:
-                    pass
             lock.release()
 
     @contextmanager
@@ -287,10 +327,7 @@ class TokenScanner:
                         logger.debug("Post-session getInfo failed: %s", e)
         if not refresh:
             return
-        try:
-            self.on_update(record)
-        except Exception as e:
-            logger.error("on_update callback error (post-session): %s", e)
+        self._notify_update(record)
 
     def start_attestation(self, record: TokenRecord, pin: str | None = None, use_uv: bool = False):
         """Run the attestation test in the background.
@@ -332,10 +369,7 @@ class TokenScanner:
             }
 
         # Push the update to the UI now that attestation is complete
-        try:
-            self.on_update(record)
-        except Exception as e:
-            logger.error("on_update callback error (post-attestation): %s", e)
+        self._notify_update(record)
 
     def _enrich_record(self, record: TokenRecord):
         record.mds_status = None
@@ -422,57 +456,56 @@ class TokenScanner:
         while self._running:
             try:
                 current, busy = self._enumerate_devices()
-
-                with self._lock:
-                    # Locked devices are in use, not removed
-                    known_paths = set(self._known.keys())
-                    present_paths = set(current.keys()) | busy
-
-                    added = set(current.keys()) - known_paths
-                    removed = known_paths - present_paths
-
-                    for path in added:
-                        record = current[path]
-                        self._enrich_record(record)
-                        self._known[path] = record
-                        try:
-                            self.on_connect(record)
-                        except Exception as e:
-                            logger.error("on_connect callback error: %s", e)
-                        try:
-                            intercepted = self.intercept_connect(record)
-                        except Exception as e:
-                            logger.error("intercept_connect error: %s", e)
-                            intercepted = False
-                        if not intercepted:
-                            self.start_attestation(record)
-
-                    for path in removed:
-                        # Keep the device lock: a worker (attestation, enrollment)
-                        # may still hold it, and a fresh lock would let the
-                        # poll loop open the device concurrently.
-                        record = self._known.pop(path)
-                        try:
-                            self.on_disconnect(record)
-                        except Exception as e:
-                            logger.error("on_disconnect callback error: %s", e)
-
+                self._reconcile(current, busy)
             except Exception as e:
                 logger.error("Scanner loop error: %s", e)
 
             time.sleep(self.poll_interval)
 
+    def _reconcile(self, current, busy):
+        """Publish replacements as disconnect + fresh connect, in that order."""
+        with self._events_lock:
+            with self._lock:
+                known_paths = set(self._known)
+                replaced = {path for path in known_paths & current.keys()
+                            if not _same_identity(self._known[path], current[path])}
+                removed = known_paths - (current.keys() | busy) | replaced
+                added = current.keys() - known_paths | replaced
+                disconnected = [self._known.pop(path) for path in sorted(removed)]
+                # Keep per-path locks: old workers may still hold them.
+                for path in removed:
+                    self._model_status.pop(path, None)
+            for record in disconnected:
+                try:
+                    self.on_disconnect(record)
+                except Exception as e:
+                    logger.error("on_disconnect callback error: %s", e)
+            for path in sorted(added):
+                record = current[path]
+                self._enrich_record(record)
+                with self._lock:
+                    self._known[path] = record
+                try:
+                    self.on_connect(record)
+                except Exception as e:
+                    logger.error("on_connect callback error: %s", e)
+                try:
+                    intercepted = self.intercept_connect(record)
+                except Exception as e:
+                    logger.error("intercept_connect error: %s", e)
+                    intercepted = False
+                if not intercepted:
+                    self.start_attestation(record)
+
     def reevaluate_all(self):
         """Re-run metadata/advisory enrichment on connected keys (after updates)."""
-        for record in self.get_all():
-            record.security_status = "PENDING"
-            record.cve_ids = []
-            record.advisories = []
-            self._enrich_record(record)
-            try:
-                self.on_update(record)
-            except Exception as e:
-                logger.error("on_update callback error (reevaluate): %s", e)
+        with self._events_lock:
+            for record in self.get_all():
+                record.security_status = "PENDING"
+                record.cve_ids = []
+                record.advisories = []
+                self._enrich_record(record)
+                self._notify_update(record)
 
     def get_all(self) -> list[TokenRecord]:
         with self._lock:

@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 RP = {"id": "test.keymelier.app", "name": "KeyMelier function test"}
 
 
+def _bound_response(data, require_uv: bool) -> bool:
+    """A valid signature is insufficient without request binding and presence."""
+    return (data.rp_id_hash == hashlib.sha256(RP["id"].encode()).digest()
+            and data.is_user_present()
+            and (not require_uv or data.is_user_verified())
+            and (not data.is_backed_up() or data.is_backup_eligible()))
+
+
 def needs_pin(ctap2) -> bool:
     """True if the key will refuse a registration without PIN/UV."""
     options = ctap2.info.options or {}
@@ -34,6 +42,11 @@ def run(ctap2, pin: str | None = None, on_touch=None) -> dict:
 
     steps: list[dict] = []
     started = time.monotonic()
+
+    def result(user_verified=False):
+        return {"ok": len(steps) == 3 and all(s["ok"] for s in steps),
+                "steps": steps, "user_verified": user_verified,
+                "seconds": round(time.monotonic() - started, 1)}
 
     def keepalive(status):
         if status == STATUS.UPNEEDED and on_touch:
@@ -56,7 +69,11 @@ def run(ctap2, pin: str | None = None, on_touch=None) -> dict:
             options={"rk": False}, pin_uv_param=param, pin_uv_protocol=proto, on_keepalive=keepalive,
         )
         cred = att.auth_data.credential_data
-        steps.append({"step": "register", "ok": True})
+        require_uv = bool(pin) or bool((ctap2.info.options or {}).get("alwaysUv"))
+        registration_ok = bool(cred and cred.credential_id and _bound_response(att.auth_data, require_uv))
+        steps.append({"step": "register", "ok": registration_ok})
+        if not registration_ok:
+            return result()
 
         # 2. Sign in with the new credential
         cdh2 = hashlib.sha256(os.urandom(32)).digest()
@@ -65,7 +82,13 @@ def run(ctap2, pin: str | None = None, on_touch=None) -> dict:
             RP["id"], cdh2, allow_list=[{"type": "public-key", "id": cred.credential_id}],
             pin_uv_param=param, pin_uv_protocol=proto, on_keepalive=keepalive,
         )
-        steps.append({"step": "sign_in", "ok": True})
+        descriptor = assertion.credential
+        sign_in_ok = (_bound_response(assertion.auth_data, require_uv)
+                      and descriptor.get("id") == cred.credential_id
+                      and descriptor.get("type") == "public-key")
+        steps.append({"step": "sign_in", "ok": sign_in_ok})
+        if not sign_in_ok:
+            return result()
 
         # 3. Verify the signature with the registered public key
         try:
@@ -74,13 +97,7 @@ def run(ctap2, pin: str | None = None, on_touch=None) -> dict:
         except Exception:
             steps.append({"step": "signature", "ok": False})
 
-        flags = assertion.auth_data.flags
-        return {
-            "ok": all(s["ok"] for s in steps),
-            "steps": steps,
-            "user_verified": bool(flags & 0x04),
-            "seconds": round(time.monotonic() - started, 1),
-        }
+        return result(assertion.auth_data.is_user_verified())
     except CtapError as e:
         err = map_ctap_error(e)
         if e.code == CtapError.ERR.PUAT_REQUIRED:

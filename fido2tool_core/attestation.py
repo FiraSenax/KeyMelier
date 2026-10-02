@@ -335,7 +335,6 @@ def _verify_fido_u2f(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
         pub_key = cert.public_key()
 
         # fido-u2f verification data: 0x00 | rpIdHash | clientDataHash | credId | pubKeyBytes
-        flags = auth_data[32]
         rp_id_hash = auth_data[:32]
         # credentialId starts at byte 55 after 2-byte length
         cred_id_len = struct.unpack(">H", auth_data[53:55])[0]
@@ -385,8 +384,6 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
     """Verify that the leaf cert chains to one of the roots listed in MDS3 for this AAGUID."""
     try:
         from cryptography import x509
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.asymmetric import ec, padding as asym_padding
 
         entry = mds3_client.lookup(aaguid)
         if not entry:

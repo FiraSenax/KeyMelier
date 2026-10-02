@@ -15,6 +15,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from fido2tool_core.network import read_limited
 from fido2tool_core.storage import atomic_write, stateless
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def _read_signed(path: Path, sig_path: Path) -> dict | None:
     try:
         data = path.read_bytes()
         sig = sig_path.read_text(encoding="ascii")
-    except OSError:
+    except (OSError, UnicodeError):
         return None
     if not verify(data, sig):
         logger.warning("Ignoring %s: signature invalid", path)
@@ -114,8 +115,10 @@ def fetch(current: dict | None) -> dict | None:
     import requests
 
     try:
-        data = requests.get(ADVISORY_URL, timeout=15).content
-        sig = requests.get(SIGNATURE_URL, timeout=15).text
+        with requests.get(ADVISORY_URL, timeout=15, stream=True) as response:
+            data = read_limited(response, 4 * 1024 * 1024)
+        with requests.get(SIGNATURE_URL, timeout=15, stream=True) as response:
+            sig = read_limited(response, 4096).decode("ascii")
     except Exception as e:
         logger.info("Advisory update check failed: %s", e)
         return None

@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      signed_rc:
+        description: 'Signed/notarized artifact-only RC (select a reviewed v* tag permitted by release-signing)'
+        type: boolean
+        default: false
+        required: false
 permissions:
   contents: read
 jobs:
@@ -26,6 +32,14 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev swig
       - run: python -m pip install --require-hashes -r requirements.txt
+      - name: Install isolated test and lint dependencies (hash-pinned wheels)
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
+      - name: Static correctness checks
+        if: runner.os == 'Linux'
+        run: |
+          ruff check app.py fido2tool_core
+          ruff check tools tests --select E9,F63,F7,F82
       - run: python -m unittest discover -s tests -v
       - run: python tools/advisories_sign.py verify
       - name: Syntax of every UI script
@@ -75,9 +89,9 @@ jobs:
   build-macos:
     needs: [test, ui]
     runs-on: macos-14
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
+    environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     env:
-      SIGN_MAC: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
+      SIGN_MAC: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
     outputs:
       signed: ${{ steps.build.outputs.signed }}
     steps:
@@ -96,6 +110,24 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+      - name: Require signing and notarization for a signed RC
+        if: (github.event_name == 'workflow_dispatch' && inputs.signed_rc) || (startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.'))
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-rc.* ]]; then
+            python tools/check_rc_ref.py "$GITHUB_REF_NAME"
+          fi
+          for name in MACOS_CERTIFICATE_P12 MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Signed RC requires $name in the release-signing environment. No unsigned fallback."
+              exit 1
+            fi
+          done
       - name: Import Developer ID
         if: env.SIGN_MAC == 'true'
         env:
@@ -181,12 +213,12 @@ jobs:
   build-windows:
     needs: [test, ui]
     runs-on: windows-2022
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-build' }}
+    environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     permissions:
       contents: read
       actions: read   # SignPath downloads the unsigned artifact of this run
     env:
-      SIGN_WIN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      SIGN_WIN: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
     outputs:
       signed: ${{ steps.signed.outputs.signed }}
     steps:
@@ -424,7 +456,7 @@ jobs:
   # every step up to publishing: .github/actions/prepare-release
   release:
     needs: [build-macos, build-windows, build-linux, linux-compat]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-rc.')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -447,14 +479,14 @@ jobs:
           make_latest: 'true'
           body_path: release-notes.md
           files: artifacts/*
-  # Release rehearsal (Run workflow): the same builds, the real artifact
+  # RC tags (v<version>-rc.N) and release rehearsals: the same builds, the real artifact
   # transfer (upload in the build jobs, download here) and the same checks as
   # the release – but no release, no tag and no write access. The checked
   # packages and the report are kept as the artifact "release-rehearsal".
   release-rehearsal:
     needs: [test, ui, build-macos, build-windows, build-linux, linux-compat]
     # also after a failed job: the report then shows which one (and fails)
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.'))))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -468,6 +500,13 @@ jobs:
           win-signed: ${{ needs.build-windows.outputs.signed }}
           jobs: >-
             test=${{ needs.test.result }},ui=${{ needs.ui.result }},build-macos=${{ needs.build-macos.result }},build-windows=${{ needs.build-windows.result }},build-linux=${{ needs.build-linux.result }},linux-compat=${{ needs.linux-compat.result }}
+      - name: Verify signed RC result
+        if: (github.event_name == 'workflow_dispatch' && inputs.signed_rc) || (startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.'))
+        env:
+          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
+        run: |
+          test "$MAC_SIGNED" = true
+          echo "Signed RC: notarized macOS app and DMG, tested packages, artifact only. No GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
       - name: Report
         if: always()
         run: |
@@ -481,4 +520,4 @@ jobs:
             release-notes.md
             release-check.md
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 30

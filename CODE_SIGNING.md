@@ -21,6 +21,10 @@ macOS: signed with the maintainer's Apple Developer ID and notarized by Apple.
 - Every release lists the source commit, the dependency locks, SHA-256
   checksums, an SBOM and third-party licenses.
 
+Signed RC tags (`vX.Y.Z-rc.N`) use the same signing policy and approvals, but
+keep checked packages as Actions artifacts only. They do not create a public
+release or change the latest release. See [RELEASING.md](RELEASING.md).
+
 ## Team roles
 
 | Role | Members |

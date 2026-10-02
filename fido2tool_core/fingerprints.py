@@ -8,6 +8,8 @@ progress through a callback; it can be cancelled via a threading.Event.
 import logging
 import threading
 
+from fido2.ctap2.pin import ClientPin
+
 from fido2tool_core import auth
 from fido2tool_core.auth import AuthError
 
@@ -62,7 +64,7 @@ def capabilities(ctap2) -> dict:
 
 
 def list_fingerprints(token_id: str, ctap2) -> list[dict]:
-    bio = _bio(ctap2, *auth.get_token(token_id))
+    bio = _bio(ctap2, *auth.get_token(token_id, ClientPin.PERMISSION.BIO_ENROLL))
     enrolled = auth.call(token_id, bio.enumerate_enrollments)
     items = [{"id": bytes(tid).hex(), "name": name or ""} for tid, name in enrolled.items()]
     items.sort(key=lambda f: f["name"].lower())
@@ -80,12 +82,12 @@ def rename(token_id: str, ctap2, template_hex: str, name: str) -> None:
     name = _validate_name(name, capabilities(ctap2)["max_name_bytes"])
     if not name:
         raise AuthError("Please enter a name.", "invalid_input")
-    bio = _bio(ctap2, *auth.get_token(token_id))
+    bio = _bio(ctap2, *auth.get_token(token_id, ClientPin.PERMISSION.BIO_ENROLL))
     auth.call(token_id, lambda: bio.set_name(_template_id(template_hex), name))
 
 
 def remove(token_id: str, ctap2, template_hex: str) -> None:
-    bio = _bio(ctap2, *auth.get_token(token_id))
+    bio = _bio(ctap2, *auth.get_token(token_id, ClientPin.PERMISSION.BIO_ENROLL))
     auth.call(token_id, lambda: bio.remove_enrollment(_template_id(template_hex)))
     logger.info("Fingerprint removed")
 
@@ -130,7 +132,7 @@ def enroll(token_id: str, ctap2, name: str, cancel: threading.Event, on_progress
 
     caps = capabilities(ctap2)
     name = _validate_name(name, caps["max_name_bytes"])
-    bio = _bio(ctap2, *auth.get_token(token_id))
+    bio = _bio(ctap2, *auth.get_token(token_id, ClientPin.PERMISSION.BIO_ENROLL))
     total = caps["max_samples"]
 
     def keepalive(status):

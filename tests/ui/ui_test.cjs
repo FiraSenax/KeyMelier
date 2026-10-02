@@ -91,6 +91,12 @@ async function main() {
   await until('typeof tokens !== "undefined" && tokens.size > 0 && historyKeys.size > 0', 'the app to load its demo data', 15000);
   await js('selectToken("demo-yk5")');   // a defined start: first key selected (no demo scene runs with #none)
 
+  await test('late updates cannot restore a disconnected connection', async () => {
+    const count = await js('tokens.size');
+    await js('onTokenUpdated({ ...tokens.get("demo-yk5"), id: "retired-connection" })');
+    assert(await js('!tokens.has("retired-connection") && tokens.size === ' + count), 'unknown connection ignored');
+  });
+
   // ── 1. Navigation ──
   await test('backup page: coverage, lost key and replacement visible at 1280x800 without scrolling', async () => {
     await click('#nav-backup');
@@ -221,6 +227,51 @@ async function main() {
     await until('$("quick-unlock").classList.contains("hidden")', 'unlocked and closed');
     const calls = await js('window.__demoCalls.filter(c => c === "unlock" || c === "read_contents")');
     assert(JSON.stringify(calls) === '["unlock","read_contents"]', `exactly one unlock, then reading: ${calls}`);
+  });
+  await test('late PIN success or failure cannot replace another dialog; duplicate submit is ignored', async () => {
+    await js(`(() => {
+      window.__savedCall = window.pywebview.api.call;
+      window.__pinCalls = 0;
+      window.__pinCancels = 0;
+      window.pywebview.api.call = (method, args) => {
+        if (method === 'unlock_cancel') window.__pinCancels++;
+        if (method === 'unlock') {
+          window.__pinCalls++;
+          return new Promise(resolve => { window.__finishPin = resolve; });
+        }
+        return window.__savedCall(method, args);
+      };
+      unlockedUntil.delete('demo-yk5'); renderSidebar();
+    })()`);
+    for (const ok of [true, false]) {
+      await click('[data-unlock="demo-yk5"]');
+      await focus('#quick-unlock .ql-pin'); await type('123456'); await press('Enter');
+      await until('!!window.__finishPin', 'pending PIN request');
+      const before = await js('window.__pinCalls');
+      await js('quickUnlockSubmit()');
+      assert(await js('window.__pinCalls') === before, 'no duplicate request');
+      await click('#quick-unlock [data-ql=cancel]');
+      assert(await js('window.__pinCancels') === (ok ? 1 : 2), 'closing a pending PIN request cancels it at the backend');
+      await click('[data-unlock="demo-t2"]');
+      await js(`window.__finishPin(${JSON.stringify(ok ? {ok:true,data:{ttl:300}} : {ok:false,code:'pin_invalid',error:'Old PIN error'})})`);
+      await sleep(100);
+      assert(await js('quickUnlock?.id === "demo-t2" && !$("quick-unlock").classList.contains("hidden")'), 'new dialog survives late response');
+      assert(await js('!document.querySelector("#quick-unlock .field-error")'), 'old error does not leak into new dialog');
+      await press('Escape');
+      await js('window.__finishPin = null');
+    }
+    await js('window.pywebview.api.call = window.__savedCall; markUnlocked("demo-yk5",300)');
+  });
+  await test('function test asks for PIN from backend needs_pin', async () => {
+    await js(`(() => {
+      window.__savedCall = window.pywebview.api.call;
+      window.pywebview.api.call = (m,a) => m === 'function_test_info'
+        ? Promise.resolve({ok:true,data:{needs_pin:true}}) : window.__savedCall(m,a);
+      selectToken('demo-yk5'); switchTab('overview');
+      return loadFunctionTest(tokens.get('demo-yk5'));
+    })()`);
+    assert(await js('!!document.querySelector("#ft-card .ft-pin")'), 'PIN input visible before the test');
+    await js('window.pywebview.api.call = window.__savedCall');
   });
   await test('fingerprint key: the dialog waits for the finger first; PIN instead and Escape stop the wait; no automatic retry; blocked falls back to the PIN', async () => {
     // demo-t2 plays a key with an enrolled fingerprint; the test answers for its sensor

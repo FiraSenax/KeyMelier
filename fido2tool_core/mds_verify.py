@@ -9,7 +9,7 @@ Revocation is checked using current, issuer-signed GlobalSign CRLs; failure is c
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 # GlobalSign Root CA - R3, the trust anchor for mds.fidoalliance.org.
 # SHA-256 fingerprint CB:B5:22:D7:B7:F1:27:AD:6A:01:13:86:5B:DF:1C:D4:10:2E:7D:07:59:AF:63:5A:7C:F4:72:0D:C9:63:C5:3B
