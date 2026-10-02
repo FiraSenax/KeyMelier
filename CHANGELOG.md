@@ -2,7 +2,9 @@
 
 ## 1.8.3 — 2026-10-02
 
-Quality release candidate. No new product features. Not yet published or signed.
+Quality, stability and security release. No new product features.
+
+macOS builds are Developer ID signed and notarized. Windows and Linux builds remain unsigned.
 
 - Remove the global fast hash of the sync passphrase. Derived keys are cached per sync session by salt and released on reconfiguration/disable; existing encrypted sync files remain compatible.
 - Close HID connections even when the initial device handshake fails; retain the original error and release the device lock if cleanup also fails.
