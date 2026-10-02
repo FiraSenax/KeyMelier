@@ -116,6 +116,10 @@ suppress the check or manually alter the packaged scripts. Always run
 1. Review changes; the automatic checks (see [TESTING.md](TESTING.md)) must pass in CI. Test with
    physical supported keys on macOS and Windows (and Linux when possible) and record the results in
    [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
+   Also inspect the actual open Code Scanning alerts for the candidate commit:
+   a successful CodeQL job only means the scan ran. Review and resolve findings;
+   record any narrowly justified test-only dismissal rather than excluding tests
+   or disabling a query. Scan completion alone is not a clean security result.
 2. Bump `fido2tool_core/version.py` and `pyproject.toml` consistently; refresh the lock.
 3. Run the **release rehearsal** on the candidate (*Actions → Build → Run workflow*): the same builds,
    artifact transfer and checks as the release, without publishing. It must be green; its report

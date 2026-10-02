@@ -66,15 +66,22 @@ class FakeAdvisories:
 
 class DiagnosticsTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        fixture_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(fixture_dir.cleanup)
+        self.tmp = Path(fixture_dir.name)
         settings = {"lang": "de", "history_enabled": True, "remember_sites": True,
                     "sync_folder": f"{SECRETS['home path']}/{SECRETS['sync folder']}",
                     "sync_device": SECRETS["sync device"], "passphrase": SECRETS["passphrase"],
                     "extra": SECRETS["unknown field"]}
+        # Deliberate negative-test fixture: SECRETS contains only public,
+        # synthetic constants. The tests below prove these fields never leak.
         (self.tmp / "settings.json").write_text(json.dumps(settings))
         p = patch.object(service_mod, "SETTINGS_FILE", self.tmp / "settings.json")
         p.start()
         self.addCleanup(p.stop)
+        keychain = patch.object(service_mod, "secret_get", return_value=None)
+        keychain.start()
+        self.addCleanup(keychain.stop)
 
     def service(self, records):
         history = History(self.tmp / "history.json", enabled=True)

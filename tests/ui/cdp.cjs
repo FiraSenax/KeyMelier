@@ -158,4 +158,23 @@ async function launch({ width = 1280, height = 800, url = 'about:blank' } = {}) 
   };
 }
 
-module.exports = { launch, findChrome, sleep, killAll };
+// Only pass trusted, static functions here. Values travel as CDP arguments,
+// never concatenated into JavaScript source or embedded in HTML.
+async function callPage(send, fn, ...values) {
+  const global = await send('Runtime.evaluate', { expression: 'globalThis' });
+  if (global.exceptionDetails || !global.result.objectId) throw new Error('No page execution context');
+  const objectId = global.result.objectId;
+  try {
+    const r = await send('Runtime.callFunctionOn', {
+      objectId, functionDeclaration: fn.toString(), arguments: values.map(value => ({ value })),
+      awaitPromise: true, returnByValue: true,
+    });
+    if (r.exceptionDetails) throw new Error(`page: ${r.exceptionDetails.exception?.description || r.exceptionDetails.text}`);
+    return r.result.value;
+  } finally {
+    // Navigation may have already destroyed the context; do not hide the result.
+    await send('Runtime.releaseObject', { objectId }).catch(() => {});
+  }
+}
+
+module.exports = { launch, findChrome, sleep, killAll, callPage };
