@@ -163,6 +163,32 @@ class VendorSerialPollingTests(unittest.TestCase):
         self.assertEqual(events, [], 'no phantom unplug/replug')
         self.assertIs(self.scanner.get(self.old.id), self.old)
 
+    def test_failed_management_reads_are_throttled_and_recover(self):
+        for details in (None, {'serial': None}):
+            with self.subTest(details=details):
+                self.clock[0] += VENDOR_RECHECK
+                failed_at = self.clock[0]
+                seen, reads = self.poll(details)
+                self.assertEqual((reads, seen.serial_number), (1, '100'))
+                for offset in range(1, int(VENDOR_RECHECK)):
+                    self.clock[0] = failed_at + offset
+                    seen, reads = self.poll(details)
+                    self.assertEqual(reads, 0, 'failed reads also wait for the recheck interval')
+                    self.assertEqual(seen.serial_number, '100')
+                self.clock[0] = failed_at + VENDOR_RECHECK
+                seen, reads = self.poll({'serial': '200'})
+                self.assertEqual((reads, seen.serial_number), (1, '200'), 'retry still detects a replacement')
+
+    def test_action_rechecks_identity_during_poll_backoff(self):
+        self.clock[0] += VENDOR_RECHECK
+        self.poll(None)
+        # A cached poll result never authorizes an operation on a replacement.
+        with patch('fido2tool_core.scanner.vendor_info.read', return_value={'serial': '200'}) as read:
+            with self.assertRaises(DeviceNotFound):
+                with self.scanner.session(self.old.id, refresh=False):
+                    self.fail('operation reached a different key during poll backoff')
+            read.assert_called_once()
+
     def test_a_swapped_key_of_the_same_model_is_still_noticed(self):
         self.clock[0] += VENDOR_RECHECK
         seen, _ = self.poll({'serial': '200'})

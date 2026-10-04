@@ -1,7 +1,7 @@
 """Single-flight, cancellable operations keyed by a connected device.
 
-Registration precedes acquiring the device session, so cancellation also reaches
-an operation queued behind another device call. Cleanup only removes its owner.
+Registration precedes waiting for either a cancelled operation or the device
+session, so cancellation also reaches queued calls. Cleanup only removes its owner.
 """
 
 import threading
@@ -16,6 +16,7 @@ class PendingOperations:
         self._lock = threading.Lock()
         self._released = threading.Condition(self._lock)
         self._events: dict[str, threading.Event] = {}
+        self._waiters: dict[str, set[threading.Event]] = {}
 
     @contextmanager
     def start(self, device_id: str, wait: float = 0.0):
@@ -25,12 +26,26 @@ class PendingOperations:
         event = threading.Event()
         deadline = time.monotonic() + wait
         with self._released:
-            while device_id in self._events:
-                remaining = deadline - time.monotonic()
-                if not self._events[device_id].is_set() or remaining <= 0:
-                    raise AuthError("The key is busy.", "busy", status=409)
-                self._released.wait(remaining)
-            self._events[device_id] = event
+            # A second cancel/lock must reach the new PIN request while the
+            # cancelled fingerprint operation still owns the active slot.
+            waiters = self._waiters.setdefault(device_id, set())
+            waiters.add(event)
+            try:
+                while device_id in self._events:
+                    if event.is_set():
+                        raise AuthError("Cancelled.", "cancelled")
+                    remaining = deadline - time.monotonic()
+                    if not self._events[device_id].is_set() or remaining <= 0:
+                        raise AuthError("The key is busy.", "busy", status=409)
+                    self._released.wait(remaining)
+                # The old operation may have finished before we woke up.
+                if event.is_set():
+                    raise AuthError("Cancelled.", "cancelled")
+                self._events[device_id] = event
+            finally:
+                waiters.remove(event)
+                if not waiters:
+                    del self._waiters[device_id]
         try:
             yield event
         finally:
@@ -40,8 +55,12 @@ class PendingOperations:
                 self._released.notify_all()
 
     def cancel(self, device_id: str) -> bool:
-        with self._lock:
+        with self._released:
+            events = self._waiters.get(device_id, set()).copy()
             event = self._events.get(device_id)
             if event is not None:
+                events.add(event)
+            for event in events:
                 event.set()
-            return event is not None
+            self._released.notify_all()
+            return bool(events)

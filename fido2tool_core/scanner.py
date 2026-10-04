@@ -170,7 +170,7 @@ class TokenScanner:
         # the poll loop skips locked devices and treats them as still present.
         self._device_locks: dict[str, threading.Lock] = {}
         self._model_status: dict[str, str] = {}  # path -> status from MDS/advisories only
-        self._vendor_checked: dict[str, float] = {}  # path -> last successful management read
+        self._vendor_checked: dict[str, float] = {}  # path -> last management read attempt
 
         self.on_connect: Callable[[TokenRecord], None] = lambda r: None
         self.on_disconnect: Callable[[TokenRecord], None] = lambda r: None
@@ -279,16 +279,16 @@ class TokenScanner:
                         details = None
                         if time.monotonic() - self._vendor_checked.get(path_key, 0.0) >= VENDOR_RECHECK:
                             details = vendor_info.read(dev, record.vendor_id, record.product_id)
+                            # Failed reads must not turn into a retry on every poll.
+                            self._vendor_checked[path_key] = time.monotonic()
                         if details and details.get("serial"):
                             _apply_vendor_info(record, details)
-                            self._vendor_checked[path_key] = time.monotonic()
                         else:
                             _carry_vendor_info(known, record)
                     elif known is None or not _same_identity(known, record):
                         details = vendor_info.read(dev, record.vendor_id, record.product_id)
                         _apply_vendor_info(record, details)
-                        if details and details.get("serial"):
-                            self._vendor_checked[path_key] = time.monotonic()
+                        self._vendor_checked[path_key] = time.monotonic()
                     result[path_key] = record
             except Exception as e:
                 logger.debug("Could not read CTAP2 info from device: %s", e)

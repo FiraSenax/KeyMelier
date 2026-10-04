@@ -157,3 +157,10 @@ with real synthetic signatures, bounded HTTP reads, update-file collisions,
 PIV read failures, copied dependency scripts and non-publishing RC workflow
 conditions. None requires a hardware key or signing credentials. The spec's
 build-environment check runs on all platforms, including signed RCs.
+
+The 1.8.4 regressions also cover cancelling/locking PIN requests while a
+cancelled fingerprint operation still owns the slot, multiple waiting requests,
+timeout cleanup and a subsequent fresh request. Scanner tests check that failed
+management reads respect the polling interval, recovery still detects a swapped
+key, and actions recheck identity even during the polling pause. These use
+simulated devices and an injected clock, without touching real keys.
