@@ -7,7 +7,7 @@ dependencies = [
   "pywebview==6.2.1",
   "requests==2.34.2",
   "yubikey-manager==5.9.2",
-  "cryptography==50.0.1",
+  "cryptography==50.0.2",
   "pyOpenSSL==26.4.0",
   "keyring==25.7.0",
   # Linux: Qt web view (LGPL, self-contained in the AppImage)
