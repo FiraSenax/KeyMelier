@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Restore build dependency consistency after automated updates: keep the project manifest, lockfile and all three hash-pinned requirements exports in sync. Resolve Qt and Shiboken together, isolate quality tools in their own dependency group, and check exports offline on every CI platform.
+
 ## 1.8.4 — 2026-10-02
 
 Fixes for 1.8.3. No new features.
