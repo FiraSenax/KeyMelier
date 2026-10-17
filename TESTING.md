@@ -137,13 +137,16 @@ Record the result in [HARDWARE_TESTS.md](HARDWARE_TESTS.md) (column
 
 All test jobs install `requirements-quality.txt` with
 `--require-hashes --only-binary=:all:`. It supplies PyYAML for workflow regression
-tests and Ruff; the Linux job runs the Ruff correctness checks. This
-separate pinned development-tool manifest is never installed in package builds.
-Update it intentionally using official wheel hashes; runtime/build dependencies
-continue to come from `uv.lock` and the existing exports.
+tests, Ruff and uv; the Linux job runs the Ruff correctness checks. These tools
+come from the isolated `quality` group in `pyproject.toml` and `uv.lock`, and are
+never installed in package builds. Update their pins in `pyproject.toml`, run
+`uv lock`, then regenerate all three exports with `tools/export_requirements.py`.
+Each platform checks the manifest, lock and exports offline; `--check` never
+rewrites files or resolves newer package versions.
 
 ```bash
 python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
+python tools/export_requirements.py --check
 ruff check app.py fido2tool_core
 ruff check tools tests --select E9,F63,F7,F82
 python -m unittest tests.test_auth_lifecycle tests.test_bridge tests.test_function_test

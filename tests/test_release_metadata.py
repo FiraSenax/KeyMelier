@@ -114,9 +114,8 @@ class ReleaseMetadataTests(unittest.TestCase):
 
     def test_requirement_exports_match_the_lock(self):
         """CI installs requirements*.txt; they must be the current export of uv.lock.
-        Dependabot updates only uv.lock – this fails its PR until the exports are regenerated:
-            uv export --frozen --no-dev --no-emit-project -o requirements.txt
-            uv export --frozen --only-group build --no-emit-project -o requirements-build.txt"""
+        Includes isolated quality tools; all exports come from one lock:
+            python tools/export_requirements.py"""
         lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
         norm = lambda name: re.sub(r"[-_.]+", "-", name).lower()
         locked = {}
@@ -125,7 +124,7 @@ class ReleaseMetadataTests(unittest.TestCase):
             hashes |= {w["hash"] for w in pkg.get("wheels", []) if "hash" in w}
             locked[norm(pkg["name"])] = (pkg["version"], hashes)
         exported = {}
-        for name in ("requirements.txt", "requirements-build.txt"):
+        for name in ("requirements.txt", "requirements-build.txt", "requirements-quality.txt"):
             text = (ROOT / name).read_text(encoding="utf-8").replace("\\\n", " ")
             for line in text.splitlines():
                 m = re.match(r"^([A-Za-z0-9_.-]+)==([^\s;]+)", line)
@@ -138,6 +137,17 @@ class ReleaseMetadataTests(unittest.TestCase):
                 self.assertTrue(hashes and hashes <= locked[pkg][1], f"{source}: hashes of {pkg} are not the lock's")
         missing = set(locked) - set(exported) - {"keymelier"}
         self.assertEqual(missing, set(), "packages in uv.lock that no export installs – regenerate the exports")
+
+    def test_quality_tools_stay_out_of_runtime_and_build_exports(self):
+        for name in ("requirements.txt", "requirements-build.txt"):
+            packages = set(re.findall(r"(?m)^([A-Za-z0-9_.-]+)==", (ROOT / name).read_text()))
+            self.assertFalse(packages & {"ruff", "pyyaml", "uv"}, name)
+
+    def test_dependabot_does_not_update_generated_exports_independently(self):
+        config = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())
+        update = next(item for item in config["updates"] if item["package-ecosystem"] == "uv")
+        self.assertTrue({"requirements.txt", "requirements-build.txt", "requirements-quality.txt"}
+                        <= set(update["exclude-paths"]))
 
     def test_changelog_has_an_entry_for_this_version(self):
         headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)

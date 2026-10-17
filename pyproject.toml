@@ -21,6 +21,11 @@ build = [
     "dmgbuild==1.6.7 ; sys_platform == 'darwin'",
     "pyinstaller==6.22.3",
 ]
+quality = [
+    "ruff==0.16.10",
+    "PyYAML==6.0.3",
+    "uv==0.13.1",
+]
 
 # Correctness checks, without imposing a bulk formatting rewrite.
 [tool.ruff]
