@@ -193,7 +193,8 @@ python tools/export_requirements.py --check
 patch grouped) and the pinned GitHub Actions, plus security updates as soon as an advisory
 appears. Generated requirements files are excluded from independent updates:
 related packages such as PySide6 and Shiboken must resolve together. Every PR runs
-the full build. For Python updates, regenerate the exports on the PR branch,
+the full build. Linux uses the upstream `PySide6` package as the single version
+pin for Essentials, Addons and Shiboken. For Python updates, regenerate the exports on the PR branch,
 review the manifest, lock and export diffs together, then commit and push them.
 CI checks their consistency offline before running tests. Pull requests are also
 checked by *Dependency review* (no dependency with a known moderate-or-higher vulnerability),
