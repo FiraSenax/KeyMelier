@@ -174,21 +174,28 @@ When adding entries, derive the AAGUIDs from MDS3 rather than by hand and includ
 
 ## Dependencies and releases
 
-Python 3.11–3.13 is supported. `uv.lock` pins runtime/build dependencies across
-platforms. `requirements.txt` and `requirements-build.txt` include hashes; scripts
-and CI install them with `--require-hashes`. To intentionally update dependencies,
-review the lock diff and regenerate exports with uv:
+Python 3.11–3.13 is supported. `uv.lock` pins runtime, build and quality-tool
+dependencies across platforms. The three `requirements*.txt` files are generated
+exports with hashes; scripts and CI install them with `--require-hashes`.
+Quality tools remain separate from application and package-build environments.
+To intentionally update dependencies, install the pinned tools, edit
+`pyproject.toml` or select a transitive package with `uv lock --upgrade-package`,
+then regenerate every export:
 
 ```bash
+python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 uv lock
-uv export --frozen --no-dev --no-emit-project -o requirements.txt
-uv export --frozen --only-group build --no-emit-project -o requirements-build.txt
+python tools/export_requirements.py
+python tools/export_requirements.py --check
 ```
 
 **Automated updates:** Dependabot opens weekly pull requests for the Python lock (minor and
 patch grouped) and the pinned GitHub Actions, plus security updates as soon as an advisory
-appears. Every PR runs the full build. For Python updates a test fails until the exports
-above are regenerated on the PR branch (`uv export …`, commit, push). Pull requests are also
+appears. Generated requirements files are excluded from independent updates:
+related packages such as PySide6 and Shiboken must resolve together. Every PR runs
+the full build. For Python updates, regenerate the exports on the PR branch,
+review the manifest, lock and export diffs together, then commit and push them.
+CI checks their consistency offline before running tests. Pull requests are also
 checked by *Dependency review* (no dependency with a known moderate-or-higher vulnerability),
 and CodeQL, secret scanning with push protection and private vulnerability reporting are on.
 
