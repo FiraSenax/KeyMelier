@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update pycparser to 3.11, pythonnet to 3.2.1 and Ruff to 0.17.1. Keep the Linux Qt libraries at 6.11.2 under the single upstream PySide6 package, so future updates resolve Essentials, Addons and Shiboken together; include its license and SBOM metadata.
 - Restore build dependency consistency after automated updates: keep the project manifest, lockfile and all three hash-pinned requirements exports in sync. Resolve Qt and Shiboken together, isolate quality tools in their own dependency group, and check exports offline on every CI platform.
 
 ## 1.8.4 — 2026-10-02

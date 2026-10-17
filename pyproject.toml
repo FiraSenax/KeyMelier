@@ -10,9 +10,9 @@ dependencies = [
   "cryptography==50.0.2",
   "pyOpenSSL==26.4.0",
   "keyring==25.7.0",
+  # One upstream pin keeps Essentials, Addons and Shiboken at the same version.
   # Linux: Qt web view (LGPL, self-contained in the AppImage)
-  "PySide6-Essentials==6.11.2 ; sys_platform == 'linux'",
-  "PySide6-Addons==6.11.2 ; sys_platform == 'linux'",
+  "PySide6==6.11.2 ; sys_platform == 'linux'",
   "qtpy==2.4.3 ; sys_platform == 'linux'",
 ]
 
@@ -22,7 +22,7 @@ build = [
     "pyinstaller==6.22.3",
 ]
 quality = [
-    "ruff==0.17.0",
+    "ruff==0.17.1",
     "PyYAML==6.0.3",
     "uv==0.13.1",
 ]

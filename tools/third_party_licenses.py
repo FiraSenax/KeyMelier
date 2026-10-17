@@ -27,6 +27,7 @@ SOURCE = {
     "certifi": "https://github.com/certifi/python-certifi (MPL-2.0)",
     "python-pskc": "https://github.com/arthurdejong/python-pskc (LGPL-2.1-or-later)",
     # Linux build: Qt for Python and the Qt libraries it contains (used under the LGPL-3.0)
+    "pyside6": QT_SOURCE,
     "pyside6-essentials": QT_SOURCE,
     "pyside6-addons": QT_SOURCE + " Qt WebEngine contains Chromium; its third-party notices: "
                       "https://doc.qt.io/qt-6/qtwebengine-licensing.html",
@@ -35,7 +36,7 @@ SOURCE = {
 
 # Packages that ship no license file although their license requires the text
 QT_TEXTS = ["LGPL-3.0.txt", "GPL-3.0.txt"]   # LGPL-3.0 is a set of additions to the GPL-3.0
-EXTRA_TEXTS = {"pyside6-essentials": QT_TEXTS, "pyside6-addons": QT_TEXTS, "shiboken6": QT_TEXTS}
+EXTRA_TEXTS = {"pyside6": QT_TEXTS, "pyside6-essentials": QT_TEXTS, "pyside6-addons": QT_TEXTS, "shiboken6": QT_TEXTS}
 
 # Packages whose metadata has no usable license label
 LABELS = {"yubikey-manager": "BSD-2-Clause"}

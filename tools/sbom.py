@@ -58,6 +58,7 @@ SPDX_OVERRIDES = {
     "jeepney": "MIT",
     "secretstorage": "BSD-3-Clause",
     "qtpy": "MIT",
+    "pyside6": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
     "pyside6-essentials": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",   # METADATA License field
     "pyside6-addons": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
     "shiboken6": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",

@@ -241,9 +241,9 @@ packaging==26.3 ; sys_platform == 'linux' or sys_platform == 'openbsd6' \
 proxy-tools==0.1.0 \
     --hash=sha256:ccb3751f529c047e2d8a58440d86b205303cf0fe8146f784d1cbcd94f0a28010
     # via pywebview
-pycparser==3.0 ; (implementation_name != 'PyPy' and platform_python_implementation != 'PyPy') or (implementation_name != 'PyPy' and sys_platform == 'win32') \
-    --hash=sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29 \
-    --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+pycparser==3.11 ; (implementation_name != 'PyPy' and platform_python_implementation != 'PyPy') or (implementation_name != 'PyPy' and sys_platform == 'win32') \
+    --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80 \
+    --hash=sha256:d875f09c3507d00e1aba0eecc6dcadc1352f30fff09dc6bff2f1c2935e97c2bc
     # via cffi
 pyobjc-core==12.2.2 ; sys_platform == 'darwin' \
     --hash=sha256:122e6ad302a2abf5d4d4adb0156db751600ddf2768441696cba17b31323085e7 \
@@ -316,15 +316,19 @@ pyscard==2.3.1 \
     --hash=sha256:e228c78e028b74e5411a604c765852bdc8fd04321f03e62d25cad8e90de27597 \
     --hash=sha256:f58b46cd78455a29a0abceabff21b37da81a385a737b29e6dd5e25acb7e3f3da
     # via yubikey-manager
+pyside6==6.11.2 ; sys_platform == 'linux' \
+    --hash=sha256:57fe867a6c93821a085d74e8a26f863fc2363516848181c466032595b33b1729 \
+    --hash=sha256:dc6d03990489a5085842770718392ef5de36352d8f608d9a9fe03e60af4d7b66
+    # via keymelier
 pyside6-addons==6.11.2 ; sys_platform == 'linux' \
     --hash=sha256:a2ca3c73e5f060d4aca49451abd9fba68dd0e1c66ff40cea3a1fe0415def579a \
     --hash=sha256:a8b00956925fbdeffc7052cf933506391289f35ac4f3f71a0a167ec195cd47b4
-    # via keymelier
+    # via pyside6
 pyside6-essentials==6.11.2 ; sys_platform == 'linux' \
     --hash=sha256:aaf9f25f0f324874085fa5b26a610318db8a8e243cf85bb3e5400595191c7778 \
     --hash=sha256:d3ec6e1885c46e57f16364f38ea8040ffc5dc0b18341058f608fede3ba930567
     # via
-    #   keymelier
+    #   pyside6
     #   pyside6-addons
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
@@ -334,9 +338,9 @@ python-pskc==1.4 \
     --hash=sha256:4a36381446ca067be728b30e01b4d18dbd9d1ad553bf07c3710abcd87653eefe \
     --hash=sha256:fb097c429d6b741cc2aac2cb7eb999315421496ea0c85beed9702820d610c664
     # via yubikey-manager
-pythonnet==3.2.0 ; sys_platform == 'win32' \
-    --hash=sha256:880bed9452646624f2cca1627d463424d15abefa16933c46ba00dc10da78d184 \
-    --hash=sha256:c8c7946d291156ffc1d5f22c001a63c6776947ce3c64da800ccea8181ddb1abe
+pythonnet==3.2.1 ; sys_platform == 'win32' \
+    --hash=sha256:c86e8dd31268f6e0c48fcc4d6030041316d49ed2764a1cb6ea8c37876e07c572 \
+    --hash=sha256:dd5668b74b0c903d9a24e1ba86f728fc490f8e919d56b3c24bf06739b9ee2b7f
     # via pywebview
 pywebview==6.2.1 \
     --hash=sha256:71b7136752e40824655304d938efb62014218d1a90bd8e87e1cbdb1ce9c466af \
@@ -375,6 +379,7 @@ shiboken6==6.11.2 ; sys_platform == 'linux' \
     --hash=sha256:4bbbd6fa4d7cff5ec5e12bc4c10e1d845fa30c89457ecb13cc64f7bddb77f6f9 \
     --hash=sha256:7a7a0a72a9ed26c9bf77d42246b1c736486befb8f31aa2fb29957ea4cdd1c1c2
     # via
+    #   pyside6
     #   pyside6-addons
     #   pyside6-essentials
 six==1.17.0 \
