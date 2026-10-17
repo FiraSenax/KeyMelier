@@ -2,13 +2,16 @@
 # (tests, all platform builds, strict SBOM, Linux compatibility), so an update
 # that breaks packaging or licensing fails there.
 #
-# Python: Dependabot updates uv.lock (and pyproject.toml). The hash-pinned
-# requirements*.txt that CI installs are exports of the lock – a test fails the
-# PR until they are regenerated (see README, "Dependencies and releases").
+# Python: update the project/lock, never the generated requirements exports.
+# Regenerate all three exports on the PR with tools/export_requirements.py.
 version: 2
 updates:
   - package-ecosystem: uv
     directory: /
+    exclude-paths:
+      - requirements.txt
+      - requirements-build.txt
+      - requirements-quality.txt
     schedule:
       interval: weekly
       day: monday
