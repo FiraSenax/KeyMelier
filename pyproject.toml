@@ -24,7 +24,7 @@ build = [
 quality = [
     "ruff==0.17.1",
     "PyYAML==6.0.3",
-    "uv==0.13.1",
+    "uv==0.13.4",
 ]
 
 # Correctness checks, without imposing a bulk formatting rewrite.
