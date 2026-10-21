@@ -3,6 +3,24 @@ from unittest.mock import Mock
 from fido2tool_core.network import read_limited
 
 
+class TrustBundleTests(unittest.TestCase):
+    def test_certifi_does_not_trust_compromised_emsign_chain(self):
+        """GHSA-6q48-6c7w-9gw2: inspect the actual trust store, not just its version."""
+        import hashlib
+        import ssl
+        import certifi
+
+        # An explicit context loads only certifi, not the host's separate CA store.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.load_verify_locations(cafile=certifi.where())
+        roots = context.get_ca_certs(binary_form=True)
+        self.assertTrue(roots, "certifi must supply a usable CA bundle")
+        fingerprints = {hashlib.sha256(cert).hexdigest() for cert in roots}
+        # SHA-256 of emSign ECC Root CA - G3, removed by the upstream security fix.
+        self.assertNotIn("86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+                         fingerprints, "certifi still trusts the compromised emSign chain")
+
+
 class NetworkLimitsTests(unittest.TestCase):
     def response(self, chunks, headers=None):
         return Mock(headers=headers or {}, iter_content=Mock(return_value=iter(chunks)))
