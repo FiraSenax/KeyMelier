@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.8.5 — 2026-10-22
+
+Security and dependency maintenance release. No new application features.
+Upgrade from 1.8.4 and earlier to receive the corrected HTTPS certificate bundle.
 
 - **Security (application):** update certifi to 2026.10.19 to remove the emSign ECC Root CA - G3 trust anchor affected by compromised intermediate CA keys (GHSA-6q48-6c7w-9gw2). Rebuild the applications with the corrected HTTPS CA bundle; add a regression check against the removed root's fingerprint.
 - **Security (development/CI):** update uv to 0.13.4 to remove trust in the affected emSign root (GHSA-hq85-5cpj-mr62). uv remains isolated from the application and package-build dependencies.
