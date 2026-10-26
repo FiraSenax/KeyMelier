@@ -1,7 +1,7 @@
 # Release setup
 
 macOS signing follows the configured Apple credentials. Windows signing is an
-explicit opt-in while the Certum certificate is being issued. Once enabled, any
+explicit opt-in until the real Certum signing probe succeeds. Once enabled, any
 missing credential, failed login or invalid signature fails the Windows job;
 it cannot silently publish an unsigned Windows build. Release notes and the
 website use the verified build outputs, not merely the presence of credentials.
@@ -35,7 +35,10 @@ keychain is removed even on failure. The hardened runtime runs without entitleme
 
 The previous SignPath integration has been removed after the application was
 not accepted. Certum Open Source Code Signing in the Cloud (SimplySign) has been
-purchased; issuance and the first real provider test are still pending.
+issued on 26 October 2026. The [real provider probe](https://github.com/FiraSenax/KeyMelier/actions/runs/40378787279)
+passed that day using the exact certificate thumbprint, with a trusted timestamp,
+native Authenticode validation and completed session cleanup. Previously built
+unsigned packages remain unchanged; the first signed candidate is 1.8.6 RC5.
 
 The workflow uses the official SimplySign Desktop 9.4.4.92 MSI, pinned by SHA-256
 and verified against its Asseco Authenticode signature before installation. A
@@ -54,6 +57,15 @@ certificate. Configure the existing protected `release-signing` environment:
 | Secret | `CERTUM_TOTP_SECRET` | Base32 token seed from SimplySign setup, not the six-digit current code |
 | Variable | `CERTUM_CERT_SHA1` | Exact 40-character thumbprint of the issued code-signing certificate, without spaces |
 | Variable | `WINDOWS_SIGNING_ENABLED` | Leave unset or `false` until the provider probe passes; then set `true` |
+
+If the public certificate download is unavailable, the first probe can obtain
+its thumbprint from SimplySign. Leave `CERTUM_CERT_SHA1` unset and configure
+`CERTUM_CERT_SERIAL` and `CERTUM_CERT_COMMON_NAME` from the verified issuance
+notice and CertManager. This probe requires exactly one matching serial, the
+exact publisher common name, a trusted Certum chain, current validity, code-signing
+usage and access to the cloud private key before signing. It reports only public
+certificate metadata. Copy the verified thumbprint into `CERTUM_CERT_SHA1` after
+the probe succeeds. Release builds never use this bootstrap path.
 
 The TOTP seed grants access to signing and belongs only in that protected
 GitHub environment. Do not put it in chat, repository files, workflow inputs,

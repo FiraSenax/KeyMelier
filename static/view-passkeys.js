@@ -107,7 +107,10 @@ function renderPasskeys() {
               <dl class="kv pk-kv">
                 ${prot ? `<dt>${escHtml(t('pk.protection'))}</dt><dd>${escHtml(prot)}</dd>` : ''}
                 <dt>${escHtml(t('pk.largeBlob'))}</dt><dd>${escHtml(t(c.large_blob ? 'pk.yes' : 'pk.no'))}</dd>
-                <dt>${escHtml(t('pk.credId'))}</dt><dd class="mono">${escHtml(String(c.credential_id).slice(0, 24))}…</dd>
+                <dt>${escHtml(t('pk.credId'))}</dt><dd class="pk-identifier"><code>${escHtml(c.credential_id)}</code>
+                  <button type="button" class="btn-small" data-act="copy-credential" data-id="${escHtml(c.credential_id)}" aria-label="${escHtml(t('pk.copy') + ': ' + t('pk.credId'))}">${escHtml(t('pk.copy'))}</button></dd>
+                <dt>${escHtml(t('pk.userId'))}</dt><dd class="pk-identifier"><code>${escHtml(c.user_id || '')}</code>
+                  ${c.user_id ? `<button type="button" class="btn-small" data-act="copy-user" data-id="${escHtml(c.credential_id)}" aria-label="${escHtml(t('pk.copy') + ': ' + t('pk.userId'))}">${escHtml(t('pk.copy'))}</button>` : '—'}</dd>
               </dl>
             </details>
           </div>
@@ -173,6 +176,12 @@ async function renamePasskey(credId, displayName, name) {
 async function passkeyAction(action, credId) {
   const token = tokens.get(selectedId);
   if (!token) return;
+  if (action === 'copy-credential' || action === 'copy-user') {
+    const found = findPasskey(credId);
+    const value = found?.c[action === 'copy-user' ? 'user_id' : 'credential_id'];
+    if (value) return copyText(value, 'pk.copied');
+    return;
+  }
   if (action === 'reload') return loadPasskeys(token);
   if (action === 'ask-delete') { pkConfirm = credId; pkRename = null; return renderPasskeys(); }
   if (action === 'rename') { pkRename = credId; pkConfirm = null; return renderPasskeys(); }

@@ -117,7 +117,24 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
         import webview as wv
         return getattr(wv, "__version__", "pywebview")
 
+    def qr_import():
+        import io
+        import zxingcpp
+        from PIL import Image
+        from keymelier_core.oath_qr import decode_image
+        # Public synthetic fixture, generated in memory; never reads a user image.
+        uri = 'otpauth://totp/KeyMelier:self-test?secret=JBSWY3DPEHPK3PXP&issuer=KeyMelier'
+        code = zxingcpp.create_barcode(uri, zxingcpp.BarcodeFormat.QRCode)
+        with Image.fromarray(code.to_image(scale=4)).convert('RGB') as pixels:
+            for format in ('PNG', 'JPEG'):
+                out = io.BytesIO()
+                pixels.save(out, format=format)
+                if decode_image(out.getvalue())['name'] != 'self-test':
+                    return False
+        return True
+
     check("runtime: fido2 (CTAP/HID)", fido)
+    check("runtime: local PNG/JPEG QR import", qr_import)
     if os.environ.get("SMOKE_REQUIRE_MSIX") == "1":
         from keymelier_core import app_update, distribution, storage
 

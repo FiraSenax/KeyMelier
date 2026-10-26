@@ -78,7 +78,7 @@ def _gpg():
 # Functions the page may call. pywebview resolves js_api names as dotted
 # attribute paths without filtering private members ("_window.gui.os…"), so
 # the page gets plain wrapper functions only – never an object.
-BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "choose_folder", "open_licenses",
+BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "read_oath_qr", "choose_folder", "open_licenses",
           "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
 
 
@@ -119,7 +119,7 @@ def _expose_bridge(window, api, extra=()):
                 # not pass through dispatch. Never let pywebview serialize a
                 # raw exception, its private file path or traceback to the UI.
                 logger.error("Desktop callback %s failed (%s)", name, type(e).__name__)
-                if name in {"call", "gpg_import"}:
+                if name in {"call", "gpg_import", "read_oath_qr"}:
                     return {"ok": False, "error": "The operation could not be completed.",
                             "code": "error", "status": 500}
                 if name in {"copy_text", "open_licenses", "gpg_available"}:
@@ -193,6 +193,25 @@ class Api:
             return None
         path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
         return str(path) if path.is_dir() else None
+
+    def read_oath_qr(self):
+        """Preview only the image selected in the native dialog, never a JS path."""
+        from keymelier_core import oath_qr
+        from keymelier_core.pin import PinError
+        if self._window is None:
+            return {"ok": True, "data": None}
+        chosen = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("QR image (*.png;*.jpg;*.jpeg)",))
+        if not chosen:
+            return {"ok": True, "data": None}
+        path = chosen[0] if isinstance(chosen, (list, tuple)) else chosen
+        try:
+            return {"ok": True, "data": oath_qr.read_image(path)}
+        except PinError as e:
+            return {"ok": False, "code": e.code, "error": e.message}
+        except OSError:
+            return {"ok": False, "code": "qr_image", "error": "The image could not be read."}
 
     def gpg_available(self):
         return _gpg() is not None

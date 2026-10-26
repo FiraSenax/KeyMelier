@@ -104,15 +104,20 @@ function renderOath() {
   if (oathForm === 'add') {
     parts.push(`<form class="card form-card oath-add-form" autocomplete="off">
       <h2>${escHtml(t('oath.add'))}</h2>
+      <div class="form-actions"><button type="button" class="btn btn-secondary" data-act="import-qr">${escHtml(t('oath.qr.import'))}</button></div>
+      <p class="field-hint oath-qr-preview" hidden>${escHtml(t('oath.qr.ready'))}</p>
       <label class="field"><span>${escHtml(t('oath.uri'))}</span>
         <input type="text" class="oath-uri" placeholder="otpauth://totp/…" spellcheck="false"></label>
       <p class="field-hint">${escHtml(t('oath.orManual'))}</p>
       <div class="oath-grid">
         <label class="field"><span>${escHtml(t('oath.issuer'))}</span><input type="text" class="oath-issuer" maxlength="60"></label>
         <label class="field"><span>${escHtml(t('oath.account'))}</span><input type="text" class="oath-name" maxlength="60"></label>
-        <label class="field oath-wide"><span>${escHtml(t('oath.secret'))}</span><input type="text" class="oath-secret" spellcheck="false" autocomplete="off"></label>
+        <label class="field oath-wide"><span>${escHtml(t('oath.secret'))}</span><input type="password" class="oath-secret" spellcheck="false" autocomplete="off"></label>
         <label class="field"><span>${escHtml(t('oath.type'))}</span><select class="oath-type bk-select"><option>TOTP</option><option>HOTP</option></select></label>
         <label class="field"><span>${escHtml(t('oath.digits'))}</span><select class="oath-digits bk-select"><option>6</option><option>7</option><option>8</option></select></label>
+        <label class="field"><span>${escHtml(t('oath.algorithm'))}</span><select class="oath-algorithm bk-select"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
+        <label class="field oath-period-field"><span>${escHtml(t('oath.period'))}</span><input type="number" class="oath-period" min="1" max="300" value="30"></label>
+        <label class="field oath-counter-field" hidden><span>${escHtml(t('oath.counter'))}</span><input type="number" class="oath-counter" min="0" max="4294967295" value="0"></label>
       </div>
       <label class="check"><input type="checkbox" class="oath-touch"><span>${escHtml(t('oath.requireTouch'))}</span></label>
       <div class="form-actions">
@@ -187,6 +192,7 @@ async function oathAction(act, id, el) {
   const token = tokens.get(selectedId);
   if (!token) return;
   const st = oathState || {};
+  if (act === 'import-qr') return importOathQr(token, el);
   if (act === 'reload') return loadOath(token);
   if (act === 'show-add') { oathForm = 'add'; oathError = null; return renderOath(); }
   if (act === 'show-password') { oathForm = 'password'; oathError = null; return renderOath(); }
@@ -219,8 +225,45 @@ async function oathAction(act, id, el) {
   if (act === 'pw-remove') return oathCall('oath_password', { password: null }, 'oath.pw.removed');
 }
 
+function updateOathTypeFields(form) {
+  const hotp = form.querySelector('.oath-type').value === 'HOTP';
+  form.querySelector('.oath-period-field').hidden = hotp;
+  form.querySelector('.oath-counter-field').hidden = !hotp;
+}
+
+async function importOathQr(token, button) {
+  const form = button.closest('form');
+  if (!form || button.disabled) return;
+  button.disabled = true;
+  try {
+    const result = await window.pywebview.api.read_oath_qr();
+    // A native dialog can outlive a key, tab or form. Never populate a
+    // replacement key's form with a late result containing a secret.
+    if (selectedId !== token.id || activeTab !== 'oath' || oathForm !== 'add' || !form.isConnected) return;
+    if (!result?.ok) {
+      const codes = ['qr_large', 'qr_image', 'qr_no_code', 'qr_multiple', 'qr_invalid'];
+      showToast(t(codes.includes(result?.code) ? `err.${result.code}` : 'err.qr_image'), 'error');
+      return;
+    }
+    if (!result.data) return;
+    const fields = { issuer: 'issuer', name: 'name', secret: 'secret', oath_type: 'type',
+      algorithm: 'algorithm', digits: 'digits', period: 'period', counter: 'counter' };
+    for (const [key, cls] of Object.entries(fields)) form.querySelector(`.oath-${cls}`).value = result.data[key];
+    form.querySelector('.oath-uri').value = '';
+    form.querySelector('.oath-qr-preview').hidden = false;
+    updateOathTypeFields(form);
+  } catch {
+    if (selectedId === token.id && form.isConnected) showToast(t('err.qr_image'), 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function initOathPane() {
   const el = $('oath-content');
+  el.addEventListener('change', ev => {
+    if (ev.target.matches('.oath-type')) updateOathTypeFields(ev.target.closest('form'));
+  });
   el.addEventListener('click', ev => {
     const b = ev.target.closest('[data-act]');
     if (b) oathAction(b.dataset.act, b.dataset.id, b);
@@ -240,6 +283,8 @@ function initOathPane() {
         issuer: f.querySelector('.oath-issuer').value, name: f.querySelector('.oath-name').value,
         secret: f.querySelector('.oath-secret').value.replace(/\s+/g, ''),
         oath_type: f.querySelector('.oath-type').value, digits: Number(f.querySelector('.oath-digits').value),
+        algorithm: f.querySelector('.oath-algorithm').value, period: Number(f.querySelector('.oath-period').value),
+        counter: Number(f.querySelector('.oath-counter').value),
         touch: f.querySelector('.oath-touch').checked,
       }, 'oath.added');
     }

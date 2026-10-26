@@ -78,6 +78,8 @@ jobs:
       cancel-in-progress: false
     env:
       CERTUM_CERT_SHA1: ${{ vars.CERTUM_CERT_SHA1 }}
+      CERTUM_CERT_SERIAL: ${{ vars.CERTUM_CERT_SERIAL }}
+      CERTUM_CERT_COMMON_NAME: ${{ vars.CERTUM_CERT_COMMON_NAME }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -89,11 +91,56 @@ jobs:
           & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe "/out:$env:RUNNER_TEMP\probe.exe" "$env:RUNNER_TEMP\probe.cs"
           if ($LASTEXITCODE -ne 0) { throw 'Probe compilation failed.' }
       - name: Connect Certum SimplySign
+        if: vars.CERTUM_CERT_SHA1 != ''
         uses: ./.github/actions/certum-connect
         with:
           username: ${{ secrets.CERTUM_USERNAME }}
           totp-secret: ${{ secrets.CERTUM_TOTP_SECRET }}
           thumbprint: ${{ vars.CERTUM_CERT_SHA1 }}
+      # First-use bootstrap is confined to this non-publishing probe. Release
+      # builds still require the exact thumbprint through certum-connect.
+      - name: Require the independently verified certificate identity
+        if: vars.CERTUM_CERT_SHA1 == ''
+        shell: pwsh
+        run: |
+          if ($env:CERTUM_CERT_SERIAL -notmatch '^[0-9A-Fa-f]{1,40}$' -or
+              [string]::IsNullOrWhiteSpace($env:CERTUM_CERT_COMMON_NAME)) {
+            throw 'Set the serial number and common name from the issued Certum certificate before the first probe.'
+          }
+      - name: Install the verified SimplySign client for the first probe
+        if: vars.CERTUM_CERT_SHA1 == ''
+        shell: pwsh
+        run: ./tools/install-simplysign.ps1
+      - name: Connect SimplySign to read the issued certificate
+        if: vars.CERTUM_CERT_SHA1 == ''
+        uses: jay0lee/certum-cloud-code-sign@a3324503499c49090869856eeeecfe95fb613d87
+        with:
+          username: ${{ secrets.CERTUM_USERNAME }}
+          totp_secret: ${{ secrets.CERTUM_TOTP_SECRET }}
+          version: '9.4.4.92'
+          totp_algorithm: SHA-256
+          totp_digits: '6'
+          totp_period: '30'
+          wait_for_cert_timeout: '60'
+          debug: 'false'
+      - name: Verify the expected identity and obtain its thumbprint
+        if: vars.CERTUM_CERT_SHA1 == ''
+        shell: pwsh
+        run: |
+          . ./tools/windows-signing.ps1
+          $matchingCertificates = @(Get-ChildItem Cert:\CurrentUser\My | Where-Object {
+            $_.SerialNumber -eq $env:CERTUM_CERT_SERIAL
+          })
+          if ($matchingCertificates.Count -ne 1) { throw 'Expected exactly one certificate with the independently verified serial number.' }
+          $cert = Get-KeyMelierSigningCertificate $matchingCertificates[0].Thumbprint
+          if ($cert.Issuer -notmatch 'Certum' -or
+              $cert.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false) -cne $env:CERTUM_CERT_COMMON_NAME -or
+              -not $cert.Verify()) {
+            throw 'The issued certificate did not match the expected publisher or trusted certificate chain.'
+          }
+          "CERTUM_CERT_SHA1=$($cert.Thumbprint)" | Add-Content $env:GITHUB_ENV
+          Write-Host "Verified certificate thumbprint: $($cert.Thumbprint)"
+          "Verified Certum certificate: $($cert.Thumbprint); serial: $($cert.SerialNumber); expires: $($cert.NotAfter.ToUniversalTime().ToString('u'))" | Add-Content $env:GITHUB_STEP_SUMMARY
       - name: Sign and verify the probe with the issued certificate
         shell: pwsh
         run: ./tools/sign-windows.ps1 -Path "$env:RUNNER_TEMP/probe.exe"

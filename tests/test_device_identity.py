@@ -57,6 +57,21 @@ class DeviceIdentityTests(unittest.TestCase):
             self.assertIs(seen, self.old)
             self.assertIs(ctap, self.ctap)
 
+    def test_initially_unavailable_vendor_serial_is_retried_without_poll_flooding(self):
+        self.old.vendor_id = self.descriptor.vid = 0x349E
+        self.old.serial_number = self.descriptor.serial_number = None
+        self.scanner._vendor_checked[self.old.path] = 1000.0
+        with patch('keymelier_core.scanner.time.monotonic', return_value=1001.0), \
+             patch('keymelier_core.scanner.vendor_info.read') as read:
+            self.scanner._enumerate_devices()
+            read.assert_not_called()
+        with patch('keymelier_core.scanner.time.monotonic', return_value=1000.0 + VENDOR_RECHECK), \
+             patch('keymelier_core.scanner.vendor_info.read', return_value={
+                 'serial': '1234567890', 'serial_source': 'token2'}):
+            current, _ = self.scanner._enumerate_devices()
+        self.assertEqual(current[self.old.path].serial_number, '1234567890')
+        self.assertEqual(current[self.old.path].serial_source, 'token2')
+
     def test_vendor_serial_is_rechecked_on_the_open_connection(self):
         self.old.vendor_id = self.descriptor.vid = 0x1050
         self.descriptor.serial_number = None
