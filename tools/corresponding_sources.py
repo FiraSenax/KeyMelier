@@ -15,6 +15,7 @@ import sys
 import tarfile
 from importlib.metadata import distribution
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
@@ -52,8 +53,12 @@ def debian_sources(packages):
             url, filename, size, checksum = shlex.split(line)
             if not checksum.startswith("SHA256:"):
                 raise ValueError(f"No SHA-256 source proof for {name}: {filename}")
-            if url.startswith("http://"):
-                url = "https://" + url[len("http://"):]
+            location = urlsplit(url)
+            # GitHub's Azure mirror serves HTTP only. Fetch the exact same
+            # hash-pinned Ubuntu pool object from the official HTTPS archive.
+            host = "archive.ubuntu.com" if location.netloc == "azure.archive.ubuntu.com" else location.netloc
+            if location.scheme in {"http", "https"}:
+                url = urlunsplit(("https", host, location.path, location.query, location.fragment))
             found.append(filename)
             out[filename] = {"component": name, "version": version, "filename": filename,
                              "url": url, "size": int(size), "sha256": checksum.split(":", 1)[1],
