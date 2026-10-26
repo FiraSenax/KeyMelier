@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from keymelier_core.network import read_limited
+from keymelier_core.distribution import is_msix
 from keymelier_core.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ def check() -> dict:
     result = {"current": __version__, "latest": None, "newer": False, "url": None, "published_at": None,
               "failed": False}
     try:
+        if is_msix():
+            result["managed"] = True
+            return result
         with requests.get(RELEASES_API, timeout=15, stream=True,
                           headers={"Accept": "application/vnd.github+json"}) as resp:
             if resp.status_code == 404:
@@ -96,6 +100,8 @@ def download(asset: dict, progress=None) -> Path:
     import requests
     from keymelier_core.storage import stateless
 
+    if is_msix():
+        raise UpdateError("This installation is updated through its MSIX package.")
     if stateless():
         raise UpdateError("Downloads are disabled in stateless mode.")
 
@@ -192,6 +198,8 @@ def open_download(path: Path) -> None:
     show the AppImage in the file manager (Linux)."""
     import os
     import subprocess
+    if is_msix():
+        raise UpdateError("This installation is updated through its MSIX package.")
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(path)])
     elif sys.platform == "win32":

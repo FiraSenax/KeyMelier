@@ -147,9 +147,12 @@ class History:
     def _entry_for(self, record) -> dict:
         kid = key_id(record)
         entry = self._entries.get(kid)
-        if entry is None and record.serial_number:
+        if (entry is None and record.serial_number
+                and getattr(record, "serial_source", None) not in {"token2", "trussed"}):
             # Seen before without a serial (older KeyMelier or no vendor info):
             # continue that entry instead of starting a new one
+            # Newly supported vendor identities must not inherit a possibly
+            # shared no-serial entry. Keep that older entry for review instead.
             legacy_kid = hashlib.sha256(f"{record.aaguid}|".encode()).hexdigest()[:16]
             legacy = self._entries.get(legacy_kid)
             if legacy is not None and not legacy.get("snapshot", {}).get("serial_number"):

@@ -214,6 +214,8 @@ class KeyService:
         """Download and verify the newer release for this platform (in the
         background; progress via update_progress events)."""
         from keymelier_core import app_update
+        if app_update.is_msix():
+            raise PinError("Updates are managed by the package installation.", "disabled")
         if stateless():
             raise PinError("Downloads are disabled in stateless mode.", "disabled")
         info = self._app_update or {}
@@ -239,6 +241,8 @@ class KeyService:
 
     def update_open(self) -> dict:
         from keymelier_core import app_update
+        if app_update.is_msix():
+            raise PinError("Updates are managed by the package installation.", "disabled")
         path = getattr(self, "_update_path", None)
         if not path or not path.exists():
             raise PinError("The update file is no longer there.", "no_update")
@@ -873,7 +877,7 @@ class KeyService:
 
     def oath_add(self, token_id: str, **fields) -> dict:
         record, reader = self._card(token_id)
-        allowed = {"uri", "issuer", "name", "secret", "oath_type", "digits", "period", "algorithm", "touch"}
+        allowed = {"uri", "issuer", "name", "secret", "oath_type", "digits", "period", "algorithm", "touch", "counter"}
         with self._cards.connect(reader) as conn:
             account = oath_app.add(conn, **{k: v for k, v in fields.items() if k in allowed})
         self._log(record, "oath_added", site=account["issuer"], user=account["name"])

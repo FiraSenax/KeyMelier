@@ -2,7 +2,7 @@
 by tools/write_build_info.py – in CI and by the local build scripts).
 
 Only what the app should say honestly about itself: whether the build is
-signed (Windows: Authenticode via SignPath) or signed and notarized (macOS:
+signed (Windows: Authenticode) or signed and notarized (macOS:
 Developer ID), and the exact source revision – the full commit, and whether
 the working tree had uncommitted changes. The app needs no Git at run time.
 Missing or invalid values mean "unknown"; nothing is guessed.

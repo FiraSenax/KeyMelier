@@ -54,7 +54,10 @@ def screenshot(target: Path) -> None:
 
 
 def main() -> int:
-    app = (Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()).resolve()   # it starts in a temporary folder
+    supplied = Path(sys.argv[1]) if len(sys.argv) > 1 else default_app()
+    # Preserve Windows AppExecLink aliases: resolving one to its protected
+    # WindowsApps payload bypasses package activation and fails with access denied.
+    app = supplied.absolute() if sys.platform == "win32" else supplied.resolve()
     if app.suffix == ".app":
         app = app / "Contents" / "MacOS" / "KeyMelier"
     extra_env = {"APPIMAGE_EXTRACT_AND_RUN": "1"} if app.suffix == ".AppImage" else {}   # no FUSE on CI
@@ -70,16 +73,21 @@ def main() -> int:
            **extra_env}
     env.pop("KEYMELIER_STATELESS", None)
     print(f"Starting {app} (temporary home {home})")
-    proc = subprocess.Popen([str(app), "--self-test", str(result)], env=env, cwd=home,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
-        output, _ = proc.communicate(timeout=TIMEOUT)
-        code = proc.returncode
-    except subprocess.TimeoutExpired:
-        screenshot(artifacts / "timeout-screen.png")   # what the hung app shows
-        proc.kill()
-        output, _ = proc.communicate()
-        code = None
+        proc = subprocess.Popen([str(app), "--self-test", str(result)], env=env, cwd=home,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    except OSError as e:
+        output = f"Launch failed: {type(e).__name__} (Windows error {getattr(e, 'winerror', None)})"
+        code = -1
+    else:
+        try:
+            output, _ = proc.communicate(timeout=TIMEOUT)
+            code = proc.returncode
+        except subprocess.TimeoutExpired:
+            screenshot(artifacts / "timeout-screen.png")   # what the hung app shows
+            proc.kill()
+            output, _ = proc.communicate()
+            code = None
     (artifacts / "app-output.log").write_text(output if isinstance(output, str) else output.decode("utf-8", "replace"),
                                               encoding="utf-8")
     for f in (result, result.with_suffix(".log"), home / "page-snapshot.txt", home / "page-snapshot.html"):

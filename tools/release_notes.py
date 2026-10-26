@@ -9,10 +9,14 @@ tools/check_artifacts.py (check_notes); keep both in step.
 
 import os
 import sys
+import json
 
 
 def notes(mac_signed: bool, win_signed: bool) -> str:
-    lines = ["**Downloads**"]
+    # Read by docs/latest.js only from GitHub's latest stable release. These
+    # booleans are the build jobs' verified outputs, never a configured intention.
+    status = json.dumps({"schema": 1, "macos": mac_signed, "windows": win_signed}, separators=(",", ":"))
+    lines = [f"<!-- keymelier-signing: {status} -->", "", "**Downloads**"]
     if mac_signed:
         lines.append("- `KeyMelier-macOS.dmg` – **macOS** (recommended): open it and drag KeyMelier to Applications "
                      "(replaces an older version). Developer ID signed and notarized.")
@@ -22,7 +26,7 @@ def notes(mac_signed: bool, win_signed: bool) -> str:
                      "*System Settings → Privacy & Security → Open Anyway*.")
     if win_signed:
         lines.append("- `KeyMelier-Windows-Setup.exe` – **Windows** installer (recommended): installs or updates "
-                     "KeyMelier. Signed via SignPath Foundation.")
+                     "KeyMelier. Authenticode signed with a Certum certificate and timestamp.")
     else:
         lines.append("- `KeyMelier-Windows-Setup.exe` – **Windows** installer (recommended): installs or updates "
                      "KeyMelier. **Not signed** – if SmartScreen appears: *More info* → *Run anyway*.")

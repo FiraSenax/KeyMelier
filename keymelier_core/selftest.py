@@ -117,7 +117,48 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
         import webview as wv
         return getattr(wv, "__version__", "pywebview")
 
+    def qr_import():
+        import io
+        import zxingcpp
+        from PIL import Image
+        from keymelier_core.oath_qr import decode_image
+        # Public synthetic fixture, generated in memory; never reads a user image.
+        uri = 'otpauth://totp/KeyMelier:self-test?secret=JBSWY3DPEHPK3PXP&issuer=KeyMelier'
+        code = zxingcpp.create_barcode(uri, zxingcpp.BarcodeFormat.QRCode)
+        with Image.fromarray(code.to_image(scale=4)).convert('RGB') as pixels:
+            for format in ('PNG', 'JPEG'):
+                out = io.BytesIO()
+                pixels.save(out, format=format)
+                if decode_image(out.getvalue())['name'] != 'self-test':
+                    return False
+        return True
+
     check("runtime: fido2 (CTAP/HID)", fido)
+    check("runtime: local PNG/JPEG QR import", qr_import)
+    if os.environ.get("SMOKE_REQUIRE_MSIX") == "1":
+        from keymelier_core import app_update, distribution, storage
+
+        def credential_roundtrip():
+            import uuid
+            name = "msix-self-test-" + uuid.uuid4().hex
+            try:
+                storage.secret_set(name, "synthetic-test-value")
+                return storage.secret_get(name) == "synthetic-test-value"
+            finally:
+                storage.secret_delete(name)
+
+        def persistence_roundtrip():
+            path = Path.home() / "keymelier" / "msix-self-test.txt"
+            try:
+                storage.atomic_write(path, "synthetic-test-value")
+                return path.read_text() == "synthetic-test-value"
+            finally:
+                path.unlink(missing_ok=True)
+
+        check("MSIX: installed process has package identity", distribution.is_msix)
+        check("MSIX: GitHub app updates disabled", lambda: app_update.check().get("managed") is True)
+        check("MSIX: native credential write/read/delete", credential_roundtrip)
+        check("MSIX: isolated user data write/read/delete", persistence_roundtrip)
     check("runtime: cryptography (scrypt, AES-GCM)", crypto)
     check("runtime: pyscard (PC/SC)", smartcard)
     check("runtime: yubikey-manager", ykman)

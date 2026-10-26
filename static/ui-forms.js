@@ -22,7 +22,8 @@ function wrongSecretMessage(e) {
   return errorMessage(e);
 }
 
-async function copyText(text) {
-  const ok = await window.pywebview?.api?.copy_text(text);
-  showToast(t(ok ? 'oath.copied' : 'oath.copyFailed'), ok ? 'success' : 'error');
+async function copyText(text, successKey = 'oath.copied') {
+  let ok = false;
+  try { ok = await window.pywebview?.api?.copy_text(text); } catch { /* report clipboard failure below */ }
+  showToast(t(ok ? successKey : 'oath.copyFailed'), ok ? 'success' : 'error');
 }
