@@ -157,7 +157,7 @@ def build(names=None, native_notices=()) -> str:
                 "Exact file origins, versions and hashes: BUNDLE_INVENTORY.json (binary_inputs).",
                 "Developer redistribution terms: https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
                 "UCRT deployment: https://learn.microsoft.com/en-us/cpp/windows/universal-crt-deployment",
-                (ROOT / "packaging/licenses/microsoft-vc-runtime-2015-2022.txt").read_text(), ""]
+                (ROOT / "packaging/licenses/microsoft-vc-runtime-2015-2022.txt").read_text(encoding="utf-8"), ""]
         for filename in ("webview2-1.0.3856.49-LICENSE.txt", "webview2-1.0.3856.49-NOTICE.txt"):
             out += [rule, "Microsoft WebView2 SDK 1.0.3856.49 – " + filename, rule,
                     (ROOT / "packaging" / "licenses" / filename).read_text(), ""]
