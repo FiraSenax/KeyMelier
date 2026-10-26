@@ -75,7 +75,7 @@ class LicenseSourceTests(unittest.TestCase):
             with patch.object(bundle_inventory, "distributions", return_value=[dist]):
                 self.assertEqual(bundle_inventory.collected_packages([("library.core", str(root / files[0]), "PYMODULE")]), ["library"])
                 self.assertEqual(bundle_inventory.collected_packages([]), [])
-            self.assertEqual(licenses.license_texts(dist), [(str(files[1]), "Original upstream notice")])
+            self.assertEqual(licenses.license_texts(dist), [(files[1].as_posix(), "Original upstream notice")])
 
 
 if __name__ == "__main__":
