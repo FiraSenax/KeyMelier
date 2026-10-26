@@ -7,9 +7,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fido2tool_core import sync
-from fido2tool_core.history import History
-from fido2tool_core.scanner import TokenRecord
+from keymelier_core import sync
+from keymelier_core.history import History
+from keymelier_core.scanner import TokenRecord
 
 PW = "correct horse battery"
 
@@ -414,7 +414,7 @@ class OverlapAndAccessTests(unittest.TestCase):
                 attempts.append(path)
                 raise PermissionError(13, "The process cannot access the file")
             return real_open(path, flags, *args)
-        with patch("fido2tool_core.storage.SHARING_VIOLATIONS", True), patch.object(sync.os, "open", flaky_open), patch("time.sleep"):
+        with patch("keymelier_core.storage.SHARING_VIOLATIONS", True), patch.object(sync.os, "open", flaky_open), patch("time.sleep"):
             found, errors = a_s._folder.read_others(only_new=False)
         self.assertEqual((len(found), errors, len(attempts)), (1, [], 2))
 

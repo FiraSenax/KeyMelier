@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from fido2tool_core.scanner import VENDOR_RECHECK, DeviceBusy, DeviceNotFound, TokenRecord, TokenScanner
+from keymelier_core.scanner import VENDOR_RECHECK, DeviceBusy, DeviceNotFound, TokenRecord, TokenScanner
 
 
 def record(token_id='old-connection', serial='100'):
@@ -34,12 +34,12 @@ class DeviceIdentityTests(unittest.TestCase):
         def hid_device(descriptor):
             yield self.device
 
-        patch('fido2tool_core.scanner._hid_device', hid_device).start()
+        patch('keymelier_core.scanner._hid_device', hid_device).start()
         self.scanner.start_attestation = Mock()
 
     def scan(self, current, busy=None):
         with patch.object(self.scanner, '_enumerate_devices', return_value=(current, busy or set())), \
-             patch('fido2tool_core.scanner.time.sleep', side_effect=lambda _: self.scanner.stop()):
+             patch('keymelier_core.scanner.time.sleep', side_effect=lambda _: self.scanner.stop()):
             self.scanner.run_forever()
 
     def test_changed_identity_is_refused_before_yielding_a_session(self):
@@ -61,13 +61,13 @@ class DeviceIdentityTests(unittest.TestCase):
         self.old.vendor_id = self.descriptor.vid = 0x1050
         self.descriptor.serial_number = None
         for details, error in (({'serial': '200'}, DeviceNotFound), (None, DeviceBusy)):
-            with self.subTest(details=details), patch('fido2tool_core.scanner.vendor_info.read', return_value=details) as read:
+            with self.subTest(details=details), patch('keymelier_core.scanner.vendor_info.read', return_value=details) as read:
                 with self.assertRaises(error):
                     with self.scanner.session(self.old.id, refresh=False):
                         self.fail('a changed/unverifiable vendor serial must stop the request')
                 if details is None:
                     self.assertEqual(read.call_count, 2, 'one retry before giving up')
-        with patch('fido2tool_core.scanner.vendor_info.read', return_value={'serial': '100'}) as read:
+        with patch('keymelier_core.scanner.vendor_info.read', return_value={'serial': '100'}) as read:
             with self.scanner.session(self.old.id, refresh=False):
                 pass
             read.assert_called_once_with(self.device, 0x1050, 1)
@@ -133,11 +133,11 @@ class VendorSerialPollingTests(unittest.TestCase):
         self.old.vendor_id = self.descriptor.vid = 0x1050
         self.descriptor.serial_number = None
         self.clock = [1000.0]
-        patch('fido2tool_core.scanner.time.monotonic', side_effect=lambda: self.clock[0]).start()
+        patch('keymelier_core.scanner.time.monotonic', side_effect=lambda: self.clock[0]).start()
         self.scanner._vendor_checked[self.old.path] = self.clock[0]
 
     def poll(self, details):
-        with patch('fido2tool_core.scanner.vendor_info.read', return_value=details) as read:
+        with patch('keymelier_core.scanner.vendor_info.read', return_value=details) as read:
             current, _busy = self.scanner._enumerate_devices()
         return current[self.old.path], read.call_count
 
@@ -183,7 +183,7 @@ class VendorSerialPollingTests(unittest.TestCase):
         self.clock[0] += VENDOR_RECHECK
         self.poll(None)
         # A cached poll result never authorizes an operation on a replacement.
-        with patch('fido2tool_core.scanner.vendor_info.read', return_value={'serial': '200'}) as read:
+        with patch('keymelier_core.scanner.vendor_info.read', return_value={'serial': '200'}) as read:
             with self.assertRaises(DeviceNotFound):
                 with self.scanner.session(self.old.id, refresh=False):
                     self.fail('operation reached a different key during poll backoff')

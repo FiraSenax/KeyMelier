@@ -12,9 +12,9 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from fido2tool_core import policy
-from fido2tool_core.advisories import AdvisoryChecker
-from fido2tool_core.service import KeyService
+from keymelier_core import policy
+from keymelier_core.advisories import AdvisoryChecker
+from keymelier_core.service import KeyService
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -129,7 +129,7 @@ class TestPolicyParsing(unittest.TestCase):
                 self.assertEqual(policy.advisory_sources(), [], "no policy: the user file adds nothing either")
 
     def test_policy_module_reads_no_environment(self):
-        source = (ROOT / "fido2tool_core" / "policy.py").read_text(encoding="utf-8")
+        source = (ROOT / "keymelier_core" / "policy.py").read_text(encoding="utf-8")
         self.assertNotRegex(source, r"(?m)os\.environ|getenv|^import os\b|^from os\b", "the policy must not depend on the environment")
 
     @unittest.skipIf(os.name == "nt", "POSIX permissions")
@@ -170,7 +170,7 @@ class TestEnterpriseDocs(unittest.TestCase):
         self.assertIn('"PublicKey"=', reg)
 
     def test_document_example_is_a_valid_advisory(self):
-        from fido2tool_core.advisories import _clean_entry
+        from keymelier_core.advisories import _clean_entry
         doc = json.loads(self.block("json", 0))
         self.assertIsNotNone(_clean_entry(doc["advisories"][0], "x"))
 
@@ -198,7 +198,7 @@ class TestManagedSources(unittest.TestCase):
     def test_bad_signature_is_ignored_and_logged(self):
         location = write_source(self.dir, self.priv, [corp()])
         _, other_pub = keypair()
-        with self.assertLogs("fido2tool_core.advisories", "WARNING") as logs:
+        with self.assertLogs("keymelier_core.advisories", "WARNING") as logs:
             c = self.checker(location, other_pub)
         self.assertEqual(c.check(OTHER_AAGUID, None), [])
         self.assertEqual(c.info()["policy"][0]["status"], "invalid")
@@ -242,7 +242,7 @@ class TestManagedSources(unittest.TestCase):
 
     def test_hostile_entries_are_dropped_or_neutralised(self):
         """Injection attempts through a (validly signed) source: nothing executable reaches the UI."""
-        from fido2tool_core.advisories import _clean_entry
+        from keymelier_core.advisories import _clean_entry
         drop = {
             "script in id": corp("<script>alert(1)</script>"),
             "quote in id": corp('X" onmouseover="alert(1)'),
@@ -290,7 +290,7 @@ class TestManagedSources(unittest.TestCase):
         self.assertEqual([a["id"] for a in c.check(OTHER_AAGUID, None)], ["CORP-2026-2"])
 
     def test_url_sources_wait_for_network_check(self):
-        with patch("fido2tool_core.advisories._read_source") as read:
+        with patch("keymelier_core.advisories._read_source") as read:
             c = self.checker("https://intra.example/advisories.json")
             read.assert_not_called()
             self.assertEqual(c.info()["policy"][0]["status"], "pending")
@@ -319,7 +319,7 @@ class TestManagedSources(unittest.TestCase):
         self.assertEqual(bad.policy_links(), set())
 
     def test_scanner_passes_origin_to_ui(self):
-        from fido2tool_core.scanner import TokenRecord, TokenScanner
+        from keymelier_core.scanner import TokenRecord, TokenScanner
 
         c = self.checker(write_source(self.dir, self.priv, [corp(severity="CRITICAL")]))
         scanner = TokenScanner(advisory_checker=c)

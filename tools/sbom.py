@@ -327,7 +327,7 @@ def write(path: Path, app_version: str) -> Path:
 
 def _version() -> str:
     ns: dict = {}
-    exec((ROOT / "fido2tool_core" / "version.py").read_text(), ns)
+    exec((ROOT / "keymelier_core" / "version.py").read_text(), ns)
     return ns["__version__"]
 
 

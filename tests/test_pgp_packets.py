@@ -5,9 +5,9 @@ import unittest
 
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
-from fido2tool_core import pgp_packets as P
-from fido2tool_core.openpgp_app import _check_user_id
-from fido2tool_core.cards import CardError
+from keymelier_core import pgp_packets as P
+from keymelier_core.openpgp_app import _check_user_id
+from keymelier_core.cards import CardError
 
 
 def parse_packets(data):

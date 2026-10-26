@@ -27,15 +27,15 @@ if sys.platform.startswith("linux"):
 
 import webview
 
-from fido2tool_core.bridge import ALLOWED, dispatch
-from fido2tool_core import diagnostics
-from fido2tool_core.advisories import AdvisoryChecker
-from fido2tool_core.desktop import host_env, linux_copy, open_with_system, private_page_file
-from fido2tool_core.exporter import CSVExporter
-from fido2tool_core.mds3 import MDS3Client
-from fido2tool_core.page import build_html
-from fido2tool_core.scanner import TokenScanner
-from fido2tool_core.service import KeyService
+from keymelier_core.bridge import ALLOWED, dispatch
+from keymelier_core import diagnostics
+from keymelier_core.advisories import AdvisoryChecker
+from keymelier_core.desktop import host_env, linux_copy, open_with_system, private_page_file
+from keymelier_core.exporter import CSVExporter
+from keymelier_core.mds3 import MDS3Client
+from keymelier_core.page import build_html
+from keymelier_core.scanner import TokenScanner
+from keymelier_core.service import KeyService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -339,7 +339,7 @@ def _single_instance():
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    from fido2tool_core.version import __version__
+    from keymelier_core.version import __version__
     logger.info("KeyMelier %s", __version__)
     if "--stateless" in sys.argv:
         os.environ["KEYMELIER_STATELESS"] = "1"
@@ -351,7 +351,7 @@ def main():
     selftest = None
     if "--self-test" in sys.argv:
         # Start test of the packaged app: real window, no key access, no network
-        from fido2tool_core.selftest import SelfTest
+        from keymelier_core.selftest import SelfTest
         idx = sys.argv.index("--self-test")
         result = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "keymelier-self-test.json"
         selftest = True
@@ -422,7 +422,7 @@ def main():
 
     if sys.platform == "darwin":
         _macos_app_identity()
-        from fido2tool_core.menubar import MenuBar
+        from keymelier_core.menubar import MenuBar
         menubar = MenuBar(service, window, STATIC_DIR / "menubar.png")
         menubar.start()
         api._menubar = menubar

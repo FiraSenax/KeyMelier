@@ -19,8 +19,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fido2tool_core import service as service_mod
-from fido2tool_core.history import History
+from keymelier_core import service as service_mod
+from keymelier_core.history import History
 
 FIXTURES = Path(__file__).parent / "fixtures" / "compat"
 TAGS = sorted(p.name for p in FIXTURES.iterdir() if p.is_dir())

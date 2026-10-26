@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from fido2tool_core import sync
+from keymelier_core import sync
 
 
 # Produced by the pre-fix implementation with public synthetic inputs.

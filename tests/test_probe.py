@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 from fido2.ctap import CtapError
 
-from fido2tool_core import passkey_probe
-from fido2tool_core.auth import AuthError
-from fido2tool_core.history import History
-from fido2tool_core.scanner import TokenRecord
+from keymelier_core import passkey_probe
+from keymelier_core.auth import AuthError
+from keymelier_core.history import History
+from keymelier_core.scanner import TokenRecord
 
 ERR = CtapError.ERR
 
@@ -191,7 +191,7 @@ class CoverageTests(unittest.TestCase):
         self.assertNotIn('sites_probed', entry)
 
     def test_import_keeps_valid_coverage_only(self):
-        from fido2tool_core.history import _clean_entry
+        from keymelier_core.history import _clean_entry
         entry = _clean_entry({'key_id': 'a' * 16, 'sites': [], 'sites_probed': 3, 'probe_rp': {
             'a.com': {'status': 'none', 'checked': '2026-09-27'}, 'b.com': {'status': 'gone'},
             'c.com': 'none', '': {'status': 'none'}}})

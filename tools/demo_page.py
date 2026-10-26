@@ -1,7 +1,7 @@
 """Write the demo page (the real app page + demo bridge, no Python backend).
 
 Prints the path of the HTML file. Used by tests/ui and tools/screenshots.py;
-needs no GUI libraries: fido2tool_core.page builds the page like the app.
+needs no GUI libraries: keymelier_core.page builds the page like the app.
 """
 
 import sys

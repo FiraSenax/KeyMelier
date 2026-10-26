@@ -30,13 +30,13 @@ echo "Using committed app icon..."
 # Use the reviewed, committed icons; regeneration is a separate design task.
 export KEYMELIER_ICON="static/icon.icns"
 
-xattr -cr static data fido2tool_core
+xattr -cr static data keymelier_core
 
 # Source commit (and whether the tree has uncommitted changes) for About/diagnostics
 "$PYTHON" tools/write_build_info.py
 
 echo "Running PyInstaller..."
-"$PYINSTALLER" --clean --noconfirm fido2tool.spec
+"$PYINSTALLER" --clean --noconfirm keymelier.spec
 
 # Extended attributes (Finder info, provenance) copied from the source tree
 # break code signing; strip them and re-apply the ad-hoc signature.

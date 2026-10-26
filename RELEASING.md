@@ -120,7 +120,7 @@ suppress the check or manually alter the packaged scripts. Always run
    a successful CodeQL job only means the scan ran. Review and resolve findings;
    record any narrowly justified test-only dismissal rather than excluding tests
    or disabling a query. Scan completion alone is not a clean security result.
-2. Bump `fido2tool_core/version.py` and `pyproject.toml` consistently; refresh the lock.
+2. Bump `keymelier_core/version.py` and `pyproject.toml` consistently; refresh the lock.
 3. Run the **release rehearsal** on the candidate (*Actions → Build → Run workflow*): the same builds,
    artifact transfer and checks as the release, without publishing. It must be green; its report
    (artifact `release-rehearsal`) names the commit, the version and every file with its SHA-256.

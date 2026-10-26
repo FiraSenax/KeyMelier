@@ -7,7 +7,7 @@ from unittest.mock import patch
 @unittest.skipUnless(sys.platform == "darwin", "macOS About panel")
 class AboutPanelTests(unittest.TestCase):
     def setUp(self):
-        from fido2tool_core import menubar
+        from keymelier_core import menubar
         self.menubar = menubar
         self.mb = menubar.MenuBar(None, None, Path("x"))
 

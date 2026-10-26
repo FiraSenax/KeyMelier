@@ -52,10 +52,6 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux builds are still **unsigned** (each release's notes say so). Windows signing is being set up via the SignPath Foundation's open-source program (applied; once accepted: free code signing provided by SignPath.io, certificate by SignPath Foundation). See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
-## License
-
-KeyMelier is MIT licensed (see `LICENSE`). The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build. A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component – Python packages, the PyInstaller bootloader, CPython, the OpenSSL builds and the Simple Icons data – with version, package URL, SPDX license and the SHA-256 of the file that was actually installed (checked against the lock file). Every build validates it (`tools/sbom.py --check --strict`); other native libraries inside CPython are covered by the CPython entry.
-
 ## Download
 
 Ready-made builds are attached to the [latest release](https://github.com/FiraSenax/KeyMelier/releases/latest).
@@ -222,7 +218,7 @@ node tests/ui_security.cjs
 
 ```
 app.py                   # Entry point — native window + JS bridge (pywebview)
-fido2tool_core/
+keymelier_core/
   service.py             # All app logic the UI can call (UI-agnostic)
   scanner.py             # USB polling, per-device locking, CTAP2 info
   attestation.py         # makeCredential attestation test + chain verification
@@ -237,13 +233,17 @@ fido2tool_core/
   diagnostics.py         # Diagnostic report from allow-listed fields
 static/                  # UI (HTML/CSS/JS, inlined into the window at start)
 data/advisories.json     # Curated advisory database
-fido2tool.spec           # PyInstaller spec (.app / .exe / Linux bundle)
+keymelier.spec           # PyInstaller spec (.app / .exe / Linux bundle)
 packaging/linux/         # AppImage entry point, desktop entry, udev rules
 ```
 
 ## License
 
 KeyMelier is released under the [MIT License](LICENSE).
+
+The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build.
+
+A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component – Python packages, the PyInstaller bootloader, CPython, the OpenSSL builds and the Simple Icons data – with version, package URL, SPDX license and the SHA-256 of the file that was actually installed (checked against the lock file). Every build validates it (`tools/sbom.py --check --strict`); other native libraries inside CPython are covered by the CPython entry.
 
 It builds on open-source libraries under their own licenses, among them
 [python-fido2](https://github.com/Yubico/python-fido2) (BSD-2-Clause),

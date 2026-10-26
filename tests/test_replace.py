@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fido2tool_core.history import History
-from fido2tool_core.scanner import TokenRecord
+from keymelier_core.history import History
+from keymelier_core.scanner import TokenRecord
 
 
 def record(serial):

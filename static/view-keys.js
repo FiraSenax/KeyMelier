@@ -5,7 +5,7 @@
 // usual unlock dialog; and change the PIN on several keys – one explicit
 // click per key, stop at the first error, never an automatic retry.
 //
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js only inside functions.
 
 let keysBusy = null;      // 'recheck' | 'read' while a bulk action runs

@@ -10,7 +10,7 @@ open hardware questions). The overview below is the original sketch.
 
 ### Problem
 
-The history identifies a key by `hash(AAGUID | USB serial)` (`fido2tool_core/history.py`,
+The history identifies a key by `hash(AAGUID | USB serial)` (`keymelier_core/history.py`,
 `key_id`); YubiKeys add the serial read via yubikit. FIDO itself exposes no unique serial,
 and many keys report no USB serial either. Two such keys of the same model and firmware
 batch therefore share **one** history entry: their passkeys, accounts, lost/replacement
@@ -23,7 +23,7 @@ would be unique but is only released for vendor-approved relying parties.
 **1. Silent recognition credential (all FIDO2 keys).**
 
 - The authenticity test already creates a *non-discoverable* credential (`rk: false`,
-  `fido2tool_core/attestation.py`), with the user's touch. Keep its credential ID in the
+  `keymelier_core/attestation.py`), with the user's touch. Keep its credential ID in the
   history entry (`recognition: {credential_id, rp_id, created}`) instead of discarding it.
   No extra touch, no passkey slot used.
 - Only the key that created a non-discoverable credential can unwrap its ID. On connect,

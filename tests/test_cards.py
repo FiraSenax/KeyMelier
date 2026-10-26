@@ -4,10 +4,10 @@ import unittest.mock
 from contextlib import contextmanager
 from pathlib import Path
 
-from fido2tool_core import cards, openpgp_app, piv_app, yubikey_apps
-from fido2tool_core.cards import CardError, Cards
-from fido2tool_core.history import History
-from fido2tool_core.scanner import TokenRecord
+from keymelier_core import cards, openpgp_app, piv_app, yubikey_apps
+from keymelier_core.cards import CardError, Cards
+from keymelier_core.history import History
+from keymelier_core.scanner import TokenRecord
 
 
 def record():

@@ -2,7 +2,7 @@
 //
 // Keyboard handling for the tab bar's Advanced menu and the actions menu
 // (arrows, Home/End, Escape with focus return) and the About dialog.
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js ($, t, escHtml, call,
 // icon, render …) only inside functions, never while loading.
 
@@ -128,7 +128,7 @@ function openAbout(open = true) {
 }
 
 // Diagnostic report: built by the backend from a fixed list of fields (no
-// names, serials, paths, URLs or messages – fido2tool_core/diagnostics.py).
+// names, serials, paths, URLs or messages – keymelier_core/diagnostics.py).
 // The user reads exactly the text that would be saved; nothing is saved
 // without clicking Save, nothing is sent anywhere.
 let diagText = null;

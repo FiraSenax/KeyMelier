@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write data/build.json before PyInstaller runs (fido2tool_core/build_info.py reads it).
+"""Write data/build.json before PyInstaller runs (keymelier_core/build_info.py reads it).
 
     python3 tools/write_build_info.py [--signed true|false] [--notarized true|false] [--ci]
 

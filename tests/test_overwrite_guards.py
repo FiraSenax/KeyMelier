@@ -5,9 +5,9 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from fido2tool_core import cards, openpgp_app, piv_app, yubikey_apps
-from fido2tool_core.cards import CardError, Cards
-from fido2tool_core.service import KeyService
+from keymelier_core import cards, openpgp_app, piv_app, yubikey_apps
+from keymelier_core.cards import CardError, Cards
+from keymelier_core.service import KeyService
 
 
 class OverwriteGuardTests(unittest.TestCase):

@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fido2.cose import ES256
 from fido2.webauthn import AttestedCredentialData, AuthenticatorData
-from fido2tool_core import function_test
+from keymelier_core import function_test
 
 
 class FunctionTestTests(unittest.TestCase):

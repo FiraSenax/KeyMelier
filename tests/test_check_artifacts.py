@@ -68,7 +68,7 @@ def appimage(arch="x86_64") -> bytes:
 INTERNAL = "usr/lib/keymelier/_internal"
 APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", f"{INTERNAL}/static/index.html",
                   f"{INTERNAL}/data/advisories.json.sig", f"{INTERNAL}/THIRD_PARTY_LICENSES.txt",
-                  "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/fido2tool_core/version.py"}
+                  "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/keymelier_core/version.py"}
 
 
 def build_json(commit=COMMIT, modified=False):

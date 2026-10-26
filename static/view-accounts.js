@@ -2,7 +2,7 @@
 //
 // The account model (static/accounts.js) as a filterable matrix: summary
 // cards as filters, search, sticky header, next-step explanations.
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js ($, t, escHtml, call,
 // icon, render …) only inside functions, never while loading.
 

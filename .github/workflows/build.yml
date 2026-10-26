@@ -38,7 +38,7 @@ jobs:
       - name: Static correctness checks
         if: runner.os == 'Linux'
         run: |
-          ruff check app.py fido2tool_core
+          ruff check app.py keymelier_core
           ruff check tools tests --select E9,F63,F7,F82
       - name: Verify locked dependency exports (offline)
         run: python tools/export_requirements.py --check
@@ -145,7 +145,7 @@ jobs:
           KEYMELIER_ICON: static/icon.icns
           KEYMELIER_SIGN_IDENTITY: ${{ env.SIGN_MAC == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
         run: |
-          pyinstaller --clean --noconfirm fido2tool.spec
+          pyinstaller --clean --noconfirm keymelier.spec
           if [[ -z "$KEYMELIER_SIGN_IDENTITY" ]]; then
             codesign --force --deep --sign - dist/KeyMelier.app   # ad-hoc: runs locally, no publisher
             echo "signed=false" >> "$GITHUB_OUTPUT"
@@ -246,7 +246,7 @@ jobs:
       - name: Build
         env:
           KEYMELIER_ICON: static\icon.ico
-        run: pyinstaller --clean --noconfirm fido2tool.spec
+        run: pyinstaller --clean --noconfirm keymelier.spec
       # Free code signing for open source by the SignPath Foundation: the
       # unsigned build goes to SignPath, which signs KeyMelier.exe with a key
       # held in its HSM (see CODE_SIGNING.md and .signpath/).
@@ -297,7 +297,7 @@ jobs:
       - name: Installer
         shell: pwsh
         run: |
-          $version = python -c "from fido2tool_core.version import __version__; print(__version__)"
+          $version = python -c "from keymelier_core.version import __version__; print(__version__)"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\keymelier.iss
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
       - name: Upload unsigned installer for signing
@@ -468,7 +468,7 @@ jobs:
           persist-credentials: false
       - name: Check release version
         run: |
-          version=$(python3 -c "from fido2tool_core.version import __version__; print(__version__)")
+          version=$(python3 -c "from keymelier_core.version import __version__; print(__version__)")
           test "v$version" = "$GITHUB_REF_NAME"
       - uses: ./.github/actions/prepare-release
         with:

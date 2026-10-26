@@ -11,10 +11,10 @@ import unittest
 from pathlib import Path, PurePosixPath
 from unittest.mock import MagicMock, patch
 
-from fido2tool_core import app_update, desktop, storage
-from fido2tool_core import service as service_mod
-from fido2tool_core.history import History
-from fido2tool_core.pin import PinError
+from keymelier_core import app_update, desktop, storage
+from keymelier_core import service as service_mod
+from keymelier_core.history import History
+from keymelier_core.pin import PinError
 
 
 def backend(module):

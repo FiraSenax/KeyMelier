@@ -1,7 +1,7 @@
 // KeyMelier – sync between computers
 //
 // Status line on the backup page, setup and status card in the app settings.
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js ($, t, escHtml, call,
 // icon, render …) only inside functions, never while loading.
 
@@ -10,7 +10,7 @@ let syncForm = { folder: '', error: null, busy: false, confirmOff: false };
 
 // ── Sync between computers ──────────────────────────────────────────────────
 // Through a folder the user already syncs; files are encrypted with a
-// passphrase kept in the OS credential store (fido2tool_core/sync.py).
+// passphrase kept in the OS credential store (keymelier_core/sync.py).
 
 async function loadSync() {
   try { syncState = await call('sync_status'); } catch { syncState = null; }

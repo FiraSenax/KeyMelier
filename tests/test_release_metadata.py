@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def app_version() -> str:
     ns: dict = {}
-    exec((ROOT / "fido2tool_core" / "version.py").read_text(encoding="utf-8"), ns)
+    exec((ROOT / "keymelier_core" / "version.py").read_text(encoding="utf-8"), ns)
     return ns["__version__"]
 
 
@@ -30,15 +30,15 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertEqual(m.group(1), app_version())
 
     def test_app_bundle_and_installer_take_the_version_from_version_py(self):
-        spec = (ROOT / "fido2tool.spec").read_text(encoding="utf-8")
-        self.assertIn("fido2tool_core/version.py", spec)
+        spec = (ROOT / "keymelier.spec").read_text(encoding="utf-8")
+        self.assertIn("keymelier_core/version.py", spec)
         self.assertIn("'CFBundleShortVersionString': APP_VERSION", spec)
         self.assertIn("'CFBundleVersion': APP_VERSION", spec)
         iss = (ROOT / "packaging" / "keymelier.iss").read_text(encoding="utf-8")
         for field in ("AppVersion={#AppVersion}", "VersionInfoVersion={#AppVersion}", "VersionInfoProductVersion={#AppVersion}"):
             self.assertIn(field, iss)
         workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
-        self.assertIn("from fido2tool_core.version import __version__", workflow)
+        self.assertIn("from keymelier_core.version import __version__", workflow)
         self.assertIn('"/DAppVersion=$version"', workflow)
 
     def test_public_hardware_page_matches_the_matrix(self):
@@ -101,7 +101,7 @@ class ReleaseMetadataTests(unittest.TestCase):
         import subprocess
         if not shutil.which("git") or not (ROOT / ".git").exists():
             self.skipTest("no git checkout")
-        files = ["static/service-icons.js", "static/app.js", "static/index.html", "fido2tool_core/page.py"]
+        files = ["static/service-icons.js", "static/app.js", "static/index.html", "keymelier_core/page.py"]
         out = subprocess.run(["git", "check-attr", "eol", "--", *files, "build-windows.bat"], cwd=ROOT,
                              capture_output=True, text=True, check=True).stdout
         eol = {path: value for path, _attr, value in (line.split(": ") for line in out.splitlines())}

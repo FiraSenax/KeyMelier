@@ -24,7 +24,7 @@ rem Source commit for About/diagnostics (CI writes it in its own step)
 if not defined CI build-venv\Scripts\python tools\write_build_info.py
 
 echo Running PyInstaller...
-build-venv\Scripts\pyinstaller --clean --noconfirm fido2tool.spec
+build-venv\Scripts\pyinstaller --clean --noconfirm keymelier.spec
 if errorlevel 1 exit /b 1
 
 echo.

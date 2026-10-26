@@ -2,7 +2,7 @@
 //
 // Four steps: choose, compare, test & confirm, summary. The technical check
 // (found on the new key) and the user's tick always stay separate.
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js ($, t, escHtml, call,
 // icon, render …) only inside functions, never while loading.
 

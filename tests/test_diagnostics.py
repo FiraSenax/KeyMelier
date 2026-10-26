@@ -9,11 +9,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fido2tool_core import diagnostics
-from fido2tool_core import service as service_mod
-from fido2tool_core.history import History
-from fido2tool_core.pin import PinError
-from fido2tool_core.scanner import TokenRecord
+from keymelier_core import diagnostics
+from keymelier_core import service as service_mod
+from keymelier_core.history import History
+from keymelier_core.pin import PinError
+from keymelier_core.scanner import TokenRecord
 
 SECRETS = {
     "serial": "SN-98765432",

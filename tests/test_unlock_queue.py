@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from fido2.ctap2.pin import ClientPin
-from fido2tool_core import auth, service
-from fido2tool_core.history import History
+from keymelier_core import auth, service
+from keymelier_core.history import History
 
 
 class UnlockQueueTests(unittest.TestCase):
@@ -135,7 +135,7 @@ class PendingSlotTests(unittest.TestCase):
     request waits for the cancelled request's slot instead of failing busy."""
 
     def test_cancel_reaches_all_waiters_and_a_later_request_can_start(self):
-        from fido2tool_core.operations import PendingOperations
+        from keymelier_core.operations import PendingOperations
         ops = PendingOperations()
         waiting = [threading.Event(), threading.Event()]
         outcome = []
@@ -176,7 +176,7 @@ class PendingSlotTests(unittest.TestCase):
         self.assertFalse(ops.cancel('key'))
 
     def test_wait_timeout_leaves_no_pending_request(self):
-        from fido2tool_core.operations import PendingOperations
+        from keymelier_core.operations import PendingOperations
         ops = PendingOperations()
         with ops.start('key'):
             ops.cancel('key')
@@ -189,7 +189,7 @@ class PendingSlotTests(unittest.TestCase):
             self.assertFalse(cancel.is_set())
 
     def test_waits_for_a_cancelled_operation_but_not_for_a_running_one(self):
-        from fido2tool_core.operations import PendingOperations
+        from keymelier_core.operations import PendingOperations
         ops = PendingOperations()
         entered, leave, got = threading.Event(), threading.Event(), []
 
