@@ -29,27 +29,17 @@ keychain is removed even on failure. The hardened runtime runs without entitleme
 
 ## Windows
 
-Windows builds are signed through the [SignPath Foundation](https://signpath.org)
-program for open-source projects (free; the certificate is issued to SignPath
-Foundation, which appears as the publisher). Azure Artifact Signing is not
-available to individuals in the EU.
+Windows releases are currently unsigned. The SignPath Foundation application
+was not accepted; there is no active production Windows signing path. The
+existing conditional SignPath workflow remains available for future approved
+configuration, but is not used by the MSIX test workflow.
 
-1. Apply at <https://signpath.org/apply>. Requirements: OSI license, public
-   repository, automated build (GitHub Actions), released project, the policy in
-   `CODE_SIGNING.md` linked from the README, MFA on GitHub and SignPath.
-2. After approval, in SignPath: create the project (GitHub trusted build
-   system), paste `.signpath/artifact-configuration.xml` as the artifact
-   configuration, create a `release-signing` signing policy with manual approval,
-   and create a CI user with an API token.
-3. In the GitHub environment `release-signing` configure:
-   - Secret `SIGNPATH_API_TOKEN`.
-   - Variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
-     `SIGNPATH_SIGNING_POLICY_SLUG`.
-
-On a version tag the workflow uploads the unsigned build, submits it to
-SignPath, waits for approval and signing, verifies the Authenticode signature
-of `KeyMelier.exe` and publishes the signed folder. Signing does not guarantee
-immediate SmartScreen reputation.
+A separate [local MSIX test workflow](packaging/windows-msix/TESTING.md) builds,
+test-signs, installs, starts and upgrades packages without a Store account or
+submission. It uses a temporary test identity and exports only a public test
+certificate. Store distribution still requires a real Partner Center identity,
+review of `allowElevation`, hardware/client testing and certification. Microsoft's
+Store signature applies to the Store MSIX, not to the GitHub EXE installer.
 
 ## Signed release candidates without publication
 
