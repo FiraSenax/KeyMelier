@@ -7,7 +7,7 @@
 // About. Nothing is changed on any key; the storage choice only changes the
 // app settings.
 //
-// Classic script loaded before app.js (see fido2tool_core/page.py SCRIPTS);
+// Classic script loaded before app.js (see keymelier_core/page.py SCRIPTS);
 // shares the global scope. Uses helpers from app.js only inside functions.
 
 let onboarding = null;   // { step, store: 'all' | 'nothing' } while open

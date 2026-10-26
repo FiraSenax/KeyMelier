@@ -4,9 +4,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from fido2tool_core.bridge import dispatch
-from fido2tool_core.diagnostics import ErrorLog
-from fido2tool_core.pin import PinError
+from keymelier_core.bridge import dispatch
+from keymelier_core.diagnostics import ErrorLog
+from keymelier_core.pin import PinError
 
 
 class BridgeTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_internal_type_error_is_not_reported_as_bad_user_input(self):
         self.service.unlock.side_effect = TypeError('secret=123456-private-account')
-        with self.assertLogs('fido2tool_core.bridge', level='ERROR') as logs:
+        with self.assertLogs('keymelier_core.bridge', level='ERROR') as logs:
             result = dispatch(self.service, 'unlock', {})
         self.assertEqual(result['status'], 500)
         self.assertEqual(result['code'], 'error')
@@ -35,7 +35,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_domain_error_keeps_actionable_result_but_not_log_text(self):
         self.service.unlock.side_effect = PinError('Please enter the PIN.', 'pin_required')
-        with self.assertLogs('fido2tool_core.bridge', level='WARNING') as logs:
+        with self.assertLogs('keymelier_core.bridge', level='WARNING') as logs:
             result = dispatch(self.service, 'unlock', {})
         self.assertEqual(result['error'], 'Please enter the PIN.')
         self.assertEqual(result['code'], 'pin_required')
@@ -45,7 +45,7 @@ class BridgeTests(unittest.TestCase):
         def failing_handler():
             raise RuntimeError('pin=123456 for erika@example.com')
         self.service.unlock = lambda: failing_handler()
-        with self.assertLogs('fido2tool_core.bridge', level='ERROR') as logs:
+        with self.assertLogs('keymelier_core.bridge', level='ERROR') as logs:
             dispatch(self.service, 'unlock', {})
         text = str(logs.output)
         self.assertIn('failing_handler', text, 'the stack names the failing function')

@@ -39,6 +39,23 @@ text and markup when page checks fail, a screenshot when the start hangs).
 
 ## Running them locally
 
+RC3 adds real PNG/JPEG decoding tests (TOTP parameters, HOTP counter, malformed
+images, size limits and multiple-account rejection), native-dialog cancellation,
+and UI checks for preview-before-save, key-switch races and full passkey-ID
+copying. The packaged smoke test also decodes synthetic PNG and JPEG QR codes,
+so a missing native decoder cannot pass packaging. Vendor-identity tests cover
+the read-only wire requests, invalid responses, history separation and refusal
+of operations after an identity changes. They do not replace hardware tests.
+
+For the new vendor reads, test two devices of the same model, reconnect them in
+a different order and verify separate history entries. An older entry without
+a serial must stay untouched. Also test unsupported firmware and a key removed
+during the read. FIDO-HID identity does not yet resolve ambiguous smart-card
+reader assignment when several non-YubiKey devices are connected. Protocol
+references: [Token2 GET_INFO and HID framing](https://github.com/framefilter/keyroost/tree/main/crates/keyroost-token2otp),
+[Nitrokey admin UUID](https://github.com/Nitrokey/nitrokey-sdk-py/blob/main/src/nitrokey/trussed/admin_app.py),
+[Nitrokey USB identifiers](https://github.com/Nitrokey/nitrokey-3-firmware/blob/main/docs/identifiers.md).
+
 ```bash
 venv/bin/python -m unittest discover -s tests       # backend
 node tests/accounts_model.cjs && node tests/ui_security.cjs
@@ -147,7 +164,7 @@ rewrites files or resolves newer package versions.
 ```bash
 python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 python tools/export_requirements.py --check
-ruff check app.py fido2tool_core
+ruff check app.py keymelier_core tools
 ruff check tools tests --select E9,F63,F7,F82
 python -m unittest tests.test_auth_lifecycle tests.test_bridge tests.test_function_test
 python -m unittest tests.test_network tests.test_app_update tests.test_piv_read_safety

@@ -58,7 +58,7 @@ def keygen():
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     print(f"Private key: {path}  (back it up, never commit it)")
-    target = "fido2tool_core/updates.py PUBLIC_KEY_B64" if path == DEFAULT_KEY else "the PublicKey policy value"
+    target = "keymelier_core/updates.py PUBLIC_KEY_B64" if path == DEFAULT_KEY else "the PublicKey policy value"
     print(f"Public key for {target}:\n{base64.b64encode(raw).decode()}")
 
 
@@ -80,7 +80,7 @@ def sign():
 
 
 def _verify(advisories: Path, public_key: str | None):
-    from fido2tool_core.updates import PUBLIC_KEY_B64, verify as check
+    from keymelier_core.updates import PUBLIC_KEY_B64, verify as check
 
     ok = check(advisories.read_bytes(), Path(str(advisories) + ".sig").read_text(encoding="ascii"),
                public_key or PUBLIC_KEY_B64)

@@ -40,7 +40,7 @@ def known_ids() -> set[str]:
 
 
 def mds_entries() -> list[dict]:
-    from fido2tool_core.mds_verify import verify_jwt
+    from keymelier_core.mds_verify import verify_jwt
 
     resp = requests.get(MDS_URL, timeout=30)
     resp.raise_for_status()

@@ -1,12 +1,15 @@
 """SBOM: complete, SPDX-clean and consistent with the lock file (tools/sbom.py)."""
 
 import copy
+import contextlib
 import hashlib
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -67,6 +70,19 @@ class SbomTests(unittest.TestCase):
     def test_strict_requires_installed_hashes_and_the_bootloader(self):
         problems = sbom.validate(self.bom, "9.9.9", strict=True)
         self.assertTrue(any("no hash of the installed artifact" in p for p in problems))
+
+    def test_cli_checks_default_file_without_treating_strict_as_a_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "build").mkdir()
+            path = root / "build" / "keymelier-sbom.cdx.json"
+            path.write_text(json.dumps(self.bom))
+            with patch.object(sbom, "ROOT", root), patch.object(sbom, "_version", return_value="9.9.9"), \
+                 patch.object(sbom, "validate", return_value=[]) as validate, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sbom.main(["--check", "--strict"]), 0)
+                validate.assert_called_once_with(self.bom, "9.9.9", strict=True)
+                validate.return_value = ["missing installed hash"]
+                self.assertEqual(sbom.main(["--check", str(path), "--strict"]), 1)
 
     def test_pip_report_hashes_are_used(self):
         allowed = sbom.lock_hashes()

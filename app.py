@@ -17,6 +17,12 @@ import sys
 import threading
 from pathlib import Path
 
+# Apply the no-persistence policy before importing application/GUI packages.
+if "--stateless" in sys.argv:
+    os.environ["KEYMELIER_STATELESS"] = "1"
+if os.environ.get("KEYMELIER_STATELESS") == "1":
+    sys.dont_write_bytecode = True
+
 # Make the repo root importable regardless of where the script is launched from.
 # In a PyInstaller bundle, data files live under sys._MEIPASS.
 ROOT_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
@@ -27,15 +33,16 @@ if sys.platform.startswith("linux"):
 
 import webview
 
-from fido2tool_core.bridge import ALLOWED, dispatch
-from fido2tool_core import diagnostics
-from fido2tool_core.advisories import AdvisoryChecker
-from fido2tool_core.desktop import host_env, linux_copy, open_with_system, private_page_file
-from fido2tool_core.exporter import CSVExporter
-from fido2tool_core.mds3 import MDS3Client
-from fido2tool_core.page import build_html
-from fido2tool_core.scanner import TokenScanner
-from fido2tool_core.service import KeyService
+from keymelier_core.bridge import ALLOWED, dispatch
+from keymelier_core import diagnostics
+from keymelier_core.advisories import AdvisoryChecker
+from keymelier_core.desktop import host_env, linux_copy, open_with_system, private_page_file
+from keymelier_core.exporter import CSVExporter
+from keymelier_core.mds3 import MDS3Client
+from keymelier_core.page import build_html
+from keymelier_core.scanner import TokenScanner
+from keymelier_core.service import KeyService
+from keymelier_core.storage import stateless
 
 logging.basicConfig(
     level=logging.INFO,
@@ -71,7 +78,7 @@ def _gpg():
 # Functions the page may call. pywebview resolves js_api names as dotted
 # attribute paths without filtering private members ("_window.gui.os…"), so
 # the page gets plain wrapper functions only – never an object.
-BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "choose_folder", "open_licenses",
+BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "read_oath_qr", "choose_folder", "open_licenses",
           "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
 
 
@@ -105,7 +112,19 @@ def _expose_bridge(window, api, extra=()):
         method = getattr(api, name)
 
         def bridge(*args):
-            return method(*args)
+            try:
+                return method(*args)
+            except Exception as e:
+                # Direct desktop callbacks (file dialogs, clipboard, etc.) do
+                # not pass through dispatch. Never let pywebview serialize a
+                # raw exception, its private file path or traceback to the UI.
+                logger.error("Desktop callback %s failed (%s)", name, type(e).__name__)
+                if name in {"call", "gpg_import", "read_oath_qr"}:
+                    return {"ok": False, "error": "The operation could not be completed.",
+                            "code": "error", "status": 500}
+                if name in {"copy_text", "open_licenses", "gpg_available"}:
+                    return False
+                return None
         bridge.__name__ = name
         bridge.__qualname__ = name
         return bridge
@@ -136,7 +155,7 @@ class Api:
         where the user chooses. Returns the path or None if cancelled."""
         name = Path(str(filename)).name[:120] or "keymelier.txt"
         text = str(text)
-        if self._window is None or len(text) > 1_000_000:
+        if stateless() or self._window is None or len(text) > 1_000_000:
             return None
         chosen = self._window.create_file_dialog(
             webview.FileDialog.SAVE, directory=str(Path.home() / "Documents"), save_filename=name)
@@ -175,12 +194,33 @@ class Api:
         path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
         return str(path) if path.is_dir() else None
 
+    def read_oath_qr(self):
+        """Preview only the image selected in the native dialog, never a JS path."""
+        from keymelier_core import oath_qr
+        from keymelier_core.pin import PinError
+        if self._window is None:
+            return {"ok": True, "data": None}
+        chosen = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("QR image (*.png;*.jpg;*.jpeg)",))
+        if not chosen:
+            return {"ok": True, "data": None}
+        path = chosen[0] if isinstance(chosen, (list, tuple)) else chosen
+        try:
+            return {"ok": True, "data": oath_qr.read_image(path)}
+        except PinError as e:
+            return {"ok": False, "code": e.code, "error": e.message}
+        except OSError:
+            return {"ok": False, "code": "qr_image", "error": "The image could not be read."}
+
     def gpg_available(self):
         return _gpg() is not None
 
     def gpg_import(self, public_key):
         """Import the public key into GnuPG and let it link the card
         (`gpg --card-status`), then release the card for KeyMelier again."""
+        if stateless():
+            return {"ok": False, "output": "Imports are disabled in stateless mode."}
         gpg = _gpg()
         text = str(public_key)
         if gpg is None or not text.startswith("-----BEGIN PGP PUBLIC KEY BLOCK-----"):
@@ -192,15 +232,18 @@ class Api:
             gpgconf = Path(gpg).with_name("gpgconf")
             if gpgconf.exists():
                 subprocess.run([str(gpgconf), "--kill", "scdaemon"], capture_output=True, timeout=30, env=host_env())
-            return {"ok": imp.returncode == 0, "output": imp.stderr.decode(errors="replace")[-600:]}
+            return {"ok": imp.returncode == 0,
+                    "output": "" if imp.returncode == 0 else "GnuPG could not import the public key."}
         except Exception as e:
-            logger.warning("gpg import failed: %s", e)
-            return {"ok": False, "output": str(e)}
+            logger.warning("GnuPG import failed (%s)", type(e).__name__)
+            return {"ok": False, "output": "GnuPG could not import the public key."}
 
     def open_licenses(self):
         """Show the bundled third-party licenses in the system text viewer."""
         path = ROOT_DIR / "THIRD_PARTY_LICENSES.txt"
         if not path.exists():  # running from source
+            if stateless():
+                return False
             sys.path.insert(0, str(ROOT_DIR / "tools"))
             import third_party_licenses
             path = third_party_licenses.write(ROOT_DIR / "build" / "THIRD_PARTY_LICENSES.txt")
@@ -213,7 +256,7 @@ class Api:
                 open_with_system(str(path))
             return True
         except Exception as e:
-            logger.debug("Opening licenses failed: %s", e)
+            logger.debug("Opening licenses failed: %s", type(e).__name__)
             return False
 
     def copy_text(self, text):
@@ -229,15 +272,15 @@ class Api:
                 return linux_copy(text)
             return True
         except Exception as e:
-            logger.debug("Clipboard failed: %s", e)
+            logger.debug("Clipboard failed: %s", type(e).__name__)
             return False
 
     def client_log(self, message):
-        logger.info("UI: %s", str(message)[:500])
+        logger.info("UI event received")
 
     def client_error(self, message):
         """JavaScript errors from the page, so they show up in the terminal."""
-        logger.error("UI: %s", str(message)[:500])
+        logger.error("UI script error")
         self._service.error_log.ui_errors += 1
         if self._selftest is not None:
             self._selftest.ui_errors.append(str(message)[:300])
@@ -252,7 +295,7 @@ class Api:
         parsed = urlparse(str(url))
         # Fixed hosts, or exactly a link from a signed company advisory source
         if parsed.scheme == "https" and (parsed.hostname in ALLOWED_LINK_HOSTS
-                                         or self._service.link_allowed(str(url))):
+                                         or self._service._link_allowed(str(url))):
             if sys.platform.startswith("linux"):
                 open_with_system(parsed.geturl())   # host browser, without the AppImage's libraries
             else:
@@ -288,7 +331,7 @@ class EventPump:
             try:
                 self._window.evaluate_js(f"window.__kmEvent && window.__kmEvent({json.dumps(name)}, {json.dumps(payload)})")
             except Exception as e:
-                logger.warning("Event delivery failed (%s): %s", name, e)
+                logger.warning("Event delivery failed (%s): %s", name, type(e).__name__)
 
 
 # ── Page assembly ────────────────────────────────────────────────────────────
@@ -316,11 +359,13 @@ def _macos_app_identity():
         if image is not None and image.isValid():
             NSApplication.sharedApplication().setApplicationIconImage_(image)
     except Exception as e:
-        logger.debug("Could not set macOS app identity: %s", e)
+        logger.debug("Could not set macOS app identity: %s", type(e).__name__)
 
 
 def _single_instance():
     """Return a held lock file, or None if another KeyMelier is already running."""
+    if stateless():
+        return True
     LOCK_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     handle = open(LOCK_FILE, "a+")
     try:
@@ -339,7 +384,7 @@ def _single_instance():
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    from fido2tool_core.version import __version__
+    from keymelier_core.version import __version__
     logger.info("KeyMelier %s", __version__)
     if "--stateless" in sys.argv:
         os.environ["KEYMELIER_STATELESS"] = "1"
@@ -351,7 +396,7 @@ def main():
     selftest = None
     if "--self-test" in sys.argv:
         # Start test of the packaged app: real window, no key access, no network
-        from fido2tool_core.selftest import SelfTest
+        from keymelier_core.selftest import SelfTest
         idx = sys.argv.index("--self-test")
         result = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "keymelier-self-test.json"
         selftest = True
@@ -387,10 +432,10 @@ def main():
         try:
             mds3.ensure_loaded()
         except Exception as e:
-            logger.warning("MDS3 unavailable: %s", e)
+            logger.warning("MDS3 unavailable: %s", type(e).__name__)
         pump.emit("mds_ready", service.mds_status())
         threading.Thread(target=scanner.run_forever, daemon=True, name="fido2-scanner").start()
-        threading.Thread(target=service.run_update_loop, daemon=True, name="updates").start()
+        threading.Thread(target=service._run_update_loop, daemon=True, name="updates").start()
 
     dark = sys.platform == "darwin" and _macos_dark_mode()
     service.error_log = diagnostics.ErrorLog(ALLOWED)
@@ -422,7 +467,7 @@ def main():
 
     if sys.platform == "darwin":
         _macos_app_identity()
-        from fido2tool_core.menubar import MenuBar
+        from keymelier_core.menubar import MenuBar
         menubar = MenuBar(service, window, STATIC_DIR / "menubar.png")
         menubar.start()
         api._menubar = menubar
@@ -433,7 +478,7 @@ def main():
     finally:
         if remove_page:
             remove_page()
-    service.sync_flush()
+    service._sync_flush()
     scanner.stop()
     logger.info("Window closed, exiting.")
     if selftest:

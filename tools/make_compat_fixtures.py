@@ -4,7 +4,7 @@
 
 After each release: run it for the new tag only (existing fixtures stay as they are).
 
-For each tag, the release's own fido2tool_core (from git) writes
+For each tag, the release's own core package (from git) writes
 history.json and settings.json into a temporary home – exactly the format
 that version leaves on a user's computer: named keys, passkeys (list and
 search), authenticator accounts, a lost key with a ticked service, a
@@ -28,11 +28,11 @@ OUT = ROOT / "tests" / "fixtures" / "compat"
 TAGS = sys.argv[1:] or ["v1.4.0", "v1.5.0", "v1.6.0", "v1.6.1", "v1.7.0", "v1.8.0"]
 
 WRITER = r'''
-import json, sys
+import importlib, json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from fido2tool_core.scanner import TokenRecord
-from fido2tool_core import service as svc
+TokenRecord = importlib.import_module(sys.argv[2] + ".scanner").TokenRecord
+svc = importlib.import_module(sys.argv[2] + ".service")
 
 def rec(i, serial):
     return TokenRecord(f"id{i}", "/dev/fixture", f"Fixture Key {i}", serial, "Yubico", f"aaguid-fixture-{i}",
@@ -94,10 +94,16 @@ print(json.dumps({"keys": {"A": a, "B": b, "C": c, "D": d}, "features": features
 '''
 
 
-def extract(tag: str, dest: Path) -> None:
-    data = subprocess.run(["git", "archive", tag, "fido2tool_core"], cwd=ROOT, capture_output=True, check=True).stdout
+def extract(tag: str, dest: Path) -> str:
+    # Historical releases before the package migration keep their original imports.
+    legacy_package = "fido2tool_core"
+    paths = subprocess.run(["git", "ls-tree", "--name-only", tag], cwd=ROOT,
+                           capture_output=True, text=True, check=True).stdout.splitlines()
+    package = "keymelier_core" if "keymelier_core" in paths else legacy_package
+    data = subprocess.run(["git", "archive", tag, package], cwd=ROOT, capture_output=True, check=True).stdout
     with tarfile.open(fileobj=BytesIO(data)) as tar:
         tar.extractall(dest, filter="data")
+    return package
 
 
 def main() -> int:
@@ -106,10 +112,10 @@ def main() -> int:
         code, home = work / "code", work / "home"
         code.mkdir()
         home.mkdir()
-        extract(tag, code)
+        package = extract(tag, code)
         env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home)}
         env.pop("KEYMELIER_STATELESS", None)
-        ids = subprocess.run([sys.executable, "-c", WRITER, str(code)], env=env, cwd=work,
+        ids = subprocess.run([sys.executable, "-c", WRITER, str(code), package], env=env, cwd=work,
                              capture_output=True, text=True, check=True).stdout.strip().splitlines()[-1]
         target = OUT / tag
         shutil.rmtree(target, ignore_errors=True)

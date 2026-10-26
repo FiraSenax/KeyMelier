@@ -2,7 +2,7 @@
 """CycloneDX 1.6 SBOM of everything shipped in the app bundle.
 
     python3 tools/sbom.py [output]                  write (as the build does)
-    python3 tools/sbom.py --check FILE [--strict]   validate a written SBOM
+    python3 tools/sbom.py --check [FILE] [--strict] validate a written SBOM
 
 Called by the PyInstaller spec next to third_party_licenses.py, so each
 platform's build describes exactly what is installed and bundled there:
@@ -72,7 +72,7 @@ CLASSIFIER_SPDX = {
     "ISC License (ISCL)": "ISC",
 }
 # Identifiers and exceptions an expression may use (checked by validate())
-SPDX_IDS = {"MIT", "MIT-0", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "MPL-2.0", "PSF-2.0", "ISC",
+SPDX_IDS = {"MIT", "MIT-0", "MIT-CMU", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "MPL-2.0", "PSF-2.0", "ISC",
             "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-2.0-or-later",
             "LGPL-3.0-only", "GPL-2.0-only", "GPL-3.0-only", "CC0-1.0", "Unlicense", "0BSD"}
 SPDX_EXCEPTIONS = {"Bootloader-exception"}
@@ -327,17 +327,33 @@ def write(path: Path, app_version: str) -> Path:
 
 def _version() -> str:
     ns: dict = {}
-    exec((ROOT / "fido2tool_core" / "version.py").read_text(), ns)
+    exec((ROOT / "keymelier_core" / "version.py").read_text(), ns)
     return ns["__version__"]
 
 
-if __name__ == "__main__":
-    if len(sys.argv) > 2 and sys.argv[1] == "--check":
-        found = validate(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")), _version(),
-                         strict="--strict" in sys.argv)
+def main(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("path", nargs="?", type=Path, default=ROOT / "build" / "keymelier-sbom.cdx.json")
+    parser.add_argument("--check", action="store_true", help="Validate the SBOM (default: build/keymelier-sbom.cdx.json)")
+    parser.add_argument("--strict", action="store_true", help="Require installed artifact hashes and PyInstaller")
+    args = parser.parse_args(argv)
+    if args.strict and not args.check:
+        parser.error("--strict requires --check")
+    if args.check:
+        try:
+            found = validate(json.loads(args.path.read_text(encoding="utf-8")), _version(), strict=args.strict)
+        except (OSError, ValueError) as e:
+            print(f"SBOM could not be read: {e}", file=sys.stderr)
+            return 1
         for p in found:
             print("SBOM:", p)
-        print(f"{sys.argv[2]}: {'OK' if not found else f'{len(found)} problem(s)'}")
-        sys.exit(1 if found else 0)
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "keymelier-sbom.cdx.json"
-    print(write(target, _version()))
+        print(f"{args.path}: {'OK' if not found else f'{len(found)} problem(s)'}")
+        return 1 if found else 0
+    print(write(args.path, _version()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

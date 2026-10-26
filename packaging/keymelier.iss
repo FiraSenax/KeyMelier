@@ -34,6 +34,11 @@ VersionInfoProductName=KeyMelier
 VersionInfoProductVersion={#AppVersion}
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription=KeyMelier installer
+#ifdef SignWindows
+SignTool=certum
+SignedUninstaller=yes
+SignedUninstallerDir=..\build\signed-uninstaller
+#endif
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"

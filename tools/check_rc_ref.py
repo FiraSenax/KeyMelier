@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from fido2tool_core.version import __version__  # noqa: E402
+from keymelier_core.version import __version__  # noqa: E402
 
 
 def validate(tag: str, version: str = __version__) -> int:

@@ -1,3 +1,41 @@
+# Refactoring and security verification — 2026-10-26
+
+The core package and PyInstaller spec now use the KeyMelier name throughout
+imports, tests, build scripts, CI and documentation. The compatibility-fixture
+generator retains one explicitly documented legacy package name to read old
+release tags. Service helpers are private; the JS bridge still uses explicit
+wrapper functions and an operation allow-list.
+
+| Finding | Resolution |
+|---|---|
+| Attestation, smart card, enrollment, reset and export failures could expose exception messages; exception logging could include secrets | Fixed user-facing messages and exception types only in logs; UI error text is not logged |
+| Previously positive device assessments could remain visible after MDS/CRL expiry until the next network refresh | Invalidate positive assessments when records are read and on the scanner's polling loop |
+| Stateless mode did not cover every writer | Guard storage helpers, text export, downloads, GnuPG imports, keyring mutations and CRL cache deletion; Linux page loading uses an anonymous memory file |
+| Encrypted history save errors were swallowed | Report failure without writing plaintext when the native credential store or encryption fails |
+| Disabling content tracking while history was off left the saved copy intact; imports/sync could restore event details | Scrub the preserved history file and remove account/domain details from incoming events when tracking is off |
+| Initial smart card serial discovery preceded the reader-to-FIDO mapping and could race polling | Hold all plausible FIDO interfaces during discovery, in a stable lock order; discard mappings on disconnect |
+
+Regression coverage: `tests/test_audit_regressions.py`, plus the existing
+certificate-path, CRL, diagnostics, device-identity and authorization suites.
+Both registration tests explicitly request `rk=False`; management tokens remain
+connection-scoped and expire at 300 seconds using monotonic time. CSV export
+tests cover all requested formula/control-character prefixes. The SBOM checker
+now accepts `--check --strict` using the default build output, as well as an
+explicit file path.
+
+Local verification: 322 Python tests completed successfully (one Linux-only
+memory-file test skipped on macOS); UI security and account-model checks, Ruff,
+requirements export consistency and strict SBOM validation passed. A fresh,
+hash-pinned macOS build passed all 56 packaged startup checks. The initial
+sandboxed launch aborted in macOS application registration; the same build
+passed with desktop access and an isolated temporary home. The project venv's
+outdated runtime packages were aligned with the existing requirements pins.
+
+This is an implementation review using simulated devices. Physical USB/NFC
+operations, Windows execution and the Linux Qt memory-page path require their
+platform/hardware checks; existing limitations below still apply. Candidate
+version: 1.8.6; stable publication remains subject to the release gates.
+
 # Quality remediation — 2026-10-02
 
 1.8.3 (released 2026-10-02) tightens management-token permissions and cancellation,
@@ -106,7 +144,7 @@ Old plaintext files/exports/backups are preserved and are not automatically eras
 | Release signing | Optional: sign/notarize when credentials are configured, otherwise publish unsigned builds | Release notes state the actual signing state per platform; checksums, locks and source commit attached; first-launch steps documented |
 | MDS revocation offline | Verified CRLs are persisted in `~/.keymelier/crl/` and re-validated (issuer, signature, validity) on every use. If revocation status cannot be established, signature- and path-verified metadata is used for display only | `is_current()` stays false without revocation evidence, so no "no known findings" assessment and no attestation chain verification; a CRL that lists the signer as revoked is never soft-failed (`RevokedError`) |
 | Key history | On by default; contents (websites, authenticator accounts, OpenPGP fingerprints) remembered by default, names only | Stateless mode still disables all storage; turning history off keeps existing files |
-| Diagnostic report (2026-09-27) | Built from an explicit list of fields, each passed through a type/enumeration filter (fido2tool_core/diagnostics.py); errors are recorded as bridge operation name + error code only, never their message; UI script errors only counted | No free text can enter it (names, serials, accounts, paths, URLs, host names, sync ids, passphrases, messages); unknown fields never copied; preview equals the saved text; saved only on an explicit click to a user-chosen file (owner-only); never transmitted. Tests inject synthetic secrets into settings, history, errors and data status |
+| Diagnostic report (2026-09-27) | Built from an explicit list of fields, each passed through a type/enumeration filter (keymelier_core/diagnostics.py); errors are recorded as bridge operation name + error code only, never their message; UI script errors only counted | No free text can enter it (names, serials, accounts, paths, URLs, host names, sync ids, passphrases, messages); unknown fields never copied; preview equals the saved text; saved only on an explicit click to a user-chosen file (owner-only); never transmitted. Tests inject synthetic secrets into settings, history, errors and data status |
 | Links from company advisory sources (2026-09-27) | Besides the fixed hosts, the app opens exactly the `https://` reference URLs of loaded, signature-verified company sources (e.g. intranet pages) | Exact URL match, not the host; no spaces/control characters, at most 10 per finding; unsigned or invalid sources contribute nothing; opened only in the system browser, never in the app window |
 | Linux page loading (2026-09-27) | Qt WebEngine cannot show the app page (over 2 MB as a data: URL) through `setHtml`, so on Linux the page is written to a file readable only by the user (`$XDG_RUNTIME_DIR/keymelier-*/`, mode 0600 in a 0700 folder) and loaded from there; the file is removed on exit | Same CSP as the inline page (script hashes, `connect-src 'none'`, no frames), so the file:// origin cannot fetch other files; navigation away from exactly this file is reverted; no local HTTP server |
 | Linux credential store (2026-09-27) | The Secret Service (GNOME Keyring, KWallet, KeePassXC) counts as a native store; taken out of keyring's chain if several backends exist | keyring's plaintext, null and fail backends are still refused; without a Secret Service sync cannot be switched on and says why |

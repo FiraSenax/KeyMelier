@@ -19,10 +19,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fido2tool_core import service as service_mod
-from fido2tool_core import sync
-from fido2tool_core.history import History
-from fido2tool_core.scanner import DeviceNotFound, TokenRecord
+from keymelier_core import service as service_mod
+from keymelier_core import sync
+from keymelier_core.history import History
+from keymelier_core.scanner import DeviceNotFound, TokenRecord
 
 
 def record(serial):
@@ -111,7 +111,7 @@ class SearchAfterCancelTests(unittest.TestCase):
             def probe(ctap2, rp_ids, pin=None, progress=None, cancelled=None):
                 seen.append(cancelled())
                 return {"complete": not cancelled(), "results": []}
-            with patch("fido2tool_core.passkey_probe.probe", side_effect=probe):
+            with patch("keymelier_core.passkey_probe.probe", side_effect=probe):
                 svc.passkeys_probe_cancel("tok")       # user stopped the previous search
                 svc.passkeys_probe("tok")
                 svc.passkeys_probe("tok")
@@ -218,7 +218,7 @@ class InterruptedSaveTests(unittest.TestCase):
         settings.write_text('{"lang": "de"}', encoding="utf-8")
         blocked, calls = self.locked(settings, times=2)
         with patch.object(service_mod, "SETTINGS_FILE", settings), blocked, \
-                patch("fido2tool_core.storage.SHARING_VIOLATIONS", True), \
+                patch("keymelier_core.storage.SHARING_VIOLATIONS", True), \
                 patch("time.sleep"):
             svc = service_mod.KeyService(FakeScanner(record("1")), None,
                                          history=History(self.dir / "h.json", enabled=True))

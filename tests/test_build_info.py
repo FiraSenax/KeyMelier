@@ -87,7 +87,7 @@ class ModifiedStateTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.info(ci=True)                   # a CI build stops instead
         # and the app reads "unknown" as not proven unmodified
-        from fido2tool_core import build_info
+        from keymelier_core import build_info
         path = self.repo / "b.json"
         path.write_text(__import__("json").dumps(info), encoding="utf-8")
         self.assertIs(build_info.load(path)["modified"], True)

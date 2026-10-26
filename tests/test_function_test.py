@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fido2.cose import ES256
 from fido2.webauthn import AttestedCredentialData, AuthenticatorData
-from fido2tool_core import function_test
+from keymelier_core import function_test
 
 
 class FunctionTestTests(unittest.TestCase):
@@ -34,7 +34,9 @@ class FunctionTestTests(unittest.TestCase):
             get_assertion=Mock(side_effect=assertion))
 
     def test_valid_roundtrip_and_zero_counter(self):
-        result = function_test.run(self.device())
+        device = self.device()
+        result = function_test.run(device)
+        self.assertIs(device.make_credential.call_args.kwargs["options"]["rk"], False)
         self.assertTrue(result['ok'])
         self.assertFalse(result['user_verified'])
         self.assertEqual(len(result['steps']), 3)

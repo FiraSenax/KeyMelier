@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from fido2tool_core.scanner import TokenRecord, TokenScanner
+from keymelier_core.scanner import TokenRecord, TokenScanner
 
 
 class ScannerConnectionTests(unittest.TestCase):

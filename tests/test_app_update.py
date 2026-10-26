@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from fido2tool_core import app_update
+from keymelier_core import app_update
 
 PREFIX = app_update.DOWNLOAD_PREFIX + "v9.9.9/"
 ASSET = {"name": "KeyMelier-macOS.dmg", "url": PREFIX + "KeyMelier-macOS.dmg", "sums": PREFIX + "SHA256SUMS.txt"}

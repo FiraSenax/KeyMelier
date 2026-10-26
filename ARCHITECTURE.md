@@ -8,15 +8,15 @@ behaviour, and test failure and cancellation paths before broad refactoring.
 | Area | Owner | Contract |
 |---|---|---|
 | Desktop lifecycle, exposed callbacks | `app.py` | Own the window; expose only the intended bridge wrappers |
-| Operation dispatch | `fido2tool_core/bridge.py` | Allow-list methods; validate argument shape/signature before execution; unexpected exceptions never expose their message |
-| Device orchestration | `fido2tool_core/service.py` | Acquire device sessions, coordinate cancellation, delegate protocol work |
-| Management authorization | `fido2tool_core/auth.py` | Expiring tokens with explicit permissions; lock/disconnect revokes active authorization attempts |
-| Cancellable work | `fido2tool_core/operations.py` | One registered PIN/UV unlock per device, including queued requests; duplicate calls cannot replace its cancellation event |
-| Connection lifecycle | `fido2tool_core/scanner.py` | Fresh runtime ID for each observed connection/replacement; recheck observable identity before CTAP operations; discard retired connection updates |
+| Operation dispatch | `keymelier_core/bridge.py` | Allow-list methods; validate argument shape/signature before execution; unexpected exceptions never expose their message |
+| Device orchestration | `keymelier_core/service.py` | Acquire device sessions, coordinate cancellation, delegate protocol work |
+| Management authorization | `keymelier_core/auth.py` | Expiring tokens with explicit permissions; lock/disconnect revokes active authorization attempts |
+| Cancellable work | `keymelier_core/operations.py` | One registered PIN/UV unlock per device, including queued requests; duplicate calls cannot replace its cancellation event |
+| Connection lifecycle | `keymelier_core/scanner.py` | Fresh runtime ID for each observed connection/replacement; recheck observable identity before CTAP operations; discard retired connection updates |
 | Protocol operations | `passkeys.py`, `fingerprints.py`, `key_config.py`, `piv_app.py`, other protocol modules | Check authorization at the operation boundary; never interpret an unexpected read error as an empty slot |
 | Network input | `network.py`, `mds3.py`, `updates.py`, `app_update.py` | Bound downloaded data; preserve signature/trust checks; verify updates before exposing a completed download |
 | Sync key lifetime | `sync.py` | Cache derived keys by salt within one passphrase session; clear session references on reconfiguration/disable; never retain a global fast passphrase hash |
-| Page assembly | `fido2tool_core/page.py`, `static/index.html` | Keep script order consistent in packaged and development pages |
+| Page assembly | `keymelier_core/page.py`, `static/index.html` | Keep script order consistent in packaged and development pages |
 
 ## Frontend ownership
 

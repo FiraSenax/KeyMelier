@@ -9,8 +9,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import NameOID
 
-from fido2tool_core.attestation import AAGUID_EXTENSION, _model_binding, _verify_chain_against_mds3
-from fido2tool_core.certificates import validate_path
+from keymelier_core.attestation import AAGUID_EXTENSION, _model_binding, _verify_chain_against_mds3
+from keymelier_core.certificates import validate_path
 
 AAGUID = "2fc0579f-8113-47ea-b116-bb5a8db9202a"
 OTHER = "cb69481e-8ff7-4039-93ec-0a2729a154a8"

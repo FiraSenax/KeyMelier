@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fido2.ctap2.pin import ClientPin
-from fido2tool_core import auth
-from fido2tool_core.operations import PendingOperations
+from keymelier_core import auth
+from keymelier_core.operations import PendingOperations
 
 
 class AuthLifecycleTests(unittest.TestCase):

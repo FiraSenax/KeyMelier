@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.8.6 — 2026-10-26
+
+Signed Windows releases, security hardening and easier access to key and account details.
+
+- Import one authenticator QR code from a local PNG/JPEG image. Review and edit the decoded account before saving; preserve the hash algorithm, digits, TOTP period and HOTP counter. No screenshot capture, upload or automatic key write. Multi-account exports are not supported in this release.
+- Show and copy complete passkey credential IDs and user IDs, with wrapping for long values.
+- Read additional device identifiers directly over FIDO HID on supported Token2, Solo 2, Nitrokey 3 and Nitrokey Passkey devices. Recheck before operations; unsupported or malformed replies do not become identities. Previously shared history without a serial stays separate for review. These new vendor reads still need model-specific hardware confirmation; this is not the full serial-less recognition project.
+
+- Show the AAGUID in the key overview and let users copy it from there or from technical details without unlocking the key. Mark saved offline values and explain an all-zero AAGUID.
+- Sign the Windows app, installer and uninstaller with Certum SimplySign, replacing SignPath. Verify the publisher and trusted timestamp with native Windows checks. macOS remains Developer ID signed and notarized; Linux remains unsigned. Website signing status follows verified stable-release metadata.
+- Prepare a separate Windows MSIX test package with local test signing, installation and upgrade checks. Packaged installations defer application updates to their package manager. This is preparation only; no Microsoft Store submission or approval.
+
+- Rename the core package and build spec to KeyMelier, update imports and build tooling, and consolidate the license documentation. Upgrade fixtures still support historical releases with the former package name.
+- Stop displaying previously verified authenticity results when the supporting metadata or revocation information expires.
+- Keep unexpected exception messages out of UI responses and logs, including desktop callbacks, smart card operations and background tasks.
+- Extend stateless mode to storage helpers, exports, update downloads, GnuPG imports and credential-store writes. The Linux UI page uses anonymous memory instead of a temporary file in this mode.
+- Report encrypted-history save failures without falling back to plaintext. Disabling account tracking also clears saved account details when history is disabled; imports and sync honor that setting.
+- Serialize initial smart card discovery with FIDO access before a reader-to-key mapping is available, and discard reader mappings on disconnect.
+- Add regression coverage for these guarantees, non-resident test credentials, connection-scoped authorization expiry and CSV formula neutralization. Check build tools with Ruff and support the documented strict SBOM command.
+
 ## 1.8.5 — 2026-10-22
 
 Security and dependency maintenance release. No new application features.

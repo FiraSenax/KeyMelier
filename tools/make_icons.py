@@ -10,7 +10,6 @@ library, e.g. `brew install cairo`) and Pillow. CI uses the committed files,
 so the build machines don't need cairo.
 """
 
-import shutil
 import subprocess
 import sys
 import tempfile

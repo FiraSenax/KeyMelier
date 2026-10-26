@@ -68,7 +68,7 @@ def appimage(arch="x86_64") -> bytes:
 INTERNAL = "usr/lib/keymelier/_internal"
 APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", f"{INTERNAL}/static/index.html",
                   f"{INTERNAL}/data/advisories.json.sig", f"{INTERNAL}/THIRD_PARTY_LICENSES.txt",
-                  "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/fido2tool_core/version.py"}
+                  "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/keymelier_core/version.py"}
 
 
 def build_json(commit=COMMIT, modified=False):
@@ -217,6 +217,20 @@ class CheckArtifactsTests(unittest.TestCase):
                 r = ca.Report()
                 ca.check_notes(r, notes, not mac, win)
                 self.assertTrue(r.problems, "a wrong signing claim is found")
+
+    def test_website_cannot_claim_a_signature_missing_from_the_packages(self):
+        import release_notes
+        for wrong in ('{"schema":1,"macos":true,"windows":true}',
+                      '{"schema":1,"macos":true,"windows":"false"}',
+                      '{"schema":1,"macos":true,"windows":0}', 'invalid'):
+            with self.subTest(wrong=wrong):
+                text = release_notes.notes(True, False)
+                text = text.replace('{"schema":1,"macos":true,"windows":false}', wrong)
+                path = self.tmp / 'notes.md'
+                path.write_text(text, encoding='utf-8')
+                r = ca.Report()
+                ca.check_notes(r, path, True, False)
+                self.assertTrue(r.problems)
 
     def test_report_names_commit_version_artifacts_and_jobs(self):
         notes = make_release(self.dir)

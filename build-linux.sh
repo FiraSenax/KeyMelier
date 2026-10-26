@@ -45,7 +45,7 @@ rm -f build/pip-report*.json
 [ -n "${CI:-}" ] || "$PYTHON" tools/write_build_info.py
 
 echo "Running PyInstaller..."
-"$PYTHON" -m PyInstaller --clean --noconfirm fido2tool.spec
+"$PYTHON" -m PyInstaller --clean --noconfirm keymelier.spec
 
 "$PYTHON" tools/sbom.py --check build/keymelier-sbom.cdx.json --strict
 

@@ -11,10 +11,10 @@ import unittest
 from pathlib import Path, PurePosixPath
 from unittest.mock import MagicMock, patch
 
-from fido2tool_core import app_update, desktop, storage
-from fido2tool_core import service as service_mod
-from fido2tool_core.history import History
-from fido2tool_core.pin import PinError
+from keymelier_core import app_update, desktop, storage
+from keymelier_core import service as service_mod
+from keymelier_core.history import History
+from keymelier_core.pin import PinError
 
 
 def backend(module):
@@ -91,6 +91,18 @@ class LanguageTests(unittest.TestCase):
 
 
 class DesktopTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "memfd_create"), "Linux anonymous memory files")
+    def test_stateless_page_uses_memory_without_creating_a_directory(self):
+        with patch.dict(os.environ, KEYMELIER_STATELESS="1"), \
+             patch("tempfile.mkdtemp") as directory:
+            path, cleanup = desktop.private_page_file("<html>ä</html>")
+            try:
+                self.assertEqual(path.read_text(encoding="utf-8"), "<html>ä</html>")
+                directory.assert_not_called()
+            finally:
+                cleanup()
+            self.assertFalse(path.exists())
+
     @unittest.skipIf(os.name == "nt", "POSIX permissions")
     def test_page_file_is_private_and_removed(self):
         with tempfile.TemporaryDirectory() as runtime, patch.dict(os.environ, {"XDG_RUNTIME_DIR": runtime}):

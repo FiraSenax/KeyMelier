@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from yubikit.core.smartcard import ApduError, SW
 from yubikit.piv import TOUCH_POLICY
-from fido2tool_core import piv_app
-from fido2tool_core.cards import CardError
+from keymelier_core import piv_app
+from keymelier_core.cards import CardError
 
 
 class PivReadSafetyTests(unittest.TestCase):

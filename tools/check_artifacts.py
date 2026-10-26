@@ -17,7 +17,7 @@ expected AppImages. A missing AppImage is an error; no other file is touched.
 
 macos/windows (build jobs): the expected files exist and are not empty; the
 ZIP lists the expected app structure; version in Info.plist / the Windows
-version resources (app and installer) equals fido2tool_core/version.py; the
+version resources (app and installer) equals keymelier_core/version.py; the
 DMG mounts and holds the app and an Applications link (macOS); the signing
 state matches what the build reports (ad-hoc vs. Developer ID on macOS,
 Authenticode present or not on Windows); SBOM valid; license notices present.
@@ -67,7 +67,7 @@ RELEASE_FILES = MAC_FILES + WIN_FILES + LINUX_FILES + LOCKS + ("SOURCE_COMMIT.tx
 
 def app_version() -> str:
     ns: dict = {}
-    exec((ROOT / "fido2tool_core" / "version.py").read_text(), ns)
+    exec((ROOT / "keymelier_core" / "version.py").read_text(), ns)
     return ns["__version__"]
 
 
@@ -292,7 +292,7 @@ def check_appimage(r: Report, path: Path, arch: str, version: str, commit: str |
                   f"{internal}/THIRD_PARTY_LICENSES.txt", "usr/share/keymelier/70-keymelier.rules"):
         r.check(entry in entries, f"{path.name} contains {entry}")
     check_build_commit(r, path.name, read(BUILD_JSON["linux"]), commit)
-    m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/fido2tool_core/version.py"))
+    m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/keymelier_core/version.py"))
     r.check(m is not None and m.group(1) == version, f"{path.name}: app version {version}", m.group(1) if m else "none")
 
 
@@ -313,6 +313,18 @@ def check_sums(r: Report, folder: Path) -> None:
 
 def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> None:
     text = notes.read_text(encoding="utf-8")
+    # Missing metadata is safe for older releases (the website uses a neutral
+    # fallback); present metadata must agree exactly with verified job outputs.
+    if 'keymelier-signing:' in text:
+        markers = re.findall(r'<!-- keymelier-signing: (\{[^\r\n]*\}) -->', text)
+        try:
+            status = json.loads(markers[0]) if len(markers) == 1 else None
+        except (ValueError, TypeError):
+            status = None
+        expected = {"schema": 1, "macos": mac_signed, "windows": win_signed}
+        valid = (isinstance(status, dict) and status == expected
+                 and isinstance(status.get('macos'), bool) and isinstance(status.get('windows'), bool))
+        r.check(valid, "website signing metadata matches verified platform outputs")
     r.check(("Not notarized" in text) != mac_signed, "release notes state the macOS notarization correctly")
     r.check(("Not signed" in text) != win_signed, "release notes state the Windows signing correctly")
     for arch in LINUX_ARCHES:

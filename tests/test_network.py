@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock
-from fido2tool_core.network import read_limited
+from keymelier_core.network import read_limited
 
 
 class TrustBundleTests(unittest.TestCase):

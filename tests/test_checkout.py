@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fido2tool_core.updates import verify
+from keymelier_core.updates import verify
 
 ROOT = Path(__file__).resolve().parent.parent
 

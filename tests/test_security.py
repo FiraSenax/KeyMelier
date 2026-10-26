@@ -12,12 +12,12 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
-from fido2tool_core.attestation import AttestationResult, _finalize, _chain_validates, _verify_signature
-from fido2tool_core.scanner import TokenRecord, TokenScanner
-from fido2tool_core.history import History
-from fido2tool_core.exporter import CSVExporter, _safe_cell
-from fido2tool_core.service import KeyService
-from fido2tool_core import updates
+from keymelier_core.attestation import AttestationResult, _finalize, _chain_validates, _verify_signature
+from keymelier_core.scanner import TokenRecord, TokenScanner
+from keymelier_core.history import History
+from keymelier_core.exporter import CSVExporter, _safe_cell
+from keymelier_core.service import KeyService
+from keymelier_core import updates
 
 
 def record():
@@ -143,7 +143,7 @@ class SecurityTests(unittest.TestCase):
     def test_default_service_does_not_export_or_store_sites(self):
         # Content recording is on by default (maintainer decision); turning it
         # off must keep site and account details out of history events.
-        with tempfile.TemporaryDirectory() as tmp, patch('fido2tool_core.service.SETTINGS_FILE', Path(tmp)/'settings.json'):
+        with tempfile.TemporaryDirectory() as tmp, patch('keymelier_core.service.SETTINGS_FILE', Path(tmp)/'settings.json'):
             (Path(tmp)/'settings.json').write_text('{"remember_sites": false}')
             exporter = Mock()
             service = KeyService(TokenScanner(), exporter, history=History(Path(tmp)/'history.json'))
@@ -167,9 +167,9 @@ class ExtendedSecurityTests(unittest.TestCase):
     def test_none_and_unsupported_attestation_are_unverified(self):
         import hashlib
         import uuid
-        from fido2tool_core import attestation
+        from keymelier_core import attestation
         aaguid = str(uuid.uuid4())
-        auth_data = hashlib.sha256(b'fido2tool.local').digest() + b'\x41' + b'\0'*4 + uuid.UUID(aaguid).bytes + b'\0\0'
+        auth_data = hashlib.sha256(b'keymelier.local').digest() + b'\x41' + b'\0'*4 + uuid.UUID(aaguid).bytes + b'\0\0'
         for fmt in ['none', 'unknown-format']:
             response = SimpleNamespace(fmt=fmt, auth_data=auth_data, att_stmt={})
             with patch('fido2.ctap2.Ctap2') as ctap:
@@ -182,7 +182,7 @@ class ExtendedSecurityTests(unittest.TestCase):
 
     def test_mismatched_request_is_failure(self):
         import uuid
-        from fido2tool_core import attestation
+        from keymelier_core import attestation
         aaguid = str(uuid.uuid4())
         data = b'\0'*32 + b'\x41' + b'\0'*4 + uuid.UUID(aaguid).bytes + b'\0\0'
         with patch('fido2.ctap2.Ctap2') as ctap:
@@ -191,7 +191,7 @@ class ExtendedSecurityTests(unittest.TestCase):
         self.assertEqual(result.status, 'FAILED')
 
     def test_expired_metadata_never_current(self):
-        from fido2tool_core.mds3 import MDS3Client
+        from keymelier_core.mds3 import MDS3Client
         m = MDS3Client()
         m._entries = [{}]
         m._next_update = '2000-01-01'
@@ -202,13 +202,13 @@ class ExtendedSecurityTests(unittest.TestCase):
         self.assertFalse(m.is_current())
 
     def test_unknown_status_does_not_hide_revocation(self):
-        from fido2tool_core.mds3 import MDS3Client
+        from keymelier_core.mds3 import MDS3Client
         m = MDS3Client()
         m._index([{'aaguid':'test','statusReports':[{'status':'NEW_UNKNOWN'}, {'status':'REVOKED'}]}])
         self.assertEqual(m.get_highest_security_status('test'), 'REVOKED')
 
     def test_revocation_fails_closed(self):
-        from fido2tool_core.revocation import check_chain_revocation, _fetch_crl
+        from keymelier_core.revocation import check_chain_revocation, _fetch_crl
         with self.assertRaises(ValueError):
             _fetch_crl('http://127.0.0.1/private')
         rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
@@ -218,7 +218,7 @@ class ExtendedSecurityTests(unittest.TestCase):
             check_chain_revocation([leaf, root])  # no CRL distribution points
 
     def test_crl_good_revoked_expired_and_bad_signature(self):
-        from fido2tool_core.revocation import check_chain_revocation
+        from keymelier_core.revocation import check_chain_revocation
         rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
         root = cert('root', rk, ca=True)
         now = datetime.now(timezone.utc)
@@ -235,7 +235,7 @@ class ExtendedSecurityTests(unittest.TestCase):
                 builder = builder.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(123)
                     .revocation_date(now-timedelta(days=1)).build())
             crl = builder.sign(lk if case=='wrong-key' else rk,hashes.SHA256())
-            with patch('fido2tool_core.revocation._fetch_crl', return_value=crl):
+            with patch('keymelier_core.revocation._fetch_crl', return_value=crl):
                 if case=='good':
                     self.assertGreater(check_chain_revocation([leaf,root]), now)
                 else:
@@ -245,26 +245,26 @@ class ExtendedSecurityTests(unittest.TestCase):
     def test_revoked_signer_is_never_soft_failed(self):
         import base64
         from cryptography.hazmat.primitives.serialization import Encoding
-        from fido2tool_core import mds_verify
-        from fido2tool_core.revocation import RevokedError
+        from keymelier_core import mds_verify
+        from keymelier_core.revocation import RevokedError
         k = ec.generate_private_key(ec.SECP256R1())
         leaf = cert('mds.fidoalliance.org', k)
         header = base64.urlsafe_b64encode(json.dumps(
             {"alg": "ES256", "x5c": [base64.b64encode(leaf.public_bytes(Encoding.DER)).decode()]}).encode()).rstrip(b'=').decode()
         token = f"{header}.e30.AA"
-        with patch('fido2tool_core.certificates.validate_path', return_value=[leaf]):
-            with patch('fido2tool_core.revocation.check_chain_revocation', side_effect=RevokedError('revoked')):
+        with patch('keymelier_core.certificates.validate_path', return_value=[leaf]):
+            with patch('keymelier_core.revocation.check_chain_revocation', side_effect=RevokedError('revoked')):
                 for required in (True, False):
                     with self.assertRaises(mds_verify.MdsVerificationError):
                         mds_verify.verify_jwt(token, require_revocation=required)
             # merely unavailable: only the strict mode refuses; display mode goes on to the signature check
-            with patch('fido2tool_core.revocation.check_chain_revocation', side_effect=ValueError('unavailable')):
+            with patch('keymelier_core.revocation.check_chain_revocation', side_effect=ValueError('unavailable')):
                 with self.assertRaisesRegex(mds_verify.MdsVerificationError, 'revocation'):
                     mds_verify.verify_jwt(token, require_revocation=True)
                 with self.assertRaises(mds_verify.MdsVerificationError) as ctx:
                     mds_verify.verify_jwt(token, require_revocation=False)
                 self.assertNotIn('revocation', str(ctx.exception))  # got past revocation
-        from fido2tool_core.mds3 import MDS3Client
+        from keymelier_core.mds3 import MDS3Client
         m = MDS3Client()
         m._entries = [{}]
         m._next_update = '2999-01-01'
@@ -272,7 +272,7 @@ class ExtendedSecurityTests(unittest.TestCase):
         self.assertFalse(m.is_current())
 
     def test_crl_disk_cache_is_revalidated(self):
-        from fido2tool_core import revocation
+        from keymelier_core import revocation
         rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
         root = cert('root', rk, ca=True)
         now = datetime.now(timezone.utc)
@@ -294,7 +294,7 @@ class ExtendedSecurityTests(unittest.TestCase):
                 revocation.check_chain_revocation([leaf, root])
 
     def test_invalid_cached_crl_is_replaced_by_download(self):
-        from fido2tool_core import revocation
+        from keymelier_core import revocation
         rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
         root = cert('root', rk, ca=True)
         now = datetime.now(timezone.utc)
@@ -326,7 +326,7 @@ class ExtendedSecurityTests(unittest.TestCase):
                 good.public_bytes(__import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding']).Encoding.DER))
 
     def test_no_double_download_without_cache(self):
-        from fido2tool_core import revocation
+        from keymelier_core import revocation
         rk, lk = [ec.generate_private_key(ec.SECP256R1()) for _ in range(2)]
         root = cert('root', rk, ca=True)
         now = datetime.now(timezone.utc)
@@ -348,7 +348,7 @@ class ExtendedSecurityTests(unittest.TestCase):
         self.assertEqual(calls, [True])
 
     def test_fresh_cache_is_reverified_when_revocation_returns(self):
-        from fido2tool_core import mds3
+        from keymelier_core import mds3
         m = mds3.MDS3Client()
         m._entries = [{}]
         m._next_update = '2999-01-01'
@@ -367,7 +367,7 @@ class ExtendedSecurityTests(unittest.TestCase):
     def test_encrypted_history_and_no_plaintext_fallback(self):
         from cryptography.fernet import Fernet
         cipher = Fernet(Fernet.generate_key())
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, KEYMELIER_ENCRYPT_HISTORY='1'), patch('fido2tool_core.history.history_cipher',return_value=cipher):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, KEYMELIER_ENCRYPT_HISTORY='1'), patch('keymelier_core.history.history_cipher',return_value=cipher):
             path = Path(tmp)/'history.json'
             h = History(path, enabled=True)
             h.update_snapshot(record())
