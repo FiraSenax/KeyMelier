@@ -7,11 +7,13 @@ SBOM would falsely declare libimagequant (GPL) on wheels built without it.
 import base64
 import hashlib
 import json
+import sys
 from importlib.metadata import distribution
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED = {"cryptography": ("50.0.2", 2), "pillow": ("13.0.0", 1)}
+# auditwheel adds a second native-library SBOM to both manylinux wheels.
+EXPECTED = {"cryptography": ("50.0.2", 2), "pillow": ("13.0.0", 2 if sys.platform.startswith("linux") else 1)}
 
 
 def collect(names, binaries):
