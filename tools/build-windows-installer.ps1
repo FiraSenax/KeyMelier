@@ -25,9 +25,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
     if ($Signed) {
         Assert-KeyMelierSignature 'dist\KeyMelier-Windows-Setup.exe' $env:CERTUM_CERT_SHA1
-        $uninstallers = @(Get-ChildItem 'build\signed-uninstaller' -File -Filter '*.e32')
-        if ($uninstallers.Count -ne 1) { throw 'Expected one signed Inno uninstaller.' }
-        Assert-KeyMelierSignature $uninstallers[0].FullName $env:CERTUM_CERT_SHA1
+        # With SignTool enabled, Inno signs uninst.e32.tmp on the fly and deletes
+        # it afterwards. Our callback verifies it before Inno embeds it; the
+        # Windows integration test also checks the installed unins000.exe.
     }
 } finally {
     Pop-Location
