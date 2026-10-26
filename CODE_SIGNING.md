@@ -2,8 +2,8 @@
 
 > **Status (October 2026):** from version 1.8.2 the macOS app is signed with
 > the maintainer's Apple Developer ID and notarized by Apple. Windows builds
-> are still **unsigned** while the purchased Certum certificate awaits issuance
-> and its first production signing check. The SignPath integration has been removed.
+> are still **unsigned**. The Certum certificate was issued on 26 October 2026;
+> its first production signing check is pending. The SignPath integration has been removed.
 > Each release's notes state the actual signing state per platform.
 
 Windows: Certum SimplySign is prepared for signing the app, installer and
