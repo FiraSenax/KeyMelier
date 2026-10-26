@@ -11,7 +11,9 @@ New-Item $work -ItemType Directory | Out-Null
 $created = @()
 $checks = [System.Collections.Generic.List[string]]::new()
 $install = Join-Path $work 'installed'
-$store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+# CurrentUser\Root can open an interactive trust dialog. This disposable runner
+# is elevated; its machine store permits a noninteractive, finally-cleaned test.
+$store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
 function Expect-Rejection([string]$Name, [scriptblock]$Action) {
     $rejected = $false
     try { & $Action } catch { $rejected = $true }
@@ -34,6 +36,7 @@ try {
         -NotAfter (Get-Date).AddDays(1)
     $created += $cert
     $env:CERTUM_CERT_SHA1 = $cert.Thumbprint
+    Write-Host 'Trust the test certificate on this disposable runner.'
     $store.Open('ReadWrite')
     $store.Add($cert)
     $checks.Add('Created temporary non-exportable test certificate')
@@ -54,6 +57,7 @@ try {
     $created += $expired
     Expect-Rejection 'expired signing certificate' { Get-KeyMelierSigningCertificate $expired.Thumbprint }
 
+    Write-Host 'Sign the app probe and verify its timestamp.'
     & "$root\tools\sign-windows.ps1" -Path $exe
     if (-not $?) { throw 'Signing the probe failed.' }
     $checks.Add('Signed app with SHA256 and verified trusted RFC3161 timestamp')
@@ -65,16 +69,24 @@ try {
     [IO.File]::WriteAllBytes($tampered, $bytes)
     Expect-Rejection 'modified signed executable' { Assert-KeyMelierSignature $tampered $cert.Thumbprint }
 
+    Write-Host 'Build signed setup and uninstaller.'
     & "$root\tools\build-windows-installer.ps1" -AppVersion 1.8.6 -Signed
     $checks.Add('Built and verified signed setup and embedded uninstaller')
     $setup = "$root\dist\KeyMelier-Windows-Setup.exe"
-    $p = Start-Process $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$install`"") -Wait -PassThru
+    Write-Host 'Install the test package.'
+    $p = Start-Process $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$install`"") -PassThru
+    if (-not $p.WaitForExit(120000)) { $p.Kill(); throw 'Installer timed out.' }
     if ($p.ExitCode -ne 0) { throw "Installer test failed (exit $($p.ExitCode))." }
     Assert-KeyMelierSignature "$install\KeyMelier.exe" $cert.Thumbprint
     Assert-KeyMelierSignature "$install\unins000.exe" $cert.Thumbprint
     $checks.Add('Installed app and uninstaller retain expected signer and timestamp')
-    $p = Start-Process "$install\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
+    Write-Host 'Uninstall the test package.'
+    $p = Start-Process "$install\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -PassThru
+    if (-not $p.WaitForExit(120000)) { $p.Kill(); throw 'Uninstaller timed out.' }
     if ($p.ExitCode -ne 0) { throw 'Uninstall test failed.' }
+    $deadline = (Get-Date).AddSeconds(30)
+    while ((Test-Path "$install\KeyMelier.exe") -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
+    if (Test-Path "$install\KeyMelier.exe") { throw 'Uninstaller did not remove the application.' }
     $checks.Add('Signed uninstaller completed successfully')
 
     # The normal unsigned development installer must also remain buildable.
