@@ -1,0 +1,40 @@
+name: Windows signing tests
+on:
+  pull_request:
+    paths:
+      - '.github/actions/certum-connect/**'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/signing-check.yml'
+      - '.github/workflows/windows-signing-test.yml'
+      - 'tools/*windows*.ps1'
+      - 'tools/*simplysign.ps1'
+      - 'packaging/keymelier.iss'
+      - 'tests/windows_signing_test.ps1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticode:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: App, installer, uninstaller and rejection cases with a temporary test identity
+        shell: pwsh
+        run: ./tests/windows_signing_test.ps1
+  simplysign-install:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify and install the official client without account credentials
+        shell: pwsh
+        run: ./tools/install-simplysign.ps1
+      - name: Clean up
+        if: always()
+        shell: pwsh
+        run: ./tools/disconnect-simplysign.ps1

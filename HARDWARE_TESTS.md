@@ -40,6 +40,7 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 
 | Operating system + version | KeyMelier (version/commit) | Key model | Firmware | Detection | Read functions | Cancel + reconnect | Result | Date, notes |
 |---|---|---|---|---|---|---|---|---|
+| macOS (version not recorded) | 1.8.6 candidate (exact commit not reported) | Two keys, models not recorded | not recorded | Not tested | Not tested | Not tested | Passed (general use reported; individual checks not recorded) | 2026-10-26 – project owner reports running 1.8.6 on the Mac with two connected keys: looks good. No model, firmware or per-function results supplied; not a full hardware sign-off. |
 | Windows (version not recorded) | 1.5.0 | not recorded | not recorded | Passed | Not tested | Not tested | Passed (installation and start only) | 2026-09-27 – reported by the project owner: Windows build installed with the installer and working. No details about key or functions recorded. |
 | macOS + Windows (versions not recorded) | 1.6.0 | – | – | – | – | – | Passed (sync between two computers) | 2026-09-27 – reported by the project owner: sync Mac ↔ Windows set up and working. Not a key test. |
 | macOS (version not recorded) | development state 1.3.1 | YubiKey with FIDO 2.0 (shown as "YubiKey OTP+FIDO+CCID") | not recorded | Passed | Passkey search: Passed (70 sites asked, 4 with passkeys) | Not tested | Passed (search) | 2026-09 – diagnostic run during development (local log). App version not exactly known; a hint only. |

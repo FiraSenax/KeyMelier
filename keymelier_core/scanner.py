@@ -51,6 +51,7 @@ class TokenRecord:
     mds_icon: Optional[str] = None  # vendor icon from MDS3 (data:image/... URL)
     attestation: Optional[dict] = None  # serialised AttestationResult
     algorithms: list = field(default_factory=list)  # COSE algorithm IDs from getInfo
+    serial_source: Optional[str] = None
 
 
 from keymelier_core.firmware import decode_firmware as _decode_firmware
@@ -62,6 +63,7 @@ def _apply_vendor_info(record: "TokenRecord", details: Optional[dict]) -> None:
         return
     if details.get("serial") and not record.serial_number:
         record.serial_number = details["serial"]
+        record.serial_source = details.get("serial_source")
     version = details.get("version")
     if version:
         major, minor, patch = (list(version) + [0, 0, 0])[:3]
@@ -115,7 +117,7 @@ def _same_model(first: TokenRecord, second: TokenRecord) -> bool:
 
 def _carry_vendor_info(known: TokenRecord, record: TokenRecord) -> None:
     """Keep what the management application told us about this connection."""
-    for name in ('serial_number', 'firmware_version_raw', 'firmware_version_str', 'form_factor', 'fips', 'nfc'):
+    for name in ('serial_number', 'serial_source', 'firmware_version_raw', 'firmware_version_str', 'form_factor', 'fips', 'nfc'):
         setattr(record, name, getattr(known, name))
 
 
@@ -288,6 +290,12 @@ class TokenScanner:
                     elif known is None or not _same_identity(known, record):
                         details = vendor_info.read(dev, record.vendor_id, record.product_id)
                         _apply_vendor_info(record, details)
+                        self._vendor_checked[path_key] = time.monotonic()
+                    elif (not serial and vendor_info.has_identity_reader(record.vendor_id, record.product_id)
+                          and time.monotonic() - self._vendor_checked.get(path_key, 0.0) >= VENDOR_RECHECK):
+                        # An unavailable first read is not a permanent lack of
+                        # identity. Retry at the same bounded cadence as rechecks.
+                        _apply_vendor_info(record, vendor_info.read(dev, record.vendor_id, record.product_id))
                         self._vendor_checked[path_key] = time.monotonic()
                     result[path_key] = record
             except Exception as e:

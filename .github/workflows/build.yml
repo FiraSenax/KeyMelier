@@ -49,6 +49,7 @@ jobs:
         run: for f in static/*.js; do node --check "$f"; done
       - run: node tests/ui_security.cjs
       - run: node tests/accounts_model.cjs
+      - run: node tests/website_release.cjs
   # UI tests on the demo page (no backend, no keys) with real keyboard and
   # mouse input through the DevTools protocol; failures keep a screenshot
   # and the browser log.
@@ -216,11 +217,13 @@ jobs:
     needs: [test, ui]
     runs-on: windows-2022
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
-    permissions:
-      contents: read
-      actions: read   # SignPath downloads the unsigned artifact of this run
+    timeout-minutes: 35
+    concurrency:
+      group: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'certum-signing' || format('windows-build-{0}', github.run_id) }}
+      cancel-in-progress: false
     env:
-      SIGN_WIN: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      SIGN_WIN: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && vars.WINDOWS_SIGNING_ENABLED == 'true' }}
+      CERTUM_CERT_SHA1: ${{ vars.CERTUM_CERT_SHA1 }}
     outputs:
       signed: ${{ steps.signed.outputs.signed }}
     steps:
@@ -239,6 +242,14 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+      - name: Validate Windows signing mode
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_ENABLED: ${{ vars.WINDOWS_SIGNING_ENABLED }}
+        run: |
+          if ([string]$env:WINDOWS_SIGNING_ENABLED -notin @('', 'false', 'true')) {
+            throw 'WINDOWS_SIGNING_ENABLED must be unset, false or true.'
+          }
       - name: Record signing state and source commit in the app (introduction, About, diagnostics)
         shell: bash
         run: |
@@ -247,42 +258,29 @@ jobs:
         env:
           KEYMELIER_ICON: static\icon.ico
         run: pyinstaller --clean --noconfirm keymelier.spec
-      # Free code signing for open source by the SignPath Foundation: the
-      # unsigned build goes to SignPath, which signs KeyMelier.exe with a key
-      # held in its HSM (see CODE_SIGNING.md and .signpath/).
-      - name: Upload unsigned build for signing
+      - name: Connect Certum SimplySign
         if: env.SIGN_WIN == 'true'
-        id: unsigned
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: ./.github/actions/certum-connect
         with:
-          name: unsigned-windows-build  # must not match the release pattern KeyMelier-*
-          path: dist/KeyMelier
-          retention-days: 1
-      - name: Sign with SignPath
-        if: env.SIGN_WIN == 'true'
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          connector-url: https://githubactions.connector.signpath.io
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: dist/KeyMelier-signed
-      - name: Use and verify the signed build
+          username: ${{ secrets.CERTUM_USERNAME }}
+          totp-secret: ${{ secrets.CERTUM_TOTP_SECRET }}
+          thumbprint: ${{ vars.CERTUM_CERT_SHA1 }}
+      - name: Sign and verify the app
         if: env.SIGN_WIN == 'true'
         shell: pwsh
+        run: ./tools/sign-windows.ps1 -Path dist/KeyMelier/KeyMelier.exe
+      - name: Build installer and sign its uninstaller and setup when enabled
+        shell: pwsh
         run: |
-          $sig = Get-AuthenticodeSignature dist\KeyMelier-signed\KeyMelier.exe
-          if ($sig.Status -ne 'Valid') { throw "Invalid signature: $($sig.Status)" }
-          Write-Host "Signed by: $($sig.SignerCertificate.Subject)"
-          Remove-Item -Recurse -Force dist\KeyMelier
-          Move-Item dist\KeyMelier-signed dist\KeyMelier
-      # The built app itself (not app.py): real window, temporary home, no
-      # key access, no network; checks libraries, bundled data, translations,
-      # icons and the page <-> backend bridge. Failure stops the build.
+          $version = python -c "from keymelier_core.version import __version__; print(__version__)"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the app version.' }
+          ./tools/build-windows-installer.ps1 -AppVersion $version -Signed:($env:SIGN_WIN -eq 'true')
+      - name: Disconnect SimplySign before running packaged code
+        if: always() && env.SIGN_WIN == 'true'
+        shell: pwsh
+        run: ./tools/disconnect-simplysign.ps1
+      # Start only after signing and cleanup. No cloud login credentials are
+      # provided to this process (real window, temporary home, no key access).
       - name: Start test of the packaged app
         env:
           SMOKE_ARTIFACTS: build/smoke-artifacts
@@ -294,40 +292,6 @@ jobs:
           name: smoke-artifacts-windows
           path: build/smoke-artifacts
           if-no-files-found: ignore
-      - name: Installer
-        shell: pwsh
-        run: |
-          $version = python -c "from keymelier_core.version import __version__; print(__version__)"
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\keymelier.iss
-          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
-      - name: Upload unsigned installer for signing
-        if: env.SIGN_WIN == 'true'
-        id: unsigned_setup
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: unsigned-windows-setup  # must not match the release pattern KeyMelier-*
-          path: dist/KeyMelier-Windows-Setup.exe
-          retention-days: 1
-      - name: Sign installer with SignPath
-        if: env.SIGN_WIN == 'true'
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          connector-url: https://githubactions.connector.signpath.io
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          github-artifact-id: ${{ steps.unsigned_setup.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: dist/setup-signed
-      - name: Use and verify the signed installer
-        if: env.SIGN_WIN == 'true'
-        shell: pwsh
-        run: |
-          $sig = Get-AuthenticodeSignature dist\setup-signed\KeyMelier-Windows-Setup.exe
-          if ($sig.Status -ne 'Valid') { throw "Invalid installer signature: $($sig.Status)" }
-          Move-Item -Force dist\setup-signed\KeyMelier-Windows-Setup.exe dist\KeyMelier-Windows-Setup.exe
       - name: Record signing state
         id: signed
         shell: bash
@@ -470,6 +434,15 @@ jobs:
         run: |
           version=$(python3 -c "from keymelier_core.version import __version__; print(__version__)")
           test "v$version" = "$GITHUB_REF_NAME"
+      - name: Require completed production signing
+        env:
+          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
+          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
+        run: |
+          if [ "$MAC_SIGNED" != true ] || [ "$WIN_SIGNED" != true ]; then
+            echo "::error::Stable releases require verified macOS and Windows signing. Use an RC tag while Certum setup is pending."
+            exit 1
+          fi
       - uses: ./.github/actions/prepare-release
         with:
           mac-signed: ${{ needs.build-macos.outputs.signed }}

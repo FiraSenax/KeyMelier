@@ -39,7 +39,9 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertIn(field, iss)
         workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         self.assertIn("from keymelier_core.version import __version__", workflow)
-        self.assertIn('"/DAppVersion=$version"', workflow)
+        installer = (ROOT / 'tools/build-windows-installer.ps1').read_text()
+        self.assertIn('-AppVersion $version', workflow)
+        self.assertIn('"/DAppVersion=$AppVersion"', installer)
 
     def test_public_hardware_page_matches_the_matrix(self):
         import subprocess
@@ -111,6 +113,38 @@ class ReleaseMetadataTests(unittest.TestCase):
         binary = subprocess.run(["git", "check-attr", "text", "--", "data/advisories.json", "data/advisories.json.sig"],
                                 cwd=ROOT, capture_output=True, text=True, check=True).stdout
         self.assertEqual(binary.count(": text: unset"), 2, "signed files are never converted")
+
+    def test_stable_publication_requires_both_verified_signatures(self):
+        import os
+        import subprocess
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
+        steps = workflow['jobs']['release']['steps']
+        gate = next(s for s in steps if s.get('name') == 'Require completed production signing')
+        publish = next(s for s in steps if 'action-gh-release' in s.get('uses', ''))
+        self.assertLess(steps.index(gate), steps.index(publish))
+        self.assertEqual(gate['env']['WIN_SIGNED'], '${{ needs.build-windows.outputs.signed }}')
+        self.assertEqual(gate['env']['MAC_SIGNED'], '${{ needs.build-macos.outputs.signed }}')
+        # Windows' PATH can resolve bash.exe to the WSL launcher. Actions uses
+        # Git Bash; choose that interpreter explicitly for the portable test.
+        bash = str(Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Git/bin/bash.exe') if sys.platform == 'win32' else 'bash'
+        for mac, win in (('true', 'true'), ('false', 'true'), ('true', 'false'), ('true', ''), ('', '')):
+            with self.subTest(mac=mac, win=win):
+                result = subprocess.run([bash, '-e', '-c', gate['run']], capture_output=True, text=True,
+                                        env={**os.environ, 'MAC_SIGNED': mac, 'WIN_SIGNED': win})
+                self.assertEqual(result.returncode == 0, mac == win == 'true', result.stderr)
+
+    def test_certum_cleanup_precedes_execution_and_artifact_upload(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
+        job = workflow['jobs']['build-windows']
+        # Configured signing must not fall back simply because a secret is absent.
+        self.assertNotIn('secrets.', job['env']['SIGN_WIN'])
+        steps = job['steps']
+        cleanup = next(s for s in steps if 'disconnect-simplysign.ps1' in s.get('run', ''))
+        self.assertIn('always()', cleanup['if'])
+        smoke = next(s for s in steps if 'smoke_packaged.py' in s.get('run', ''))
+        self.assertLess(steps.index(cleanup), steps.index(smoke))
+        upload = next(s for s in steps if s.get('with', {}).get('name') == 'KeyMelier-Windows')
+        self.assertLess(steps.index(cleanup), steps.index(upload))
 
     def test_requirement_exports_match_the_lock(self):
         """CI installs requirements*.txt; they must be the current export of uv.lock.
