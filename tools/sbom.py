@@ -220,7 +220,7 @@ def _native_components(packages):
     return out
 
 
-def build(app_version: str, report_glob: str | None = None, names=None, native_packages=(), vendors=()) -> dict:
+def build(app_version: str, report_glob: str | None = None, names=None, native_packages=(), vendors=(), upstream_sboms=()) -> dict:
     allowed = lock_hashes()
     artifacts = installed_artifacts(report_glob)
     components = [c for c in (_package(n, allowed, artifacts) for n in (requirement_names() if names is None else names)) if c]
@@ -238,6 +238,15 @@ def build(app_version: str, report_glob: str | None = None, names=None, native_p
     })
     components += _openssl_components()
     components += _brand_components() + _native_components(native_packages)
+    for evidence in upstream_sboms:
+        parent = next(c for c in components if _norm(c["name"]) == evidence["parent"])
+        serial = evidence.get("serialNumber", "")
+        if serial and serial.startswith("urn:uuid:"):
+            parent.setdefault("externalReferences", []).append({"type": "bom",
+                "url": "urn:cdx:" + serial.removeprefix("urn:uuid:") + "/" + str(evidence["bom_version"]),
+                "hashes": [{"alg": "SHA-256", "content": evidence["sha256"]}],
+                "comment": evidence["path"] + "; " + evidence["scope"]})
+        parent.setdefault("properties", []).append({"name": "keymelier:upstream-sbom", "value": evidence["path"]})
     for name, license_file, expr in (("Lucide", "lucide-LICENSE.txt", "ISC AND MIT"),
                                      ("Feather", "feather-LICENSE.txt", "MIT")):
         purl = f"pkg:generic/{name.lower()}-icons@embedded"
@@ -372,9 +381,9 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
     return problems
 
 
-def write(path: Path, app_version: str, names=None, native_packages=(), vendors=()) -> Path:
+def write(path: Path, app_version: str, names=None, native_packages=(), vendors=(), upstream_sboms=()) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    bom = build(app_version, names=names, native_packages=native_packages, vendors=vendors)
+    bom = build(app_version, names=names, native_packages=native_packages, vendors=vendors, upstream_sboms=upstream_sboms)
     problems = validate(bom, app_version)
     if problems:
         raise SystemExit("SBOM incomplete:\n  " + "\n  ".join(problems))

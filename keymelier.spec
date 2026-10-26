@@ -132,7 +132,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=LINUX_EXCLUDES + ['readline'],  # no interactive REPL; avoid accidental GNU Readline distribution
+    # No Pythonwin GUI/editor. COM and Windows credentials use win32api/cred,
+    # not win32ui; excluding it also avoids the otherwise unused MFC runtime.
+    excludes=LINUX_EXCLUDES + ['readline', 'win32ui', 'pywin'],
     module_collection_mode={'smartcard': 'py'},  # LGPL: external, replaceable Python library
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -188,7 +190,9 @@ import corresponding_sources  # noqa: E402
 SOURCES_FILE, SOURCE_NOTICES = corresponding_sources.prepare(PACKAGE_NAMES, NATIVE_PACKAGES)
 LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt', PACKAGE_NAMES,
     [(p['name'] + ' ' + p['version'], p['notice']) for p in NATIVE_PACKAGES] + SOURCE_NOTICES)
-SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION, PACKAGE_NAMES, NATIVE_PACKAGES, VENDORED_PACKAGES)
+import json
+SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION, PACKAGE_NAMES, NATIVE_PACKAGES, VENDORED_PACKAGES,
+    json.loads(INVENTORY_FILE.read_text())['upstream_sboms'])
 for resource in (LICENSES_FILE, SBOM_FILE, INVENTORY_FILE, SOURCES_FILE):
     a.datas.append((resource.name, str(resource.resolve()), 'DATA'))
 

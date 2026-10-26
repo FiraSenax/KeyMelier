@@ -80,6 +80,20 @@ def collect(analysis):
             if pe_info(Path(src).read_bytes())["file_version"] != (1, 0, 3856, 49):
                 raise ValueError(f"Review the WebView2 SDK notices/version: {dest}")
     natives = linux_packages(analysis.binaries) if sys.platform.startswith("linux") else []
+    from wheel_evidence import collect as wheel_evidence
+    evidence, pillow, evidence_datas = wheel_evidence(names, analysis.binaries)
+    analysis.datas.extend(evidence_datas)
+    # Paths describe the build input, not a claim that a license grant follows
+    # from the path. In particular, System32 and VS redist copies differ.
+    binary_inputs = []
+    for dest, src, kind in analysis.binaries:
+        path = Path(src)
+        if kind == "SYMLINK" or not path.is_file():
+            continue
+        item = {"file": dest, "source": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        if sys.platform == "win32" and path.suffix.lower() in {".dll", ".pyd", ".exe"}:
+            item["file_version"] = list(pe_info(path.read_bytes()).get("file_version") or ())
+        binary_inputs.append(item)
     vendors = []
     if "setuptools" in names:
         sources = {Path(src).resolve() for _dest, src, _kind in entries if src}
@@ -88,7 +102,8 @@ def collect(analysis):
                    if any(Path(d.locate_file(f)).resolve() in sources for f in d.files or [])]
     inventory = {"schema": 1, "python_packages": names,
                  "setuptools_vendors": [{"name": d.metadata["Name"], "version": d.version} for d in vendors],
-                 "native_packages": [{k: v for k, v in p.items() if k != "notice"} for p in natives]}
+                 "native_packages": [{k: v for k, v in p.items() if k != "notice"} for p in natives],
+                 "binary_inputs": binary_inputs, "upstream_sboms": evidence, "pillow": pillow}
     target = ROOT / "build" / "BUNDLE_INVENTORY.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(inventory, indent=2) + "\n")

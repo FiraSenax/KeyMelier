@@ -39,6 +39,15 @@ No KeyMelier private signing keys or service account are needed for a local
 rebuild. Windows self-builds can run unsigned. Operating-system trust prompts
 for modified applications are independent of the library licenses.
 
+Automated replacement check: python tools/check_library_replacement.py
+This copies the built application to a temporary directory, changes the external
+pyscard Python source, starts the copy and verifies that the changed module was
+loaded. On Linux it also replaces the version string in a copy of libQt6Core
+and verifies the changed qVersion result while running the full app start test.
+This proves loading a modified native library; it is not a complete Qt source
+rebuild. The macOS copy is signed ad-hoc. Originals and publisher keys are not
+modified. Reports and before/after hashes are in build/smoke-artifacts/replacement.
+
 The AppImage runtime statically links libfuse. Its source archive, the exact
 libfuse and squashfuse sources and the libfuse patch are included. The runtime
 archive's scripts/chroot/chroot_build.sh and scripts/common/install-dependencies.sh

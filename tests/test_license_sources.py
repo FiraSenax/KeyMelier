@@ -56,6 +56,21 @@ class LicenseSourceTests(unittest.TestCase):
                 self.assertIn(expected, text)
             self.assertNotIn("not a license", text)
 
+    def test_inline_c_notices_are_retained_without_copying_implementation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "source.tar.gz"
+            raw = b"/* Copyright Original Author.\nRedistribution permitted. */\nint private_implementation;\n// Copyright Another Author\n// SPDX-License-Identifier: MIT\nint code;"
+            with tarfile.open(path, "w:gz") as archive:
+                entry = tarfile.TarInfo("zint/backend/qr.c")
+                entry.size = len(raw)
+                archive.addfile(entry, io.BytesIO(raw))
+            self.assertEqual(sources.archive_notices(path), "")
+            text = sources.archive_notices(path, inline=True)
+            self.assertIn("Redistribution permitted.", text)
+            self.assertIn("SPDX-License-Identifier: MIT", text)
+            self.assertNotIn("int private_implementation", text)
+            self.assertNotIn("int code", text)
+
     def test_debian_source_mapping_requires_strong_hash_and_complete_files(self):
         package = {"source_package": "example", "source_version": "1.2-3"}
         line = "'http://azure.archive.ubuntu.com/ubuntu/pool/example_1.2-3.dsc' example_1.2-3.dsc 42 SHA256:" + "1" * 64

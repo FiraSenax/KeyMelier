@@ -1,0 +1,34 @@
+{
+  "parent": "zxing-cpp 3.1.1",
+  "build_log": "https://github.com/zxing-cpp/zxing-cpp/actions/runs/30436283597",
+  "finding": "The wheel build compiles nanobind-static; its exact installed version is not printed. Original nanobind and robin-map license files are byte-identical across all three non-prerelease versions meeting the declared minimum and published before the wheel build. The accompanying 2.11.0 source is a license reference, not an exact binary-source attestation.",
+  "compared_sources": [
+    {
+      "version": "2.11.0",
+      "url": "https://files.pythonhosted.org/packages/7c/d6/2d17c0a630fabc05785c0ea57a994bb165b342416bec8e41c96f3fee5add/nanobind-2.11.0.tar.gz",
+      "sha256": "6d98d063c61dbbd05a2d903e59be398bfcff9d59c54fbbc9d4488960485d40d0",
+      "licenses": {
+        "LICENSE": "f305091a4e57805870b217a28ea4b1f16610eece8457d2370f822a9696b75836",
+        "ext/robin_map/LICENSE": "11f2c685ba565a31aef1219f63a7a8845602c97bff70016b9e3278dfe51a2ec5"
+      }
+    },
+    {
+      "version": "2.12.0",
+      "url": "https://files.pythonhosted.org/packages/c6/5c/3b69bc3933ad3c3668ba029ad410ba8ecfdc8ee7262ff1009f3304f3c562/nanobind-2.12.0.tar.gz",
+      "sha256": "0ae77c1a88f27153fa57045ee00f7b0a7b06b1cd3df942e95a34b38c5d0a5bee",
+      "licenses": {
+        "LICENSE": "f305091a4e57805870b217a28ea4b1f16610eece8457d2370f822a9696b75836",
+        "ext/robin_map/LICENSE": "11f2c685ba565a31aef1219f63a7a8845602c97bff70016b9e3278dfe51a2ec5"
+      }
+    },
+    {
+      "version": "2.13.0",
+      "url": "https://files.pythonhosted.org/packages/07/e5/a6fc2f024eaef17c68b94b5f8f56098d31859a7840a11a3dd45da2d3908a/nanobind-2.13.0.tar.gz",
+      "sha256": "c7b04d6a6a4cd57985571e605539399b51331ae455d7fce576a5e2fcb89b1dcf",
+      "licenses": {
+        "LICENSE": "f305091a4e57805870b217a28ea4b1f16610eece8457d2370f822a9696b75836",
+        "ext/robin_map/LICENSE": "11f2c685ba565a31aef1219f63a7a8845602c97bff70016b9e3278dfe51a2ec5"
+      }
+    }
+  ]
+}

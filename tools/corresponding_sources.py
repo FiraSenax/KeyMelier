@@ -101,7 +101,7 @@ def fetch(source):
     return target
 
 
-def archive_notices(path):
+def archive_notices(path, inline=False):
     """Preserve original license/notice texts, including Chromium's notices.
 
     This includes notices for optional upstream modules; it is not an assertion
@@ -113,17 +113,31 @@ def archive_notices(path):
             name = Path(member.name).name
             notice_file = (re.match(r"^(?:LICEN[CS]E|COPYING|NOTICE|AUTHORS|COPYRIGHT|L?GPL[23]?)(?:[._-]|$)|^README\.chromium$", name, re.I)
                            or "/licenses/" in member.name.lower() and name.lower().endswith((".txt", ".md")))
-            if not member.isfile() or member.size > 2_000_000 or not notice_file:
+            code_file = inline and Path(name).suffix.lower() in {".c", ".h", ".cpp", ".hpp", ".rs"}
+            if not member.isfile() or member.size > 2_000_000 or not (notice_file or code_file):
                 continue
             raw = archive.extractfile(member).read()
             if b"\0" not in raw:
-                texts.append("--- " + member.name + " ---\n" + raw.decode("utf-8", errors="replace"))
+                text = raw.decode("utf-8", errors="replace")
+                if code_file and not notice_file:
+                    # Several embedded libraries ship their entire grant only in
+                    # C headers, not LICENSE files (Zint, libzueci, libffi).
+                    blocks = re.findall(r"/\*.*?\*/|(?m:^\s*//[^\n]*(?:\n\s*//[^\n]*)*)", text, re.S)
+                    text = "\n\n".join(b for b in blocks if re.search(r"copyright|permission is hereby granted", b, re.I))
+                if text.strip():
+                    texts.append("--- " + member.name + " ---\n" + text)
     return "\n\n".join(texts)
 
 
 def prepare(names, packages=()):
     CACHE.mkdir(parents=True, exist_ok=True)
     sources = python_sources(names)
+    parents = {norm(n) for n in names}
+    for source in json.loads((ROOT / "packaging/embedded-sources.json").read_text()):
+        if source["parent"] in parents:
+            if distribution(source["parent"]).version != source["parent_version"]:
+                raise ValueError("Review embedded sources for " + source["parent"])
+            sources.append(source)
     notices = []
     if sys.platform.startswith("linux"):
         # Qt module mapping corresponds to QT_KEEP in keymelier.spec.
@@ -139,11 +153,11 @@ def prepare(names, packages=()):
         print("Corresponding source:", source["filename"], flush=True)
         path = fetch(source)
         paths.append(path)
-        if sys.platform.startswith("linux") and source["filename"] in pins:
+        if source.get("notices") or (sys.platform.startswith("linux") and source["filename"] in pins):
             # Cache extracted notices keyed to the checked source hash.
             saved = path.with_suffix(path.suffix + ".notices.txt")
             if not saved.is_file():
-                saved.write_text(archive_notices(path), encoding="utf-8")
+                saved.write_text(archive_notices(path, inline=source.get("inline_notices", False)), encoding="utf-8")
             text = saved.read_text(encoding="utf-8")
             if not text.strip():
                 raise ValueError("No license notices found in " + source["filename"])

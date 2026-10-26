@@ -165,6 +165,19 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
         check("MSIX: isolated user data write/read/delete", persistence_roundtrip)
     check("runtime: cryptography (scrypt, AES-GCM)", crypto)
     check("runtime: pyscard (PC/SC)", smartcard)
+    # Only the explicit packaged self-test uses these probes. A changed copy
+    # must prove that it loaded the replacement, not merely that it started.
+    probe = json.loads(os.environ.get("KEYMELIER_LIBRARY_PROBE", "{}"))
+    if "pyscard" in probe:
+        def changed_pyscard():
+            import smartcard.System
+            return getattr(smartcard.System, "__keymelier_replacement_probe__", None) == probe["pyscard"]
+        check("replacement: pyscard", changed_pyscard)
+    if "qt" in probe:
+        def changed_qt():
+            from PySide6.QtCore import qVersion
+            return qVersion() == probe["qt"]
+        check("replacement: qt", changed_qt)
     check("runtime: yubikey-manager", ykman)
     check("runtime: requests + CA bundle", tls)
     check("runtime: keyring backend", keychain)
