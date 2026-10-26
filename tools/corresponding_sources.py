@@ -45,7 +45,9 @@ def debian_sources(packages):
         # the SHA-256 proof from the authenticated source index explicitly.
         query = subprocess.run(["apt-get", "-o", "Acquire::ForceHash=sha256",
                                 "--print-uris", "--only-source", "source", f"{name}={version}"],
-                               capture_output=True, text=True, check=True, cwd=CACHE)
+                               capture_output=True, text=True, cwd=CACHE)
+        if query.returncode:
+            raise ValueError(f"Matching source unavailable for {name}={version}: {query.stderr.strip()}")
         found = []
         for line in query.stdout.splitlines():
             if not line.startswith("'"):

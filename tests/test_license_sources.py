@@ -59,13 +59,13 @@ class LicenseSourceTests(unittest.TestCase):
     def test_debian_source_mapping_requires_strong_hash_and_complete_files(self):
         package = {"source_package": "example", "source_version": "1.2-3"}
         line = "'http://azure.archive.ubuntu.com/ubuntu/pool/example_1.2-3.dsc' example_1.2-3.dsc 42 SHA256:" + "1" * 64
-        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line)) as run:
+        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line, returncode=0)) as run:
             found = sources.debian_sources([package, package])
             self.assertIn("Acquire::ForceHash=sha256", run.call_args.args[0])
             self.assertEqual(len(found), 1)
             self.assertEqual(found[0]["version"], "1.2-3")
             self.assertEqual(found[0]["url"], "https://archive.ubuntu.com/ubuntu/pool/example_1.2-3.dsc")
-        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line.replace("SHA256", "MD5Sum"))):
+        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line.replace("SHA256", "MD5Sum"), returncode=0)):
             with self.assertRaisesRegex(ValueError, "No SHA-256"):
                 sources.debian_sources([package])
 

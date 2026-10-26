@@ -88,7 +88,9 @@ class MdsDisplayTests(unittest.TestCase):
                       "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><script/></svg>",
                       "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>",
                       "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><use href='https://example.com'/></svg>",
-                      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><style>@import 'https://example.com';</style></svg>"):
+                      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><style>@import 'https://example.com';</style></svg>",
+                      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' style='fill:u&#114;l(https://example.com)'/>",
+                      r"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' style='fill:u\72l(https://example.com)'/>"):
             self.assertIsNone(mds3.display_icon(value), value)
 
     def test_history_migration_and_new_snapshots_exclude_mds_copies(self):

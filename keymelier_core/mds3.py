@@ -62,10 +62,12 @@ def display_icon(value):
                     local = key.rsplit("}", 1)[-1].lower()
                     if local.startswith("on") or local == "base" or (local == "href" and not val.startswith("#")):
                         return None
-            # Allow only local fragment references in styles/paint definitions.
-            if re.search(r"@import|@font-face|\\\\|/\*", text, re.I):
+            # Inspect decoded XML values too: character references must not
+            # hide external CSS URLs. CSS escapes are deliberately unsupported.
+            styles = " ".join(value for el in svg.iter() for value in [el.text or "", *el.attrib.values()])
+            if re.search(r"@import|@font-face|\\|/\*", styles, re.I):
                 return None
-            if any(not url.strip(" \t\r\n\"'").startswith("#") for url in re.findall(r"url\s*\((.*?)\)", text, re.I | re.S)):
+            if any(not url.strip(" \t\r\n\"'").startswith("#") for url in re.findall(r"url\s*\((.*?)\)", styles, re.I | re.S)):
                 return None
     except (ValueError, binascii.Error, ET.ParseError):
         return None
