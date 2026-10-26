@@ -247,7 +247,7 @@ jobs:
         env:
           WINDOWS_SIGNING_ENABLED: ${{ vars.WINDOWS_SIGNING_ENABLED }}
         run: |
-          if ($env:WINDOWS_SIGNING_ENABLED -notin @('', 'false', 'true')) {
+          if ([string]$env:WINDOWS_SIGNING_ENABLED -notin @('', 'false', 'true')) {
             throw 'WINDOWS_SIGNING_ENABLED must be unset, false or true.'
           }
       - name: Record signing state and source commit in the app (introduction, About, diagnostics)

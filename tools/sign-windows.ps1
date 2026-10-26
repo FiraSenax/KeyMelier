@@ -1,4 +1,4 @@
-<#! Sign one file using a connected SimplySign certificate (also Inno's callback). #>
+<# Sign one file using a connected SimplySign certificate (also Inno's callback). #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Path,

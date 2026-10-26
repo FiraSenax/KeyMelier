@@ -124,11 +124,14 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertLess(steps.index(gate), steps.index(publish))
         self.assertEqual(gate['env']['WIN_SIGNED'], '${{ needs.build-windows.outputs.signed }}')
         self.assertEqual(gate['env']['MAC_SIGNED'], '${{ needs.build-macos.outputs.signed }}')
+        # Windows' PATH can resolve bash.exe to the WSL launcher. Actions uses
+        # Git Bash; choose that interpreter explicitly for the portable test.
+        bash = str(Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Git/bin/bash.exe') if sys.platform == 'win32' else 'bash'
         for mac, win in (('true', 'true'), ('false', 'true'), ('true', 'false'), ('true', ''), ('', '')):
             with self.subTest(mac=mac, win=win):
-                result = subprocess.run(['bash', '-e', '-c', gate['run']], capture_output=True,
+                result = subprocess.run([bash, '-e', '-c', gate['run']], capture_output=True, text=True,
                                         env={**os.environ, 'MAC_SIGNED': mac, 'WIN_SIGNED': win})
-                self.assertEqual(result.returncode == 0, mac == win == 'true')
+                self.assertEqual(result.returncode == 0, mac == win == 'true', result.stderr)
 
     def test_certum_cleanup_precedes_execution_and_artifact_upload(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())

@@ -227,7 +227,7 @@ class CheckArtifactsTests(unittest.TestCase):
                 text = release_notes.notes(True, False)
                 text = text.replace('{"schema":1,"macos":true,"windows":false}', wrong)
                 path = self.tmp / 'notes.md'
-                path.write_text(text)
+                path.write_text(text, encoding='utf-8')
                 r = ca.Report()
                 ca.check_notes(r, path, True, False)
                 self.assertTrue(r.problems)

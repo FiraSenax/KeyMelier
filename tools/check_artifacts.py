@@ -322,9 +322,9 @@ def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> N
         except (ValueError, TypeError):
             status = None
         expected = {"schema": 1, "macos": mac_signed, "windows": win_signed}
-        r.check(status == expected and isinstance(status.get('macos'), bool)
-                and isinstance(status.get('windows'), bool) if isinstance(status, dict) else False,
-                "website signing metadata matches verified platform outputs")
+        valid = (isinstance(status, dict) and status == expected
+                 and isinstance(status.get('macos'), bool) and isinstance(status.get('windows'), bool))
+        r.check(valid, "website signing metadata matches verified platform outputs")
     r.check(("Not notarized" in text) != mac_signed, "release notes state the macOS notarization correctly")
     r.check(("Not signed" in text) != win_signed, "release notes state the Windows signing correctly")
     for arch in LINUX_ARCHES:
