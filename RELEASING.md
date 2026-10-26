@@ -35,7 +35,10 @@ keychain is removed even on failure. The hardened runtime runs without entitleme
 
 The previous SignPath integration has been removed after the application was
 not accepted. Certum Open Source Code Signing in the Cloud (SimplySign) has been
-issued on 26 October 2026; the first real provider test is still pending.
+issued on 26 October 2026. The [real provider probe](https://github.com/FiraSenax/KeyMelier/actions/runs/40378787279)
+passed that day using the exact certificate thumbprint, with a trusted timestamp,
+native Authenticode validation and completed session cleanup. Previously built
+unsigned packages remain unchanged; the first signed candidate is 1.8.6 RC5.
 
 The workflow uses the official SimplySign Desktop 9.4.4.92 MSI, pinned by SHA-256
 and verified against its Asseco Authenticode signature before installation. A

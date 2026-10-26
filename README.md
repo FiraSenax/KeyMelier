@@ -50,7 +50,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Code signing
 
-From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux releases are still **unsigned** (each release's notes say so). The Certum certificate has been issued; SimplySign integration is awaiting its first production signing check. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
+From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows releases published before Certum setup remain **unsigned**; the real SimplySign signing probe passed on 26 October 2026, and subsequent candidates must pass signature checks before publication. Each release's notes state its actual signing status. Linux packages remain unsigned. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
 ## Download
 
