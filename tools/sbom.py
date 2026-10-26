@@ -350,7 +350,10 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
         purl = c.get("purl", "")
         if purl.startswith("pkg:pypi/"):
             name = _norm(c["name"])
-            if strict and not c.get("hashes") and not any(p.get("value") == "setuptools wheel; see parent artifact hash" for p in c.get("properties", [])):
+            vendored = any(p.get("value") == "setuptools wheel; see parent artifact hash" for p in c.get("properties", []))
+            if not vendored and not allowed.get(name):
+                problems.append(f"{label}: collected package is not pinned in the dependency lock")
+            if strict and not c.get("hashes") and not vendored:
                 problems.append(f"{label}: no hash of the installed artifact (pip report missing?)")
             for h in c.get("hashes") or []:
                 if allowed.get(name) and h["content"] not in allowed[name]:

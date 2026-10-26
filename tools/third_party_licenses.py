@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Collect the licenses of everything shipped in the app bundle.
+"""Collect original notices for the application's identified dependencies.
 
     python3 tools/third_party_licenses.py [output]
 
-Called by the PyInstaller spec, so each platform's build lists exactly the
-runtime packages installed there (requirements.txt carries platform markers).
+Called after PyInstaller Analysis, using the collected distribution inventory.
 MIT/BSD/Apache require their notices in binary distributions; pyscard is
 LGPL and certifi MPL, so their source locations are named as well.
 """
@@ -28,7 +27,9 @@ EXTRA_TEXTS = {
     "shiboken6": ["LGPL-3.0.txt", "GPL-3.0.txt"],
     "proxy-tools": ["proxy-tools-NOTICE.txt", "werkzeug-0.9.4-LICENSE.txt"],
 }
-LABELS = {"yubikey-manager": "BSD-2-Clause", "proxy-tools": "BSD-3-Clause (source header; PyPI metadata differs)"}
+LABELS = {"yubikey-manager": "BSD-2-Clause", "proxy-tools": "BSD-3-Clause (source header; PyPI metadata differs)",
+          "setuptools": "MIT; bundled components have additional licenses (see nested notices)",
+          "pywin32": "PSF-2.0 and BSD-3-Clause (bundled modules)"}
 
 LICENSE_NAMES = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.I)
 
@@ -48,8 +49,8 @@ def license_texts(dist) -> list[tuple[str, str]]:
         if LICENSE_NAMES.search(Path(str(f)).name) and Path(str(f)).suffix.lower() not in {".py", ".pyc", ".so", ".dll"}:
             try:
                 texts.append((str(f).replace("\\", "/"), Path(dist.locate_file(f)).read_text(errors="replace").strip()))
-            except OSError:
-                pass
+            except OSError as error:
+                raise ValueError(f"Original license file cannot be read: {f}") from error
     name = dist.metadata["Name"].lower().replace("_", "-")
     extras = EXTRA_TEXTS.get(name, [])
     if name.startswith("pyobjc-") and not texts:
@@ -65,8 +66,9 @@ def license_texts(dist) -> list[tuple[str, str]]:
 
 def license_label(dist) -> str:
     meta = dist.metadata
-    if meta["Name"].lower() in LABELS:
-        return LABELS[meta["Name"].lower()]
+    name = meta["Name"].lower().replace("_", "-")
+    if name in LABELS:
+        return LABELS[name]
     label = meta.get("License-Expression") or ""
     if not label:
         classifiers = [c.split("::")[-1].strip() for c in meta.get_all("Classifier") or [] if c.startswith("License")]

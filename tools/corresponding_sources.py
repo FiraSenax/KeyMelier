@@ -40,7 +40,10 @@ def python_sources(names):
 def debian_sources(packages):
     out = {}
     for name, version in sorted({(p["source_package"], p["source_version"]) for p in packages}):
-        query = subprocess.run(["apt-get", "--print-uris", "--only-source", "source", f"{name}={version}"],
+        # --print-uris defaults to MD5 for historical compatibility. Request
+        # the SHA-256 proof from the authenticated source index explicitly.
+        query = subprocess.run(["apt-get", "-o", "Acquire::ForceHash=sha256",
+                                "--print-uris", "--only-source", "source", f"{name}={version}"],
                                capture_output=True, text=True, check=True, cwd=CACHE)
         found = []
         for line in query.stdout.splitlines():

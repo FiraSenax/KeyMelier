@@ -17,6 +17,10 @@ import third_party_licenses as licenses  # noqa: E402
 
 
 class LicenseSourceTests(unittest.TestCase):
+    def test_conflicting_proxy_metadata_does_not_relabel_bsd_source_as_mit(self):
+        dist = SimpleNamespace(metadata={"Name": "proxy_tools", "License": "MIT"})
+        self.assertIn("BSD-3-Clause", licenses.license_label(dist))
+
     def test_matching_cache_and_corrupt_download(self):
         raw = b"unmodified upstream source"
         item = {"filename": "library.tar.gz", "url": "https://example.com/library.tar.gz",
@@ -55,8 +59,9 @@ class LicenseSourceTests(unittest.TestCase):
     def test_debian_source_mapping_requires_strong_hash_and_complete_files(self):
         package = {"source_package": "example", "source_version": "1.2-3"}
         line = "'http://archive.ubuntu.com/pool/example_1.2-3.dsc' example_1.2-3.dsc 42 SHA256:" + "1" * 64
-        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line)):
+        with patch.object(sources.subprocess, "run", return_value=SimpleNamespace(stdout=line)) as run:
             found = sources.debian_sources([package, package])
+            self.assertIn("Acquire::ForceHash=sha256", run.call_args.args[0])
             self.assertEqual(len(found), 1)
             self.assertEqual(found[0]["version"], "1.2-3")
             self.assertTrue(found[0]["url"].startswith("https://"))
