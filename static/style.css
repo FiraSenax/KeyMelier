@@ -563,6 +563,15 @@ dl.kv dd {
 
 dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 
+/* The model identifier is available as soon as a key is detected. */
+.aaguid-heading, .aaguid-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.aaguid-heading h2 { margin: 0; }
+.aaguid-value { min-width: 0; }
+.aaguid-value code { font-family: var(--mono); font-size: 0.8rem; overflow-wrap: anywhere; user-select: text; }
+.aaguid-value .btn { padding: 5px 10px; font-size: 0.8rem; }
+.aaguid-card { margin-bottom: 14px; }
+.aaguid-card .field-hint { margin: 8px 0 0; }
+
 /* Pills */
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 

@@ -199,6 +199,26 @@ function buildKv(rows, monoKeys = []) {
   ).join('');
 }
 
+function aaguidValue(token) {
+  const value = token.aaguid;
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value.toLowerCase() : '';
+}
+
+function aaguidValueHtml(token) {
+  const value = aaguidValue(token);
+  return `<div class="aaguid-value"><code>${escHtml(value || t('aaguid.unavailable'))}</code>
+    <button type="button" class="btn btn-secondary" data-copy-aaguid="${escHtml(value)}" ${value ? '' : 'disabled'}>${escHtml(t('aaguid.copy'))}</button></div>`;
+}
+
+function renderAaguid(token) {
+  const notes = [t('aaguid.hint')];
+  if (aaguidValue(token) === '00000000-0000-0000-0000-000000000000') notes.push(t('aaguid.zero'));
+  if (token.offline) notes.push(t('aaguid.saved'));
+  $('aaguid-card').innerHTML = `<div class="aaguid-heading"><h2>${escHtml(t('det.aaguid'))}</h2>${aaguidValueHtml(token)}</div>
+    <p class="field-hint">${escHtml(notes.join(' '))}</p>`;
+}
+
 // { cls: pass|fail|partial|running, text } for an attestation result
 function attestationSummary(att, token) {
   if (!att && token?.offline) return { cls: 'partial', text: t('sec.att.notRun'), short: t('tile.security.attPartial') };
@@ -351,6 +371,7 @@ function renderKeyView(token) {
   if (!tabAllowed(token, activeTab)) switchTab('overview');
   syncTabMore();
 
+  renderAaguid(token);
   renderTiles(token);
   renderCapabilities(token);
   renderSecurityCheck(token);
@@ -810,9 +831,8 @@ function renderDetails(token) {
     ...(token.nfc != null ? [[t('det.nfc'), token.nfc ? t('det.yes') : t('det.no')]] : []),
     ...(token.fips ? [[t('det.fips'), t('det.yes')]] : []),
     [t('det.firmware'), token.firmware_version_str || t('unknown')],
-    [aaguidKey, token.aaguid],
     [firstSeenLabel, firstSeenValue ? new Date(firstSeenValue).toLocaleString(LANG) : '—'],
-  ], [aaguidKey]);
+  ]) + `<dt>${escHtml(aaguidKey)}</dt><dd>${aaguidValueHtml(token)}</dd>`;
 
   const opts = token.options || {};
   const keys = Object.keys(opts).sort();
@@ -1438,6 +1458,10 @@ async function start() {
 }
 
 function init() {
+  $('key-view').addEventListener('click', ev => {
+    const button = ev.target.closest('[data-copy-aaguid]');
+    if (button && !button.disabled) copyText(button.dataset.copyAaguid, 'aaguid.copied');
+  });
   $('key-list').addEventListener('click', ev => {
     const lockBtn = ev.target.closest('[data-unlock]');
     if (lockBtn) { ev.stopPropagation(); quickLockToggle(lockBtn.dataset.unlock); return; }

@@ -26,7 +26,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Features
 
-- **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions; for YubiKeys also serial number, real firmware and form factor (via Yubico's yubikit)
+- **Inspect:** model and vendor (via FIDO Alliance MDS3, with the vendor's official icon), firmware, AAGUID, capabilities, FIDO versions; for YubiKeys also serial number, real firmware and form factor (via Yubico's yubikit). The overview and technical details let you copy the AAGUID directly, without unlocking the key. It identifies the authenticator model; disconnected keys show their saved value.
 - **Quantum safety:** shows which signature algorithms a key offers and detects ML-DSA (RFC 9964) automatically once keys support it; explains where classical cryptography is a real risk (encryption) and where not yet (logins)
 - **Security check:** per-key checklist with direct links to fix issues (PIN, vulnerabilities, authenticity, fingerprints, backups)
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database

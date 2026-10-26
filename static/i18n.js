@@ -4883,6 +4883,76 @@ const I18N_PIV_UNREADABLE = {
 };
 for (const [code, strings] of Object.entries(I18N_PIV_UNREADABLE)) Object.assign(STRINGS[code], strings);
 
+const I18N_AAGUID = {
+  de: {
+    'aaguid.copy': 'AAGUID kopieren', 'aaguid.copied': 'AAGUID kopiert', 'aaguid.unavailable': 'Nicht verfügbar',
+    'aaguid.hint': 'Kennung des Authenticator-Modells. Mehrere Schlüssel können dieselbe AAGUID haben.',
+    'aaguid.saved': 'Gespeicherter Wert vom letzten Erkennen des Schlüssels.',
+    'aaguid.zero': 'Nur Nullen: Über diese AAGUID lässt sich kein Modell zuordnen.',
+  },
+  en: {
+    'aaguid.copy': 'Copy AAGUID', 'aaguid.copied': 'AAGUID copied', 'aaguid.unavailable': 'Not available',
+    'aaguid.hint': 'Authenticator model identifier. Multiple keys can share the same AAGUID.',
+    'aaguid.saved': 'Saved value from the last time the key was detected.',
+    'aaguid.zero': 'All zeros: this AAGUID cannot identify a model.',
+  },
+  es: {
+    'aaguid.copy': 'Copiar AAGUID', 'aaguid.copied': 'AAGUID copiada', 'aaguid.unavailable': 'No disponible',
+    'aaguid.hint': 'Identificador del modelo de autenticador. Varias llaves pueden compartir la misma AAGUID.',
+    'aaguid.saved': 'Valor guardado de la última vez que se detectó la llave.',
+    'aaguid.zero': 'Solo ceros: esta AAGUID no permite identificar un modelo.',
+  },
+  fr: {
+    'aaguid.copy': 'Copier l’AAGUID', 'aaguid.copied': 'AAGUID copiée', 'aaguid.unavailable': 'Indisponible',
+    'aaguid.hint': 'Identifiant du modèle d’authentificateur. Plusieurs clés peuvent avoir la même AAGUID.',
+    'aaguid.saved': 'Valeur enregistrée lors de la dernière détection de la clé.',
+    'aaguid.zero': 'Uniquement des zéros : cette AAGUID ne permet pas d’identifier un modèle.',
+  },
+  it: {
+    'aaguid.copy': 'Copia AAGUID', 'aaguid.copied': 'AAGUID copiata', 'aaguid.unavailable': 'Non disponibile',
+    'aaguid.hint': 'Identificatore del modello di autenticatore. Più chiavi possono avere la stessa AAGUID.',
+    'aaguid.saved': 'Valore salvato dall’ultimo rilevamento della chiave.',
+    'aaguid.zero': 'Solo zeri: questa AAGUID non permette di identificare un modello.',
+  },
+  ja: {
+    'aaguid.copy': 'AAGUIDをコピー', 'aaguid.copied': 'AAGUIDをコピーしました', 'aaguid.unavailable': '取得できません',
+    'aaguid.hint': '認証器のモデル識別子です。複数のキーが同じAAGUIDを持つことがあります。',
+    'aaguid.saved': '最後にキーを検出したときに保存された値です。',
+    'aaguid.zero': 'すべてゼロのため、このAAGUIDではモデルを特定できません。',
+  },
+  ko: {
+    'aaguid.copy': 'AAGUID 복사', 'aaguid.copied': 'AAGUID 복사됨', 'aaguid.unavailable': '사용할 수 없음',
+    'aaguid.hint': '인증기 모델 식별자입니다. 여러 키가 동일한 AAGUID를 가질 수 있습니다.',
+    'aaguid.saved': '키가 마지막으로 감지되었을 때 저장된 값입니다.',
+    'aaguid.zero': '모두 0이므로 이 AAGUID로는 모델을 식별할 수 없습니다.',
+  },
+  nl: {
+    'aaguid.copy': 'AAGUID kopiëren', 'aaguid.copied': 'AAGUID gekopieerd', 'aaguid.unavailable': 'Niet beschikbaar',
+    'aaguid.hint': 'Identificatie van het authenticatormodel. Meerdere sleutels kunnen dezelfde AAGUID hebben.',
+    'aaguid.saved': 'Opgeslagen waarde van de laatste keer dat de sleutel werd gedetecteerd.',
+    'aaguid.zero': 'Alleen nullen: met deze AAGUID kan geen model worden geïdentificeerd.',
+  },
+  pl: {
+    'aaguid.copy': 'Kopiuj AAGUID', 'aaguid.copied': 'AAGUID skopiowany', 'aaguid.unavailable': 'Niedostępny',
+    'aaguid.hint': 'Identyfikator modelu uwierzytelniacza. Wiele kluczy może mieć ten sam AAGUID.',
+    'aaguid.saved': 'Wartość zapisana przy ostatnim wykryciu klucza.',
+    'aaguid.zero': 'Same zera: ten AAGUID nie pozwala zidentyfikować modelu.',
+  },
+  pt: {
+    'aaguid.copy': 'Copiar AAGUID', 'aaguid.copied': 'AAGUID copiado', 'aaguid.unavailable': 'Indisponível',
+    'aaguid.hint': 'Identificador do modelo de autenticador. Várias chaves podem ter o mesmo AAGUID.',
+    'aaguid.saved': 'Valor guardado da última vez que a chave foi detetada.',
+    'aaguid.zero': 'Apenas zeros: este AAGUID não permite identificar um modelo.',
+  },
+  zh: {
+    'aaguid.copy': '复制 AAGUID', 'aaguid.copied': '已复制 AAGUID', 'aaguid.unavailable': '不可用',
+    'aaguid.hint': '认证器型号标识符。多个密钥可能具有相同的 AAGUID。',
+    'aaguid.saved': '此值保存于上次检测到该密钥时。',
+    'aaguid.zero': '全部为零：无法通过此 AAGUID 识别型号。',
+  },
+};
+for (const [code, strings] of Object.entries(I18N_AAGUID)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

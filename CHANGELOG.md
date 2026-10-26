@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Show the AAGUID in the key overview and let users copy it from there or from technical details without unlocking the key. Explain the model identifier, mark saved offline values and explain an all-zero AAGUID.
+
 ## 1.8.6 — 2026-10-26
 
 Security hardening and internal refactoring. No new application features.
