@@ -1471,6 +1471,8 @@ button.status-pill { border: none; font: inherit; cursor: pointer; }
 .pk-compact .pk-user-name { overflow-wrap: anywhere; }
 .pk-details summary { font-size: 0.8rem; color: var(--text-2); cursor: pointer; margin-top: 2px; }
 .pk-kv { margin-top: 6px; font-size: 0.82rem; }
+.pk-identifier { min-width: 0; }
+.pk-identifier code { display: block; overflow-wrap: anywhere; white-space: pre-wrap; margin-bottom: 6px; }
 .pk-actions { display: flex; gap: 6px; }
 .btn-small { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: inherit; font-size: 0.82rem; cursor: pointer; }
 .btn-small:hover { color: var(--text); border-color: var(--text-3); }

@@ -453,6 +453,59 @@ async function main() {
     assert(await js('document.querySelectorAll("#pk-content .pk-item").length') === all, 'all again');
   });
 
+  await test('passkeys: full identifiers are escaped, wrap and copy without truncation', async () => {
+    await js(`(() => {
+      window.__originalCopy = window.pywebview.api.copy_text;
+      window.pywebview.api.copy_text = async text => { window.__copiedId = text; return true; };
+      const c = pkState.rps[0].credentials[0];
+      c.credential_id = 'credential-'.repeat(100); c.user_id = '<img src=x onerror=alert(1)>';
+      renderPasskeys();
+    })()`);
+    try {
+      await click('#pk-content .pk-details summary');
+      assert(await js(`document.querySelector('#pk-content .pk-identifier code').textContent === 'credential-'.repeat(100)`), 'full credential ID shown');
+      assert(await js(`!document.querySelector('#pk-content .pk-identifier img')`), 'user ID escaped');
+      assert(await js(`document.documentElement.scrollWidth <= innerWidth`), 'no horizontal overflow');
+      await click('#pk-content [data-act=copy-credential]');
+      await until(`window.__copiedId === 'credential-'.repeat(100)`, 'full credential ID copied');
+      await click('#pk-content [data-act=copy-user]');
+      await until(`window.__copiedId === '<img src=x onerror=alert(1)>'`, 'full user ID copied');
+    } finally {
+      await js('window.pywebview.api.copy_text = window.__originalCopy');
+    }
+  });
+
+  await test('QR import: preview only, cancellation keeps fields, late results cannot reach another key', async () => {
+    await js('selectToken("demo-yk5"); switchTab("oath")');
+    await until(`!!document.querySelector('#oath-content [data-act=show-add]')`, 'authenticator loaded');
+    await click('#oath-content [data-act=show-add]');
+    await js(`(() => {
+      window.__demoCalls.length = 0;
+      window.pywebview.api.read_oath_qr = async () => ({ ok: true, data: {
+        issuer: '<img src=x>', name: 'QR account', secret: 'TESTSECRET', oath_type: 'HOTP',
+        algorithm: 'SHA256', digits: 8, period: 30, counter: 123456
+      }});
+    })()`);
+    await click('#oath-content [data-act=import-qr]');
+    await until(`document.querySelector('.oath-name').value === 'QR account'`, 'QR preview filled');
+    assert(await js(`document.querySelector('.oath-secret').type === 'password'`), 'secret masked');
+    assert(await js(`document.querySelector('.oath-counter').value === '123456' && !document.querySelector('.oath-counter-field').hidden`), 'HOTP counter preserved and visible');
+    assert(await js(`document.querySelector('.oath-algorithm').value === 'SHA256' && document.querySelector('.oath-digits').value === '8'`), 'algorithm and digits preserved');
+    assert(await js(`!window.__demoCalls.includes('oath_add')`), 'preview did not add an account');
+    await js('window.pywebview.api.read_oath_qr = async () => ({ok: true, data: null})');
+    await click('#oath-content [data-act=import-qr]');
+    await until(`!document.querySelector('[data-act=import-qr]').disabled`, 'cancel settled');
+    assert(await js(`document.querySelector('.oath-name').value === 'QR account'`), 'cancel kept existing inputs');
+    await js(`window.pywebview.api.read_oath_qr = () => new Promise(resolve => { window.__resolveQr = resolve; })`);
+    await click('#oath-content [data-act=import-qr]');
+    await js('selectToken("demo-t2")');
+    await js(`window.__resolveQr({ok: true, data: {name:'LATE SECRET', secret:'LATE SECRET'}})`);
+    await sleep(60);
+    assert(await js(`![...document.querySelectorAll('input')].some(e => e.value.includes('LATE SECRET'))`), 'late response discarded');
+    assert(await js(`!window.__demoCalls.includes('oath_add')`), 'no write to either key');
+    await js('delete window.pywebview.api.read_oath_qr; selectToken("demo-yk5"); switchTab("overview")');
+  });
+
   await test('introduction: shown on first start, keyboard steps, storage choice applied, Escape skips, reopen from About', async () => {
     await js(`(() => { window.__demoCalls.length = 0; appSettings.onboarding_done = false; document.activeElement.blur(); maybeStartOnboarding(); })()`);
     await until('!$("onboarding").classList.contains("hidden")', 'introduction open');
