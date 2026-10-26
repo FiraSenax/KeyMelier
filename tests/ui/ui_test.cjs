@@ -490,6 +490,7 @@ async function main() {
     await until(`document.querySelector('.oath-name').value === 'QR account'`, 'QR preview filled');
     assert(await js(`document.querySelector('.oath-secret').type === 'password'`), 'secret masked');
     assert(await js(`document.querySelector('.oath-counter').value === '123456' && !document.querySelector('.oath-counter-field').hidden`), 'HOTP counter preserved and visible');
+    assert(await js(`getComputedStyle(document.querySelector('.oath-period-field')).display === 'none' && getComputedStyle(document.querySelector('.oath-counter-field')).display !== 'none'`), 'only the HOTP field is actually visible');
     assert(await js(`document.querySelector('.oath-algorithm').value === 'SHA256' && document.querySelector('.oath-digits').value === '8'`), 'algorithm and digits preserved');
     assert(await js(`!window.__demoCalls.includes('oath_add')`), 'preview did not add an account');
     await js('window.pywebview.api.read_oath_qr = async () => ({ok: true, data: null})');
