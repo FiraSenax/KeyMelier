@@ -1,0 +1,42 @@
+{
+  "pyscard": {
+    "version": "2.3.1",
+    "url": "https://files.pythonhosted.org/packages/93/c9/65c68738a94b44b67b3c5e68a815890bbd225f2ae11ef1ace9b61fa9d5f3/pyscard-2.3.1.tar.gz",
+    "filename": "pyscard-2.3.1.tar.gz",
+    "sha256": "a24356f57a0a950740b6e54f51f819edd5296ee8892a6625b0da04724e9e6c13",
+    "size": 160650,
+    "modified": false
+  },
+  "certifi": {
+    "version": "2026.10.19",
+    "url": "https://files.pythonhosted.org/packages/a6/bd/1436c50cc46699de0230fbaacc1d1de7bfec413176099949e9d5112e88f2/certifi-2026.10.19.tar.gz",
+    "filename": "certifi-2026.10.19.tar.gz",
+    "sha256": "035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae",
+    "size": 137598,
+    "modified": false
+  },
+  "fido2": {
+    "version": "2.2.1",
+    "url": "https://files.pythonhosted.org/packages/ba/ea/6f08c354b7aeb8019249d46a86c2153f8218499cced4d21bf16b6d49fc16/fido2-2.2.1.tar.gz",
+    "filename": "fido2-2.2.1.tar.gz",
+    "sha256": "85787428a94c3f8eaf72f0ff30afba983b559a1b1b795c93318c81b4ad4062c4",
+    "size": 327147,
+    "modified": false
+  },
+  "setuptools": {
+    "version": "84.0.0",
+    "url": "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz",
+    "filename": "setuptools-84.0.0.tar.gz",
+    "sha256": "f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73",
+    "size": 1168449,
+    "modified": false
+  },
+  "python-pskc": {
+    "version": "1.4",
+    "url": "https://files.pythonhosted.org/packages/bb/96/877a597fc0bd9a3ed33ada8b30a93f9705805dc43a330e048a8bb1078365/python_pskc-1.4.tar.gz",
+    "filename": "python_pskc-1.4.tar.gz",
+    "sha256": "4a36381446ca067be728b30e01b4d18dbd9d1ad553bf07c3710abcd87653eefe",
+    "size": 138221,
+    "modified": false
+  }
+}

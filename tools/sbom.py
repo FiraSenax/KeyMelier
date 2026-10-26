@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CycloneDX 1.6 SBOM of everything shipped in the app bundle.
+"""CycloneDX 1.6 inventory of collected application dependencies.
 
     python3 tools/sbom.py [output]                  write (as the build does)
     python3 tools/sbom.py --check [FILE] [--strict] validate a written SBOM
@@ -7,7 +7,7 @@
 Called by the PyInstaller spec next to third_party_licenses.py, so each
 platform's build describes exactly what is installed and bundled there:
 
-- every runtime Python package (requirements.txt) with version, package URL
+- Python distributions identified from PyInstaller's collected files, with version, package URL
   and an SPDX license expression;
 - the SHA-256 of the artifact pip actually installed, from pip's
   installation report (build/pip-report*.json, written by CI and the build
@@ -15,15 +15,17 @@ platform's build describes exactly what is installed and bundled there:
   lock file allows are listed as properties instead;
 - the PyInstaller bootloader inside the executable;
 - CPython and the OpenSSL builds bundled with CPython and with cryptography;
-- the Simple Icons data in static/service-icons.js (hash of the shipped file).
+- reviewed original brand assets, UI icon attribution, native Linux packages
+  and the AppImage runtime.
 
-Known limit: further native libraries inside CPython (zlib, libffi, expat …)
-are covered by the CPython component, not listed one by one.
+Known limit: not every statically linked Rust/C++ or runtime dependency is
+individually versioned. License notices/source archives complement this inventory.
 """
 
 import glob
 import hashlib
 import json
+import os
 import platform
 import re
 import sys
@@ -49,11 +51,14 @@ SPDX_OVERRIDES = {
     "pyopenssl": "Apache-2.0",
     "requests": "Apache-2.0",
     "certifi": "MPL-2.0",
-    "proxy-tools": "MIT",
+    "proxy-tools": "BSD-3-Clause",  # source header, not the conflicting PyPI classifier
+    "setuptools": "MIT AND BSD-3-Clause AND MPL-2.0",  # includes _validate_pyproject
+    "backports-tarfile": "MIT",
+    "jaraco-text": "MIT",
     # Windows / Linux only (not installed on every build machine)
     "clr-loader": "MIT",
     "pythonnet": "MIT",
-    "pywin32": "PSF-2.0",
+    "pywin32": "PSF-2.0 AND BSD-3-Clause",
     "pywin32-ctypes": "BSD-3-Clause",
     "jeepney": "MIT",
     "secretstorage": "BSD-3-Clause",
@@ -125,7 +130,7 @@ def lock_hashes(*files: str) -> dict[str, list[str]]:
 def installed_artifacts(pattern: str | None = None) -> dict[str, dict]:
     """Package name -> {sha256, url} of the artifact pip installed (pip --report)."""
     found: dict[str, dict] = {}
-    for path in sorted(glob.glob(pattern or str(ROOT / "build" / "pip-report*.json"))):
+    for path in sorted(glob.glob(pattern or os.environ.get("KEYMELIER_PIP_REPORTS") or str(ROOT / "build" / "pip-report*.json"))):
         try:
             report = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -185,22 +190,40 @@ def _openssl_components() -> list[dict]:
     return out
 
 
-def _simple_icons() -> dict | None:
-    path = ROOT / "static" / "service-icons.js"
-    if not path.exists():
-        return None
-    m = re.search(r"Simple Icons (\d+\.\d+\.\d+)", path.read_text(encoding="utf-8")[:500])
-    version = m.group(1) if m else "unknown"
-    return {"type": "data", "bom-ref": f"pkg:npm/simple-icons@{version}", "name": "simple-icons", "version": version,
-            "purl": f"pkg:npm/simple-icons@{version}", "licenses": _licenses("CC0-1.0"),
-            "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(path.read_bytes()).hexdigest()}],
-            "properties": [{"name": "keymelier:file", "value": "static/service-icons.js"}]}
+def _brand_components():
+    from make_service_icons import reviewed_brands, asset_bytes
+    components = []
+    for name, info in sorted(reviewed_brands().items()):
+        if info["status"] != "enabled":
+            continue
+        purl = f"pkg:generic/keymelier-brand-{name}@{info['reviewed']}"
+        components.append({"type": "data", "bom-ref": purl, "name": f"brand:{name}",
+            "version": info["reviewed"], "purl": purl,
+            "licenses": [{"license": {"name": "Brand usage terms", "url": info["terms_url"]}}],
+            "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(asset_bytes(name, info)).hexdigest()}],
+            "properties": [{"name": "keymelier:asset", "value": "packaging/brands/" + info["asset"]}],
+            "externalReferences": [{"type": "distribution", "url": info["asset_url"]}]})
+    return components
 
 
-def build(app_version: str, report_glob: str | None = None) -> dict:
+def _native_components(packages):
+    from urllib.parse import quote
+    out = []
+    for package in packages:
+        purl = f"pkg:deb/ubuntu/{quote(package['name'], safe='')}@{quote(package['version'], safe='')}"
+        out.append({"type": "library", "bom-ref": purl, "name": package["name"], "version": package["version"],
+            "purl": purl, "licenses": [{"license": {"name": "Debian copyright file (included in THIRD_PARTY_LICENSES.txt)"}}],
+            "properties": [{"name": "keymelier:copyright:sha256", "value": package["copyright_sha256"]},
+                           {"name": "keymelier:source-package", "value": package["source_package"]},
+                           {"name": "keymelier:source-version", "value": package["source_version"]},
+                           *({"name": "keymelier:bundled-file", "value": f} for f in package["files"])]})
+    return out
+
+
+def build(app_version: str, report_glob: str | None = None, names=None, native_packages=(), vendors=()) -> dict:
     allowed = lock_hashes()
     artifacts = installed_artifacts(report_glob)
-    components = [c for c in (_package(n, allowed, artifacts) for n in requirement_names()) if c]
+    components = [c for c in (_package(n, allowed, artifacts) for n in (requirement_names() if names is None else names)) if c]
     bootloader = _package("pyinstaller", allowed, artifacts, component_type="application")
     if bootloader:
         # only the bootloader ends up in the app; its own license, not PyInstaller's GPL
@@ -214,9 +237,34 @@ def build(app_version: str, report_glob: str | None = None) -> dict:
         "licenses": _licenses("PSF-2.0"),
     })
     components += _openssl_components()
-    icons = _simple_icons()
-    if icons:
-        components.append(icons)
+    components += _brand_components() + _native_components(native_packages)
+    for name, license_file, expr in (("Lucide", "lucide-LICENSE.txt", "ISC AND MIT"),
+                                     ("Feather", "feather-LICENSE.txt", "MIT")):
+        purl = f"pkg:generic/{name.lower()}-icons@embedded"
+        components.append({"type": "data", "bom-ref": purl, "name": name, "version": "embedded", "purl": purl,
+            "licenses": _licenses(expr),
+            "properties": [{"name": "keymelier:license-file", "value": "packaging/licenses/" + license_file},
+                           {"name": "keymelier:license-sha256", "value": hashlib.sha256(
+                               (ROOT / "packaging/licenses" / license_file).read_bytes()).hexdigest()}]})
+    for dist in vendors:
+        name = _norm(dist.metadata["Name"])
+        purl = f"pkg:pypi/{name}@{dist.version}"
+        components.append({"type": "library", "bom-ref": purl + "#setuptools-vendor", "name": dist.metadata["Name"],
+            "version": dist.version, "purl": purl, "licenses": _licenses(spdx_expression(dist)),
+            "properties": [{"name": "keymelier:bundled-in", "value": "setuptools wheel; see parent artifact hash"}]})
+    if sys.platform == "win32":
+        purl = "pkg:nuget/Microsoft.Web.WebView2@1.0.3856.49"
+        components.append({"type": "library", "bom-ref": purl, "name": "Microsoft.Web.WebView2", "version": "1.0.3856.49",
+            "purl": purl, "licenses": _licenses("BSD-3-Clause")})
+    if sys.platform.startswith("linux"):
+        purl = "pkg:generic/appimage-type2-runtime@20251108"
+        digest = {"x86_64": "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d",
+                  "aarch64": "00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444"}[platform.machine()]
+        components.append({"type": "application", "bom-ref": purl, "name": "AppImage type2 runtime", "version": "20251108",
+            "purl": purl, "licenses": [{"license": {"name": "AppImage runtime and static dependency notices"}}],
+            "hashes": [{"alg": "SHA-256", "content": digest}],
+            "properties": [{"name": "keymelier:static-dependencies", "value": "musl, libfuse 3.15.0, squashfuse 0.5.2, zstd, zlib, mimalloc; see THIRD_PARTY_LICENSES.txt and sources"}],
+            "externalReferences": [{"type": "distribution", "url": "https://github.com/AppImage/type2-runtime/releases/tag/20251108"}]})
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
@@ -288,36 +336,42 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
             problems.append(f"{label}: no license")
         for entry in lic:
             expr = entry.get("expression") or (entry.get("license") or {}).get("id")
-            if not expr or not expression_ok(expr):
+            custom = (entry.get("license") or {}).get("name")
+            documented_asset = c.get("name", "").startswith("brand:") and custom == "Brand usage terms"
+            documented_native = c.get("purl", "").startswith("pkg:deb/") and custom == "Debian copyright file (included in THIRD_PARTY_LICENSES.txt)"
+            documented_runtime = c.get("purl") == "pkg:generic/appimage-type2-runtime@20251108" and custom == "AppImage runtime and static dependency notices"
+            if not (documented_asset or documented_native or documented_runtime) and (not expr or not expression_ok(expr)):
                 problems.append(f"{label}: license is not a known SPDX expression: {entry}")
+            if documented_native and not any(p.get("name") == "keymelier:copyright:sha256" and re.fullmatch(r"[0-9a-f]{64}", p.get("value", "")) for p in c.get("properties", [])):
+                problems.append(f"{label}: missing bundled native copyright proof")
         for h in c.get("hashes") or []:
             if h.get("alg") != "SHA-256" or not re.fullmatch(r"[0-9a-f]{64}", h.get("content", "")):
                 problems.append(f"{label}: malformed hash")
         purl = c.get("purl", "")
         if purl.startswith("pkg:pypi/"):
             name = _norm(c["name"])
-            if strict and not c.get("hashes"):
+            if strict and not c.get("hashes") and not any(p.get("value") == "setuptools wheel; see parent artifact hash" for p in c.get("properties", [])):
                 problems.append(f"{label}: no hash of the installed artifact (pip report missing?)")
             for h in c.get("hashes") or []:
                 if allowed.get(name) and h["content"] not in allowed[name]:
                     problems.append(f"{label}: installed artifact hash is not allowed by the lock file")
     names = {c.get("name") for c in comps}
-    for required in ("CPython", "OpenSSL", "simple-icons") + (("pyinstaller",) if strict else ()):
+    for required in ("CPython", "OpenSSL", "Lucide", "Feather") + (("pyinstaller",) if strict else ()):
         if required not in names:
             problems.append(f"missing component: {required}")
-    icons = next((c for c in comps if c.get("name") == "simple-icons"), None)
-    shipped = ROOT / "static" / "service-icons.js"
-    if icons and shipped.exists() and icons.get("hashes", [{}])[0].get("content") != hashlib.sha256(shipped.read_bytes()).hexdigest():
-        problems.append("simple-icons: hash does not match static/service-icons.js")
+    for expected in _brand_components():
+        actual = next((c for c in comps if c.get("bom-ref") == expected["bom-ref"]), None)
+        if actual != expected:
+            problems.append(f"{expected['name']}: missing or different reviewed asset/terms")
     deps = {d.get("ref"): d.get("dependsOn", []) for d in bom.get("dependencies") or []}
     if set(deps.get(app.get("bom-ref"), [])) != set(refs):
         problems.append("dependencies do not list every component")
     return problems
 
 
-def write(path: Path, app_version: str) -> Path:
+def write(path: Path, app_version: str, names=None, native_packages=(), vendors=()) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    bom = build(app_version)
+    bom = build(app_version, names=names, native_packages=native_packages, vendors=vendors)
     problems = validate(bom, app_version)
     if problems:
         raise SystemExit("SBOM incomplete:\n  " + "\n  ".join(problems))

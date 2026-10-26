@@ -111,6 +111,33 @@ async function main() {
     assert(await js('!tokens.has("retired-connection") && tokens.size === ' + count), 'unknown connection ignored');
   });
 
+  await test('reviewed service logos link to their owner; runtime MDS icons stay available', async () => {
+    assert(await js(`(() => {
+      const div = document.createElement('div');
+      div.innerHTML = serviceAvatar('github.com');
+      return div.querySelector('button')?.dataset.brandUrl === 'https://github.com/' &&
+        div.querySelector('img')?.src.startsWith('data:image/svg+xml;base64,') &&
+        !serviceAvatar('cloudflare.com').includes('<img') && !serviceAvatar('npmjs.com').includes('<img');
+    })()`), 'only reviewed assets embedded, GitHub links to owner');
+    assert(await js(`(() => {
+      const key = tokens.get('demo-yk5');
+      return keyAvatar({...key, mds_icon:'data:image/png;base64,iVBORw0KGgo='}, 48).includes('vendor-badge') &&
+        !keyAvatar({...key, mds_icon:'https://example.com/image.png'}, 48).includes('vendor-badge');
+    })()`), 'MDS image display retained, remote image rejected');
+    await js(`window.__brandOpen = window.pywebview.api.open_url;
+      window.__brandOpened = null;
+      window.pywebview.api.open_url = url => { window.__brandOpened = url; };
+      const host = document.createElement('div'); host.id = 'brand-link-test';
+      host.style = 'position:fixed;top:0;right:0;z-index:99999';
+      host.innerHTML = serviceAvatar('github.com'); document.body.append(host);`);
+    try {
+      await click('#brand-link-test button');
+      assert(await js('window.__brandOpened === "https://github.com/"'), 'logo click uses external URL bridge');
+    } finally {
+      await js('document.getElementById("brand-link-test")?.remove(); window.pywebview.api.open_url = window.__brandOpen;');
+    }
+  });
+
   // ── 1. Navigation ──
   await test('backup page: coverage, lost key and replacement visible at 1280x800 without scrolling', async () => {
     await click('#nav-backup');

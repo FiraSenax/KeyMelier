@@ -49,6 +49,7 @@ class TokenRecord:
     mds_status: Optional[str] = None
     mds_authenticator_version: Optional[int] = None
     mds_icon: Optional[str] = None  # vendor icon from MDS3 (data:image/... URL)
+    mds_legal_header: Optional[str] = None
     attestation: Optional[dict] = None  # serialised AttestationResult
     algorithms: list = field(default_factory=list)  # COSE algorithm IDs from getInfo
     serial_source: Optional[str] = None
@@ -424,6 +425,7 @@ class TokenScanner:
         record.mds_description = None
         record.mds_authenticator_version = None
         record.mds_icon = None
+        record.mds_legal_header = None
         record.cve_ids = []
         record.advisories = []
         advisory_ok = False
@@ -435,14 +437,11 @@ class TokenScanner:
                     ms = entry.get("metadataStatement", {})
                     record.mds_description = ms.get("description")
                     record.mds_authenticator_version = ms.get("authenticatorVersion")
-                    # USB names are often generic ("FIDO2 Security Key"); the
-                    # metadata description usually names the vendor
-                    if record.manufacturer == "Unknown" and record.mds_description:
-                        record.manufacturer = _infer_manufacturer(record.mds_description)
-                    icon = ms.get("icon")
-                    # Only inline images; anything else is ignored
-                    if isinstance(icon, str) and icon.startswith("data:image/") and len(icon) < 200_000:
-                        record.mds_icon = icon
+                    # MDS explicitly provides icons for authenticator identification.
+                    # Use only the current verified statement, never a bundled copy.
+                    from keymelier_core.mds3 import display_icon
+                    record.mds_icon = display_icon(ms.get("icon"))
+                    record.mds_legal_header = ms.get("legalHeader")
                     record.mds_status = self._mds3.get_highest_security_status(record.aaguid)
         except Exception as e:
             logger.warning("MDS3 enrichment failed: %s", type(e).__name__)

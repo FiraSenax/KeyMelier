@@ -1,0 +1,13 @@
+proxy-tools 0.1.0 / Werkzeug-derived Proxy
+
+The distributed proxy_tools/__init__.py identifies its source as:
+    Proxy. Extracted from Werkzeug
+    :copyright: (c) 2013 by Armin Ronacher (adapted by Jonathan Tushman 2014).
+    :license: BSD, see LICENSE for more details.
+
+Source archive: https://pypi.org/project/proxy-tools/0.1.0/#files
+Source: https://github.com/jtushman/proxy_tools/blob/master/proxy_tools/__init__.py
+The accompanying Werkzeug BSD-3-Clause text is from Werkzeug 0.9.4.
+The PyPI metadata labels the package MIT, but the actual source retains the
+above BSD provenance. KeyMelier preserves that source notice and the Werkzeug
+license; it does not replace them with a fabricated MIT copyright statement.

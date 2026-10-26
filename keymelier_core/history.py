@@ -26,6 +26,10 @@ FORGET_KEEP_DAYS = 400   # how long "this key was removed" is remembered for syn
 
 # Fields that describe the physical connection, not the key
 _VOLATILE = {"id", "path", "first_seen"}
+# MDS statements remain in the verified, replaceable BLOB cache only. Do not
+# retain artwork/model metadata in history, exports or sync after MDS removal.
+_MDS_FIELDS = {"mds_description", "mds_status", "mds_authenticator_version", "mds_icon", "mds_legal_header"}
+_VOLATILE |= _MDS_FIELDS
 
 
 def _now() -> str:
@@ -66,8 +70,13 @@ class History:
             self._entries = {e["key_id"]: e for e in data.get("keys", [])}
             self._forgotten = {k: v for k, v in (data.get("forgotten") or {}).items()
                                if isinstance(k, str) and isinstance(v, str)}
+            removed_metadata = False
             for entry in self._entries.values():
                 snap = entry.get("snapshot", {})
+                for field in _MDS_FIELDS:
+                    if field in snap:
+                        del snap[field]
+                        removed_metadata = True
                 snap["security_status"] = "UNKNOWN"
                 att = snap.get("attestation")
                 if att and "status" not in att:
@@ -75,6 +84,8 @@ class History:
                 for ev in entry.get("events", []):
                     if ev.get("type") == "attestation" and "status" not in ev:
                         ev["type"] = "attestation_skipped"
+            if removed_metadata:
+                self._save()
         except FileNotFoundError:
             pass
         except Exception as e:
@@ -466,7 +477,7 @@ _ID = __import__("re").compile(r"^[0-9a-f]{16}$")
 # (attestation, advisories, MDS status) are never imported – they are
 # re-established when the real key is plugged in.
 _SNAPSHOT_TEXT = {"product_name": 120, "serial_number": 40, "manufacturer": 80, "aaguid": 36,
-                  "firmware_version_str": 40, "form_factor": 40, "mds_description": 200}
+                  "firmware_version_str": 40, "form_factor": 40}
 _SNAPSHOT_INT = ("vendor_id", "product_id", "firmware_version_raw", "max_cred_count", "min_pin_length")
 
 

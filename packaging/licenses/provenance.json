@@ -1,0 +1,67 @@
+{
+  "lucide-LICENSE.txt": {
+    "url": "https://raw.githubusercontent.com/lucide-icons/lucide/main/LICENSE",
+    "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+  },
+  "feather-LICENSE.txt": {
+    "url": "https://raw.githubusercontent.com/feathericons/feather/v4.29.2/LICENSE",
+    "sha256": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee"
+  },
+  "werkzeug-0.9.4-LICENSE.txt": {
+    "url": "https://raw.githubusercontent.com/pallets/werkzeug/0.9.4/LICENSE",
+    "sha256": "41fe7d01e6145b3df6e0652b23d0ea1cba050eab48209a99a1ecf3c70afd9e5f"
+  },
+  "appimage-runtime-LICENSE.txt": {
+    "url": "https://raw.githubusercontent.com/AppImage/type2-runtime/20251108/LICENSE",
+    "sha256": "aa154fc9070614bbe7921f89db11efd1dba7a1f3a41685958110e2230f9c0ca1"
+  },
+  "webview2-1.0.3856.49-LICENSE.txt": {
+    "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg"
+  },
+  "webview2-1.0.3856.49-NOTICE.txt": {
+    "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg"
+  },
+  "pyobjc-12.2.2-LICENSE.txt": {
+    "sha256": "0ca04b07928d4872b9d9bb22187ca0426dd8bfab08f26eada0999a71dc81aaff",
+    "archive": {
+      "comment_text": null,
+      "core-metadata": false,
+      "digests": {
+        "blake2b_256": "a578abc4ce5920305780aeb36b4067a86253378b36e29ba96673a3deb02eb03a",
+        "md5": "e750c50c8ef6a41721ff3eb9484d2b63",
+        "sha256": "3906452339cd06a3bb07df103c2511d4cb0f7a22d8771c0b802eba15d9a642b6"
+      },
+      "downloads": -1,
+      "filename": "pyobjc_core-12.2.2.tar.gz",
+      "has_sig": false,
+      "md5_digest": "e750c50c8ef6a41721ff3eb9484d2b63",
+      "packagetype": "sdist",
+      "python_version": "source",
+      "requires_python": ">=3.10",
+      "size": 1067701,
+      "upload_time": "2026-08-11T19:43:39",
+      "upload_time_iso_8601": "2026-08-11T19:43:39.059376Z",
+      "url": "https://files.pythonhosted.org/packages/a5/78/abc4ce5920305780aeb36b4067a86253378b36e29ba96673a3deb02eb03a/pyobjc_core-12.2.2.tar.gz",
+      "yanked": false,
+      "yanked_reason": null
+    }
+  },
+  "musl-COPYRIGHT.txt": {
+    "source": "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT",
+    "sha256": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b"
+  },
+  "zstd-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/facebook/zstd/v1.5.6/LICENSE",
+    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+  },
+  "zlib-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE",
+    "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+  },
+  "mimalloc-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE",
+    "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+  }
+}

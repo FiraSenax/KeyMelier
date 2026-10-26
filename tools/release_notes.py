@@ -36,6 +36,7 @@ def notes(mac_signed: bool, win_signed: bool) -> str:
         "(e.g. Ubuntu 24.04, Debian 13, Fedora 40); if your key does not appear, see *Linux* in the documentation "
         "(udev rules).",
         "- `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip` – the same apps without installer (portable).",
+        "- `KeyMelier-Sources-<platform>.tar` – corresponding library sources, application source and rebuild instructions.",
         "",
         "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no "
         "verified publisher – compare the checksums if in doubt.",

@@ -128,11 +128,11 @@
     set_settings: ({ values }) => Object.assign(settings, values) && { ...settings },
     data_status: () => ({ advisories: { source: 'downloaded', updated: iso(4 * D), count: 14 },
       mds: { cached: true, fetched_at: iso(6 * H), entry_count: 531, serial: 291, current: true, next_update: new Date(now + 20 * D).toISOString().slice(0, 10), revocation_checked: true, verified: true },
-      last_check: iso(6 * H), app: { current: '1.7.0', latest: '1.7.0', newer: false } }),
+      last_check: iso(6 * H), app: { current: '__KEYMELIER_DEMO_VERSION__', latest: '__KEYMELIER_DEMO_VERSION__', newer: false } }),
     mds_status: () => api.data_status().mds,
     // Same shape as keymelier_core/diagnostics.py (demo values only)
     diagnostics: () => ({ format: 'keymelier-diagnostics', created: iso(0).slice(0, 16) + 'Z',
-      app: { version: '1.7.0', build: { ...settings.build } },
+      app: { version: '__KEYMELIER_DEMO_VERSION__', build: { ...settings.build } },
       system: { platform: 'darwin', os: 'Darwin', os_release: '25.0.0', distribution: null, arch: 'arm64', python: '3.12.10', gui: 'cocoa', keyring: 'keyring.backends.macOS' },
       settings: { language: null, history_enabled: true, remember_sites: true, stateless: false, onboarding_done: true },
       keys: { connected: tokens.length, in_history: Object.keys(history).length },

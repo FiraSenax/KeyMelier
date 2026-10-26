@@ -40,6 +40,7 @@ import re
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
@@ -62,7 +63,8 @@ def linux_files(arch: str) -> tuple:
 
 LINUX_FILES = tuple(f for arch in LINUX_ARCHES for f in linux_files(arch))
 LOCKS = ("requirements.txt", "requirements-build.txt", "uv.lock")
-RELEASE_FILES = MAC_FILES + WIN_FILES + LINUX_FILES + LOCKS + ("SOURCE_COMMIT.txt", "SHA256SUMS.txt")
+SOURCE_FILES = tuple(f"KeyMelier-Sources-{name}.tar" for name in ("macOS", "Windows", "Linux-x86_64", "Linux-aarch64"))
+RELEASE_FILES = MAC_FILES + WIN_FILES + LINUX_FILES + SOURCE_FILES + LOCKS + ("SOURCE_COMMIT.txt", "SHA256SUMS.txt")
 
 
 def app_version() -> str:
@@ -126,8 +128,36 @@ def check_sbom(r: Report, path: Path, version: str, strict: bool) -> None:
 
 def check_licenses(r: Report, path: Path) -> None:
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
-    for needle in ("fido2", "cryptography", "Simple Icons", "PyInstaller"):
+    for needle in ("fido2", "cryptography", "lucide-LICENSE.txt", "feather-LICENSE.txt", "PyInstaller"):
         r.check(needle in text, f"{path.name} names {needle}")
+
+
+def check_sources(r: Report, path: Path, commit=None):
+    """Source archives must accompany the binary, match the manifest and commit."""
+    try:
+        with tarfile.open(path) as archive:
+            manifest = json.load(archive.extractfile("THIRD_PARTY_SOURCES.json"))
+            if commit:
+                r.check(manifest.get("source_commit") == commit and manifest.get("modified_worktree") is False,
+                        f"{path.name}: source commit matches clean binary build")
+            sources = manifest.get("sources", [])
+            components = {s.get("component") for s in sources}
+            r.check({"pyscard", "certifi", "fido2"} <= components, f"{path.name}: required Python sources present")
+            if "Linux" in path.name:
+                r.check({"qtbase", "qtdeclarative", "qtwebengine", "pyside-setup"} <= components,
+                        f"{path.name}: Qt corresponding sources present")
+                r.check(any(s["filename"] == "fuse-3.15.0.tar.xz" for s in sources),
+                        f"{path.name}: static libfuse source present")
+            for source in sources:
+                name = "upstream/" + source["filename"]
+                member = archive.getmember(name)
+                with archive.extractfile(member) as stream:
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                r.check(member.size == source["size"] and digest == source["sha256"], f"{path.name}: {name} verified")
+            r.check(archive.getmember("KeyMelier-source.tar").size > 0 and archive.getmember("LIBRARY-REPLACEMENT.txt").size > 0,
+                    f"{path.name}: application sources and rebuild instructions present")
+    except (OSError, ValueError, KeyError, TypeError, tarfile.TarError) as error:
+        r.check(False, f"{path.name}: readable corresponding sources", str(error))
 
 
 BUILD_JSON = {"mac": "KeyMelier.app/Contents/Resources/data/build.json", "win": "KeyMelier/_internal/data/build.json",
@@ -287,9 +317,12 @@ def check_appimage(r: Report, path: Path, arch: str, version: str, commit: str |
         return
     entries, read = contents
     internal = "usr/lib/keymelier/_internal"
+    r.check(not any(re.search(r"(^|/)(?:libreadline|readline\.).*\.so", entry) for entry in entries),
+            f"{path.name}: GNU Readline is absent")
     for entry in ("AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier",
                   f"{internal}/static/index.html", f"{internal}/data/advisories.json.sig",
-                  f"{internal}/THIRD_PARTY_LICENSES.txt", "usr/share/keymelier/70-keymelier.rules"):
+                  f"{internal}/THIRD_PARTY_LICENSES.txt", f"{internal}/smartcard/System.py",
+                  f"{internal}/THIRD_PARTY_SOURCES.json", "usr/share/keymelier/70-keymelier.rules"):
         r.check(entry in entries, f"{path.name} contains {entry}")
     check_build_commit(r, path.name, read(BUILD_JSON["linux"]), commit)
     m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/keymelier_core/version.py"))
@@ -352,6 +385,7 @@ def run(argv: list[str]) -> Report:
     version = app_version()
     if mode == "macos":
         check_files(r, folder, MAC_FILES)
+        check_sources(r, folder / SOURCE_FILES[0], opts.get("--commit"))
         check_mac_zip(r, folder / "KeyMelier-macOS.zip", version)
         check_build_commit(r, "KeyMelier-macOS.zip", zip_member(folder / "KeyMelier-macOS.zip", BUILD_JSON["mac"]),
                            opts.get("--commit"))
@@ -364,6 +398,7 @@ def run(argv: list[str]) -> Report:
         check_licenses(r, folder / "THIRD_PARTY_LICENSES-macOS.txt")
     elif mode == "windows":
         check_files(r, folder, WIN_FILES)
+        check_sources(r, folder / SOURCE_FILES[1], opts.get("--commit"))
         check_win_zip(r, folder / "KeyMelier-Windows.zip", version, flag("--signed"))
         check_build_commit(r, "KeyMelier-Windows.zip", zip_member(folder / "KeyMelier-Windows.zip", BUILD_JSON["win"]),
                            opts.get("--commit"))
@@ -377,6 +412,7 @@ def run(argv: list[str]) -> Report:
             return r
         appimage, bom, licenses = linux_files(arch)
         check_files(r, folder, (appimage, bom, licenses))
+        check_sources(r, folder / f"KeyMelier-Sources-Linux-{arch}.tar", opts.get("--commit"))
         check_appimage(r, folder / appimage, arch, version, opts.get("--commit"))
         check_sbom(r, folder / bom, version, strict="--strict-sbom" in argv)
         check_licenses(r, folder / licenses)
@@ -402,6 +438,8 @@ def run(argv: list[str]) -> Report:
             check_sbom(r, folder / name, version, strict=True)
         for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *LINUX_FILES[2::3]):
             check_licenses(r, folder / name)
+        for name in SOURCE_FILES:
+            check_sources(r, folder / name, commit)
         if (folder / "SHA256SUMS.txt").exists():
             check_sums(r, folder)
         if opts.get("--notes"):

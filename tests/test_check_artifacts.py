@@ -12,6 +12,7 @@ import plistlib
 import shutil
 import struct
 import sys
+import tarfile
 import tempfile
 import unittest
 import zipfile
@@ -68,6 +69,7 @@ def appimage(arch="x86_64") -> bytes:
 INTERNAL = "usr/lib/keymelier/_internal"
 APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", f"{INTERNAL}/static/index.html",
                   f"{INTERNAL}/data/advisories.json.sig", f"{INTERNAL}/THIRD_PARTY_LICENSES.txt",
+                  f"{INTERNAL}/smartcard/System.py", f"{INTERNAL}/THIRD_PARTY_SOURCES.json",
                   "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/keymelier_core/version.py"}
 
 
@@ -81,7 +83,23 @@ def fake_squashfs(version=VERSION, files=APPIMAGE_FILES, commit=COMMIT, modified
     return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"}, read)
 
 
-LICENSES = "fido2 … cryptography … Simple Icons … PyInstaller bootloader"
+LICENSES = "fido2 … cryptography … lucide-LICENSE.txt … feather-LICENSE.txt … PyInstaller bootloader"
+
+
+def source_bundle(path, commit=COMMIT):
+    contents = {"KeyMelier-source.tar": b"fixture app source", "LIBRARY-REPLACEMENT.txt": b"fixture instructions"}
+    sources = []
+    for name in ("pyscard", "certifi", "fido2", "qtbase", "qtdeclarative", "qtwebengine", "pyside-setup", "fuse-3.15.0"):
+        filename = name + (".tar.xz" if name.startswith("fuse") else ".tar.gz")
+        raw = ("fixture source " + name).encode()
+        contents["upstream/" + filename] = raw
+        sources.append({"component": name, "filename": filename, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)})
+    contents["THIRD_PARTY_SOURCES.json"] = json.dumps({"source_commit": commit, "modified_worktree": False, "sources": sources}).encode()
+    with tarfile.open(path, "w") as archive:
+        for name, raw in contents.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            archive.addfile(info, io.BytesIO(raw))
 
 
 def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, signed=False, commit=COMMIT):
@@ -106,6 +124,8 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
         (folder / name).write_text("{}")
     for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *ca.LINUX_FILES[2::3]):
         (folder / name).write_text(LICENSES, encoding="utf-8")
+    for name in ca.SOURCE_FILES:
+        source_bundle(folder / name, commit)
     for lock in ca.LOCKS:
         shutil.copy(ROOT / lock, folder / lock)
     (folder / "SOURCE_COMMIT.txt").write_text(COMMIT + "\n")
@@ -143,6 +163,7 @@ class CheckArtifactsTests(unittest.TestCase):
         for name, content in zip(ca.linux_files("x86_64"), (appimage(), "{}", LICENSES)):
             (out / name).write_bytes(content) if isinstance(content, bytes) else (out / name).write_text(content, encoding="utf-8")
         (out / "KeyMelier-Linux-x86_64.AppImage").chmod(0o755)
+        source_bundle(out / "KeyMelier-Sources-Linux-x86_64.tar")
         self.assertEqual(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, [])
         with patch.object(ca, "squashfs_contents", fake_squashfs(version="0.0.1")):
             self.assertTrue(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, "wrong version found")

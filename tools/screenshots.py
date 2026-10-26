@@ -11,6 +11,7 @@ into docs/img/. No real keys or personal data are involved.
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +32,8 @@ def demo_page() -> Path:
     html = build_html()
     html = re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', "", html)  # demo scripts are inline too
     demo = (ROOT / "tools" / "docs_demo.js").read_text(encoding="utf-8")
+    from keymelier_core.version import __version__
+    demo = demo.replace("__KEYMELIER_DEMO_VERSION__", __version__)
     scenes = (ROOT / "tools" / "docs_scenes.js").read_text(encoding="utf-8")
     stress = (ROOT / "tools" / "demo_stress.js").read_text(encoding="utf-8")   # only used with #stress
     html = html.replace("<script>", f"<script>\n{stress}\n{demo}\n</script>\n<script>", 1)
@@ -50,10 +53,11 @@ def main():
     target.mkdir(parents=True, exist_ok=True)
     for scene in SCENES:
         png = target / f"{scene}.png"
-        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
-                        "--force-device-scale-factor=1.5", "--window-size=1360,820", "--lang=en-US",
-                        "--virtual-time-budget=5000", f"--screenshot={png}", f"{page.as_uri()}#{scene}"],
-                       check=True, capture_output=True, timeout=120)
+        with tempfile.TemporaryDirectory(prefix="keymelier-docs-browser-") as profile:
+            subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
+                            f"--user-data-dir={profile}", "--force-device-scale-factor=1.5", "--window-size=1360,820", "--lang=en-US",
+                            "--virtual-time-budget=5000", f"--screenshot={png}", f"{page.as_uri()}#{scene}"],
+                           check=True, capture_output=True, timeout=120)
         print("wrote", png.relative_to(ROOT))
 
 

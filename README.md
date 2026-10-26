@@ -243,7 +243,9 @@ KeyMelier is released under the [MIT License](LICENSE).
 
 The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build.
 
-A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component – Python packages, the PyInstaller bootloader, CPython, the OpenSSL builds and the Simple Icons data – with version, package URL, SPDX license and the SHA-256 of the file that was actually installed (checked against the lock file). Every build validates it (`tools/sbom.py --check --strict`); other native libraries inside CPython are covered by the CPython entry.
+A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) inventories collected Python packages, the PyInstaller bootloader, CPython, OpenSSL, reviewed artwork and native Linux packages. Python archive hashes come from pip's installation report and are checked against the lock file. Brand assets retain their individual usage terms; native package notices are preserved from their distribution. Not every statically linked subcomponent is independently versioned in this inventory.
+
+`KeyMelier-Sources-<platform>.tar` accompanies the binaries with corresponding source archives, the application source and library replacement instructions. `THIRD_PARTY_SOURCES.json` records exact versions and checksums. See [library replacement and rebuild instructions](packaging/licenses/LIBRARY-REPLACEMENT.txt). The build excludes unused GNU Readline and collects pyscard's Python modules as external, replaceable files.
 
 It builds on open-source libraries under their own licenses, among them
 [python-fido2](https://github.com/Yubico/python-fido2) (BSD-2-Clause),
@@ -252,5 +254,4 @@ It builds on open-source libraries under their own licenses, among them
 [requests](https://github.com/psf/requests) (Apache-2.0),
 [yubikey-manager / yubikit](https://github.com/Yubico/yubikey-manager) (BSD-2-Clause); app bundles are built with
 [PyInstaller](https://pyinstaller.org) (GPL with bootloader exception, which permits this use).
-FIDO metadata is downloaded at runtime from the FIDO Alliance Metadata Service; vendor
-icons shown in the app come from that service. Product names are trademarks of their owners.
+FIDO metadata and authenticator icons are downloaded at runtime from the FIDO Alliance Metadata Service for local authenticator checks. They are separate from the app's MIT license and governed by the [FIDO usage terms](https://fidoalliance.org/metadata-usage-terms-for-relying-parties-or-service-providers-2/); see the [MDS notice](packaging/licenses/FIDO-METADATA-NOTICE.txt). Icons are displayed from current verified statements and are not bundled or retained in history/sync exports. Product names and logos belong to their owners; no endorsement is implied. Separately bundled service logos and the assessed usage conditions are documented in [the brand review](packaging/brands/review.json).

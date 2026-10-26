@@ -1,0 +1,334 @@
+{
+  "schema": 1,
+  "scope": "Bundled service/media assets only. Runtime MDS authenticator icons are governed separately by FIDO MDS terms and are not blocked by this list.",
+  "brands": {
+    "1password": {
+      "title": "1Password",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://1password.com/press",
+      "decision": "Medienkit verfügbar; eine konkrete Weiterverbreitungserlaubnis für den Konto-Avatar daraus nicht nachgewiesen."
+    },
+    "atlassian": {
+      "title": "Atlassian",
+      "kind": "service",
+      "status": "enabled",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.atlassian.com/legal/trademark",
+      "decision": "Unverändertes Originalzeichen zur sachlichen Kennzeichnung eines Atlassian-Kontos; General-Public-Regel. Kompaktes App-UI erlaubt Logomark.",
+      "homepage": "https://www.atlassian.com/",
+      "owner": "Atlassian",
+      "attribution": "Atlassian and the Atlassian logo are trademarks of Atlassian.",
+      "asset": "atlassian.svg",
+      "asset_url": "https://atlassian.design/assets/ea513a1d5d9c/logos/atlassian_logo.zip",
+      "archive_member": "Atlassian/Atlassian Mark/SVG/Atlassian mark brand RGB.svg",
+      "archive_sha256": "b42ce1e63e7e25e3789052642eccde8adec89981b5d1641e2339618b4379ce0c",
+      "asset_sha256": "4bde9a5f2253655b939847e8df0434bb718bd979922e2f13008a4ffe750c361d"
+    },
+    "binance": {
+      "title": "Binance",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.binance.com/",
+      "decision": "Metadaten verweisen nur auf die Homepage; Abruf lieferte keine verwertbare Freigabe. Offen."
+    },
+    "bitwarden": {
+      "title": "Bitwarden",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://bitwarden.com/brand/",
+      "decision": "Brand-Seite und Assets vorhanden; konkrete Weiterverbreitungsgrundlage noch dokumentieren."
+    },
+    "cloudflare": {
+      "title": "Cloudflare",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.cloudflare.com/trademark/",
+      "decision": "Logo-Nutzung für diesen Zweck benötigt schriftliche Erlaubnis."
+    },
+    "coinbase": {
+      "title": "Coinbase",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.coinbase.com/press",
+      "decision": "Press-Seite verfügbar, Rohabruf teilweise gesperrt; keine konkrete Freigabe festgestellt."
+    },
+    "digitalocean": {
+      "title": "DigitalOcean",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.digitalocean.com/legal/trademark-usage-guidelines",
+      "decision": "Plain-Text-Verweise erlaubt; Logo-Erlaubnis für unsere App nicht nachgewiesen."
+    },
+    "discord": {
+      "title": "Discord",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://discord.com/branding",
+      "decision": "Digitale Nutzung unter Brand-Regeln beschrieben; konkrete Verwendung und unverändertes Original noch abgleichen."
+    },
+    "docker": {
+      "title": "Docker",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.docker.com/legal/trademark-guidelines/",
+      "decision": "Grenzen für Design- und Logo-Nutzung, Attribution erforderlich; bisher keine dokumentierte Grundlage für den Avatar."
+    },
+    "dropbox": {
+      "title": "Dropbox",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.dropbox.com/branding",
+      "decision": "Nutzung unter Bedingungen möglich; verweist auf weitere Brand-Regeln. Darstellung und Kontext noch abgleichen."
+    },
+    "ebay": {
+      "title": "eBay",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://brandpermission.ebay.com/requestpermission",
+      "decision": "Das IP-Center verlangt einen Antrag für Logo-Nutzung in Anwendungen."
+    },
+    "github": {
+      "title": "GitHub",
+      "kind": "service",
+      "status": "enabled",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://brand.github.com/foundations/logo",
+      "decision": "Offizieller Invertocat mit Original-Schutzraum als Link zu GitHub. Die Richtlinie erlaubt Logos zum Verlinken; kein Partner- oder Gütesiegel.",
+      "homepage": "https://github.com/",
+      "owner": "GitHub, Inc.",
+      "attribution": "GITHUB, the GITHUB logo design, and the INVERTOCAT logo design are trademarks of GitHub, Inc., registered in the United States and other countries.",
+      "asset": "github.svg",
+      "asset_url": "https://brand.github.com/GitHub_Logos.zip",
+      "archive_member": "GitHub Logos/SVG/GitHub_Invertocat_Black_Clearspace.svg",
+      "archive_sha256": "e2a67d6cc51d990a52c46c1cf6bcab688db4830982174bca50e0be7a5c2f3194",
+      "asset_sha256": "b5e2f4b3f953f075de7016faa952d6ce3ec7492aa7b32408505ec25857962d89"
+    },
+    "gitlab": {
+      "title": "GitLab",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://handbook.gitlab.com/handbook/marketing/brand-experience/trademark-guidelines/",
+      "decision": "Die ausdrücklich erlaubte CE-Distribution trifft auf KeyMelier nicht zu."
+    },
+    "hetzner": {
+      "title": "Hetzner",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.hetzner.com/",
+      "decision": "Nur Homepage als Herkunft; keine spezifische Logo-Erlaubnis nachgewiesen."
+    },
+    "hubspot": {
+      "title": "HubSpot",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://legal.hubspot.com/tm-usage-guidelines",
+      "decision": "Vorherige schriftliche Erlaubnis für diese Logo-Nutzung erforderlich."
+    },
+    "ionos": {
+      "title": "Ionos",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.ionos.de",
+      "decision": "Keine eindeutige Erlaubnis für die Konto-Avatar-Nutzung nachgewiesen."
+    },
+    "mailchimp": {
+      "title": "MailChimp",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://mailchimp.com/about/brand-assets",
+      "decision": "Keine eindeutige Erlaubnis für die Konto-Avatar-Nutzung nachgewiesen."
+    },
+    "mastodon": {
+      "title": "Mastodon",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://joinmastodon.org/trademark",
+      "decision": "Markenregeln und Abstandsvorgaben gelten; kleiner Konto-Avatar nicht abschließend freigegeben."
+    },
+    "n26": {
+      "title": "N26",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://n26.com/",
+      "decision": "Nur Homepage als Herkunft; keine spezifische Logo-Erlaubnis nachgewiesen."
+    },
+    "netlify": {
+      "title": "Netlify",
+      "kind": "service",
+      "status": "display-constraints",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.netlify.com/about/#brand-assets",
+      "decision": "Nutzung grundsätzlich vorgesehen, aber Brand Guide Seite 13 fordert 50 px Mindesthöhe. Die Konto-Avatare sind kleiner; deshalb hier nicht eingebunden.",
+      "homepage": "https://www.netlify.com/",
+      "owner": "Netlify",
+      "attribution": "Netlify and the Netlify logo are trademarks of Netlify.",
+      "asset": "netlify.svg",
+      "asset_url": "https://www.netlify.com/assets/logos/monogram/lightmode/logo-netlify-monogram-fullcolor-lightmode.svg",
+      "asset_sha256": "fb0e8994c35b7a6f45bb2963957eea5f1de2796fc4f072a97bdba06ebc5e7857",
+      "guidelines_url": "https://www.netlify.com/brand/guidelines/"
+    },
+    "npm": {
+      "title": "npm",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://docs.npmjs.com/policies/logos-and-usage/",
+      "decision": "Die Logo-Richtlinie verlangt eine Erlaubnis."
+    },
+    "okta": {
+      "title": "Okta",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.okta.com/legal/terms-of-use-for-okta-content/",
+      "decision": "Verwendung nur wie von Okta bereitgestellt; Simple-Icons-Abbildung und Original noch abgleichen."
+    },
+    "paypal": {
+      "title": "PayPal",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://newsroom.paypal-corp.com/media-resources",
+      "decision": "Medienressourcen vorhanden; Avatar-Nutzung und aktuelle Originaldarstellung nicht belegt."
+    },
+    "proton": {
+      "title": "Proton",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://proton.me/media/kit",
+      "decision": "Medienkit erlaubt Nutzung mit Rückverweis auf proton.me; passendes unverändertes Original aus dem Kit noch nicht übernommen."
+    },
+    "pypi": {
+      "title": "PyPI",
+      "kind": "service",
+      "status": "enabled",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://pypi.org/trademarks/",
+      "decision": "Originales Blocks-Logo bezeichnet ausschließlich das Konto beim Dienst pypi.org. Keine Nutzung als KeyMelier-Marke.",
+      "homepage": "https://pypi.org/",
+      "owner": "Python Software Foundation",
+      "attribution": "PyPI, Python Package Index, and the blocks logos are registered trademarks of the Python Software Foundation.",
+      "asset": "pypi.svg",
+      "asset_url": "https://pypi.org/static/images/logo-small.0e0855d0.svg",
+      "asset_sha256": "17c269ec01755e8aa727aad1cec8278527367fb04586e3756b4fdd46ea0f4e59"
+    },
+    "shopify": {
+      "title": "Shopify",
+      "kind": "service",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.shopify.com/brand-assets",
+      "decision": "Schriftliche Autorisierung für diese Nutzung nicht vorhanden."
+    },
+    "stripe": {
+      "title": "Stripe",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://stripe.com/legal/marks",
+      "decision": "Mark Usage Terms auf Nutzerbezug ausgerichtet; Verwendung als fremder Konto-Avatar nicht abschließend geklärt."
+    },
+    "tailscale": {
+      "title": "Tailscale",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://tailscale.com/press",
+      "decision": "Pressekit vorhanden; konkrete Erlaubnis für die Weiterverbreitung als Avatar nicht nachgewiesen."
+    },
+    "vercel": {
+      "title": "Vercel",
+      "kind": "service",
+      "status": "enabled",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://vercel.com/geist/brands",
+      "decision": "Sachliche Bezeichnung des Vercel-Dienstes; Originalsymbol in kompakter Liste verschiedener Dienstmarken. Attribution in den Lizenzhinweisen.",
+      "homepage": "https://vercel.com/",
+      "owner": "Vercel, Inc.",
+      "attribution": "Vercel, the Vercel design, Next.js and related marks, designs and logos are trademarks or registered trademarks of Vercel, Inc. or its affiliates in the US and other countries.",
+      "asset": "vercel.svg",
+      "asset_url": "https://vercel.com/geist/brands/assets/vercel-symbol-black.svg",
+      "asset_sha256": "1c1507a4a4742f992a689fcb6b61ac8c48c62e1110509b68121356154e67ed91"
+    },
+    "webauthn": {
+      "title": "WebAuthn",
+      "kind": "service",
+      "status": "not-applicable",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://github.com/webauthn-open-source/webauthn-logos/blob/b21be672811eb4a5caadaba41044970cae299a55/README.md",
+      "decision": "Protokollmarke, kein Kontodienst; wird nicht als Dienstlogo verwendet."
+    },
+    "yubico": {
+      "title": "Yubico",
+      "kind": "manufacturer",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.yubico.com/support/terms-conditions/works-with-yubikey-agreement/",
+      "decision": "Öffentliches Press-Kit ist keine allgemeine App-Freigabe; Works-with-YubiKey-Markenrechte gehören zu einem gesonderten Programm.",
+      "mds_usage": "Diese Bewertung betrifft eigenständig eingebundene Medienassets. Aktuelle Icons aus verifizierten FIDO-Metadaten bleiben zur Authenticator-Identifikation nutzbar nach MDS-Bedingungen."
+    },
+    "zoho": {
+      "title": "Zoho",
+      "kind": "service",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.zoho.com/trademark-usage-guidelines.html",
+      "decision": "Richtlinie geprüft; keine über schriftlich erteilte Rechte hinausgehende Logo-Lizenz. Bleibt bis zur Klärung aus."
+    },
+    "feitian": {
+      "title": "FEITIAN",
+      "kind": "manufacturer",
+      "status": "needs-permission",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://ftsafe.us/policies/terms-of-service",
+      "decision": "Die Markenbedingungen verlangen vorherige schriftliche Erlaubnis; MDS-Bild allein genügt nicht.",
+      "mds_usage": "Diese Bewertung betrifft eigenständig eingebundene Medienassets. Aktuelle Icons aus verifizierten FIDO-Metadaten bleiben zur Authenticator-Identifikation nutzbar nach MDS-Bedingungen."
+    },
+    "token2": {
+      "title": "Token2",
+      "kind": "manufacturer",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.token2.com/",
+      "decision": "Keine öffentliche Logo-Freigabe für Drittanbieter-Apps gefunden.",
+      "mds_usage": "Diese Bewertung betrifft eigenständig eingebundene Medienassets. Aktuelle Icons aus verifizierten FIDO-Metadaten bleiben zur Authenticator-Identifikation nutzbar nach MDS-Bedingungen."
+    },
+    "nitrokey": {
+      "title": "Nitrokey",
+      "kind": "manufacturer",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://www.nitrokey.com/about/press",
+      "decision": "Press-Seite nicht zugänglich; Open-Source-Code-Lizenz ist kein Logo-Nachweis.",
+      "mds_usage": "Diese Bewertung betrifft eigenständig eingebundene Medienassets. Aktuelle Icons aus verifizierten FIDO-Metadaten bleiben zur Authenticator-Identifikation nutzbar nach MDS-Bedingungen."
+    },
+    "solokeys": {
+      "title": "SoloKeys",
+      "kind": "manufacturer",
+      "status": "unresolved",
+      "reviewed": "2026-10-26",
+      "terms_url": "https://solokeys.com/pages/press",
+      "decision": "Press-Seite nicht zugänglich; keine konkrete öffentliche App-Logo-Freigabe belegt.",
+      "mds_usage": "Diese Bewertung betrifft eigenständig eingebundene Medienassets. Aktuelle Icons aus verifizierten FIDO-Metadaten bleiben zur Authenticator-Identifikation nutzbar nach MDS-Bedingungen."
+    }
+  }
+}

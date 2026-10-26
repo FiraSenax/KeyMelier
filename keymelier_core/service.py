@@ -145,9 +145,13 @@ class KeyService:
 
     # ── Serialisation & history ──────────────────────────────────────────────
 
-    @staticmethod
-    def _record_dict(record) -> dict:
+    def _record_dict(self, record) -> dict:
         d = dataclasses.asdict(record)
+        # Records can outlive the validity window between refreshes. Do not
+        # send expired statement data to a newly opened view.
+        if self._mds3 is None or not self._mds3.is_current():
+            for field in ("mds_description", "mds_status", "mds_authenticator_version", "mds_icon", "mds_legal_header"):
+                d[field] = None
         d["history_id"] = key_id(record)
         return d
 
@@ -208,7 +212,10 @@ class KeyService:
             except Exception:   # never let the thread die: the next round tries again
                 logger.error("Update check failed")
             current = self._mds3 is None or self._mds3.is_current()
-            threading.Event().wait(self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL)
+            interval = self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL
+            if self._mds3 is not None and current:
+                interval = min(interval, max(1, self._mds3.seconds_until_expiry()))
+            threading.Event().wait(interval)
 
     def update_download(self) -> dict:
         """Download and verify the newer release for this platform (in the

@@ -29,12 +29,12 @@ class SbomTests(unittest.TestCase):
         self.assertEqual(sbom.validate(self.bom, "9.9.9"), [])
 
     def test_everything_shipped_is_listed(self):
-        for required in ("fido2", "cryptography", "pyscard", "pywebview", "CPython", "OpenSSL", "simple-icons"):
+        for required in ("fido2", "cryptography", "pyscard", "pywebview", "CPython", "OpenSSL", "Lucide", "Feather", "brand:github"):
             self.assertIn(required, self.names())
-        icons = next(c for c in self.bom["components"] if c["name"] == "simple-icons")
-        self.assertEqual(icons["licenses"], [{"license": {"id": "CC0-1.0"}}])
+        icons = next(c for c in self.bom["components"] if c["name"] == "brand:github")
+        self.assertEqual(icons["licenses"][0]["license"]["name"], "Brand usage terms")
         self.assertEqual(icons["hashes"][0]["content"],
-                         hashlib.sha256((ROOT / "static" / "service-icons.js").read_bytes()).hexdigest())
+                         hashlib.sha256((ROOT / "packaging/brands/github.svg").read_bytes()).hexdigest())
 
     def test_licenses_are_spdx(self):
         by_name = {c["name"]: c["licenses"] for c in self.bom["components"]}
@@ -60,8 +60,8 @@ class SbomTests(unittest.TestCase):
         comp = lambda bom, name: next(c for c in bom["components"] if c["name"] == name)
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("licenses", [])))
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("licenses", [{"license": {"name": "BSD License"}}])))
-        self.assertTrue(broken(lambda b: b["components"].remove(comp(b, "simple-icons"))))
-        self.assertTrue(broken(lambda b: comp(b, "simple-icons")["hashes"][0].__setitem__("content", "0" * 64)))
+        self.assertTrue(broken(lambda b: b["components"].remove(comp(b, "brand:github"))))
+        self.assertTrue(broken(lambda b: comp(b, "brand:github")["hashes"][0].__setitem__("content", "0" * 64)))
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("hashes", [{"alg": "SHA-256", "content": "1" * 64}])),
                         "a hash the lock file does not allow")
         self.assertTrue(broken(lambda b: b["metadata"]["component"].__setitem__("version", "1.0.0")))

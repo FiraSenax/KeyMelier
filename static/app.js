@@ -139,10 +139,10 @@ function keyArt(token, size) {
   </svg>`;
 }
 
-// Illustration plus the vendor's logo (from the FIDO metadata) as a badge
+// Runtime MDS icon identifies this authenticator; it is not bundled artwork.
 function keyAvatar(token, size) {
   const src = token.mds_icon;
-  const badge = typeof src === 'string' && src.startsWith('data:image/')
+  const badge = typeof src === 'string' && /^data:image\/(png|jpeg|svg\+xml);base64,/.test(src)
     ? `<img class="vendor-badge" src="${escHtml(src)}" alt="">` : '';
   return `<span class="key-art-wrap">${keyArt(token, size)}${badge}</span>`;
 }
@@ -816,6 +816,9 @@ function renderSecurity(token) {
     [t('sec.mds.description'), token.mds_description || t('sec.mds.notFound')],
     [t('sec.mds.status'), token.mds_status || '—'],
     [t('sec.mds.version'), token.mds_authenticator_version != null ? String(token.mds_authenticator_version) : '—'],
+    ...(typeof mdsInfo?.legal_header === 'string' ? [[t('mds.legalHeader'), mdsInfo.legal_header]] : []),
+    ...(typeof token.mds_legal_header === 'string' && token.mds_legal_header !== mdsInfo?.legal_header
+      ? [[t('mds.legalHeader'), token.mds_legal_header]] : []),
   ]);
 }
 
@@ -1460,6 +1463,15 @@ async function start() {
 }
 
 function init() {
+  // A reviewed logo may require a link to its owner's website. Capture this
+  // before list actions so clicking the logo never edits a credential.
+  document.addEventListener('click', ev => {
+    const brand = ev.target.closest('[data-brand-url]');
+    if (!brand) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    window.pywebview?.api?.open_url(brand.dataset.brandUrl);
+  }, true);
   $('key-view').addEventListener('click', ev => {
     const button = ev.target.closest('[data-copy-aaguid]');
     if (button && !button.disabled) copyText(button.dataset.copyAaguid, 'aaguid.copied');

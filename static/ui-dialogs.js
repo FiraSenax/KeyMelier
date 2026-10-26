@@ -114,6 +114,8 @@ function openAbout(open = true) {
     <p class="about-lead">${escHtml(t('app.tagline'))}</p>
     <p class="card-text">${escHtml(t('about.what'))}</p>
     <p class="field-hint">${escHtml(t('about.privacy'))}</p>
+    <p class="field-hint">${escHtml(t('mds.termsNotice'))}
+      <button type="button" class="btn-link" data-url="https://fidoalliance.org/metadata-usage-terms-for-relying-parties-or-service-providers-2/">${escHtml(t('mds.terms'))}</button></p>
     <p class="about-links">${ABOUT_LINKS.map(([k, url]) => `<button type="button" class="btn-link" data-url="${escHtml(url)}">${escHtml(t(k))}</button>`).join(' · ')}</p>
     <div class="form-actions about-actions">
       <button type="button" class="btn btn-secondary" data-about="licenses">${escHtml(t('about.licenses'))}</button>

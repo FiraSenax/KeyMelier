@@ -212,6 +212,7 @@ jobs:
             dist/KeyMelier-macOS.zip
             dist/THIRD_PARTY_LICENSES-macOS.txt
             dist/KeyMelier-macOS.cdx.json
+            dist/KeyMelier-Sources-macOS.tar
           retention-days: 14
   build-windows:
     needs: [test, ui]
@@ -315,6 +316,7 @@ jobs:
             dist/KeyMelier-Windows.zip
             dist/THIRD_PARTY_LICENSES-Windows.txt
             dist/KeyMelier-Windows.cdx.json
+            dist/KeyMelier-Sources-Windows.tar
           retention-days: 14
   # Linux: AppImage for x86-64 and ARM64 (Qt web view, unsigned). The same
   # script as locally (build-linux.sh); the start test runs the AppImage itself
@@ -338,6 +340,8 @@ jobs:
           persist-credentials: false
       - name: System packages (build, Qt WebEngine runtime, start test)
         run: |
+          # Source packages must match the native libraries collected below.
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3-venv python3-dev libpcsclite-dev swig squashfs-tools \
@@ -381,6 +385,7 @@ jobs:
             dist/KeyMelier-Linux-${{ matrix.arch }}.AppImage
             dist/THIRD_PARTY_LICENSES-Linux-${{ matrix.arch }}.txt
             dist/KeyMelier-Linux-${{ matrix.arch }}.cdx.json
+            dist/KeyMelier-Sources-Linux-${{ matrix.arch }}.tar
           retention-days: 14
   # The AppImages built above, unchanged, in clean containers of the supported
   # distributions (tools/linux_compat.py): only the documented runtime

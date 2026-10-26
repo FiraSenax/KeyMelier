@@ -9,6 +9,8 @@ MIT/BSD/Apache require their notices in binary distributions; pyscard is
 LGPL and certifi MPL, so their source locations are named as well.
 """
 
+import hashlib
+import json
 import re
 import sys
 import sysconfig
@@ -17,47 +19,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-QT_SOURCE = ("https://code.qt.io/cgit/pyside/pyside-setup.git and https://code.qt.io (Qt 6, LGPL-3.0-only; "
-             "the Qt libraries are shipped as separate, replaceable files inside the app)")
-
-# Copyleft packages: where their source code is available (LGPL/MPL)
-SOURCE = {
-    "pyscard": "https://github.com/LudovicRousseau/pyscard (LGPL-2.1-or-later; the library is shipped "
-               "as separate, replaceable files inside the app)",
-    "certifi": "https://github.com/certifi/python-certifi (MPL-2.0)",
-    "python-pskc": "https://github.com/arthurdejong/python-pskc (LGPL-2.1-or-later)",
-    # Linux build: Qt for Python and the Qt libraries it contains (used under the LGPL-3.0)
-    "pyside6": QT_SOURCE,
-    "pyside6-essentials": QT_SOURCE,
-    "pyside6-addons": QT_SOURCE + " Qt WebEngine contains Chromium; its third-party notices: "
-                      "https://doc.qt.io/qt-6/qtwebengine-licensing.html",
-    "shiboken6": QT_SOURCE,
+# Missing files are supplied only from reviewed upstream sources, never by
+# inventing an author/copyright notice from package metadata.
+EXTRA_TEXTS = {
+    "pyside6": ["LGPL-3.0.txt", "GPL-3.0.txt"],
+    "pyside6-essentials": ["LGPL-3.0.txt", "GPL-3.0.txt"],
+    "pyside6-addons": ["LGPL-3.0.txt", "GPL-3.0.txt"],
+    "shiboken6": ["LGPL-3.0.txt", "GPL-3.0.txt"],
+    "proxy-tools": ["proxy-tools-NOTICE.txt", "werkzeug-0.9.4-LICENSE.txt"],
 }
-
-# Packages that ship no license file although their license requires the text
-QT_TEXTS = ["LGPL-3.0.txt", "GPL-3.0.txt"]   # LGPL-3.0 is a set of additions to the GPL-3.0
-EXTRA_TEXTS = {"pyside6": QT_TEXTS, "pyside6-essentials": QT_TEXTS, "pyside6-addons": QT_TEXTS, "shiboken6": QT_TEXTS}
-
-# Packages whose metadata has no usable license label
-LABELS = {"yubikey-manager": "BSD-2-Clause"}
-
-MIT_TEXT = """Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE."""
+LABELS = {"yubikey-manager": "BSD-2-Clause", "proxy-tools": "BSD-3-Clause (source header; PyPI metadata differs)"}
 
 LICENSE_NAMES = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.I)
 
@@ -74,14 +45,21 @@ def requirement_names() -> list[str]:
 def license_texts(dist) -> list[tuple[str, str]]:
     texts = []
     for f in dist.files or []:
-        if LICENSE_NAMES.search(Path(str(f)).name) and ".dist-info" in str(f):
+        if LICENSE_NAMES.search(Path(str(f)).name) and Path(str(f)).suffix.lower() not in {".py", ".pyc", ".so", ".dll"}:
             try:
-                texts.append((Path(str(f)).name, Path(dist.locate_file(f)).read_text(errors="replace").strip()))
+                texts.append((str(f).replace("\\", "/"), Path(dist.locate_file(f)).read_text(errors="replace").strip()))
             except OSError:
                 pass
-    if not texts:
-        for filename in EXTRA_TEXTS.get(dist.metadata["Name"].lower().replace("_", "-"), []):
-            texts.append((filename, (ROOT / "packaging" / "licenses" / filename).read_text().strip()))
+    name = dist.metadata["Name"].lower().replace("_", "-")
+    extras = EXTRA_TEXTS.get(name, [])
+    if name.startswith("pyobjc-") and not texts:
+        if dist.version != "12.2.2":
+            raise ValueError(f"Review the upstream PyObjC license for {dist.version}")
+        extras = ["pyobjc-12.2.2-LICENSE.txt"]
+    if name == "proxy-tools" and dist.version != "0.1.0":
+        raise ValueError("Review the proxy-tools source license for this version")
+    for filename in extras:
+        texts.append((filename, (ROOT / "packaging" / "licenses" / filename).read_text().strip()))
     return texts
 
 
@@ -103,10 +81,10 @@ def python_license() -> str:
                       Path(sys.base_prefix) / "LICENSE.txt"):
         if candidate.exists():
             return candidate.read_text(errors="replace").strip()
-    return "Python Software Foundation License Version 2 – https://docs.python.org/3/license.html"
+    raise ValueError("CPython LICENSE.txt missing: use a Python distribution with its original license")
 
 
-def build() -> str:
+def build(names=None, native_notices=()) -> str:
     rule = "=" * 78
     out = [
         "KeyMelier – third-party licenses",
@@ -123,10 +101,12 @@ def build() -> str:
         "",
     ]
     missing = []
-    for name in requirement_names():
+    for name in (requirement_names() if names is None else names):
         try:
             dist = distribution(name)
         except PackageNotFoundError:
+            if names is not None:
+                raise ValueError(f"Collected distribution is missing: {name}") from None
             continue  # other platform (requirements.txt has markers)
         out += [rule, f"{dist.metadata['Name']} {dist.version} – {license_label(dist)}"]
         home = dist.metadata.get("Home-page") or next(
@@ -134,32 +114,64 @@ def build() -> str:
              if u.lower().startswith(("source", "homepage", "repository"))), "")
         if home:
             out.append(home)
-        if name.lower() in SOURCE:
-            out.append(f"Source code: {SOURCE[name.lower()]}")
+        out.append(f"Exact package release: https://pypi.org/project/{name}/{dist.version}/#files")
         out.append(rule)
         texts = license_texts(dist)
-        if not texts and "MIT" in license_label(dist):
-            author = (dist.metadata.get("Author") or dist.metadata.get("Author-email") or "the authors").strip()
-            texts = [("MIT License (package ships no license file)", f"Copyright (c) {author}\n\n{MIT_TEXT}")]
         if not texts:
             missing.append(name)
-            out.append(f"License: {license_label(dist)} (no license file in the package)")
         for filename, text in texts:
             out += ["", f"--- {filename} ---", "", text]
         out.append("")
-    out += [rule, "Simple Icons – service logos (static/service-icons.js)", "https://simpleicons.org", rule, "",
-            "Icon data: CC0 1.0 Universal (public domain dedication). The logos are trademarks of",
-            "their respective owners; KeyMelier shows them unmodified and only to identify the",
-            "service. Brands that restrict such use are not included.", ""]
+    try:
+        bootloader = distribution("pyinstaller")
+    except PackageNotFoundError:
+        if names is not None:
+            raise ValueError("PyInstaller bootloader license is missing") from None
+    else:
+        texts = license_texts(bootloader)
+        if not texts:
+            missing.append("PyInstaller bootloader")
+        out += [rule, f"PyInstaller {bootloader.version} bootloader — GPL-2.0-or-later WITH Bootloader-exception", rule]
+        for filename, text in texts:
+            out += ["", f"--- {filename} ---", "", text]
+    for filename in ("lucide-LICENSE.txt", "feather-LICENSE.txt", "FIDO-METADATA-NOTICE.txt",
+                     "LIBRARY-REPLACEMENT.txt"):
+        out += [rule, filename, rule, "", (ROOT / "packaging" / "licenses" / filename).read_text().strip(), ""]
+    from make_service_icons import reviewed_brands, asset_bytes
+    for name, info in sorted(reviewed_brands().items()):
+        if info["status"] != "enabled":
+            continue
+        asset_bytes(name, info)  # fails if the reviewed original was changed
+        out += [rule, info["title"] + " – original brand asset", rule, info["attribution"],
+                "Used only to identify the corresponding account; no affiliation or endorsement.",
+                "Usage terms: " + info["terms_url"], "Original asset: " + info["asset_url"],
+                "These trademarks are not licensed under KeyMelier's MIT license or CC0.", ""]
+    if sys.platform == "win32":
+        for filename in ("webview2-1.0.3856.49-LICENSE.txt", "webview2-1.0.3856.49-NOTICE.txt"):
+            out += [rule, "Microsoft WebView2 SDK 1.0.3856.49 – " + filename, rule,
+                    (ROOT / "packaging" / "licenses" / filename).read_text(), ""]
+    if sys.platform.startswith("linux"):
+        for filename in ("appimage-runtime-LICENSE.txt", "musl-COPYRIGHT.txt", "zstd-LICENSE.txt",
+                         "zlib-LICENSE.txt", "mimalloc-LICENSE.txt"):
+            out += [rule, "AppImage runtime / static dependency — " + filename, rule,
+                    (ROOT / "packaging/licenses" / filename).read_text(), ""]
+    for name, text in native_notices:
+        out += [rule, name, rule, text, ""]
     out += [rule, f"Python {sys.version.split()[0]} – PSF License", rule, "", python_license(), ""]
     if missing:
-        print("Note: no license file shipped by: " + ", ".join(missing), file=sys.stderr)
+        raise ValueError("Missing original license texts: " + ", ".join(missing))
     return "\n".join(out)
 
 
-def write(path: Path) -> Path:
+def write(path: Path, names=None, native_notices=()) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(build(), encoding="utf-8")
+    # Check all vendored notices against the reviewed originals.
+    provenance = json.loads((ROOT / "packaging/licenses/provenance.json").read_text())
+    for name, info in provenance.items():
+        raw = (ROOT / "packaging/licenses" / name).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != info["sha256"]:
+            raise ValueError(f"Vendored license changed: {name}")
+    path.write_text(build(names, native_notices), encoding="utf-8")
     return path
 
 

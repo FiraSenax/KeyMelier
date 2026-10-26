@@ -1295,9 +1295,9 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 #accounts-view .backup-content { max-width: none; }
 .acc-table { width: 100%; }
 .acc-table th.acc-key, .acc-table td.yes, .acc-table td.no { text-align: center; }
-/* Service logos (bundled, Simple Icons) */
-.pk-avatar.svc-logo { background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
-.pk-avatar.svc-logo svg { width: 60%; height: 60%; }
+/* Original reviewed service logos, with clear space and their original colours. */
+.pk-avatar.svc-logo { background: #fff; border: 0; cursor: pointer; padding: 0; }
+.pk-avatar.svc-logo img { width: 60%; height: 60%; object-fit: contain; }
 .acc-table td.unknown { color: var(--text-3); text-align: center; }
 .acc-src { display: block; font-size: 0.68rem; color: var(--text-2); margin-top: 2px; }
 .acc-status { font-weight: 500; }

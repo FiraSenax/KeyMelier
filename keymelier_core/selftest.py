@@ -39,7 +39,7 @@ PAGE_CHECKS = r"""
     ok('page: 11 languages, complete', langs.length === 11 && langs.every(l => Object.keys(STRINGS[l]).length >= n), `${langs.length} languages, ${n} keys`);
     ok('page: translated text rendered', ($('nav-backup')?.textContent || '').trim().length > 0, $('nav-backup')?.textContent);
     ok('page: UI icons', typeof ICONS === 'object' && Object.keys(ICONS).length >= 10 && $('nav-backup-icon').querySelector('svg'), Object.keys(ICONS || {}).length);
-    ok('page: service logos', typeof SERVICE_ICONS === 'object' && Object.keys(SERVICE_ICONS).length >= 20, Object.keys(SERVICE_ICONS || {}).length);
+    ok('page: service logos', typeof SERVICE_ICONS === 'object' && Object.keys(SERVICE_ICONS).length >= 1 && Object.values(SERVICE_ICONS).every(i => i.src.startsWith('data:image/svg+xml;base64,') && i.url.startsWith('https://')), Object.keys(SERVICE_ICONS || {}).length);
     const img = document.querySelector('.brand img');
     ok('page: app icon (inlined image) decoded', img && img.complete && img.naturalWidth > 0, img?.naturalWidth);
     ok('page: stylesheet applied', getComputedStyle(document.querySelector('.sidebar')).display !== 'inline' && document.querySelector('.sidebar').getBoundingClientRect().width > 150,
@@ -98,7 +98,11 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
 
     def smartcard():
         import smartcard.System  # noqa: F401  (PC/SC; no reader access here)
-        return "pyscard"
+        # This LGPL library must remain an actually loaded, replaceable file.
+        path = Path(smartcard.System.__file__)
+        if not path.is_file() or path.suffix != ".py":
+            raise ValueError("pyscard Python module is not an external replaceable source file")
+        return "pyscard (external Python source)"
 
     def ykman():
         import ykman  # noqa: F401

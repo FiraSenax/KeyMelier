@@ -5099,6 +5099,65 @@ const I18N_PACKAGE_UPDATES = {
 };
 for (const [code, text] of Object.entries(I18N_PACKAGE_UPDATES)) STRINGS[code]['upd.managed'] = text;
 
+const I18N_MDS_TERMS = {
+  "de": {
+    "mds.terms": "FIDO-Metadaten: Nutzungsbedingungen",
+    "mds.termsNotice": "Metadaten unterliegen den Bedingungen der FIDO Alliance und der Hersteller.",
+    "mds.legalHeader": "Rechtlicher Hinweis"
+  },
+  "en": {
+    "mds.terms": "FIDO metadata terms",
+    "mds.termsNotice": "Metadata is subject to the terms of the FIDO Alliance and contributing vendors.",
+    "mds.legalHeader": "Legal header"
+  },
+  "es": {
+    "mds.terms": "Condiciones de los metadatos FIDO",
+    "mds.termsNotice": "Los metadatos están sujetos a las condiciones de FIDO Alliance y de los fabricantes.",
+    "mds.legalHeader": "Aviso legal"
+  },
+  "fr": {
+    "mds.terms": "Conditions des métadonnées FIDO",
+    "mds.termsNotice": "Les métadonnées sont soumises aux conditions de FIDO Alliance et des fabricants.",
+    "mds.legalHeader": "Mention légale"
+  },
+  "it": {
+    "mds.terms": "Condizioni dei metadati FIDO",
+    "mds.termsNotice": "I metadati sono soggetti alle condizioni di FIDO Alliance e dei produttori.",
+    "mds.legalHeader": "Avviso legale"
+  },
+  "nl": {
+    "mds.terms": "Voorwaarden voor FIDO-metadata",
+    "mds.termsNotice": "Voor metadata gelden de voorwaarden van de FIDO Alliance en de fabrikanten.",
+    "mds.legalHeader": "Juridische kennisgeving"
+  },
+  "pl": {
+    "mds.terms": "Warunki metadanych FIDO",
+    "mds.termsNotice": "Metadane podlegają warunkom FIDO Alliance i producentów.",
+    "mds.legalHeader": "Informacja prawna"
+  },
+  "pt": {
+    "mds.terms": "Termos dos metadados FIDO",
+    "mds.termsNotice": "Os metadados estão sujeitos aos termos da FIDO Alliance e dos fabricantes.",
+    "mds.legalHeader": "Aviso legal"
+  },
+  "ja": {
+    "mds.terms": "FIDO メタデータの利用条件",
+    "mds.termsNotice": "メタデータには FIDO Alliance と提供メーカーの利用条件が適用されます。",
+    "mds.legalHeader": "法的通知"
+  },
+  "ko": {
+    "mds.terms": "FIDO 메타데이터 이용 약관",
+    "mds.termsNotice": "메타데이터에는 FIDO Alliance 및 제공 제조업체의 약관이 적용됩니다.",
+    "mds.legalHeader": "법적 고지"
+  },
+  "zh": {
+    "mds.terms": "FIDO 元数据使用条款",
+    "mds.termsNotice": "元数据受 FIDO 联盟及提供商的使用条款约束。",
+    "mds.legalHeader": "法律声明"
+  }
+};
+for (const [code, strings] of Object.entries(I18N_MDS_TERMS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {
