@@ -953,7 +953,7 @@ let updateFlow = null;
 function renderUpdateBanner() {
   const app = dataStatus?.app;
   $('version-text').textContent = app?.current || '';
-  const show = !!(app && app.newer && app.url);
+  const show = !!(app && !app.managed && app.newer && app.url);
   $('update-banner').classList.toggle('hidden', !show);
   if (!show) return;
   const btn = $('update-btn');
@@ -974,6 +974,7 @@ function renderUpdateBanner() {
 
 async function onUpdateButton() {
   const app = dataStatus?.app;
+  if (app?.managed) return showToast(t('upd.managed'), 'info');
   if (updateFlow?.stage === 'ready') {
     return call('update_open').catch(e => showToast(errorMessage(e), 'error'));
   }
@@ -1011,7 +1012,7 @@ function renderDataStatus() {
     ...(st.mds?.entry_count && !st.mds.revocation_checked ? [['', t('data.revocationUnknown')]] : []),
     [t('data.lastCheck'), st.last_check ? fmtDate(st.last_check) : t('data.pending')],
     [t('data.appVersion'), st.app?.current
-      ? `${st.app.current}${st.app.latest ? ` · ${st.app.newer ? t('upd.available', { v: st.app.latest }) : t('upd.upToDate')}` : ''}`
+      ? `${st.app.current}${st.app.managed ? ` · ${t('upd.managed')}` : st.app.latest ? ` · ${st.app.newer ? t('upd.available', { v: st.app.latest }) : t('upd.upToDate')}` : ''}`
       : '—'],
   ]);
 }
@@ -1027,6 +1028,7 @@ async function checkForUpdates() {
     renderDataStatus();
     const app = dataStatus.app || {};
     if (app.failed) showToast(t('upd.checkFailed'), 'error');
+    else if (app.managed) showToast(t('upd.managed'), 'info');
     else if (app.newer) showToast(t('upd.available', { v: app.latest }), 'success');
     else showToast(t('upd.current', { v: app.current }), 'success');
   } catch (e) {

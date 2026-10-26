@@ -214,6 +214,8 @@ class KeyService:
         """Download and verify the newer release for this platform (in the
         background; progress via update_progress events)."""
         from keymelier_core import app_update
+        if app_update.is_msix():
+            raise PinError("Updates are managed by the package installation.", "disabled")
         if stateless():
             raise PinError("Downloads are disabled in stateless mode.", "disabled")
         info = self._app_update or {}
@@ -239,6 +241,8 @@ class KeyService:
 
     def update_open(self) -> dict:
         from keymelier_core import app_update
+        if app_update.is_msix():
+            raise PinError("Updates are managed by the package installation.", "disabled")
         path = getattr(self, "_update_path", None)
         if not path or not path.exists():
             raise PinError("The update file is no longer there.", "no_update")

@@ -50,7 +50,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Code signing
 
-From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux builds are still **unsigned** (each release's notes say so). Windows signing is being set up via the SignPath Foundation's open-source program (applied; once accepted: free code signing provided by SignPath.io, certificate by SignPath Foundation). See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
+From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux releases are still **unsigned** (each release's notes say so). The SignPath Foundation application was not accepted. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
 ## Download
 

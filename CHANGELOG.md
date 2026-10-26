@@ -1,12 +1,11 @@
 # Changelog
 
-## Unreleased
-
-- Show the AAGUID in the key overview and let users copy it from there or from technical details without unlocking the key. Explain the model identifier, mark saved offline values and explain an all-zero AAGUID.
-
 ## 1.8.6 — 2026-10-26
 
-Security hardening and internal refactoring. No new application features.
+Security hardening, internal refactoring and easier access to the authenticator model identifier.
+
+- Show the AAGUID in the key overview and let users copy it from there or from technical details without unlocking the key. Explain the model identifier, mark saved offline values and explain an all-zero AAGUID.
+- Prepare a separate Windows MSIX test package with local test signing, installation and upgrade checks. Packaged installations defer application updates to their package manager. This is preparation only; no Microsoft Store submission or approval.
 
 - Rename the core package and build spec to KeyMelier, update imports and build tooling, and consolidate the license documentation. Upgrade fixtures still support historical releases with the former package name.
 - Stop displaying previously verified authenticity results when the supporting metadata or revocation information expires.

@@ -4952,6 +4952,20 @@ const I18N_AAGUID = {
   },
 };
 for (const [code, strings] of Object.entries(I18N_AAGUID)) Object.assign(STRINGS[code], strings);
+const I18N_PACKAGE_UPDATES = {
+  de: 'Updates für diese Installation erhältst du über den Microsoft Store oder deine Paketverwaltung.',
+  en: 'Get updates for this installation through Microsoft Store or your package administrator.',
+  es: 'Obtén las actualizaciones de esta instalación a través de Microsoft Store o del administrador de paquetes.',
+  fr: 'Obtenez les mises à jour de cette installation via le Microsoft Store ou votre administrateur de paquets.',
+  it: 'Ottieni gli aggiornamenti per questa installazione tramite Microsoft Store o il tuo amministratore dei pacchetti.',
+  nl: 'Ontvang updates voor deze installatie via de Microsoft Store of je pakketbeheerder.',
+  pl: 'Aktualizacje tej instalacji są dostępne w Microsoft Store lub u administratora pakietów.',
+  pt: 'Obtenha atualizações desta instalação através da Microsoft Store ou do administrador de pacotes.',
+  ja: 'このインストールの更新は、Microsoft Store またはパッケージ管理者から入手してください。',
+  ko: '이 설치의 업데이트는 Microsoft Store 또는 패키지 관리자에게서 받으세요.',
+  zh: '请通过 Microsoft Store 或软件包管理员获取此安装的更新。',
+};
+for (const [code, text] of Object.entries(I18N_PACKAGE_UPDATES)) STRINGS[code]['upd.managed'] = text;
 
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
