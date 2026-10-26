@@ -2,14 +2,14 @@
 
 ## 1.8.6 — 2026-10-26
 
-Security hardening, internal refactoring and easier access to key and account details.
+Signed Windows releases, security hardening and easier access to key and account details.
 
-- **RC3:** import one authenticator QR code from a local PNG/JPEG image. Review and edit the decoded account before saving; preserve the hash algorithm, digits, TOTP period and HOTP counter. No screenshot capture, upload or automatic key write. Multi-account exports are not supported in this release.
-- **RC3:** show and copy complete passkey credential IDs and user IDs, with wrapping for long values.
-- **RC3:** read additional device identifiers directly over FIDO HID on supported Token2, Solo 2, Nitrokey 3 and Nitrokey Passkey devices. Recheck before operations; unsupported or malformed replies do not become identities. Previously shared history without a serial stays separate for review. These new vendor reads still need model-specific hardware confirmation; this is not the full serial-less recognition project.
+- Import one authenticator QR code from a local PNG/JPEG image. Review and edit the decoded account before saving; preserve the hash algorithm, digits, TOTP period and HOTP counter. No screenshot capture, upload or automatic key write. Multi-account exports are not supported in this release.
+- Show and copy complete passkey credential IDs and user IDs, with wrapping for long values.
+- Read additional device identifiers directly over FIDO HID on supported Token2, Solo 2, Nitrokey 3 and Nitrokey Passkey devices. Recheck before operations; unsupported or malformed replies do not become identities. Previously shared history without a serial stays separate for review. These new vendor reads still need model-specific hardware confirmation; this is not the full serial-less recognition project.
 
 - Show the AAGUID in the key overview and let users copy it from there or from technical details without unlocking the key. Mark saved offline values and explain an all-zero AAGUID.
-- Prepare Certum SimplySign signing for the Windows app, installer and uninstaller, replacing SignPath. Add native signature checks and a provider probe; real signing awaits certificate issuance. Website signing status follows verified stable-release metadata.
+- Sign the Windows app, installer and uninstaller with Certum SimplySign, replacing SignPath. Verify the publisher and trusted timestamp with native Windows checks. macOS remains Developer ID signed and notarized; Linux remains unsigned. Website signing status follows verified stable-release metadata.
 - Prepare a separate Windows MSIX test package with local test signing, installation and upgrade checks. Packaged installations defer application updates to their package manager. This is preparation only; no Microsoft Store submission or approval.
 
 - Rename the core package and build spec to KeyMelier, update imports and build tooling, and consolidate the license documentation. Upgrade fixtures still support historical releases with the former package name.
