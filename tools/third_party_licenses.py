@@ -149,6 +149,15 @@ def build(names=None, native_notices=()) -> str:
                 "Usage terms: " + info["terms_url"], "Original asset: " + info["asset_url"],
                 "These trademarks are not licensed under KeyMelier's MIT license or CC0.", ""]
     if sys.platform == "win32":
+        out += [rule, "Microsoft runtime components", rule,
+                "The following Microsoft terms apply only to Microsoft's runtime components,",
+                "not to KeyMelier's MIT code or its separately licensed open-source libraries.",
+                "VC DLLs are collected from Visual Studio 2022's retail redistributable folder;",
+                "UCRT/API-set DLLs from the Windows SDK's retail UCRT redistributable folder.",
+                "Exact file origins, versions and hashes: BUNDLE_INVENTORY.json (binary_inputs).",
+                "Developer redistribution terms: https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+                "UCRT deployment: https://learn.microsoft.com/en-us/cpp/windows/universal-crt-deployment",
+                (ROOT / "packaging/licenses/microsoft-vc-runtime-2015-2022.txt").read_text(), ""]
         for filename in ("webview2-1.0.3856.49-LICENSE.txt", "webview2-1.0.3856.49-NOTICE.txt"):
             out += [rule, "Microsoft WebView2 SDK 1.0.3856.49 – " + filename, rule,
                     (ROOT / "packaging" / "licenses" / filename).read_text(), ""]

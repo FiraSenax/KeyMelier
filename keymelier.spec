@@ -184,6 +184,9 @@ if sys.platform.startswith('linux'):
     a.datas = [entry for entry in a.datas if _wanted(entry[0])]
 
 # Describe actual collected files, including otherwise build-only packages.
+if sys.platform == 'win32':
+    import windows_runtime
+    a.binaries = windows_runtime.select(a.binaries)
 import bundle_inventory  # noqa: E402
 PACKAGE_NAMES, NATIVE_PACKAGES, VENDORED_PACKAGES, INVENTORY_FILE = bundle_inventory.collect(a)
 import corresponding_sources  # noqa: E402

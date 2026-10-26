@@ -63,5 +63,11 @@
   "mimalloc-LICENSE.txt": {
     "source": "https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE",
     "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+  },
+  "microsoft-vc-runtime-2015-2022.txt": {
+    "source": "https://visualstudio.microsoft.com/wp-content/uploads/2021/09/Visual-C-Runtime-2015-2022-License-1.docx",
+    "sha256": "7e96c27c67ef3e7cabc55e1dee05727e67d261f3944155a816a07dbf9b78fb1d",
+    "source_docx_sha256": "f1e3d56ceb2ad68aae0711b910375009e651ac5530fa0760f0dea6e81e54fae1",
+    "extraction": "Unmodified paragraph text from word/document.xml, paragraphs separated by newlines; numbering/layout remain in the original DOCX."
   }
 }

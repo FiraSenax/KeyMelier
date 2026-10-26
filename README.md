@@ -112,6 +112,12 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 > On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`.
 
+Windows packaging also requires Visual Studio 2022's C++ retail redistributables
+and the Windows SDK's x64 UCRT redistributables. The build uses their documented
+Redist folders, records the original paths and hashes, and refuses arbitrary
+copies found elsewhere on PATH. Microsoft components retain their own terms;
+see the bundled third-party notices and the license audit before redistribution.
+
 ### Linux
 
 ```bash
