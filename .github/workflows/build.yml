@@ -342,6 +342,8 @@ jobs:
         run: |
           # Source packages must match the native libraries collected below.
           sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          # Expose ordinary HTTPS source URLs instead of APT's mirror+file URIs.
+          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3-venv python3-dev libpcsclite-dev swig squashfs-tools liblzma5 \
