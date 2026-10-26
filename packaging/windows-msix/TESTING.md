@@ -25,7 +25,7 @@ powershell -NoProfile -File tools/test_msix.ps1
 second revision exists to exercise the package upgrade path. The script creates
 a non-exportable test signing key, exports only its PUBLIC `.cer`, signs both
 packages, and removes its private key in `finally`. The certificate expires in
-14 days. No production certificate, SignPath or Store API is used.
+14 days. No production certificate or Store API is used.
 
 The **MSIX local test** Actions workflow runs the same process on Windows.
 It only has read permissions and retains the `msix-local-test` artifact for

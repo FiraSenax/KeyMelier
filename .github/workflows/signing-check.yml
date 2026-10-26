@@ -1,5 +1,6 @@
 name: Signing check
-# Checks the macOS signing secrets of the release-signing environment before a
+# vsigncheck-win-* tests Certum without publishing; other vsigncheck-* tags
+# check macOS. Checks the macOS signing secrets of the release-signing environment before a
 # release: import the Developer ID, sign a tiny test app with the hardened
 # runtime, notarize it, staple the ticket and let Gatekeeper assess it.
 # Triggered by a tag vsigncheck-* (the environment only admits v* tags; the
@@ -11,6 +12,7 @@ permissions:
   contents: read
 jobs:
   macos:
+    if: ${{ !startsWith(github.ref_name, 'vsigncheck-win-') }}
     runs-on: macos-14
     environment: release-signing
     steps:
@@ -66,3 +68,36 @@ jobs:
       - name: Remove temporary signing keychain
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/keymelier-signing.keychain-db" || true
+  windows:
+    if: startsWith(github.ref_name, 'vsigncheck-win-')
+    runs-on: windows-2022
+    timeout-minutes: 15
+    environment: release-signing
+    concurrency:
+      group: certum-signing
+      cancel-in-progress: false
+    env:
+      CERTUM_CERT_SHA1: ${{ vars.CERTUM_CERT_SHA1 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Compile a harmless signing probe
+        shell: pwsh
+        run: |
+          'class Probe { static void Main() {} }' | Set-Content "$env:RUNNER_TEMP\probe.cs"
+          & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe "/out:$env:RUNNER_TEMP\probe.exe" "$env:RUNNER_TEMP\probe.cs"
+          if ($LASTEXITCODE -ne 0) { throw 'Probe compilation failed.' }
+      - name: Connect Certum SimplySign
+        uses: ./.github/actions/certum-connect
+        with:
+          username: ${{ secrets.CERTUM_USERNAME }}
+          totp-secret: ${{ secrets.CERTUM_TOTP_SECRET }}
+          thumbprint: ${{ vars.CERTUM_CERT_SHA1 }}
+      - name: Sign and verify the probe with the issued certificate
+        shell: pwsh
+        run: ./tools/sign-windows.ps1 -Path "$env:RUNNER_TEMP/probe.exe"
+      - name: Disconnect SimplySign
+        if: always()
+        shell: pwsh
+        run: ./tools/disconnect-simplysign.ps1

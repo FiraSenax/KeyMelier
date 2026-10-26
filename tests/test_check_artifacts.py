@@ -218,6 +218,20 @@ class CheckArtifactsTests(unittest.TestCase):
                 ca.check_notes(r, notes, not mac, win)
                 self.assertTrue(r.problems, "a wrong signing claim is found")
 
+    def test_website_cannot_claim_a_signature_missing_from_the_packages(self):
+        import release_notes
+        for wrong in ('{"schema":1,"macos":true,"windows":true}',
+                      '{"schema":1,"macos":true,"windows":"false"}',
+                      '{"schema":1,"macos":true,"windows":0}', 'invalid'):
+            with self.subTest(wrong=wrong):
+                text = release_notes.notes(True, False)
+                text = text.replace('{"schema":1,"macos":true,"windows":false}', wrong)
+                path = self.tmp / 'notes.md'
+                path.write_text(text)
+                r = ca.Report()
+                ca.check_notes(r, path, True, False)
+                self.assertTrue(r.problems)
+
     def test_report_names_commit_version_artifacts_and_jobs(self):
         notes = make_release(self.dir)
         r = ca.run(["release", str(self.dir), "--commit", COMMIT, "--notes", str(notes),

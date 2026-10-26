@@ -2,10 +2,13 @@
 
 > **Status (October 2026):** from version 1.8.2 the macOS app is signed with
 > the maintainer's Apple Developer ID and notarized by Apple. Windows builds
-> are still **unsigned**: the SignPath Foundation application was not accepted.
+> are still **unsigned** while the purchased Certum certificate awaits issuance
+> and its first production signing check. The SignPath integration has been removed.
 > Each release's notes state the actual signing state per platform.
 
-Windows: GitHub installers remain unsigned. The experimental MSIX path uses a
+Windows: Certum SimplySign is prepared for signing the app, installer and
+uninstaller. The existing GitHub installers remain unsigned; only a newly built,
+verified release can change that state. The experimental MSIX path uses a
 temporary, self-signed test certificate and has no Store approval. See the
 [local test guide](packaging/windows-msix/TESTING.md). A future Store MSIX would
 be signed by Microsoft during publication; that does not sign the GitHub EXE.
@@ -16,6 +19,9 @@ macOS: signed with the maintainer's Apple Developer ID and notarized by Apple.
 
 - Production macOS packages built from this repository by GitHub Actions on
   reviewed version tags are Developer ID signed and notarized.
+- When Windows signing is enabled, the app, setup and embedded uninstaller must
+  match the configured Certum certificate and pass native signature and timestamp
+  verification. Any failure stops release publication.
 - Local MSIX test packages are signed by a temporary test key; only the public
   certificate is retained with the packages. These signatures are not production
   publisher verification. The workflow deletes its private key after signing.

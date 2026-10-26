@@ -1,0 +1,53 @@
+name: Connect Certum SimplySign
+description: Verified SimplySign installation and protected cloud login on a disposable Windows runner
+inputs:
+  username:
+    description: SimplySign account email (environment secret)
+    required: true
+  totp-secret:
+    description: SimplySign Base32 TOTP seed (environment secret, not a six-digit code)
+    required: true
+  thumbprint:
+    description: Exact issued code-signing certificate SHA1 thumbprint
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Require the complete Certum configuration
+      shell: pwsh
+      env:
+        CERTUM_USERNAME: ${{ inputs.username }}
+        CERTUM_TOTP_SECRET: ${{ inputs.totp-secret }}
+        CERTUM_CERT_SHA1: ${{ inputs.thumbprint }}
+      run: |
+        . ./tools/windows-signing.ps1
+        Assert-SigningThumbprint $env:CERTUM_CERT_SHA1
+        if ([string]::IsNullOrWhiteSpace($env:CERTUM_USERNAME) -or $env:CERTUM_TOTP_SECRET -notmatch '^[A-Za-z2-7]{16,}={0,6}$') {
+          throw 'Configure CERTUM_USERNAME and CERTUM_TOTP_SECRET in release-signing. Unsigned fallback is disabled.'
+        }
+    - name: Install the hash-pinned official client
+      shell: pwsh
+      run: ./tools/install-simplysign.ps1
+    # Community login helper, not an official Certum API. Reviewed and pinned;
+    # installation above enforces the vendor MSI hash and Authenticode signature.
+    # Its installer skips the existing client. Never enable desktop/log capture.
+    - name: Connect the cloud certificate
+      uses: jay0lee/certum-cloud-code-sign@a3324503499c49090869856eeeecfe95fb613d87
+      with:
+        username: ${{ inputs.username }}
+        totp_secret: ${{ inputs.totp-secret }}
+        cert_sha1: ${{ inputs.thumbprint }}
+        version: '9.4.4.92'
+        totp_algorithm: SHA-256
+        totp_digits: '6'
+        totp_period: '30'
+        wait_for_cert_timeout: '60'
+        debug: 'false'
+    - name: Check the exact signing identity
+      shell: pwsh
+      env:
+        CERTUM_CERT_SHA1: ${{ inputs.thumbprint }}
+      run: |
+        . ./tools/windows-signing.ps1
+        $cert = Get-KeyMelierSigningCertificate $env:CERTUM_CERT_SHA1
+        if ($cert.Issuer -notmatch 'Certum') { throw 'The configured certificate was not issued by Certum.' }

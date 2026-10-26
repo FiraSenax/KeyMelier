@@ -78,7 +78,7 @@
   <h3>Windows</h3>
   <ol>
     <li>Run <code>KeyMelier-Windows-Setup.exe</code>. It installs KeyMelier (Start menu entry, uninstaller) or updates an existing installation.</li>
-    <li>If SmartScreen appears: <b>More info → Run anyway</b> (releases are not yet code-signed).</li>
+    <li>Check the release notes for the signing status and compare the SHA-256 checksum. For a signed release, the installer's <b>Properties → Digital Signatures</b> must show a valid publisher signature. SmartScreen can still show a reputation warning. For an unsigned release that you have verified and trust, choose <b>More info → Run anyway</b> if needed.</li>
     <li>KeyMelier asks for administrator rights when it starts – Windows only lets administrators talk to FIDO keys directly.</li>
   </ol>
   <p>Without installer: the <code>…-macOS.zip</code> and <code>…-Windows.zip</code> files contain the same apps.</p>

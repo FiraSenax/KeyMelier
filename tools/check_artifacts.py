@@ -313,6 +313,18 @@ def check_sums(r: Report, folder: Path) -> None:
 
 def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> None:
     text = notes.read_text(encoding="utf-8")
+    # Missing metadata is safe for older releases (the website uses a neutral
+    # fallback); present metadata must agree exactly with verified job outputs.
+    if 'keymelier-signing:' in text:
+        markers = re.findall(r'<!-- keymelier-signing: (\{[^\r\n]*\}) -->', text)
+        try:
+            status = json.loads(markers[0]) if len(markers) == 1 else None
+        except (ValueError, TypeError):
+            status = None
+        expected = {"schema": 1, "macos": mac_signed, "windows": win_signed}
+        r.check(status == expected and isinstance(status.get('macos'), bool)
+                and isinstance(status.get('windows'), bool) if isinstance(status, dict) else False,
+                "website signing metadata matches verified platform outputs")
     r.check(("Not notarized" in text) != mac_signed, "release notes state the macOS notarization correctly")
     r.check(("Not signed" in text) != win_signed, "release notes state the Windows signing correctly")
     for arch in LINUX_ARCHES:
