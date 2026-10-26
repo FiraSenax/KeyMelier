@@ -34,7 +34,7 @@ The normal signed macOS RC and GitHub installer workflow remain separate.
 
 The installation test refuses to overwrite an existing `KeyMelier.LocalTest`
 installation. It temporarily trusts the public test certificate, installs the
-first MSIX, and runs the actual installed executable with a real GUI and an
+first MSIX, and activates the installed app through its package execution alias with a real GUI and an
 isolated temporary user-data directory. It verifies:
 
 - The running process really has Windows package identity.

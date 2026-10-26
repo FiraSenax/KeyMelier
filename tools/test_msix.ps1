@@ -55,7 +55,11 @@ try {
         }
         $env:SMOKE_REQUIRE_MSIX = '1'
         $env:SMOKE_ARTIFACTS = Join-Path $repo "build\msix-smoke-$($entry.version)"
-        & python tools/smoke_packaged.py (Join-Path $package.InstallLocation 'KeyMelier.exe')
+        # Package activation must go through Windows, not CreateProcess on the
+        # protected WindowsApps payload. Use this package's alias, not a PATH lookup.
+        $alias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$family\keymelier-msix-test.exe"
+        if (!(Test-Path $alias)) { throw 'The package execution alias was not registered.' }
+        & python tools/smoke_packaged.py $alias
         if ($LASTEXITCODE -ne 0) { throw "Installed MSIX start test failed for $($entry.version)." }
         $checks.Add("installed $($entry.version): GUI, package identity, update policy, native credentials and isolated data")
         if (!$marker) {
