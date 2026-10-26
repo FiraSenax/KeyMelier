@@ -127,7 +127,7 @@ def calculate(conn, account_id: str) -> dict:
 
 def add(conn, uri: str | None = None, issuer: str = "", name: str = "", secret: str = "",
         oath_type: str = "TOTP", digits: int = 6, period: int = 30, algorithm: str = "SHA1",
-        touch: bool = False) -> dict:
+        touch: bool = False, counter: int = 0) -> dict:
     from yubikit.oath import HASH_ALGORITHM, OATH_TYPE, CredentialData, parse_b32_key
 
     try:
@@ -143,6 +143,7 @@ def add(conn, uri: str | None = None, issuer: str = "", name: str = "", secret: 
                 secret=parse_b32_key(secret),
                 digits=int(digits),
                 period=int(period),
+                counter=int(counter),
                 issuer=issuer.strip() or None,
             )
     except CardError:
@@ -150,7 +151,7 @@ def add(conn, uri: str | None = None, issuer: str = "", name: str = "", secret: 
     except Exception:
         raise CardError("The account data is invalid (check the secret or the otpauth:// link).",
                         "invalid_input") from None
-    if data.digits not in (6, 7, 8) or not (1 <= data.period <= 300):
+    if data.digits not in (6, 7, 8) or not (1 <= data.period <= 300) or not (0 <= data.counter <= 0xFFFFFFFF):
         raise CardError("Unsupported digits or period.", "invalid_input")
     if len(data.get_id()) > 64:
         raise CardError("Issuer and account name are too long.", "name_too_long", max=64)

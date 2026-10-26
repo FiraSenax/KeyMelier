@@ -212,11 +212,11 @@ function aaguidValueHtml(token) {
 }
 
 function renderAaguid(token) {
-  const notes = [t('aaguid.hint')];
+  const notes = [];
   if (aaguidValue(token) === '00000000-0000-0000-0000-000000000000') notes.push(t('aaguid.zero'));
   if (token.offline) notes.push(t('aaguid.saved'));
   $('aaguid-card').innerHTML = `<div class="aaguid-heading"><h2>${escHtml(t('det.aaguid'))}</h2>${aaguidValueHtml(token)}</div>
-    <p class="field-hint">${escHtml(notes.join(' '))}</p>`;
+    ${notes.length ? `<p class="field-hint">${escHtml(notes.join(' '))}</p>` : ''}`;
 }
 
 // { cls: pass|fail|partial|running, text } for an attestation result

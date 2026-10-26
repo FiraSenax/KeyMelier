@@ -74,6 +74,8 @@ a = Analysis(
         ('LICENSE', '.'),
     ],
     hiddenimports=[
+        # Local QR-image import; image formats are deliberately limited.
+        'zxingcpp', 'PIL.PngImagePlugin', 'PIL.JpegImagePlugin',
         # fido2 / CTAP
         'fido2',
         'fido2.hid',

@@ -31,13 +31,13 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 - **Security check:** per-key checklist with direct links to fix issues (PIN, vulnerabilities, authenticity, fingerprints, backups)
 - **Security:** attestation evidence (verified / unverified / failed), certification status, known vulnerabilities from a curated advisory database
 - **PIN:** status and remaining attempts, set or change the PIN (incl. keys that require a first PIN change, e.g. pre-registered YubiKey as a Service keys)
-- **Passkeys:** list discoverable credentials per website, rename and delete them
+- **Passkeys:** list discoverable credentials per website, rename and delete them; view and copy full credential IDs and user IDs
 - **Account overview:** every service across all your keys with what to improve – only on one key, only on a lost key, codes only (for people whose keys all belong to them; can be turned off when managing keys for several people)
 - **Backup & loss:** which websites and authenticator accounts are on which key, those without a second key are highlighted; a lost-key assistant lists the accounts to remove the key from, the authenticator accounts to re-enroll, the OpenPGP keys to revoke and the PIV certificates to have revoked
 - **Function test:** register, sign in and verify a signature like a real website – nothing is stored on the key
 - **Key settings:** minimum PIN length, always require PIN/fingerprint, force a PIN change
 - **Fingerprints** (bio keys): enroll with live guidance, rename, delete
-- **Authenticator (OATH):** TOTP/HOTP codes with countdown and copy, add via `otpauth://` link or by hand, rename, delete, password, reset
+- **Authenticator (OATH):** TOTP/HOTP codes with countdown and copy, add via `otpauth://` link, a local PNG/JPEG QR image, or by hand; review imported fields before saving, including algorithm, digits, period and HOTP counter; rename, delete, password, reset. QR images are decoded locally and never uploaded; one account per image (no bulk exports yet).
 - **OpenPGP:** generate keys directly on the security key (Ed25519/Cv25519, NIST P-256, RSA 2048/4096) with the public key for GnuPG and a revocation certificate, optional import into GnuPG; keys per slot with fingerprint and algorithm, signature counter, cardholder data, PIN/admin PIN (change, unblock, retries), signature PIN policy, touch policies, reset – YubiKey and other OpenPGP cards (e.g. Token2)
 - **PIV:** certificates per slot with validity, generate a key with a self-signed certificate, import/copy/delete certificates, PIN/PUK, protect the management key with the PIN, warnings for factory defaults, reset
 - **YubiKey OTP slots:** see which slots are used, static password, HMAC-SHA1 challenge-response (e.g. KeePassXC), swap, delete. On macOS this needs the "Input Monitoring" permission for KeyMelier
@@ -50,7 +50,7 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 
 ## Code signing
 
-From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows and Linux releases are still **unsigned** (each release's notes say so). The SignPath Foundation application was not accepted. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
+From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows releases published before Certum setup remain **unsigned**; the real SimplySign signing probe passed on 26 October 2026, and subsequent candidates must pass signature checks before publication. Each release's notes state its actual signing status. Linux packages remain unsigned. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.
 
 ## Download
 
@@ -134,7 +134,7 @@ Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclit
 ## Limitations
 
 - Only passkeys stored **on** the key (discoverable credentials) can be listed. Classic two-factor registrations (U2F / "security key as second factor") are not stored on the key and cannot be listed by any tool.
-- FIDO keys expose no unique serial number over FIDO. YubiKeys are told apart by the serial read via yubikit, other keys by their USB serial when they report one; two keys of the same model without any serial share one history entry. Planned for 1.9: [recognise them individually](ROADMAP.md).
+- Standard FIDO does not expose a unique serial number. Besides USB serials and YubiKey management serials, RC3 reads vendor identifiers over the same HID connection: Token2's `0x41` GET_INFO channel and the Trussed admin UUID on Solo 2, Nitrokey 3 and Nitrokey Passkey. Support depends on firmware and needs hardware confirmation. When a newly supported identifier is found, an older no-serial history entry is kept separate rather than assigned to that key. Keys that expose no usable identifier can still share a history entry; the broader [recognition project](ROADMAP.md) is separate work.
 - A factory reset deletes passkeys, PIN and fingerprints but does not fix firmware vulnerabilities.
 
 ## FIDO Alliance MDS3
