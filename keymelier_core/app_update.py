@@ -49,7 +49,7 @@ def check() -> dict:
                 return result  # no release published yet
             release = json.loads(read_limited(resp, 1024 * 1024))
     except Exception as e:
-        logger.info("App update check failed: %s", e)
+        logger.info("App update check failed: %s", type(e).__name__)
         result["failed"] = True   # offline or GitHub unreachable – say so when asked
         return result
     if not isinstance(release, dict) or not isinstance(release.get("tag_name", ""), str) or not isinstance(release.get("assets", []), list):
@@ -94,6 +94,10 @@ def download(asset: dict, progress=None) -> Path:
     """Download the asset, verify its SHA-256 against SHA256SUMS.txt of the
     same release and return the local path. Deletes the file on mismatch."""
     import requests
+    from keymelier_core.storage import stateless
+
+    if stateless():
+        raise UpdateError("Downloads are disabled in stateless mode.")
 
     if not isinstance(asset, dict):
         raise UpdateError("Unexpected download location.")

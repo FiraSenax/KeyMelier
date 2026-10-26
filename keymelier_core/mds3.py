@@ -61,7 +61,7 @@ class MDS3Client:
         except FileNotFoundError:
             return None
         except (MdsVerificationError, KeyError, ValueError, TypeError, OSError) as e:
-            logger.warning("Ignoring MDS3 cache: %s", e)
+            logger.warning("Ignoring MDS3 cache: %s", type(e).__name__)
             return None
 
     def _is_cache_fresh(self) -> bool:
@@ -127,7 +127,7 @@ class MDS3Client:
                 self._fetched_at = datetime.now(timezone.utc)
             self._index(entries)
         except Exception as e:
-            logger.warning("MDS3 load failed (%s); using empty metadata", e)
+            logger.warning("MDS3 load failed (%s); using empty metadata", type(e).__name__)
             # Fall back to stale cache if available
             if CACHE_PATH.exists():
                 try:
@@ -152,14 +152,14 @@ class MDS3Client:
             try:
                 entries = self._load_cache()  # re-runs signature, path and revocation checks
             except Exception as e:
-                logger.info("MDS3 re-verification failed: %s", e)
+                logger.info("MDS3 re-verification failed: %s", type(e).__name__)
                 return False
             self._index(entries)
             return self.is_current()
         try:
             entries = self._fetch_from_network()
         except Exception as e:
-            logger.info("MDS3 refresh failed: %s", e)
+            logger.info("MDS3 refresh failed: %s", type(e).__name__)
             return False
         self._fetched_at = datetime.now(timezone.utc)
         self._index(entries)
@@ -174,9 +174,12 @@ class MDS3Client:
             return False
 
     def is_current(self):
-        return (bool(self._entries) and self._payload_current({"nextUpdate": self._next_update})
-                and self._verified_until is not None
-                and datetime.now(timezone.utc) < datetime.fromisoformat(self._verified_until))
+        try:
+            return (bool(self._entries) and self._payload_current({"nextUpdate": self._next_update})
+                    and self._verified_until is not None
+                    and datetime.now(timezone.utc) < datetime.fromisoformat(self._verified_until))
+        except (TypeError, ValueError):
+            return False
 
     def lookup(self, aaguid: str) -> Optional[dict]:
         return self._by_aaguid.get(aaguid.lower().strip())

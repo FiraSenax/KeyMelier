@@ -147,7 +147,7 @@ rewrites files or resolves newer package versions.
 ```bash
 python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 python tools/export_requirements.py --check
-ruff check app.py keymelier_core
+ruff check app.py keymelier_core tools
 ruff check tools tests --select E9,F63,F7,F82
 python -m unittest tests.test_auth_lifecycle tests.test_bridge tests.test_function_test
 python -m unittest tests.test_network tests.test_app_update tests.test_piv_read_safety

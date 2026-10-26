@@ -58,7 +58,7 @@ def _read_mac(path: Path = MAC_PLIST) -> dict:
             data = plistlib.load(f)
         return data if isinstance(data, dict) else {}
     except Exception as e:
-        logger.warning("Ignoring %s: %s", path, e)
+        logger.warning("Ignoring %s: %s", path, type(e).__name__)
         return {}
 
 
@@ -72,7 +72,7 @@ def _read_linux(path: Path = LINUX_JSON) -> dict:
         data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except Exception as e:
-        logger.warning("Ignoring %s: %s", path, e)
+        logger.warning("Ignoring %s: %s", path, type(e).__name__)
         return {}
 
 
@@ -103,7 +103,7 @@ def _read_windows() -> dict:
                             pass
                     sources.append(entry)
             except OSError as e:
-                logger.warning("Ignoring policy source %s: %s", name, e)
+                logger.warning("Ignoring policy source %s: %s", name, type(e).__name__)
     return {"AdvisorySources": sources}
 
 
@@ -121,7 +121,7 @@ def read_raw() -> dict:
             return _read_mac()
         return _read_linux()
     except Exception as e:
-        logger.warning("Managed configuration not readable: %s", e)
+        logger.warning("Managed configuration not readable: %s", type(e).__name__)
         return {}
 
 

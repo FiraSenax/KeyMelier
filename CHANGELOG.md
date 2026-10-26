@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.8.6 — 2026-10-26
+
+Security hardening and internal refactoring. No new application features.
+
+- Rename the core package and build spec to KeyMelier, update imports and build tooling, and consolidate the license documentation. Upgrade fixtures still support historical releases with the former package name.
+- Stop displaying previously verified authenticity results when the supporting metadata or revocation information expires.
+- Keep unexpected exception messages out of UI responses and logs, including desktop callbacks, smart card operations and background tasks.
+- Extend stateless mode to storage helpers, exports, update downloads, GnuPG imports and credential-store writes. The Linux UI page uses anonymous memory instead of a temporary file in this mode.
+- Report encrypted-history save failures without falling back to plaintext. Disabling account tracking also clears saved account details when history is disabled; imports and sync honor that setting.
+- Serialize initial smart card discovery with FIDO access before a reader-to-key mapping is available, and discard reader mappings on disconnect.
+- Add regression coverage for these guarantees, non-resident test credentials, connection-scoped authorization expiry and CSV formula neutralization. Check build tools with Ruff and support the documented strict SBOM command.
+
 ## 1.8.5 — 2026-10-22
 
 Security and dependency maintenance release. No new application features.

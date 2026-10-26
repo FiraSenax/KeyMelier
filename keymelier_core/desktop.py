@@ -42,7 +42,7 @@ def open_with_system(target: str) -> bool:
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return True
     except Exception as e:
-        logger.info("Could not open %s: %s", target, e)
+        logger.info("Could not open %s: %s", target, type(e).__name__)
         return False
 
 
@@ -67,6 +67,19 @@ def private_page_file(html: str):
     """
     import tempfile
     from pathlib import Path
+    from keymelier_core.storage import stateless
+
+    if stateless():
+        # Linux memfd is anonymous memory, never a persistent page/cache file.
+        # Keep it open while Qt and its renderer load the /proc URL.
+        fd = os.memfd_create("keymelier-page", os.MFD_CLOEXEC)
+        try:
+            with os.fdopen(os.dup(fd), "wb") as page:
+                page.write(html.encode("utf-8"))
+        except BaseException:
+            os.close(fd)
+            raise
+        return Path(f"/proc/{os.getpid()}/fd/{fd}"), lambda: os.close(fd)
 
     base = os.environ.get("XDG_RUNTIME_DIR")
     folder = Path(tempfile.mkdtemp(prefix="keymelier-", dir=base if base and os.path.isdir(base) else None))

@@ -115,7 +115,7 @@ def probe(ctap2, rp_ids: list[str], pin: str | None = None, progress=None, cance
             try:
                 users.append(_user(ctap2.get_next_assertion().user))
             except Exception as e:  # the count is known even if walking the accounts fails
-                logger.debug("getNextAssertion %s: %s", rp_id, e)
+                logger.debug("getNextAssertion %s: %s", rp_id, type(e).__name__)
                 partial = True
                 break
         result = {"rp_id": rp_id, "status": "found", "count": total, "users": users}
@@ -135,13 +135,13 @@ def probe(ctap2, rp_ids: list[str], pin: str | None = None, progress=None, cance
         except AuthError:
             raise
         except Exception as e:  # transport failure (key removed, another program, timeout)
-            logger.debug("probe %s: %s", rp_id, e)
+            logger.debug("probe %s: %s", rp_id, type(e).__name__)
             try:  # one retry of the query – never involves the PIN again
                 results.append(ask(rp_id))
             except AuthError:
                 raise
             except Exception as e2:
-                logger.info("Passkey search stopped at %s: %s", rp_id, e2)
+                logger.info("Passkey search stopped at %s: %s", rp_id, type(e2).__name__)
                 results.append({"rp_id": rp_id, "status": "error"})
                 complete = False
                 break

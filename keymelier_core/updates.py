@@ -120,7 +120,7 @@ def fetch(current: dict | None) -> dict | None:
         with requests.get(SIGNATURE_URL, timeout=15, stream=True) as response:
             sig = read_limited(response, 4096).decode("ascii")
     except Exception as e:
-        logger.info("Advisory update check failed: %s", e)
+        logger.info("Advisory update check failed: %s", type(e).__name__)
         return None
     if not verify(data, sig):
         logger.warning("Downloaded advisories rejected: signature invalid")

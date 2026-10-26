@@ -35,7 +35,7 @@ def _reader_devices():
     try:
         return list_devices(name_filter="")  # every reader, not only YubiKeys
     except Exception as e:
-        logger.debug("PC/SC not available: %s", e)
+        logger.debug("PC/SC not available: %s", type(e).__name__)
         return []
 
 
@@ -48,7 +48,7 @@ def map_card_error(e) -> CardError:
             "Close it, e.g. with `gpgconf --kill scdaemon`, and try again.", "card_in_use")
     if "no smart card" in lowered or "removed" in lowered or "unresponsive" in lowered:
         return CardError("The key is no longer connected.", "not_found", status=404)
-    return CardError(f"Smart card error: {text}", "card_error")
+    return CardError("The smart card operation could not be completed.", "card_error")
 
 
 class Cards:
@@ -121,7 +121,7 @@ class Cards:
                 info = ManagementSession(conn).read_device_info()
                 return str(info.serial) if info.serial else None
         except Exception as e:
-            logger.debug("Could not read serial via %s: %s", reader, e)
+            logger.debug("Could not read serial via %s: %s", reader, type(e).__name__)
             return None
 
     def find_reader(self, record) -> str | None:
@@ -167,7 +167,7 @@ class Cards:
                     found[name] = False
                 except Exception as e:
                     # Transient (card reset, another program): let the caller retry
-                    logger.debug("Selecting %s on %s failed: %s", name, reader, e)
+                    logger.debug("Selecting %s on %s failed: %s", name, reader, type(e).__name__)
                     raise map_card_error(e) from None
             return found
 

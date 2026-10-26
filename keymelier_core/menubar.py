@@ -265,4 +265,4 @@ class MenuBar:
         try:
             self._window.destroy()
         except Exception as e:
-            logger.debug("Window destroy failed: %s", e)
+            logger.debug("Window destroy failed: %s", type(e).__name__)

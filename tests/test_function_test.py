@@ -34,7 +34,9 @@ class FunctionTestTests(unittest.TestCase):
             get_assertion=Mock(side_effect=assertion))
 
     def test_valid_roundtrip_and_zero_counter(self):
-        result = function_test.run(self.device())
+        device = self.device()
+        result = function_test.run(device)
+        self.assertIs(device.make_credential.call_args.kwargs["options"]["rk"], False)
         self.assertTrue(result['ok'])
         self.assertFalse(result['user_verified'])
         self.assertEqual(len(result['steps']), 3)

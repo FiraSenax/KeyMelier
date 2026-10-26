@@ -24,7 +24,7 @@ def _otp_error(e) -> CardError:
         return CardError("macOS blocks access to the key's keyboard interface. Allow KeyMelier under "
                          "System Settings › Privacy & Security › Input Monitoring, then restart KeyMelier.",
                          "otp_permission")
-    return CardError(f"OTP interface error: {text}", "card_error")
+    return CardError("The OTP operation could not be completed.", "card_error")
 
 
 def _otp_device(serial: str | None):

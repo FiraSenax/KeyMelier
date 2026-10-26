@@ -130,7 +130,7 @@ class AdvisoryChecker:
             try:
                 data, sig = _read_source(src["location"])
             except Exception as e:
-                logger.warning("Advisory source %s not readable: %s", src["name"], e)
+                logger.warning("Advisory source %s not readable: %s", src["name"], type(e).__name__)
                 state["status"] = "unreachable"
                 continue
             if not updates.verify(data, sig, src["public_key"]):
@@ -148,7 +148,7 @@ class AdvisoryChecker:
                 if old is not None and updates._updated(doc) <= updates._updated(old):
                     continue
             except (TypeError, ValueError) as e:
-                logger.warning("Advisory source %s: dates not comparable (%s); keeping the loaded one", src["name"], e)
+                logger.warning("Advisory source %s: dates not comparable (%s); keeping the loaded one", src["name"], type(e).__name__)
                 continue
             state["document"] = doc
             changed = True

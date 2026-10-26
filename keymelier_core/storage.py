@@ -8,10 +8,16 @@ def stateless():
     return os.environ.get("KEYMELIER_STATELESS") == "1"
 
 
+def require_writable():
+    if stateless():
+        raise ValueError("Persistent writes are disabled in stateless mode")
+
+
 def set_aside(path):
     """Keep an unreadable data file under a new name instead of overwriting
     it with a fresh start (interrupted save, disk error, manual edit).
     Returns the new file name, or None if there was nothing to keep."""
+    require_writable()
     from datetime import datetime
     path = Path(path)
     if not path.is_file() or path.is_symlink():
@@ -48,10 +54,12 @@ def retry_sharing(action, attempts=40, delay=0.05):
 
 def replace_file(src, dst, attempts=40, delay=0.05):
     """os.replace that tolerates a reader for a moment (Windows); readers never see a partial file."""
+    require_writable()
     retry_sharing(lambda: os.replace(src, dst), attempts, delay)
 
 
 def atomic_write(path, data):
+    require_writable()
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if path.parent.is_symlink():
@@ -92,6 +100,7 @@ NATIVE_BACKENDS = {'keyring.backends.macOS', 'keyring.backends.Windows', 'keyrin
 
 def history_cipher(create=True):
     """Use only native OS credential stores, never a plaintext fallback backend."""
+    require_writable()
     from cryptography.fernet import Fernet
     backend = _native_keyring()
     key = backend.get_password('KeyMelier', 'history-encryption-v1')
@@ -121,10 +130,12 @@ def secret_get(name):
 
 
 def secret_set(name, value):
+    require_writable()
     _native_keyring().set_password('KeyMelier', name, value)
 
 
 def secret_delete(name):
+    require_writable()
     import keyring.errors
     try:
         _native_keyring().delete_password('KeyMelier', name)

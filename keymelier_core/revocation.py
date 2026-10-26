@@ -63,8 +63,12 @@ def _has_cached(url, now):
 
 
 def _drop_cached(url):
+    from keymelier_core.storage import stateless
+
     with _LOCK:
         _CACHE.pop(url, None)
+    if stateless():
+        return
     try:
         _disk_path(url).unlink()
     except OSError:

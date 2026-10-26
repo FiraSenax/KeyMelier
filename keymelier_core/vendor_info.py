@@ -39,7 +39,7 @@ def read(device, vid: int, pid: int) -> dict | None:
 
         info = ManagementSession(device).read_device_info()
     except Exception as e:
-        logger.debug("YubiKey management read failed: %s", e)
+        logger.debug("YubiKey management read failed: %s", type(e).__name__)
         return None
 
     version = tuple(info.version) if info.version else None

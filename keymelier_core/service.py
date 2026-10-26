@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 import threading
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from keymelier_core.operations import PendingOperations
@@ -64,7 +64,7 @@ def system_languages() -> list[str]:
         else:
             langs = _posix_languages(os.environ)
     except Exception as e:
-        logger.debug("Could not read system languages: %s", e)
+        logger.debug("Could not read system languages: %s", type(e).__name__)
     if not langs:
         import locale
         loc = locale.getlocale()[0]
@@ -124,7 +124,7 @@ class KeyService:
         self._session_settings = {}
         self._settings_problem = None   # settings file could not be read (kept aside)
         self._settings_locked = False   # it exists but could not be read: never overwrite it
-        # History is on unless the user switched it off (websites stay opt-in)
+        # History and account tracking are on unless the user switched them off.
         self.history = history or History(enabled=self._stored_settings().get("history_enabled") is not False)
         if not self._remember_contents():
             self.history.clear_sites()
@@ -173,6 +173,8 @@ class KeyService:
         oath_app.forget_all()
         fingerprints_mod.cancel_enrollment(record.id)
         self._attestation_logged.discard(record.id)
+        self._reader_tokens = {reader: token for reader, token in self._reader_tokens.items()
+                               if token != record.id}
         logger.info("Token disconnected: %s", record.product_name)
         self._log(record, "disconnected")
         self.emit("token_disconnected", {"id": record.id, "product_name": record.product_name})
@@ -198,13 +200,13 @@ class KeyService:
     UPDATE_INTERVAL = 6 * 3600  # seconds between update checks
     RETRY_INTERVAL = 15 * 60    # while metadata lacks current revocation evidence
 
-    def run_update_loop(self):
+    def _run_update_loop(self):
         """Background thread: keep metadata and advisories current."""
         while True:
             try:
                 self.check_updates()
             except Exception:   # never let the thread die: the next round tries again
-                logger.exception("Update check failed")
+                logger.error("Update check failed")
             current = self._mds3 is None or self._mds3.is_current()
             threading.Event().wait(self.UPDATE_INTERVAL if current else self.RETRY_INTERVAL)
 
@@ -212,6 +214,8 @@ class KeyService:
         """Download and verify the newer release for this platform (in the
         background; progress via update_progress events)."""
         from keymelier_core import app_update
+        if stateless():
+            raise PinError("Downloads are disabled in stateless mode.", "disabled")
         info = self._app_update or {}
         if not info.get("newer") or not info.get("asset"):
             raise PinError("No update available for download.", "no_update")
@@ -226,7 +230,7 @@ class KeyService:
                 self.emit("update_ready", {"name": path.name, "platform": sys.platform})
             except app_update.UpdateError as e:
                 code = "update_checksum" if str(e) == "checksum" else "update_failed"
-                self.emit("update_failed", {"code": code, "error": str(e)})
+                self.emit("update_failed", {"code": code, "error": "The update could not be downloaded and verified."})
             finally:
                 self._update_running = False
 
@@ -271,7 +275,7 @@ class KeyService:
             connected=len(self._scanner.get_all()), in_history=len(self.history.list()),
             keyring=backend, gui=self.gui_backend(), errors=self.error_log)
 
-    def link_allowed(self, url: str) -> bool:
+    def _link_allowed(self, url: str) -> bool:
         """A reference of a signed company advisory source (ENTERPRISE.md) – exact URL only."""
         return bool(self._advisories) and url in self._advisories.policy_links()
 
@@ -305,6 +309,8 @@ class KeyService:
         return summary
 
     def history_export(self) -> dict:
+        if stateless():
+            raise PinError("Exports are disabled in stateless mode.", "disabled")
         from datetime import date
         return {"text": json.dumps(self.history.export(), indent=1, ensure_ascii=False),
                 "filename": f"keymelier-history-{date.today().isoformat()}.json"}
@@ -313,7 +319,7 @@ class KeyService:
         if not isinstance(text, str) or len(text) > 20_000_000:
             raise PinError("The file is too large.", "invalid_input")
         try:
-            result = self.history.import_(json.loads(text))
+            result = self.history.import_(json.loads(text), keep_contents=self._remember_contents())
         except (ValueError, TypeError):
             raise PinError("This is not a KeyMelier history export.", "history_invalid") from None
         self.emit("history_reloaded", {})
@@ -348,7 +354,7 @@ class KeyService:
                 return self._settings_unavailable(e)
             self._settings_locked = False
             self._settings_problem = {"code": "settings_unreadable", "file": kept or ""}
-            logger.warning("Could not read settings (%s); kept as %s, using defaults", e, kept)
+            logger.warning("Could not read settings (%s); kept as %s, using defaults", type(e).__name__, kept)
             return {}
         except OSError as e:
             # Locked or not accessible (another program holds it): the file is fine
@@ -395,8 +401,10 @@ class KeyService:
                     raise PinError("Expected a boolean", "invalid_input")
                 settings["personal_mode"] = value
             elif key == "remember_sites":
-                settings["remember_sites"] = value is True and not stateless()
-                if not value:
+                if not isinstance(value, bool):
+                    raise PinError("Expected a boolean", "invalid_input")
+                settings["remember_sites"] = value and not stateless()
+                if not settings["remember_sites"]:
                     self.history.clear_sites()
         self._write_settings(settings)
         if "history_enabled" in (values or {}):
@@ -415,7 +423,7 @@ class KeyService:
             else:
                 atomic_write(SETTINGS_FILE, json.dumps(settings))
         except Exception as e:
-            logger.error("Could not save settings: %s", e)
+            logger.error("Could not save settings: %s", type(e).__name__)
 
     # ── Sync between computers ───────────────────────────────────────────────
 
@@ -429,7 +437,7 @@ class KeyService:
         try:
             passphrase = secret_get(sync_mod.KEYRING_NAME)
         except Exception as e:
-            logger.warning("Sync passphrase unavailable: %s", e)
+            logger.warning("Sync passphrase unavailable: %s", type(e).__name__)
             passphrase = None
         if not passphrase:
             self._sync_problem = "sync_keychain"
@@ -472,8 +480,8 @@ class KeyService:
             secret_set(sync_mod.KEYRING_NAME, passphrase)
         except sync_mod.SyncError as e:
             raise PinError(str(e), e.code, status=400) from None
-        except RuntimeError as e:   # no native credential store (Linux without Secret Service)
-            raise PinError(str(e), "sync_no_keyring", status=409) from None
+        except RuntimeError:   # no native credential store (Linux without Secret Service)
+            raise PinError("A native OS credential store is required for sync.", "sync_no_keyring", status=409) from None
         settings.update(sync_folder=str(Path(folder)), sync_device=device)
         self._write_settings(settings)
         self._sync_configure()
@@ -483,14 +491,15 @@ class KeyService:
     def sync_disable(self, remove_file: bool = False) -> dict:
         status = self._syncer.status()
         self._syncer.configure(None, None, None)
-        if remove_file and status["folder"] and status["device"]:
+        if not stateless() and remove_file and status["folder"] and status["device"]:
             own = Path(status["folder"]) / f"KeyMelier-{status['device']}.kmsync"
             if own.is_file() and not own.is_symlink():
                 own.unlink()
         try:
-            secret_delete(sync_mod.KEYRING_NAME)
+            if not stateless():
+                secret_delete(sync_mod.KEYRING_NAME)
         except Exception as e:
-            logger.info("Could not remove sync passphrase: %s", e)
+            logger.info("Could not remove sync passphrase: %s", type(e).__name__)
         settings = self._stored_settings()
         settings.pop("sync_folder", None)
         self._write_settings(settings)
@@ -502,13 +511,13 @@ class KeyService:
         self._syncer.run_once(full=True)
         return self.sync_status()
 
-    def sync_flush(self) -> None:
+    def _sync_flush(self) -> None:
         """On quit: write the latest state for the other computers."""
         if self._syncer.active:
             try:
                 self._syncer.run_once()
             except Exception as e:
-                logger.info("Final sync failed: %s", e)
+                logger.info("Final sync failed: %s", type(e).__name__)
 
     # ── PIN ──────────────────────────────────────────────────────────────────
 
@@ -559,12 +568,12 @@ class KeyService:
             if data.get("unlocked"):
                 result["sites"] = len(data.get("rps", []))
         except Exception as e:
-            logger.info("read_contents passkeys: %s", e)
+            logger.info("read_contents passkeys: %s", type(e).__name__)
             result["failed"].append("passkeys")
         try:
             apps = self.card_apps(token_id).get("apps", {})
         except Exception as e:
-            logger.info("read_contents card apps: %s", e)
+            logger.info("read_contents card apps: %s", type(e).__name__)
             apps = {}
         for app, reader in (("oath", self.oath), ("openpgp", self.openpgp), ("piv", self.piv)):
             if not apps.get(app):
@@ -578,7 +587,7 @@ class KeyService:
                 else:
                     result["piv"] = sum(1 for s in data["slots"] if s["cert"])
             except Exception as e:
-                logger.info("read_contents %s: %s", app, e)
+                logger.info("read_contents %s: %s", app, type(e).__name__)
                 result["failed"].append(app)
         if result["failed"]:
             # Nothing is written for a part that failed; say whether the key left
@@ -748,8 +757,8 @@ class KeyService:
             except DeviceNotFound:
                 result.update(error="The key is no longer connected.", code="not_found")
             except Exception as e:
-                logger.exception("Enrollment failed")
-                result.update(error=str(e), code="error")
+                logger.error("Enrollment failed (%s)", type(e).__name__)
+                result.update(error="Fingerprint enrollment could not be completed.", code="error")
             finally:
                 fingerprints_mod.end_enrollment(token_id)
             if result["ok"]:
@@ -793,22 +802,24 @@ class KeyService:
     @contextmanager
     def _hold_reader(self, reader: str):
         token_id = self._reader_tokens.get(reader)
-        if token_id is None:
+        if token_id is not None:
+            token_ids = [token_id]
+        else:
+            # Initial serial discovery opens a card before reader->token is
+            # known. Hold every plausible FIDO interface while resolving it.
+            candidates = [r for r in self._scanner.get_all()
+                          if ("yubico" in reader.lower() and _is_yubikey(r))
+                          or (r.product_name and r.product_name.lower() in reader.lower())]
+            token_ids = [r.id for r in sorted(candidates, key=lambda r: r.path)]
+        with ExitStack() as held:
+            try:
+                for candidate in token_ids:
+                    held.enter_context(self._scanner.hold(candidate))
+            except DeviceNotFound:
+                raise CardError("The key is no longer connected.", "not_found", status=404) from None
+            except DeviceBusy:
+                raise CardError("The key is busy. Try again in a moment.", "busy", status=409) from None
             yield
-            return
-        try:
-            cm = self._scanner.hold(token_id)
-            cm.__enter__()
-        except DeviceNotFound:
-            # FIDO may already be gone; the card operation reports its own state.
-            yield
-            return
-        except DeviceBusy:
-            raise CardError("The key is busy. Try again in a moment.", "busy", status=409) from None
-        try:
-            yield
-        finally:
-            cm.__exit__(None, None, None)
 
     def card_apps(self, token_id: str) -> dict:
         """Which non-FIDO applications (OATH, PIV, OpenPGP) the key offers."""
@@ -1157,8 +1168,8 @@ class KeyService:
         except (DeviceBusy, DeviceNotFound):
             result.update(error="The key could not be reached.", code="not_found")
         except Exception as e:
-            logger.exception("Reset failed")
-            result.update(error=str(e), code="error")
+            logger.error("Reset failed (%s)", type(e).__name__)
+            result.update(error="The reset could not be completed.", code="error")
         if not result["ok"]:
             logger.warning("Reset ended: %s", result.get("code"))
             # The attestation test was skipped for this connection; run it now
@@ -1198,5 +1209,6 @@ class KeyService:
                 path = self._exporter.export(record)
                 results.append({"serial": record.serial_number, "file": str(path)})
             except Exception as e:
-                results.append({"serial": record.serial_number, "error": str(e)})
+                logger.error("Export failed (%s)", type(e).__name__)
+                results.append({"serial": record.serial_number, "error": "The export could not be saved."})
         return {"exports": results}

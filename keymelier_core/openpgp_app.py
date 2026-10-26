@@ -361,8 +361,8 @@ def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
         raise
     except ApduError as e:
         raise map_card_error(e) from None
-    except Exception as e:
-        raise CardError(f"Key generation failed: {e}", "card_error") from None
+    except Exception:
+        raise CardError("Key generation failed.", "card_error") from None
 
     primary = keys[KEY_REF.SIG]
 
@@ -388,8 +388,8 @@ def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
         revocation = P.revocation(primary, signer, created)
     except CardError:
         raise
-    except Exception as e:
-        raise CardError(f"Signing on the key failed: {e}", "card_error") from None
+    except Exception:
+        raise CardError("Signing on the key failed.", "card_error") from None
     fingerprint = primary.fingerprint.hex().upper()
     logger.info("OpenPGP keys generated on the card")
     return {

@@ -57,9 +57,10 @@ def run(device, expected_aaguid: str, mds3_client=None, pin: str | None = None,
     try:
         _run_checks(device, expected_aaguid, mds3_client, result, pin=pin, use_uv=use_uv)
     except Exception as e:
-        result.error = f"Unexpected error during attestation test: {e}"
+        result.error = "The attestation test could not be completed."
+        result.status = "UNVERIFIED"
         result.passed = False
-        logger.warning("Attestation test error: %s", e, exc_info=True)
+        logger.warning("Attestation test error (%s)", type(e).__name__)
     return result
 
 
@@ -138,10 +139,13 @@ def _run_checks(device, expected_aaguid: str, mds3_client, result: AttestationRe
             pin_uv_protocol=pin_uv_protocol,
         )
     except Exception as e:
-        result.error = f"makeCredential failed: {e}"
+        from keymelier_core.auth import map_ctap_error
+        from fido2.ctap import CtapError
+        detail = map_ctap_error(e).message if isinstance(e, CtapError) else "The key could not complete the attestation request."
+        result.error = detail
         result.passed = False
         result.inconclusive = _inconclusive_reason(e)
-        result.checks.append({"name": "makeCredential", "passed": None, "detail": str(e)})
+        result.checks.append({"name": "makeCredential", "passed": None, "detail": detail})
         return
 
     result.checks.append({"name": "makeCredential", "passed": True, "detail": "Credential created"})
@@ -313,8 +317,8 @@ def _verify_packed(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
         return None, "Self-attestation does not establish manufacturer authenticity", None
     except NotImplementedError:
         return None, "Unsupported packed attestation variant", None
-    except Exception as e:
-        return False, f"Packed signature verification failed: {e}", None
+    except Exception:
+        return False, "Packed signature verification failed", None
 
 
 def _verify_fido_u2f(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
@@ -349,8 +353,8 @@ def _verify_fido_u2f(att_stmt: dict, auth_data: bytes, client_data_hash: bytes):
         pub_key.verify(bytes(sig), verification_data, ec.ECDSA(hashes.SHA256()))
         return True, f"Signature valid (fido-u2f, {len(x5c)} cert(s))", leaf_der
 
-    except Exception as e:
-        return False, f"fido-u2f signature verification failed: {e}", None
+    except Exception:
+        return False, "fido-u2f signature verification failed", None
 
 
 def _verify_signature(pub_key, sig: bytes, data: bytes, alg: int):
@@ -438,8 +442,8 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
             f"({len(root_certs)} root(s) tried)"
         )
 
-    except Exception as e:
-        return False, f"Chain verification error: {e}"
+    except Exception:
+        return False, "Certificate chain verification failed"
 
 
 AAGUID_EXTENSION = "1.3.6.1.4.1.45724.1.1.4"

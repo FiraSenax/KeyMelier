@@ -59,7 +59,7 @@ def capabilities(ctap2) -> dict:
             caps["max_samples"] = _small_int(sensor.get(BioEnrollment.RESULT.MAX_SAMPLES_REQUIRED), 1, 64)
             caps["max_name_bytes"] = _small_int(sensor.get(BioEnrollment.RESULT.MAX_TEMPLATE_FRIENDLY_NAME), 1, 255)
         except Exception as e:
-            logger.debug("Sensor info unavailable: %s", e)
+            logger.debug("Sensor info unavailable: %s", type(e).__name__)
     return caps
 
 

@@ -91,6 +91,18 @@ class LanguageTests(unittest.TestCase):
 
 
 class DesktopTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "memfd_create"), "Linux anonymous memory files")
+    def test_stateless_page_uses_memory_without_creating_a_directory(self):
+        with patch.dict(os.environ, KEYMELIER_STATELESS="1"), \
+             patch("tempfile.mkdtemp") as directory:
+            path, cleanup = desktop.private_page_file("<html>ä</html>")
+            try:
+                self.assertEqual(path.read_text(encoding="utf-8"), "<html>ä</html>")
+                directory.assert_not_called()
+            finally:
+                cleanup()
+            self.assertFalse(path.exists())
+
     @unittest.skipIf(os.name == "nt", "POSIX permissions")
     def test_page_file_is_private_and_removed(self):
         with tempfile.TemporaryDirectory() as runtime, patch.dict(os.environ, {"XDG_RUNTIME_DIR": runtime}):

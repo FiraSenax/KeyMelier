@@ -92,12 +92,12 @@ def status(ctap2) -> dict:
             result["retries"] = retries
             result["power_cycle_required"] = bool(power_cycle)
         except Exception as e:
-            logger.debug("get_pin_retries failed: %s", e)
+            logger.debug("get_pin_retries failed: %s", type(e).__name__)
     if options.get("uv") is True and ClientPin.is_token_supported(info):
         try:
             result["uv_retries"] = client_pin.get_uv_retries()
         except Exception as e:
-            logger.debug("get_uv_retries failed: %s", e)
+            logger.debug("get_uv_retries failed: %s", type(e).__name__)
     return result
 
 

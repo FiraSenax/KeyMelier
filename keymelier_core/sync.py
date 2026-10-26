@@ -46,7 +46,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from keymelier_core.storage import replace_file, retry_sharing
+from keymelier_core.storage import replace_file, retry_sharing, require_writable
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def machine_id(fallback) -> str:
         else:
             raw = Path("/etc/machine-id").read_text(encoding="ascii").strip()
     except Exception as e:
-        logger.info("No OS machine id (%s); using a stored one", e)
+        logger.info("No OS machine id (%s); using a stored one", type(e).__name__)
     raw = raw or fallback()
     return hashlib.sha256(f"keymelier-sync|{raw}".encode()).hexdigest()[:16]
 
@@ -243,6 +243,7 @@ class SyncFolder:
 
     def write(self, history_state: dict, force=False) -> bool:
         """Write this computer's file if its content changed."""
+        require_writable()
         self.check()
         digest = hashlib.sha256(json.dumps(history_state, sort_keys=True).encode()).hexdigest()
         if digest == self._written_hash and not force and self.own_path.exists():
@@ -391,7 +392,7 @@ class Syncer:
             try:
                 self.run_once()
             except Exception as e:  # never let the thread die
-                logger.warning("Sync failed: %s", e)
+                logger.warning("Sync failed: %s", type(e).__name__)
 
     def run_once(self, full=False) -> dict:
         with self._lock:
@@ -424,11 +425,11 @@ class Syncer:
                     self._last_revision = self._history.revision   # a failed write is retried next round
                 self.last_sync = datetime.now(timezone.utc).isoformat()
             except FileInTransit as e:
-                logger.info("Sync file %s vanished while reading; next round", e)   # not an error
+                logger.info("Sync file %s vanished while reading; next round", type(e).__name__)   # not an error
             except SyncError as e:
                 problems.append({"file": "", "code": e.code})
             except OSError as e:
-                logger.info("Sync folder not usable: %s", e)
+                logger.info("Sync folder not usable: %s", type(e).__name__)
                 problems.append({"file": "", "code": "sync_folder"})
             self.errors = self._settle(problems)
         if changed:
@@ -462,6 +463,7 @@ class Syncer:
 def probe_folder(folder: Path, passphrase: str, device: str) -> dict:
     """Before turning sync on: is the folder usable, and does the passphrase
     open the files already there? Returns {"others": n}; raises SyncError."""
+    require_writable()
     folder = Path(folder)
     if not folder.is_dir():
         raise SyncError("Choose an existing folder.", "sync_folder")

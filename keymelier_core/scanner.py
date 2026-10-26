@@ -202,7 +202,7 @@ class TokenScanner:
             try:
                 self.on_update(record)
             except Exception as e:
-                logger.error("on_update callback error: %s", e)
+                logger.error("on_update callback error: %s", type(e).__name__)
 
     @contextmanager
     def hold(self, token_id: str, timeout: float = 10.0):
@@ -230,7 +230,7 @@ class TokenScanner:
             from fido2.ctap2 import Ctap2
             descriptors = list(list_descriptors())
         except Exception as e:
-            logger.debug("HID enumerate error: %s", e)
+            logger.debug("HID enumerate error: %s", type(e).__name__)
             return result, busy
 
         for desc in descriptors:
@@ -291,7 +291,7 @@ class TokenScanner:
                         self._vendor_checked[path_key] = time.monotonic()
                     result[path_key] = record
             except Exception as e:
-                logger.debug("Could not read CTAP2 info from device: %s", e)
+                logger.debug("Could not read CTAP2 info from device: %s", type(e).__name__)
             finally:
                 lock.release()
 
@@ -301,6 +301,7 @@ class TokenScanner:
         with self._lock:
             for record in self._known.values():
                 if record.id == token_id:
+                    self._expire_assessment(record)
                     return record
         raise DeviceNotFound(token_id)
 
@@ -363,7 +364,7 @@ class TokenScanner:
                     try:
                         _apply_info(record, ctap2.get_info())
                     except Exception as e:
-                        logger.debug("Post-session getInfo failed: %s", e)
+                        logger.debug("Post-session getInfo failed: %s", type(e).__name__)
         if not refresh:
             return
         self._notify_update(record)
@@ -400,10 +401,10 @@ class TokenScanner:
                 "checks": [],
             }
         except Exception as e:
-            logger.warning("Attestation test failed for %s: %s", record.product_name, e)
+            logger.warning("Attestation test failed (%s)", type(e).__name__)
             record.attestation = {
-                "ran": False, "passed": False,
-                "error": str(e),
+                "ran": False, "passed": False, "status": "UNVERIFIED",
+                "error": "The attestation test could not be completed.",
                 "checks": [],
             }
 
@@ -436,7 +437,7 @@ class TokenScanner:
                         record.mds_icon = icon
                     record.mds_status = self._mds3.get_highest_security_status(record.aaguid)
         except Exception as e:
-            logger.warning("MDS3 enrichment failed: %s", e)
+            logger.warning("MDS3 enrichment failed: %s", type(e).__name__)
 
         try:
             if self._advisory:
@@ -454,7 +455,7 @@ class TokenScanner:
                 elif advisories:
                     advisory_level = "WARNING"
         except Exception as e:
-            logger.warning("Advisory check failed: %s", e)
+            logger.warning("Advisory check failed: %s", type(e).__name__)
 
         # Fall back to MDS3 status
         revoked_statuses = {
@@ -488,6 +489,23 @@ class TokenScanner:
         elif level == "OK" and status != "VERIFIED":
             level = "UNKNOWN"
         record.security_status = level
+        self._expire_assessment(record)
+
+    def _expire_assessment(self, record: TokenRecord):
+        """Positive results must not outlive their metadata/CRL evidence."""
+        if self._mds3 is not None and self._mds3.is_current():
+            return False
+        changed = False
+        att = record.attestation or {}
+        if att.get("status") == "VERIFIED":
+            record.attestation = {**att, "status": "UNVERIFIED", "passed": False,
+                                  "chain_valid": None,
+                                  "error": "Current MDS3 verification evidence is unavailable."}
+            changed = True
+        if record.security_status == "OK":
+            record.security_status = "UNKNOWN"
+            changed = True
+        return changed
 
     def run_forever(self):
         self._running = True
@@ -496,8 +514,14 @@ class TokenScanner:
             try:
                 current, busy = self._enumerate_devices()
                 self._reconcile(current, busy)
+                # Refresh the UI even while metadata networking is sleeping.
+                with self._events_lock:
+                    with self._lock:
+                        expired = [r for r in self._known.values() if self._expire_assessment(r)]
+                    for record in expired:
+                        self._notify_update(record)
             except Exception as e:
-                logger.error("Scanner loop error: %s", e)
+                logger.error("Scanner loop error: %s", type(e).__name__)
 
             time.sleep(self.poll_interval)
 
@@ -520,7 +544,7 @@ class TokenScanner:
                 try:
                     self.on_disconnect(record)
                 except Exception as e:
-                    logger.error("on_disconnect callback error: %s", e)
+                    logger.error("on_disconnect callback error: %s", type(e).__name__)
             for path in sorted(added):
                 record = current[path]
                 self._enrich_record(record)
@@ -529,11 +553,11 @@ class TokenScanner:
                 try:
                     self.on_connect(record)
                 except Exception as e:
-                    logger.error("on_connect callback error: %s", e)
+                    logger.error("on_connect callback error: %s", type(e).__name__)
                 try:
                     intercepted = self.intercept_connect(record)
                 except Exception as e:
-                    logger.error("intercept_connect error: %s", e)
+                    logger.error("intercept_connect error: %s", type(e).__name__)
                     intercepted = False
                 if not intercepted:
                     self.start_attestation(record)
@@ -550,6 +574,8 @@ class TokenScanner:
 
     def get_all(self) -> list[TokenRecord]:
         with self._lock:
+            for record in self._known.values():
+                self._expire_assessment(record)
             return list(self._known.values())
 
     def stop(self):

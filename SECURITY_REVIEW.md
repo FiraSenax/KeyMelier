@@ -1,3 +1,41 @@
+# Refactoring and security verification — 2026-10-26
+
+The core package and PyInstaller spec now use the KeyMelier name throughout
+imports, tests, build scripts, CI and documentation. The compatibility-fixture
+generator retains one explicitly documented legacy package name to read old
+release tags. Service helpers are private; the JS bridge still uses explicit
+wrapper functions and an operation allow-list.
+
+| Finding | Resolution |
+|---|---|
+| Attestation, smart card, enrollment, reset and export failures could expose exception messages; exception logging could include secrets | Fixed user-facing messages and exception types only in logs; UI error text is not logged |
+| Previously positive device assessments could remain visible after MDS/CRL expiry until the next network refresh | Invalidate positive assessments when records are read and on the scanner's polling loop |
+| Stateless mode did not cover every writer | Guard storage helpers, text export, downloads, GnuPG imports, keyring mutations and CRL cache deletion; Linux page loading uses an anonymous memory file |
+| Encrypted history save errors were swallowed | Report failure without writing plaintext when the native credential store or encryption fails |
+| Disabling content tracking while history was off left the saved copy intact; imports/sync could restore event details | Scrub the preserved history file and remove account/domain details from incoming events when tracking is off |
+| Initial smart card serial discovery preceded the reader-to-FIDO mapping and could race polling | Hold all plausible FIDO interfaces during discovery, in a stable lock order; discard mappings on disconnect |
+
+Regression coverage: `tests/test_audit_regressions.py`, plus the existing
+certificate-path, CRL, diagnostics, device-identity and authorization suites.
+Both registration tests explicitly request `rk=False`; management tokens remain
+connection-scoped and expire at 300 seconds using monotonic time. CSV export
+tests cover all requested formula/control-character prefixes. The SBOM checker
+now accepts `--check --strict` using the default build output, as well as an
+explicit file path.
+
+Local verification: 322 Python tests completed successfully (one Linux-only
+memory-file test skipped on macOS); UI security and account-model checks, Ruff,
+requirements export consistency and strict SBOM validation passed. A fresh,
+hash-pinned macOS build passed all 56 packaged startup checks. The initial
+sandboxed launch aborted in macOS application registration; the same build
+passed with desktop access and an isolated temporary home. The project venv's
+outdated runtime packages were aligned with the existing requirements pins.
+
+This is an implementation review using simulated devices. Physical USB/NFC
+operations, Windows execution and the Linux Qt memory-page path require their
+platform/hardware checks; existing limitations below still apply. Candidate
+version: 1.8.6; stable publication remains subject to the release gates.
+
 # Quality remediation — 2026-10-02
 
 1.8.3 (released 2026-10-02) tightens management-token permissions and cancellation,

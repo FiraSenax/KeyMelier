@@ -94,14 +94,14 @@ class History:
                 # never overwrite it in this session
                 self._read_blocked = True
                 self.load_problem = {"code": "history_locked", "file": self._path.name}
-                logger.warning("History not readable (%s); not saving it in this session", e)
+                logger.warning("History not readable (%s); not saving it in this session", type(e).__name__)
                 return
             self.load_problem = {"code": "history_unreadable", "file": kept or ""}
-            logger.warning("Could not read history (%s); kept as %s, starting fresh", e, kept)
+            logger.warning("Could not read history (%s); kept as %s, starting fresh", type(e).__name__, kept)
 
     def _save(self):
         self.revision += 1
-        if not self.enabled:
+        if not self.enabled or stateless():
             return
         if self._read_blocked:
             logger.error("History not saved: the file could not be read at start (it is kept unchanged)")
@@ -114,7 +114,9 @@ class History:
                 raw = self._cipher.encrypt(raw)
             atomic_write(self._path, raw)
         except Exception as e:
-            logger.error("Could not save history: %s", e)
+            logger.error("Could not save history (%s)", type(e).__name__)
+            if self._encrypted:
+                raise RuntimeError("Encrypted history could not be saved; no plaintext was written") from None
 
     def set_enabled(self, enabled):
         with self._lock:
@@ -262,19 +264,14 @@ class History:
             return self._summary(entry)
 
     def clear_sites(self) -> None:
+        # Turning history off preserves its file. An explicit privacy change
+        # must also scrub that saved copy, without enabling future persistence.
+        if not self.enabled and not stateless() and self._path.exists():
+            saved = History(self._path, enabled=True)
+            saved.clear_sites()
         with self._lock:
             for entry in self._entries.values():
-                entry.pop("sites", None)
-                entry.pop("sites_updated", None)
-                entry.pop("sites_probed", None)
-                entry.pop("probe", None)
-                entry.pop("probe_rp", None)
-                entry.pop("inventory", None)
-                entry.pop("lost_done", None)
-                entry.pop("replace", None)
-                for event in entry.get("events", []):
-                    for field in ("site", "user", "rp_id"):
-                        event.pop(field, None)
+                _clear_contents(entry)
             self._save()
 
     def set_lost(self, kid: str, lost: bool) -> dict | None:
@@ -363,7 +360,7 @@ class History:
                 "keys": list(self._entries.values()),
             }))
 
-    def import_(self, data: dict) -> dict:
+    def import_(self, data: dict, keep_contents: bool = True) -> dict:
         """Merge an export into this history. Existing keys keep their data
         and gain missing events/contents; unknown keys are added."""
         if not isinstance(data, dict) or data.get("format") != "keymelier-history" \
@@ -375,6 +372,8 @@ class History:
                 entry = _clean_entry(raw)
                 if entry is None:
                     continue
+                if not keep_contents:
+                    _clear_contents(entry)
                 current = self._entries.get(entry["key_id"])
                 if current is None:
                     self._entries[entry["key_id"]] = entry
@@ -420,8 +419,7 @@ class History:
                 if entry is None:
                     continue
                 if not keep_contents:
-                    for field in _CONTENT_FIELDS:
-                        entry.pop(field, None)
+                    _clear_contents(entry)
                 current = self._entries.get(entry["key_id"])
                 if current is None:
                     self._entries[entry["key_id"]] = entry
@@ -472,6 +470,14 @@ _SNAPSHOT_INT = ("vendor_id", "product_id", "firmware_version_raw", "max_cred_co
 # Everything that names websites, accounts or contents ("remember contents")
 _CONTENT_FIELDS = ("sites", "sites_updated", "sites_probed", "probe", "probe_rp", "inventory",
                    "lost_done", "replace", "replace_at")
+
+
+def _clear_contents(entry):
+    for field in _CONTENT_FIELDS:
+        entry.pop(field, None)
+    for event in entry.get("events", []):
+        for field in ("site", "user", "rp_id"):
+            event.pop(field, None)
 
 
 def _ts(iso: str) -> float:
