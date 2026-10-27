@@ -112,11 +112,14 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 > On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`.
 
-Windows packaging also requires Visual Studio 2022's C++ retail redistributables
-and the Windows SDK's x64 UCRT redistributables. The build uses their documented
-Redist folders, records the original paths and hashes, and refuses arbitrary
-copies found elsewhere on PATH. Microsoft components retain their own terms;
-see the bundled third-party notices and the license audit before redistribution.
+Windows 10/11 x64 requires the [Microsoft Visual C++ v14 x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
+(14.44.35211.0 or later), installed directly from Microsoft. Setup checks for it
+and offers to open Microsoft's download page if it is missing; ZIP users must
+install it first. Setup never accepts Microsoft's terms for the user. Windows
+provides UCRT and API libraries. Packaging excludes VC/UCRT/MFC/API-set DLLs from
+every collected directory, and the final ZIP check rejects accidental inclusion.
+The WebView2 SDK/loader remains bundled under its own BSD-style terms; the Edge
+WebView2 Runtime is a separate system prerequisite.
 
 ### Linux
 
@@ -129,7 +132,7 @@ Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclit
 ## Privacy and security
 
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
-- PINs are only held in memory for the single operation that needs them and are never logged or stored. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only.
+- PINs are used for the operation that needs them and are not logged or written to storage by KeyMelier. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only. Inputs pass through JavaScript, the bridge and Python: these runtimes can retain immutable copies until memory is reused. KeyMelier does not guarantee that PINs or other secrets are erased from a RAM/crash dump; copying them into a wipeable buffer would not erase the earlier copies.
 - Network: the app contacts the FIDO Alliance (metadata), GlobalSign (signer certificate revocation lists), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
 - History is enabled by default: key models, serial numbers and events are saved locally so previously seen keys stay in the sidebar. Turn it off in the "Backup & loss" view (existing files are kept) or use stateless mode. Remembering what is on each key (passkey websites, authenticator account names, OpenPGP key fingerprints — never secrets or codes) is also on by default so you know what is affected when a key is lost; it can reveal accounts and internal domains, so turn it off in the same view if needed. Disabling it removes these lists and account details from history events.
 - CSV files are created only using the export button; exported metadata is plaintext. Formula-like cells are neutralized.
@@ -247,7 +250,7 @@ packaging/linux/         # AppImage entry point, desktop entry, udev rules
 
 KeyMelier is released under the [MIT License](LICENSE).
 
-The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build.
+The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). **About → Licenses & notices** opens an offline reader with the complete original texts, literal search, document export, the KeyMelier MIT license, and the matching source manifest. It is also available from the macOS application menu and app settings. The documents are in `THIRD_PARTY_LICENSES.txt` inside the app and attached to every release; `tools/third_party_licenses.py` generates them from the collected build components. Windows Setup also displays the complete notices. Microsoft system prerequisites are installed separately from Microsoft under its terms.
 
 A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) inventories collected Python packages, the PyInstaller bootloader, CPython, OpenSSL, reviewed artwork and native Linux packages. Python archive hashes come from pip's installation report and are checked against the lock file. Brand assets retain their individual usage terms; native package notices are preserved from their distribution. Not every statically linked subcomponent is independently versioned in this inventory.
 

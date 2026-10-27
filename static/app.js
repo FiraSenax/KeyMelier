@@ -1690,7 +1690,10 @@ function init() {
     if (link) return window.pywebview?.api?.open_url(link.dataset.url);
     const act = ev.target.closest('[data-about]')?.dataset.about;
     if (act === 'close') openAbout(false);
-    if (act === 'licenses') window.pywebview?.api?.open_licenses();
+    if (act === 'licenses') openLicenses();
+    if (act === 'license-back') openAbout();
+    if (act === 'license-find') findLicenseText();
+    if (act === 'license-save') saveLicenseDocument();
     if (act === 'updates') { openAbout(false); checkForUpdates(); }
     if (act === 'intro') { openAbout(false); openOnboarding(); }
     if (act === 'diag') openDiagnostics();
@@ -1735,7 +1738,7 @@ function init() {
   $('pin-show').addEventListener('change', ev => setPinVisible(ev.target.checked));
   $('export-btn').addEventListener('click', () => { closeMenu('key-actions-menu'); exportTokens(); });
   $('data-check').addEventListener('click', checkDataNow);
-  $('licenses-open').addEventListener('click', () => window.pywebview?.api?.open_licenses());
+  $('licenses-open').addEventListener('click', () => openLicenses());
   $('update-btn').addEventListener('click', onUpdateButton);
 
   changeLang('', false);

@@ -70,6 +70,10 @@ try {
     Expect-Rejection 'modified signed executable' { Assert-KeyMelierSignature $tampered $cert.Thumbprint }
 
     Write-Host 'Build signed setup and uninstaller.'
+    New-Item "$root\build" -ItemType Directory -Force | Out-Null
+    # The probe has no third-party payload. The real build generates its full
+    # notices before calling the same installer builder.
+    Copy-Item "$root\LICENSE" "$root\build\THIRD_PARTY_LICENSES.txt"
     & "$root\tools\build-windows-installer.ps1" -AppVersion 1.8.6 -Signed
     $checks.Add('Built and verified signed setup and embedded uninstaller')
     $setup = "$root\dist\KeyMelier-Windows-Setup.exe"

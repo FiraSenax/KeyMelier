@@ -90,6 +90,7 @@ async function main() {
 
   const results = [];
   const test = async (name, fn) => {
+    if (process.env.UI_PROGRESS) console.log(`running: ${name}`);
     try { await fn(); results.push({ name, ok: true }); } catch (e) { results.push({ name, ok: false, error: e.message }); }
   };
 
@@ -706,6 +707,27 @@ async function main() {
       assert(/unknown|unbekannt/.test(await js('$("about-build").textContent')), `invalid commit ${bad} shows unknown`);
     }
     await js('openAbout(false); appSettings.build = { signed: false, notarized: false };');
+  });
+  await test('licenses: full plain text, literal search, document switching, export and close race', async () => {
+    await js('window.__lastSave = null; openAbout();');
+    await click('#about-dialog [data-about=licenses]');
+    await until('!!$("license-text")', 'license reader');
+    assert(await js('$("license-text").value.includes("<script>") && !window.__licenseInjected'), 'notice markup stays inert');
+    assert(await js('(() => { const r = document.querySelector(".licenses-dialog").getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()'), 'reader fits');
+    await type('MIT'); await press('Enter');
+    assert(await js('$("license-text").value.slice($("license-text").selectionStart, $("license-text").selectionEnd) === "MIT"'), 'first match selected');
+    await click('#about-dialog [data-about=license-find]');
+    assert(await js('$("license-result").textContent.includes("2")'), 'next match selected');
+    await click('#about-dialog [data-about=license-save]');
+    assert(await js('window.__lastSave.text === $("license-text").value'), 'complete original text exported');
+    await js('$("license-document").value = "2"; $("license-document").dispatchEvent(new Event("change"));');
+    assert(await js('JSON.parse($("license-text").value).sources.length === 0'), 'source manifest readable');
+    await click('#about-dialog [data-about=license-back]');
+    await until('!!document.querySelector("[data-about=licenses]")', 'back in About');
+    await js('window.__getLicenseOriginal = window.pywebview.api.get_licenses; window.pywebview.api.get_licenses = () => new Promise(r => { window.__resolveLicense = r; }); void openLicenses();');
+    await press('Escape');
+    await js('window.__resolveLicense({ bundled: true, documents: [{ id: "notices", text: "late" }] }); window.pywebview.api.get_licenses = window.__getLicenseOriginal;');
+    assert(await js('$("about-dialog").classList.contains("hidden") && !$("license-text")'), 'late response never reopens closed dialog');
   });
   await test('diagnostic report: preview first, Back saves nothing, Save writes exactly the preview (privately)', async () => {
     await js('window.__lastSave = null; window.__demoCalls.length = 0; openAbout();');

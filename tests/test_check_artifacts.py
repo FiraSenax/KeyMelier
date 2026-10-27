@@ -111,6 +111,7 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
         "KeyMelier.app/Contents/Resources/data/build.json": build_json(commit)}))
     (folder / "KeyMelier-macOS.dmg").write_bytes(b"\0" * 2048 + b"koly" + b"\0" * 508)
     (folder / "KeyMelier-Windows.zip").write_bytes(zip_bytes({
+        "KeyMelier/WINDOWS-README.txt": b"Microsoft runtime prerequisites",
         "KeyMelier/KeyMelier.exe": pe(exe_version, signed),
         "KeyMelier/_internal/static/index.html": b"<html>",
         "KeyMelier/_internal/data/advisories.json.sig": b"sig",

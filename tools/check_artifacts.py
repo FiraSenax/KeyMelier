@@ -207,6 +207,10 @@ def check_win_zip(r: Report, path: Path, version: str, signed: bool | None) -> N
     try:
         with zipfile.ZipFile(path) as z:
             names = {n.replace("\\", "/") for n in z.namelist()}
+            from windows_runtime import family
+            forbidden = sorted(n for n in names if family(n))
+            r.check(not forbidden, f"{path.name}: Microsoft system runtimes are not redistributed", ", ".join(forbidden))
+            r.check("KeyMelier/WINDOWS-README.txt" in names, f"{path.name}: Windows prerequisites are included")
             exe = next((n for n in names if n.endswith("KeyMelier/KeyMelier.exe")), None)
             r.check(exe is not None, f"{path.name} contains KeyMelier/KeyMelier.exe")
             for suffix in ("static/index.html", "data/advisories.json.sig"):

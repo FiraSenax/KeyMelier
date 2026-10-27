@@ -234,6 +234,10 @@ coll = COLLECT(
 )
 
 # macOS .app bundle
+if sys.platform == 'win32':
+    import shutil
+    shutil.copyfile(Path(SPECPATH) / 'packaging/WINDOWS-README.txt', Path(coll.name) / 'WINDOWS-README.txt')
+
 if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
