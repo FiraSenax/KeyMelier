@@ -4,7 +4,7 @@ on:
     branches: [main]
     tags: ['v*', '!vsigncheck-*']   # vsigncheck-*: signing-check.yml only, never a release
   pull_request:
-    branches: [main]
+    branches: [main, "codex/pr21-*"]
   workflow_dispatch:
     inputs:
       signed_rc:
@@ -41,7 +41,9 @@ jobs:
           ruff check app.py keymelier_core tools
           ruff check tools tests --select E9,F63,F7,F82
       - name: Verify locked dependency exports (offline)
-        run: python tools/export_requirements.py --check
+        run: |
+          python tools/export_requirements.py --check
+          python tools/license_inputs.py
       - run: python -m unittest discover -s tests -v
       - run: python tools/advisories_sign.py verify
       - name: Syntax of every UI script
@@ -94,6 +96,9 @@ jobs:
     runs-on: macos-14
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     env:
+      # zxing 3.1 uses C++20 aggregate initialization missing in the runner's
+      # default Xcode 15.4; select the installed C++20-capable toolchain.
+      DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
       SIGN_MAC: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
     outputs:
       signed: ${{ steps.build.outputs.signed }}
@@ -113,6 +118,7 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+          python tools/build_zxing.py
       - name: Require signing and notarization for a signed RC
         if: (github.event_name == 'workflow_dispatch' && inputs.signed_rc) || (startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.'))
         env:
@@ -167,7 +173,9 @@ jobs:
       - name: Start test of the packaged app
         env:
           SMOKE_ARTIFACTS: build/smoke-artifacts
-        run: python tools/smoke_packaged.py
+        run: |
+          python tools/smoke_packaged.py
+          python tools/check_library_replacement.py
       - name: Keep start test logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -212,6 +220,7 @@ jobs:
             dist/KeyMelier-macOS.zip
             dist/THIRD_PARTY_LICENSES-macOS.txt
             dist/KeyMelier-macOS.cdx.json
+            dist/KeyMelier-Sources-macOS.tar
           retention-days: 14
   build-windows:
     needs: [test, ui]
@@ -242,6 +251,7 @@ jobs:
         run: |
           mkdir -p build
           python -m pip install --require-hashes --force-reinstall -r requirements.txt -r requirements-build.txt --report build/pip-report.json
+          python tools/build_zxing.py
       - name: Validate Windows signing mode
         shell: pwsh
         env:
@@ -284,7 +294,10 @@ jobs:
       - name: Start test of the packaged app
         env:
           SMOKE_ARTIFACTS: build/smoke-artifacts
-        run: python tools/smoke_packaged.py
+        run: |
+          python tools/smoke_packaged.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_library_replacement.py
       - name: Keep start test logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -315,6 +328,7 @@ jobs:
             dist/KeyMelier-Windows.zip
             dist/THIRD_PARTY_LICENSES-Windows.txt
             dist/KeyMelier-Windows.cdx.json
+            dist/KeyMelier-Sources-Windows.tar
           retention-days: 14
   # Linux: AppImage for x86-64 and ARM64 (Qt web view, unsigned). The same
   # script as locally (build-linux.sh); the start test runs the AppImage itself
@@ -338,9 +352,13 @@ jobs:
           persist-credentials: false
       - name: System packages (build, Qt WebEngine runtime, start test)
         run: |
+          # Source packages must match the native libraries collected below.
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          # Expose ordinary HTTPS source URLs instead of APT's mirror+file URIs.
+          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            python3-venv python3-dev libpcsclite-dev swig squashfs-tools \
+            python3-venv python3-dev libpcsclite-dev swig squashfs-tools liblzma5 \
             libminizip1t64 libopus0 libsnappy1v5 \
             libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libegl1 libgl1 libopengl0 \
@@ -361,7 +379,8 @@ jobs:
         run: |
           xvfb-run -a -s "-screen 0 1400x900x24" dbus-run-session -- bash -c '
             echo -n ci | gnome-keyring-daemon --unlock --components=secrets > /dev/null
-            python3 tools/smoke_packaged.py "dist/KeyMelier-Linux-$ARCH.AppImage"'
+            python3 tools/smoke_packaged.py "dist/KeyMelier-Linux-$ARCH.AppImage" &&
+            python3 tools/check_library_replacement.py'
       - name: Keep start test logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -381,6 +400,7 @@ jobs:
             dist/KeyMelier-Linux-${{ matrix.arch }}.AppImage
             dist/THIRD_PARTY_LICENSES-Linux-${{ matrix.arch }}.txt
             dist/KeyMelier-Linux-${{ matrix.arch }}.cdx.json
+            dist/KeyMelier-Sources-Linux-${{ matrix.arch }}.tar
           retention-days: 14
   # The AppImages built above, unchanged, in clean containers of the supported
   # distributions (tools/linux_compat.py): only the documented runtime

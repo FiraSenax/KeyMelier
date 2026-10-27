@@ -1,0 +1,67 @@
+KeyMelier: modifying and rebuilding third-party libraries
+
+KeyMelier's own code is MIT-licensed. Its license does not restrict modifying
+the LGPL libraries or reverse engineering the application to debug those
+modifications. Each third-party component retains its own license.
+
+Build instructions and the exact dependency pins are included in the source
+repository: https://github.com/FiraSenax/KeyMelier
+Use the commit in data/build.json / SOURCE_COMMIT.txt for your binary, not a
+moving branch. requirements.txt, requirements-build.txt, uv.lock,
+keymelier.spec, the build scripts and .github/workflows/build.yml describe
+the build. THIRD_PARTY_SOURCES.json identifies corresponding upstream sources
+for libraries covered by source-disclosure obligations.
+KeyMelier-Sources-<platform>.tar accompanies each binary release and contains
+these source archives, the application source and these instructions. For
+Ubuntu libraries it includes the .dsc, upstream archives and Debian patches.
+Qt source archives also preserve Chromium's third-party notices and sources.
+
+pyscard is collected as external smartcard/*.py files and its native extension,
+not hidden inside the executable's PYZ. On Windows/Linux these files are in
+KeyMelier/_internal; on macOS use KeyMelier.app/Contents/Resources (native
+libraries may be linked from Contents/Frameworks). Replace the Python files or
+rebuild pyscard's native extension for the same Python ABI and architecture.
+Do this in a copy of the application. Linux Qt libraries are also external in
+_internal/PySide6/Qt; replacement builds must retain ABI compatibility.
+
+For a full rebuild, check out that source commit, create a fresh Python virtual
+environment, install the pinned requirements, then install your modified
+library into that environment and run PyInstaller with keymelier.spec.
+First run tools/build_zxing.py (and tools/build_runtime.py on Linux) to generate
+the controlled build evidence. For a deliberately modified library, adapt its
+source pin and recipe as well; the standard release checks reject stale evidence.
+Document your source modifications in the source manifest.
+The normal build scripts reinstall the original pinned libraries, so invoke
+PyInstaller directly after installing a replacement. Run tools/smoke_packaged.py
+on the result; see TESTING.md for platform setup.
+
+A modified signed macOS bundle must be signed again for local execution:
+    codesign --force --deep --sign - path/to/KeyMelier.app
+This creates an ad-hoc signature, not the publisher's identity or notarization.
+No KeyMelier private signing keys or service account are needed for a local
+rebuild. Windows self-builds can run unsigned. Operating-system trust prompts
+for modified applications are independent of the library licenses.
+
+Automated replacement check: python tools/check_library_replacement.py
+This copies the built application to a temporary directory, changes the external
+pyscard Python source, starts the copy and verifies that the changed module was
+loaded. On Linux it also replaces the version string in a copy of libQt6Core
+and verifies the changed qVersion result while running the full app start test.
+This proves loading a modified native library; it is not a complete Qt source
+rebuild. The macOS copy is signed ad-hoc. Originals and publisher keys are not
+modified. Reports and before/after hashes are in build/smoke-artifacts/replacement.
+
+The AppImage runtime statically links libfuse. Its exact source, libfuse patch,
+other library sources, Alpine musl packaging/patches and linker inventory are
+included in the source bundle. packaging/runtime-build.json pins the inputs;
+packaging/linux/runtime-build.sh is the offline recipe. Run
+    python tools/build_runtime.py
+with Docker available to rebuild it. To use a modified libfuse, change the source
+archive/checksum in that manifest and run the same recipe, then supply the output
+from build/appimage-tools/runtime-<arch> to appimagetool --runtime-file.
+GCC startup/support objects retain GPLv3 with the GCC Runtime Library Exception
+3.1; the original terms accompany the notices. The complete Alpine package
+inventory, source package commits, static archive hashes and linker map are
+retained in the source bundle. No claim of byte-for-byte reproducibility is made.
+The application directory can also be extracted with --appimage-extract and run
+without the original runtime. No publisher signature is needed for local builds.

@@ -22,9 +22,10 @@ sys.path.insert(0, str(Path('tools').resolve()))
 import check_build_environment
 check_build_environment.check()  # fail before stale dependency scripts can enter a bundle
 import third_party_licenses  # noqa: E402
-LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt')
 import sbom  # noqa: E402
-SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION)
+import make_service_icons  # noqa: E402
+if Path('static/service-icons.js').read_text() != make_service_icons.render():
+    raise SystemExit('Regenerate service-icons.js from the individually reviewed assets')
 
 # Windows file metadata: product name and version are required for signing
 WIN_VERSION = None
@@ -69,8 +70,6 @@ a = Analysis(
         ('static',        'static'),
         ('data',          'data'),
         ('keymelier_core','keymelier_core'),
-        (str(LICENSES_FILE), '.'),
-        (str(SBOM_FILE), '.'),
         ('LICENSE', '.'),
     ],
     hiddenimports=[
@@ -133,7 +132,10 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=LINUX_EXCLUDES,
+    # No Pythonwin GUI/editor. COM and Windows credentials use win32api/cred,
+    # not win32ui; excluding it also avoids the otherwise unused MFC runtime.
+    excludes=LINUX_EXCLUDES + ['readline', 'win32ui', 'pywin'],
+    module_collection_mode={'smartcard': 'py'},  # LGPL: external, replaceable Python library
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -181,6 +183,22 @@ if sys.platform.startswith('linux'):
     a.binaries = [entry for entry in a.binaries if _wanted(entry[0])]
     a.datas = [entry for entry in a.datas if _wanted(entry[0])]
 
+# Describe actual collected files, including otherwise build-only packages.
+if sys.platform == 'win32':
+    import windows_runtime
+    a.binaries = windows_runtime.select(a.binaries)
+import bundle_inventory  # noqa: E402
+PACKAGE_NAMES, NATIVE_PACKAGES, VENDORED_PACKAGES, INVENTORY_FILE = bundle_inventory.collect(a)
+import corresponding_sources  # noqa: E402
+SOURCES_FILE, SOURCE_NOTICES = corresponding_sources.prepare(PACKAGE_NAMES, NATIVE_PACKAGES)
+LICENSES_FILE = third_party_licenses.write(Path('build') / 'THIRD_PARTY_LICENSES.txt', PACKAGE_NAMES,
+    [(p['name'] + ' ' + p['version'], p['notice']) for p in NATIVE_PACKAGES] + SOURCE_NOTICES)
+import json
+SBOM_FILE = sbom.write(Path('build') / 'keymelier-sbom.cdx.json', APP_VERSION, PACKAGE_NAMES, NATIVE_PACKAGES, VENDORED_PACKAGES,
+    json.loads(INVENTORY_FILE.read_text())['upstream_sboms'])
+for resource in (LICENSES_FILE, SBOM_FILE, INVENTORY_FILE, SOURCES_FILE):
+    a.datas.append((resource.name, str(resource.resolve()), 'DATA'))
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
@@ -216,6 +234,10 @@ coll = COLLECT(
 )
 
 # macOS .app bundle
+if sys.platform == 'win32':
+    import shutil
+    shutil.copyfile(Path(SPECPATH) / 'packaging/WINDOWS-README.txt', Path(coll.name) / 'WINDOWS-README.txt')
+
 if sys.platform == 'darwin':
     app = BUNDLE(
         coll,

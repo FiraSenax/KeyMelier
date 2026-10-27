@@ -1,0 +1,58 @@
+{
+  "qtbase-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtbase-everywhere-src-6.11.2.tar.xz",
+    "sha256": "5b2e00eccaf5a4d8c14134ffa0ea8dfd0a35ae1ffc7f8d87fa4305a1ed23cf22",
+    "size": 50582668,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtdeclarative-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtdeclarative-everywhere-src-6.11.2.tar.xz",
+    "sha256": "215b7b70517e380123eabc6b92243f3c47b6f016a91d126057dbe53551c6b430",
+    "size": 38780392,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtwebengine-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtwebengine-everywhere-src-6.11.2.tar.xz",
+    "sha256": "6101c1aa00ff933d1b65ee5d167f76e8d71b9ac5b378b0111277723ebda7c163",
+    "size": 580351104,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtpositioning-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtpositioning-everywhere-src-6.11.2.tar.xz",
+    "sha256": "d8cf15ad43a3b1520adac64cec5900028525cf75f01a4c82a0002e7ac1ae7499",
+    "size": 655468,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtwebchannel-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtwebchannel-everywhere-src-6.11.2.tar.xz",
+    "sha256": "feb3149758bda887f0c292656194812dd2c227595badc8fbdeb2fb2311c5575f",
+    "size": 193460,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtsvg-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtsvg-everywhere-src-6.11.2.tar.xz",
+    "sha256": "d594337feca84c26fb67fe87b85e6a5c12fda404b611d905f9d138210c311876",
+    "size": 2341860,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "qtwayland-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtwayland-everywhere-src-6.11.2.tar.xz",
+    "sha256": "8eb7615e39332a10f506e8dd70f02d5954bb5949ff54f6dcbf8bd6168222f9df",
+    "size": 905288,
+    "version": "6.11.2",
+    "modified": false
+  },
+  "pyside-setup-everywhere-src-6.11.2.tar.xz": {
+    "url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.2-src/pyside-setup-everywhere-src-6.11.2.tar.xz",
+    "sha256": "cba47efbaad1bedd529725cbc14e21f156c7a19366f07b3edfbb076ffd7afdf8",
+    "size": 18053248,
+    "version": "6.11.2",
+    "modified": false
+  }
+}

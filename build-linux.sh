@@ -4,8 +4,8 @@
 # Requires: Python 3.11–3.13 with venv, curl, squashfs-tools; the packages of
 # the CI job build-linux (PC/SC headers, libraries Qt WebEngine links to).
 #
-# appimagetool and the AppImage runtime are downloaded at fixed versions and
-# checked against the SHA-256 below before they are run.
+# appimagetool is hash-pinned. The runtime is built from recorded sources in
+# a pinned container; its static library inventory is included with the app.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -15,14 +15,11 @@ PYTHON="$VENV_DIR/bin/python3"
 ARCH="$(uname -m)"
 
 APPIMAGETOOL_VERSION="1.9.1"
-RUNTIME_VERSION="20251108"
 case "$ARCH" in
     x86_64)
-        APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
-        RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d" ;;
+        APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0" ;;
     aarch64)
-        APPIMAGETOOL_SHA256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158"
-        RUNTIME_SHA256="00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444" ;;
+        APPIMAGETOOL_SHA256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158" ;;
     *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
@@ -40,6 +37,8 @@ mkdir -p build
 rm -f build/pip-report*.json
 "$PYTHON" -m pip install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt \
     --report build/pip-report.json
+"$PYTHON" tools/build_zxing.py
+"$PYTHON" tools/build_runtime.py
 
 # Source commit for About/diagnostics (CI writes it in its own step, with the signing state)
 [ -n "${CI:-}" ] || "$PYTHON" tools/write_build_info.py
@@ -73,8 +72,7 @@ TOOLS="build/appimage-tools"
 mkdir -p "$TOOLS"
 fetch "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-$ARCH.AppImage" \
     "$APPIMAGETOOL_SHA256" "$TOOLS/appimagetool-$ARCH.AppImage"
-fetch "https://github.com/AppImage/type2-runtime/releases/download/$RUNTIME_VERSION/runtime-$ARCH" \
-    "$RUNTIME_SHA256" "$TOOLS/runtime-$ARCH"
+"$PYTHON" -c 'import sys; sys.path.insert(0, "tools"); from build_runtime import verify_built; verify_built()'
 # Unpack the (checked) tool instead of running the AppImage: needs no FUSE and
 # also works under CPU emulation, where the AppImage magic in the ELF header
 # confuses binfmt

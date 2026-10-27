@@ -1,0 +1,395 @@
+{
+  "altgraph": {
+    "expression": "MIT",
+    "versions": [
+      "0.17.5"
+    ]
+  },
+  "backports-tarfile": {
+    "expression": "MIT",
+    "versions": [
+      "1.2.0"
+    ]
+  },
+  "bottle": {
+    "expression": "MIT",
+    "versions": [
+      "0.13.4"
+    ]
+  },
+  "certifi": {
+    "expression": "MPL-2.0",
+    "versions": [
+      "2026.10.19"
+    ]
+  },
+  "cffi": {
+    "expression": "MIT-0",
+    "versions": [
+      "2.1.1"
+    ]
+  },
+  "charset-normalizer": {
+    "expression": "MIT",
+    "versions": [
+      "3.5.2"
+    ]
+  },
+  "click": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "8.5.0"
+    ]
+  },
+  "clr-loader": {
+    "expression": "MIT",
+    "versions": [
+      "0.3.1"
+    ]
+  },
+  "cryptography": {
+    "expression": "Apache-2.0 OR BSD-3-Clause",
+    "versions": [
+      "50.0.2"
+    ]
+  },
+  "dmgbuild": {
+    "expression": "MIT",
+    "versions": [
+      "1.6.7"
+    ]
+  },
+  "ds-store": {
+    "expression": "MIT",
+    "versions": [
+      "1.3.3"
+    ]
+  },
+  "fido2": {
+    "expression": "BSD-2-Clause AND Apache-2.0 AND MPL-2.0",
+    "versions": [
+      "2.2.1"
+    ]
+  },
+  "idna": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "3.20"
+    ]
+  },
+  "importlib-metadata": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "8.7.1",
+      "9.0.1"
+    ]
+  },
+  "jaraco-classes": {
+    "expression": "MIT",
+    "versions": [
+      "3.4.0"
+    ]
+  },
+  "jaraco-context": {
+    "expression": "MIT",
+    "versions": [
+      "6.1.2"
+    ]
+  },
+  "jaraco-functools": {
+    "expression": "MIT",
+    "versions": [
+      "4.6.0"
+    ]
+  },
+  "jaraco-text": {
+    "expression": "MIT",
+    "versions": [
+      "4.0.0"
+    ]
+  },
+  "jeepney": {
+    "expression": "MIT",
+    "versions": [
+      "0.9.0"
+    ]
+  },
+  "keyring": {
+    "expression": "MIT",
+    "versions": [
+      "25.7.0"
+    ]
+  },
+  "mac-alias": {
+    "expression": "MIT",
+    "versions": [
+      "2.2.3"
+    ]
+  },
+  "macholib": {
+    "expression": "MIT",
+    "versions": [
+      "1.16.4"
+    ]
+  },
+  "more-itertools": {
+    "expression": "MIT",
+    "versions": [
+      "11.1.0"
+    ]
+  },
+  "ninja": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "1.13.2"
+    ]
+  },
+  "packaging": {
+    "expression": "Apache-2.0 OR BSD-2-Clause",
+    "versions": [
+      "26.0",
+      "26.3"
+    ]
+  },
+  "pathspec": {
+    "expression": "MPL-2.0",
+    "versions": [
+      "1.1.1"
+    ]
+  },
+  "pillow": {
+    "expression": "MIT-CMU",
+    "versions": [
+      "13.0.0"
+    ]
+  },
+  "platformdirs": {
+    "expression": "MIT",
+    "versions": [
+      "4.4.0"
+    ]
+  },
+  "proxy-tools": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "0.1.0"
+    ]
+  },
+  "pycparser": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "3.11"
+    ]
+  },
+  "pyinstaller": {
+    "expression": "GPL-2.0-or-later WITH Bootloader-exception",
+    "versions": [
+      "6.22.3"
+    ]
+  },
+  "pyobjc-core": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyobjc-framework-cocoa": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyobjc-framework-quartz": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyobjc-framework-security": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyobjc-framework-uniformtypeidentifiers": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyobjc-framework-webkit": {
+    "expression": "MIT",
+    "versions": [
+      "12.2.2"
+    ]
+  },
+  "pyopenssl": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "26.4.0"
+    ]
+  },
+  "pyscard": {
+    "expression": "LGPL-2.1-or-later",
+    "versions": [
+      "2.3.1"
+    ]
+  },
+  "pyside6": {
+    "expression": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "versions": [
+      "6.11.2"
+    ]
+  },
+  "pyside6-addons": {
+    "expression": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "versions": [
+      "6.11.2"
+    ]
+  },
+  "pyside6-essentials": {
+    "expression": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "versions": [
+      "6.11.2"
+    ]
+  },
+  "python-dateutil": {
+    "expression": "Apache-2.0 AND BSD-3-Clause",
+    "versions": [
+      "2.9.0.post0"
+    ]
+  },
+  "python-pskc": {
+    "expression": "LGPL-2.1-or-later",
+    "versions": [
+      "1.4"
+    ]
+  },
+  "pythonnet": {
+    "expression": "MIT",
+    "versions": [
+      "3.2.1"
+    ]
+  },
+  "pywebview": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "6.2.1"
+    ]
+  },
+  "pywin32": {
+    "expression": "PSF-2.0 AND BSD-3-Clause",
+    "versions": [
+      "312"
+    ]
+  },
+  "pywin32-ctypes": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "0.2.3"
+    ]
+  },
+  "pyyaml": {
+    "expression": "MIT",
+    "versions": [
+      "6.0.3"
+    ]
+  },
+  "qtpy": {
+    "expression": "MIT",
+    "versions": [
+      "2.4.3"
+    ]
+  },
+  "requests": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "2.34.2"
+    ]
+  },
+  "ruff": {
+    "expression": "MIT",
+    "versions": [
+      "0.17.1"
+    ]
+  },
+  "scikit-build-core": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "1.1.1"
+    ]
+  },
+  "secretstorage": {
+    "expression": "BSD-3-Clause",
+    "versions": [
+      "3.5.0"
+    ]
+  },
+  "setuptools": {
+    "expression": "MIT AND BSD-3-Clause AND MPL-2.0",
+    "versions": [
+      "84.0.0"
+    ]
+  },
+  "shiboken6": {
+    "expression": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "versions": [
+      "6.11.2"
+    ]
+  },
+  "six": {
+    "expression": "MIT",
+    "versions": [
+      "1.17.0"
+    ]
+  },
+  "tomli": {
+    "expression": "MIT",
+    "versions": [
+      "2.4.0"
+    ]
+  },
+  "typing-extensions": {
+    "expression": "PSF-2.0",
+    "versions": [
+      "4.16.0"
+    ]
+  },
+  "urllib3": {
+    "expression": "MIT",
+    "versions": [
+      "2.8.0"
+    ]
+  },
+  "uv": {
+    "expression": "MIT OR Apache-2.0",
+    "versions": [
+      "0.13.4"
+    ]
+  },
+  "wheel": {
+    "expression": "MIT",
+    "versions": [
+      "0.46.3"
+    ]
+  },
+  "yubikey-manager": {
+    "expression": "BSD-2-Clause",
+    "versions": [
+      "5.9.2"
+    ]
+  },
+  "zipp": {
+    "expression": "MIT",
+    "versions": [
+      "3.23.0",
+      "4.1.0"
+    ]
+  },
+  "zxing-cpp": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "3.1.1"
+    ]
+  }
+}

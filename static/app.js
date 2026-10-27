@@ -1460,6 +1460,15 @@ async function start() {
 }
 
 function init() {
+  // A reviewed logo may require a link to its owner's website. Capture this
+  // before list actions so clicking the logo never edits a credential.
+  document.addEventListener('click', ev => {
+    const brand = ev.target.closest('[data-brand-url]');
+    if (!brand) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    window.pywebview?.api?.open_url(brand.dataset.brandUrl);
+  }, true);
   $('key-view').addEventListener('click', ev => {
     const button = ev.target.closest('[data-copy-aaguid]');
     if (button && !button.disabled) copyText(button.dataset.copyAaguid, 'aaguid.copied');

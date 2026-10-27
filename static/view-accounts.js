@@ -24,16 +24,13 @@ function personalMode() {
   return appSettings.personal_mode !== false;
 }
 
-// Logo for a service where the brand allows it (static/service-icons.js),
-// otherwise the first letter. Bundled – nothing is loaded from the network.
+// Only individually reviewed original assets; otherwise a local letter avatar.
 function serviceAvatar(...names) {
-  const icons = typeof SERVICE_ICONS === 'object' ? SERVICE_ICONS : {};
-  for (const n of names) {
-    const ic = icons[serviceKey(n)];
-    if (ic) {
-      return `<span class="pk-avatar svc-logo" title="${escHtml(ic.title)}"><svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#${escHtml(ic.hex)}" d="${escHtml(ic.path)}"/></svg></span>`;
-    }
+  for (const name of names) {
+    const ic = SERVICE_ICONS[serviceKey(name)];
+    if (ic) return `<button type="button" class="pk-avatar svc-logo" data-brand-url="${escHtml(ic.url)}"
+      title="${escHtml(ic.title)} · ${escHtml(ic.url)}" aria-label="${escHtml(ic.title)} · ${escHtml(ic.url)}">
+      <img src="${escHtml(ic.src)}" alt="" aria-hidden="true"></button>`;
   }
   // Letter: prefer a service name ("Microsoft") over a domain ("login.microsoft.com")
   const first = String(names.find(n => n && !String(n).includes('.')) || serviceKey(names.find(Boolean)) || '?');

@@ -39,7 +39,7 @@ PAGE_CHECKS = r"""
     ok('page: 11 languages, complete', langs.length === 11 && langs.every(l => Object.keys(STRINGS[l]).length >= n), `${langs.length} languages, ${n} keys`);
     ok('page: translated text rendered', ($('nav-backup')?.textContent || '').trim().length > 0, $('nav-backup')?.textContent);
     ok('page: UI icons', typeof ICONS === 'object' && Object.keys(ICONS).length >= 10 && $('nav-backup-icon').querySelector('svg'), Object.keys(ICONS || {}).length);
-    ok('page: service logos', typeof SERVICE_ICONS === 'object' && Object.keys(SERVICE_ICONS).length >= 20, Object.keys(SERVICE_ICONS || {}).length);
+    ok('page: service logos', typeof SERVICE_ICONS === 'object' && Object.keys(SERVICE_ICONS).length >= 1 && Object.values(SERVICE_ICONS).every(i => i.src.startsWith('data:image/svg+xml;base64,') && i.url.startsWith('https://')), Object.keys(SERVICE_ICONS || {}).length);
     const img = document.querySelector('.brand img');
     ok('page: app icon (inlined image) decoded', img && img.complete && img.naturalWidth > 0, img?.naturalWidth);
     ok('page: stylesheet applied', getComputedStyle(document.querySelector('.sidebar')).display !== 'inline' && document.querySelector('.sidebar').getBoundingClientRect().width > 150,
@@ -73,6 +73,36 @@ PAGE_CHECKS = r"""
 """
 
 
+def _check_replacements(check):
+    # Only the explicit packaged self-test uses these probes. A changed copy
+    # must prove that it loaded the replacement, not merely that it started.
+    probe = {}
+
+    def parse_probe():
+        nonlocal probe
+        try:
+            raw = json.loads(os.environ.get("KEYMELIER_LIBRARY_PROBE", "{}"))
+        except (ValueError, TypeError) as error:
+            raise ValueError("Invalid library probe configuration") from error
+        if (not isinstance(raw, dict) or set(raw) - {"pyscard", "qt"}
+                or any(not isinstance(v, str) or not v or len(v) > 128 for v in raw.values())):
+            raise ValueError("Invalid library probe configuration")
+        probe = raw
+        return True
+
+    check("replacement: probe configuration", parse_probe)
+    if "pyscard" in probe:
+        def changed_pyscard():
+            import smartcard.System
+            return getattr(smartcard.System, "__keymelier_replacement_probe__", None) == probe["pyscard"]
+        check("replacement: pyscard", changed_pyscard)
+    if "qt" in probe:
+        def changed_qt():
+            from PySide6.QtCore import qVersion
+            return qVersion() == probe["qt"]
+        check("replacement: qt", changed_qt)
+
+
 def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> list[dict]:
     out = []
 
@@ -98,7 +128,11 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
 
     def smartcard():
         import smartcard.System  # noqa: F401  (PC/SC; no reader access here)
-        return "pyscard"
+        # This LGPL library must remain an actually loaded, replaceable file.
+        path = Path(smartcard.System.__file__)
+        if not path.is_file() or path.suffix != ".py":
+            raise ValueError("pyscard Python module is not an external replaceable source file")
+        return "pyscard (external Python source)"
 
     def ykman():
         import ykman  # noqa: F401
@@ -161,6 +195,7 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
         check("MSIX: isolated user data write/read/delete", persistence_roundtrip)
     check("runtime: cryptography (scrypt, AES-GCM)", crypto)
     check("runtime: pyscard (PC/SC)", smartcard)
+    _check_replacements(check)
     check("runtime: yubikey-manager", ykman)
     check("runtime: requests + CA bundle", tls)
     check("runtime: keyring backend", keychain)

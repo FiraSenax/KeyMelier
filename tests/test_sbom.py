@@ -29,12 +29,12 @@ class SbomTests(unittest.TestCase):
         self.assertEqual(sbom.validate(self.bom, "9.9.9"), [])
 
     def test_everything_shipped_is_listed(self):
-        for required in ("fido2", "cryptography", "pyscard", "pywebview", "CPython", "OpenSSL", "simple-icons"):
+        for required in ("fido2", "cryptography", "pyscard", "pywebview", "CPython", "OpenSSL", "Lucide", "Feather", "brand:github"):
             self.assertIn(required, self.names())
-        icons = next(c for c in self.bom["components"] if c["name"] == "simple-icons")
-        self.assertEqual(icons["licenses"], [{"license": {"id": "CC0-1.0"}}])
+        icons = next(c for c in self.bom["components"] if c["name"] == "brand:github")
+        self.assertEqual(icons["licenses"][0]["license"]["name"], "Brand usage terms")
         self.assertEqual(icons["hashes"][0]["content"],
-                         hashlib.sha256((ROOT / "static" / "service-icons.js").read_bytes()).hexdigest())
+                         hashlib.sha256((ROOT / "packaging/brands/github.svg").read_bytes()).hexdigest())
 
     def test_licenses_are_spdx(self):
         by_name = {c["name"]: c["licenses"] for c in self.bom["components"]}
@@ -60,8 +60,8 @@ class SbomTests(unittest.TestCase):
         comp = lambda bom, name: next(c for c in bom["components"] if c["name"] == name)
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("licenses", [])))
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("licenses", [{"license": {"name": "BSD License"}}])))
-        self.assertTrue(broken(lambda b: b["components"].remove(comp(b, "simple-icons"))))
-        self.assertTrue(broken(lambda b: comp(b, "simple-icons")["hashes"][0].__setitem__("content", "0" * 64)))
+        self.assertTrue(broken(lambda b: b["components"].remove(comp(b, "brand:github"))))
+        self.assertTrue(broken(lambda b: comp(b, "brand:github")["hashes"][0].__setitem__("content", "0" * 64)))
         self.assertTrue(broken(lambda b: comp(b, "fido2").__setitem__("hashes", [{"alg": "SHA-256", "content": "1" * 64}])),
                         "a hash the lock file does not allow")
         self.assertTrue(broken(lambda b: b["metadata"]["component"].__setitem__("version", "1.0.0")))
@@ -70,6 +70,33 @@ class SbomTests(unittest.TestCase):
     def test_strict_requires_installed_hashes_and_the_bootloader(self):
         problems = sbom.validate(self.bom, "9.9.9", strict=True)
         self.assertTrue(any("no hash of the installed artifact" in p for p in problems))
+
+    def test_known_spdx_license_still_requires_component_review(self):
+        bom = copy.deepcopy(self.bom)
+        package = next(c for c in bom['components'] if c['name'] == 'requests')
+        package['version'] = '999.0'
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+        package['version'] = next(c['version'] for c in self.bom['components'] if c['name'] == 'requests')
+        package['licenses'] = [{'license': {'id': 'GPL-3.0-only'}}]
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+        package['name'] = 'new-package'
+        package['purl'] = 'pkg:pypi/new-package@1.0'
+        package['licenses'] = [{'license': {'id': 'MIT'}}]
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+
+    def test_nested_vendor_uses_its_own_reviewed_version(self):
+        bom = copy.deepcopy(self.bom)
+        # Exact nested copy observed in the built Setuptools 84 wheel. Unit-test
+        # environments intentionally do not install all packaging dependencies.
+        package = {'type': 'library', 'name': 'packaging', 'version': '26.0',
+            'bom-ref': 'pkg:pypi/packaging@26.0#nested-regression', 'purl': 'pkg:pypi/packaging@26.0',
+            'licenses': sbom._licenses('Apache-2.0 OR BSD-2-Clause'),
+            'properties': [{'name': 'keymelier:bundled-in', 'value': 'setuptools wheel; see parent artifact hash'}]}
+        bom['components'].append(package)
+        bom['dependencies'][0]['dependsOn'].append(package['bom-ref'])
+        self.assertEqual(sbom.validate(bom), [])
+        package['version'] = '999.0'
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
 
     def test_cli_checks_default_file_without_treating_strict_as_a_path(self):
         with tempfile.TemporaryDirectory() as tmp:

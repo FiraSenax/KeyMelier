@@ -15,15 +15,22 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import check_artifacts as ca  # noqa: E402
 import fetch_rc  # noqa: E402
-from test_check_artifacts import COMMIT, VERSION, fake_squashfs, make_release  # noqa: E402
+from test_check_artifacts import COMMIT, VERSION, fake_squashfs, make_release, runtime_fixture_lock  # noqa: E402
 
 RUN = "123456"
 
 
 class FetchRCTests(unittest.TestCase):
     def setUp(self):
+        for target, result in (('build_zxing.validate_proof', None),
+                               ('build_runtime.validate_proof', None),
+                               ('build_runtime.normalized_hash', 'fixture-hash')):
+            mocked = patch(target, return_value=result)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        runtime_fixture_lock(self, self.tmp)
         self.dist = self.tmp / "dist"
         self.dist.mkdir()
         (self.dist / "KeyMelier-macOS.dmg").write_bytes(b"an old local package")   # must stay untouched

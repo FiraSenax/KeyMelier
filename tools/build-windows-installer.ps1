@@ -8,6 +8,11 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 try {
+    Copy-Item 'packaging\WINDOWS-README.txt' 'dist\KeyMelier\WINDOWS-README.txt'
+    # Inno's text license reader detects UTF-8 by its BOM. Preserve non-ASCII
+    # original copyright names on every Windows display language.
+    $notices = [IO.File]::ReadAllText((Join-Path $root 'build\THIRD_PARTY_LICENSES.txt'), [Text.Encoding]::UTF8)
+    [IO.File]::WriteAllText((Join-Path $root 'build\INSTALLER-LICENSES.txt'), $notices, [Text.UTF8Encoding]::new($true))
     $compilerArgs = @("/DAppVersion=$AppVersion")
     if ($Signed) {
         Assert-KeyMelierSignature 'dist\KeyMelier\KeyMelier.exe' $env:CERTUM_CERT_SHA1
