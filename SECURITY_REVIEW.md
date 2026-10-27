@@ -102,8 +102,10 @@ Supply chain: every build writes a CycloneDX 1.6 SBOM (`tools/sbom.py`) and
 third-party license notices; both ship in the app and with each release. The
 SBOM lists Python packages (SPDX licenses, SHA-256 of the installed file from
 pip's report, checked against the hash-pinned lock), the PyInstaller
-bootloader, CPython, both OpenSSL builds and the Simple Icons data; CI rejects
-a build whose SBOM is incomplete (`tools/sbom.py --check --strict`).
+bootloader, CPython, both OpenSSL builds, individually reviewed brand assets and
+native Linux package provenance. CI checks these records (`tools/sbom.py --check --strict`)
+and corresponding source archives. This is not a claim that every statically linked
+subcomponent is independently versioned or that automated checks prove legal compliance.
 
 ---
 

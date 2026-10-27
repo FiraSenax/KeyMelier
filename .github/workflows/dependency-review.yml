@@ -3,7 +3,7 @@ name: Dependency review
 # known vulnerability (moderate or higher) – before it reaches main.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "codex/pr21-*"]
 permissions:
   contents: read
 jobs:

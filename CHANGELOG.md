@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Update the build dependency setuptools to 84.2.1, including the archive and legacy wheel path traversal fixes from 84.1.0; refresh its reviewed licenses and source evidence together.
+- Reduce service logos to individually reviewed assets for licensing reasons; other services use a letter avatar.
+- Include complete third-party notices, source archives and build provenance. Check reviewed dependency versions, licenses and embedded sources on upgrades; retain KeyMelier’s MIT license.
+- Use the separately installed Microsoft Visual C++ runtime on Windows; the installer checks the prerequisite and portable downloads explain how to install it.
+
 ## 1.8.6 — 2026-10-26
 
 Signed Windows releases, security hardening and easier access to key and account details.

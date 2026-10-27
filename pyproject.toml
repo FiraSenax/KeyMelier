@@ -22,6 +22,12 @@ dependencies = [
 build = [
     "dmgbuild==1.6.7 ; sys_platform == 'darwin'",
     "pyinstaller==6.22.3",
+    # zxing-cpp is rebuilt with these exact inputs; no opaque nanobind wheel copy.
+    "nanobind==2.11.0",
+    "scikit-build-core==1.1.1",
+    "cmake==4.4.4",
+    "ninja==1.13.2",
+    "wheel==0.46.3",
 ]
 quality = [
     "ruff==0.17.1",

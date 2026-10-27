@@ -25,6 +25,7 @@ mkdir -p build
 rm -f build/pip-report*.json
 "$PIP" install --require-hashes --force-reinstall -q -r requirements.txt -r requirements-build.txt \
     --report build/pip-report.json
+"$PYTHON" tools/build_zxing.py
 
 echo "Using committed app icon..."
 # Use the reviewed, committed icons; regeneration is a separate design task.

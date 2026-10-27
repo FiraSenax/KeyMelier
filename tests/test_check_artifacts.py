@@ -12,6 +12,7 @@ import plistlib
 import shutil
 import struct
 import sys
+import tarfile
 import tempfile
 import unittest
 import zipfile
@@ -68,6 +69,7 @@ def appimage(arch="x86_64") -> bytes:
 INTERNAL = "usr/lib/keymelier/_internal"
 APPIMAGE_FILES = {"AppRun", "keymelier.desktop", "usr/lib/keymelier/KeyMelier", f"{INTERNAL}/static/index.html",
                   f"{INTERNAL}/data/advisories.json.sig", f"{INTERNAL}/THIRD_PARTY_LICENSES.txt",
+                  f"{INTERNAL}/smartcard/System.py", f"{INTERNAL}/THIRD_PARTY_SOURCES.json",
                   "usr/share/keymelier/70-keymelier.rules", f"{INTERNAL}/keymelier_core/version.py"}
 
 
@@ -76,12 +78,53 @@ def build_json(commit=COMMIT, modified=False):
 
 
 def fake_squashfs(version=VERSION, files=APPIMAGE_FILES, commit=COMMIT, modified=False):
-    def read(inner):
+    def read(inner, arch):
+        if inner.endswith('THIRD_PARTY_SOURCES.json'):
+            return json.dumps({'runtime_build': {'architecture': arch, 'normalized_sha256': 'fixture-hash'}})
         return build_json(commit, modified) if inner.endswith("data/build.json") else f'__version__ = "{version}"\n'
-    return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"}, read)
+    return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"},
+        lambda inner: read(inner, 'aarch64' if 'aarch64' in path.name else 'x86_64'))
 
 
-LICENSES = "fido2 … cryptography … Simple Icons … PyInstaller bootloader"
+LICENSES = "fido2 … cryptography … lucide-LICENSE.txt … feather-LICENSE.txt … PyInstaller bootloader"
+
+
+def runtime_fixture_lock(testcase, folder):
+    import build_runtime
+    data = json.loads(build_runtime.LOCK.read_text())
+    for source in data['sources']:
+        raw = ('fixture runtime source ' + source['component']).encode()
+        source.update(sha256=hashlib.sha256(raw).hexdigest(), size=len(raw))
+    path = folder / 'runtime-fixture-lock.json'
+    path.write_text(json.dumps(data))
+    mocked = patch.object(build_runtime, 'LOCK', path)
+    mocked.start()
+    testcase.addCleanup(mocked.stop)
+
+
+def source_bundle(path, commit=COMMIT):
+    contents = {"KeyMelier-source.tar": b"fixture app source", "LIBRARY-REPLACEMENT.txt": b"fixture instructions"}
+    sources = []
+    for name in ("pyscard", "certifi", "fido2", "qtbase", "qtdeclarative", "qtwebengine", "pyside-setup", "fuse-3.15.0"):
+        filename = name + (".tar.xz" if name.startswith("fuse") else ".tar.gz")
+        raw = ("fixture source " + name).encode()
+        contents["upstream/" + filename] = raw
+        sources.append({"component": name, "filename": filename, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)})
+    import build_runtime
+    for source in json.loads(build_runtime.LOCK.read_text())['sources']:
+        raw = ('fixture runtime source ' + source['component']).encode()
+        sources = [s for s in sources if s['filename'] != source['filename']]
+        sources.append(source)
+        contents['upstream/' + source['filename']] = raw
+    contents['runtime-build/runtime.map'] = b'fixture linker map'
+    contents["THIRD_PARTY_SOURCES.json"] = json.dumps({"source_commit": commit, "modified_worktree": False, "sources": sources,
+        'zxing_build': {'inputs': {}},
+        'runtime_build': {'link_map_sha256': hashlib.sha256(contents['runtime-build/runtime.map']).hexdigest()}}).encode()
+    with tarfile.open(path, "w") as archive:
+        for name, raw in contents.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            archive.addfile(info, io.BytesIO(raw))
 
 
 def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, signed=False, commit=COMMIT):
@@ -93,6 +136,7 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
         "KeyMelier.app/Contents/Resources/data/build.json": build_json(commit)}))
     (folder / "KeyMelier-macOS.dmg").write_bytes(b"\0" * 2048 + b"koly" + b"\0" * 508)
     (folder / "KeyMelier-Windows.zip").write_bytes(zip_bytes({
+        "KeyMelier/WINDOWS-README.txt": b"Microsoft runtime prerequisites",
         "KeyMelier/KeyMelier.exe": pe(exe_version, signed),
         "KeyMelier/_internal/static/index.html": b"<html>",
         "KeyMelier/_internal/data/advisories.json.sig": b"sig",
@@ -106,6 +150,8 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
         (folder / name).write_text("{}")
     for name in ("THIRD_PARTY_LICENSES-macOS.txt", "THIRD_PARTY_LICENSES-Windows.txt", *ca.LINUX_FILES[2::3]):
         (folder / name).write_text(LICENSES, encoding="utf-8")
+    for name in ca.SOURCE_FILES:
+        source_bundle(folder / name, commit)
     for lock in ca.LOCKS:
         shutil.copy(ROOT / lock, folder / lock)
     (folder / "SOURCE_COMMIT.txt").write_text(COMMIT + "\n")
@@ -120,8 +166,17 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
 
 class CheckArtifactsTests(unittest.TestCase):
     def setUp(self):
+        # Full controlled-build drift checks have their own negative tests in
+        # test_controlled_builds.py; these fixtures exercise container formats.
+        for target, result in (('build_zxing.validate_proof', None),
+                               ('build_runtime.validate_proof', None),
+                               ('build_runtime.normalized_hash', 'fixture-hash')):
+            mocked = patch(target, return_value=result)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        runtime_fixture_lock(self, self.tmp)
         self.dir = self.tmp / "artifacts"
         self.dir.mkdir()
         # SBOM contents are checked by tests/test_sbom.py; here only that the check runs
@@ -143,6 +198,7 @@ class CheckArtifactsTests(unittest.TestCase):
         for name, content in zip(ca.linux_files("x86_64"), (appimage(), "{}", LICENSES)):
             (out / name).write_bytes(content) if isinstance(content, bytes) else (out / name).write_text(content, encoding="utf-8")
         (out / "KeyMelier-Linux-x86_64.AppImage").chmod(0o755)
+        source_bundle(out / "KeyMelier-Sources-Linux-x86_64.tar")
         self.assertEqual(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, [])
         with patch.object(ca, "squashfs_contents", fake_squashfs(version="0.0.1")):
             self.assertTrue(ca.run(["linux", str(out), "--arch", "x86_64"]).problems, "wrong version found")
@@ -323,6 +379,10 @@ class CheckArtifactsTests(unittest.TestCase):
         make_release(self.dir)
         r = ca.run(["windows", str(self.dir), "--signed", "false"])
         self.assertEqual(r.problems, [])
+        with zipfile.ZipFile(self.dir / "KeyMelier-Windows.zip", "a") as archive:
+            archive.writestr("KeyMelier/_internal/wheel/VCRUNTIME140.dll", b"accidental runtime copy")
+        self.assertTrue(any("Microsoft system runtimes" in p for p in
+                            ca.run(["windows", str(self.dir), "--signed", "false"]).problems))
         (self.dir / "KeyMelier-Windows.zip").write_bytes(zip_bytes({"KeyMelier/readme.txt": b"no exe"}))
         self.assertTrue(ca.run(["windows", str(self.dir), "--signed", "false"]).problems)
 

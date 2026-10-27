@@ -8,3 +8,7 @@
 # Signatures cover exact bytes. Never rewrite line endings on checkout or add.
 /data/advisories.json -text
 /data/advisories.json.sig -text
+
+# Reviewed upstream originals have byte-level provenance hashes.
+/packaging/licenses/*.txt -text
+/packaging/brands/*.svg -text

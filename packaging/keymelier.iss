@@ -4,6 +4,9 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+#ifndef VCMinVersion
+  #define VCMinVersion "14.44.35211.0"
+#endif
 
 [Setup]
 AppId={{B51D17BC-8D7E-4DF0-90EF-BFA10DC2A0C0}
@@ -20,6 +23,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
 OutputDir=..\dist
 OutputBaseFilename=KeyMelier-Windows-Setup
 SetupIconFile=..\static\icon.ico
@@ -29,7 +33,7 @@ SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
-LicenseFile=..\LICENSE
+LicenseFile=..\build\INSTALLER-LICENSES.txt
 VersionInfoProductName=KeyMelier
 VersionInfoProductVersion={#AppVersion}
 VersionInfoVersion={#AppVersion}
@@ -67,3 +71,39 @@ Name: "{autodesktop}\KeyMelier"; Filename: "{app}\KeyMelier.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\KeyMelier.exe"; Description: "{cm:LaunchProgram,KeyMelier}"; Flags: nowait postinstall skipifsilent shellexec
+
+[Code]
+const
+  RuntimeHelp = 'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist';
+
+function HasVCRuntime(): Boolean;
+var
+  Version, Minimum: Int64;
+begin
+  Log('Checking Microsoft C++ x64 runtime >= {#VCMinVersion}');
+  if not StrToVersion('{#VCMinVersion}', Minimum) then RaiseException('Invalid C++ runtime minimum version');
+  Result := GetPackedVersion(ExpandConstant('{sys}\vcruntime140.dll'), Version);
+  if Result then Result := ComparePackedVersion(Version, Minimum) >= 0;
+  if Result then Result := GetPackedVersion(ExpandConstant('{sys}\msvcp140.dll'), Version);
+  if Result then Result := ComparePackedVersion(Version, Minimum) >= 0;
+  if Result then Result := GetPackedVersion(ExpandConstant('{sys}\vcruntime140_1.dll'), Version);
+  if Result then Result := ComparePackedVersion(Version, Minimum) >= 0;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+  MessageText: String;
+begin
+  Result := '';
+  if HasVCRuntime() then Exit;
+  MessageText := 'Microsoft Visual C++ v14 Redistributable (x64, {#VCMinVersion} or later) is required.' + #13#10 +
+    'Install it directly from Microsoft, then retry KeyMelier Setup.' + #13#10 + RuntimeHelp;
+  if ActiveLanguage = 'de' then
+    MessageText := 'Microsoft Visual C++ v14 Redistributable (x64, ab {#VCMinVersion}) wird benötigt.' + #13#10 +
+      'Installiere es direkt von Microsoft und starte danach die Installation erneut.' + #13#10 + RuntimeHelp;
+  Result := MessageText;
+  if not WizardSilent() then
+    if MsgBox(MessageText + #13#10#13#10 + 'Microsoft Download?', mbConfirmation, MB_YESNO) = IDYES then
+      ShellExec('open', RuntimeHelp, '', '', SW_SHOWNORMAL, ewNoWait, Code);
+end;
