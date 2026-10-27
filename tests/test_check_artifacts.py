@@ -243,7 +243,7 @@ class CheckArtifactsTests(unittest.TestCase):
             "tools/release_notes.py", "check_artifacts.py release artifacts")]
         self.assertEqual(order, sorted(order))
         release = wf[wf.index("\n  release:"):wf.index("\n  release-rehearsal:")]
-        rehearsal = wf[wf.index("\n  release-rehearsal:"):]
+        rehearsal = wf[wf.index("\n  release-rehearsal:"):wf.index("\n  release-candidate:")]
         for job in (release, rehearsal):
             self.assertIn("uses: ./.github/actions/prepare-release", job)
             self.assertIn("linux-compat", job.split("\n")[2], "blocked by the Linux compatibility tests")

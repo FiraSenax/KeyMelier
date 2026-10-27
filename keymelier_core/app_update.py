@@ -18,11 +18,14 @@ from pathlib import Path
 from keymelier_core.network import read_limited
 from keymelier_core.distribution import is_msix
 from keymelier_core.version import __version__
+from keymelier_core import build_info
 
 logger = logging.getLogger(__name__)
 
 RELEASES_API = "https://api.github.com/repos/FiraSenax/KeyMelier/releases/latest"
+RC_RELEASES_API = "https://api.github.com/repos/FiraSenax/KeyMelier/releases?per_page=100"
 DOWNLOAD_PREFIX = "https://github.com/FiraSenax/KeyMelier/releases/download/"
+VERSION_PATTERN = r"v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.([1-9]\d*))?"
 MAX_SIZE = 500 * 1024 * 1024
 ASSETS = {  # platform -> preferred download, fallback
     "darwin": ("KeyMelier-macOS.dmg", "KeyMelier-macOS.zip"),
@@ -33,55 +36,93 @@ LINUX_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm6
 
 
 def _parse(version: str) -> tuple[int, ...] | None:
-    m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", (version or "").strip())
-    return tuple(int(x) for x in m.groups()) if m else None
+    m = re.fullmatch(VERSION_PATTERN, version) if isinstance(version, str) and len(version) <= 64 else None
+    if not m:
+        return None
+    # RC numbers compare numerically; the final version follows every RC.
+    return (*map(int, m.group(1, 2, 3)), 0 if m[4] else 1, int(m[4] or 0))
 
 
-def check() -> dict:
+def current_version() -> str:
+    return (build_info.load().get("release_tag") or __version__).removeprefix("v")
+
+
+def _asset(release: dict) -> dict | None:
+    import platform
+
+    prefix = DOWNLOAD_PREFIX + release["tag_name"] + "/"
+    assets = {a.get("name"): a.get("browser_download_url") for a in release.get("assets", [])
+              if isinstance(a, dict) and isinstance(a.get("name"), str)
+              and a.get("browser_download_url") == prefix + a["name"]}
+    arch = LINUX_ARCH.get(platform.machine().lower())
+    for name in ASSETS.get(sys.platform, ()):
+        if name.endswith(".AppImage") and not name.endswith(f"-{arch}.AppImage"):
+            continue
+        if name in assets and "SHA256SUMS.txt" in assets:
+            return {"name": name, "url": assets[name], "sums": assets["SHA256SUMS.txt"]}
+    return None
+
+
+def check(include_rc: bool = False) -> dict:
     """Return {current, latest, newer, url, published_at} (latest may be None)."""
     import requests
 
-    result = {"current": __version__, "latest": None, "newer": False, "url": None, "published_at": None,
-              "failed": False}
+    running = current_version()
+    result = {"current": running, "latest": None, "newer": False, "url": None, "published_at": None,
+              "failed": False, "channel": "rc" if include_rc else "stable"}
     try:
         if is_msix():
             result["managed"] = True
             return result
-        with requests.get(RELEASES_API, timeout=15, stream=True,
-                          headers={"Accept": "application/vnd.github+json"}) as resp:
-            if resp.status_code == 404:
-                return result  # no release published yet
-            release = json.loads(read_limited(resp, 1024 * 1024))
+        releases = []
+        # Always include /latest, even if many newer prereleases fill the list.
+        for url in ([RELEASES_API, RC_RELEASES_API] if include_rc else [RELEASES_API]):
+            with requests.get(url, timeout=15, stream=True,
+                              headers={"Accept": "application/vnd.github+json"}) as resp:
+                if resp.status_code == 404:
+                    continue  # no release published yet
+                data = json.loads(read_limited(resp, 4 * 1024 * 1024 if url == RC_RELEASES_API else 1024 * 1024))
+            if url == RELEASES_API and isinstance(data, dict):
+                releases.append(data)
+            elif url == RC_RELEASES_API and isinstance(data, list):
+                releases.extend(data)
+            else:
+                raise ValueError("Unexpected release response")
     except Exception as e:
         logger.info("App update check failed: %s", type(e).__name__)
         result["failed"] = True   # offline or GitHub unreachable – say so when asked
         return result
-    if not isinstance(release, dict) or not isinstance(release.get("tag_name", ""), str) or not isinstance(release.get("assets", []), list):
-        result["failed"] = True
+    candidates = []
+    for release in releases:
+        if not isinstance(release, dict) or not isinstance(release.get("assets", []), list):
+            continue
+        version = _parse(release.get("tag_name"))
+        if version is None or release.get("draft"):
+            continue
+        rc = version[3] == 0
+        if rc and (not include_rc or release.get("prerelease") is not True):
+            continue
+        if not rc and release.get("prerelease"):
+            continue
+        asset = _asset(release)
+        if rc and not asset:
+            continue  # do not offer a candidate before this platform's files are uploaded
+        candidates.append((version, release, asset))
+    if not candidates:
         return result
-    latest = _parse(release.get("tag_name", ""))
-    current = _parse(__version__)
-    if latest is None or release.get("draft") or release.get("prerelease"):
-        return result
+    latest, release, asset = max(candidates, key=lambda item: item[0])
+    current = _parse(running)
     result.update(
-        latest=".".join(map(str, latest)),
+        latest=release["tag_name"].removeprefix("v"),
         newer=current is not None and latest > current,
-        url=release.get("html_url"),
+        url="https://github.com/FiraSenax/KeyMelier/releases/tag/" + release["tag_name"],
         published_at=release.get("published_at"),
+        prerelease=latest[3] == 0,
     )
-    assets = {a.get("name"): a.get("browser_download_url") for a in release.get("assets", [])
-              if isinstance(a, dict) and isinstance(a.get("name"), str)
-              and isinstance(a.get("browser_download_url"), str) and a["browser_download_url"].startswith(DOWNLOAD_PREFIX)}
-    import platform
-    arch = LINUX_ARCH.get(platform.machine().lower())
-    for name in ASSETS.get(sys.platform, ()):
-        if name.endswith(".AppImage") and not name.endswith(f"-{arch}.AppImage"):
-            continue   # the build for another processor
-        if name in assets and "SHA256SUMS.txt" in assets:
-            result["asset"] = {"name": name, "url": assets[name], "sums": assets["SHA256SUMS.txt"]}
-            break
+    if asset:
+        result["asset"] = asset
     if result["newer"]:
-        logger.info("KeyMelier %s is available (running %s)", result["latest"], __version__)
+        logger.info("KeyMelier %s is available (running %s)", result["latest"], running)
     return result
 
 
@@ -112,7 +153,7 @@ def download(asset: dict, progress=None) -> Path:
         raise UpdateError("Unexpected download location.")
     # Both files must belong to exactly the same project release, not merely
     # share a URL prefix. No queries, traversal, encoded separators or fragments.
-    match = re.fullmatch(re.escape(DOWNLOAD_PREFIX) + r"(v?\d+\.\d+\.\d+)/" + re.escape(name), str(url))
+    match = re.fullmatch(re.escape(DOWNLOAD_PREFIX) + r"(v?\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?)/" + re.escape(name), str(url))
     if not match or sums_url != DOWNLOAD_PREFIX + match[1] + "/SHA256SUMS.txt":
         raise UpdateError("Unexpected download location.")
     try:

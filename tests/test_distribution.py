@@ -38,6 +38,7 @@ class DistributionTests(unittest.TestCase):
             self.assertTrue(result["managed"])
             self.assertFalse(result["newer"])
             self.assertNotIn("asset", result)
+            self.assertTrue(app_update.check(include_rc=True)['managed'])
             with self.assertRaises(app_update.UpdateError):
                 app_update.download({})
             with self.assertRaises(app_update.UpdateError):

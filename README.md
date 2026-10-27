@@ -62,6 +62,19 @@ Ready-made builds are attached to the [latest release](https://github.com/FiraSe
 - Portable alternatives: `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip`.
 
 When a newer version exists, KeyMelier offers to download it, verifies it against the release's SHA-256 checksums and opens it; installing stays with you.
+**Settings → Updates → Include release candidates** also offers published RCs (off by default).
+RCs are test versions and may contain bugs. Updates follow version order, for example
+`1.8.7-rc.2 → 1.8.7-rc.3 → 1.8.7`; turning the option off never downgrades an installed RC.
+MSIX installations continue to use their package update mechanism.
+
+RC tag pushes remain artifact-only. To make a candidate available to the updater,
+manually run the **Build** workflow on a new `vX.Y.Z-rc.N` tag with both `signed_rc`
+and `publish_rc` enabled. Publication requires the complete successful rehearsal
+and verified macOS/Windows signing, uploads a draft first, then publishes it as a
+prerelease with `make_latest=false`. Existing releases are never overwritten.
+The build records the RC tag, so the updater can distinguish candidates with the
+same base version. Older artifact-only RCs without that field need one manual
+upgrade to a build containing this feature.
 Each release states whether its macOS build is Developer ID signed and notarized
 and whether its Windows build is Authenticode signed. Checksums (`SHA256SUMS.txt`),
 dependency locks and the source commit are attached to every release.

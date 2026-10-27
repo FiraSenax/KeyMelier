@@ -97,6 +97,36 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertFalse(any('action-gh-release' in s.get('uses', '') for s in rc['steps']))
         self.assertTrue(any(s.get('name') == 'Verify signed RC result' for s in rc['steps']))
 
+    def test_rc_publication_requires_manual_opt_in_green_rehearsal_and_signatures(self):
+        import os
+        import subprocess
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
+        trigger = workflow.get('on', workflow.get(True))
+        self.assertFalse(trigger['workflow_dispatch']['inputs']['publish_rc']['default'])
+        job = workflow['jobs']['release-candidate']
+        self.assertIn("github.event_name == 'workflow_dispatch'", job['if'])
+        self.assertIn('inputs.signed_rc && inputs.publish_rc', job['if'])
+        self.assertIn('release-rehearsal', job['needs'])
+        self.assertNotIn('always()', job['if'])
+        self.assertEqual(job['environment'], 'release-signing')
+        gate = next(s for s in job['steps'] if s.get('name') == 'Require an RC tag and both verified signatures')
+        bash = str(Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Git/bin/bash.exe') if sys.platform == 'win32' else 'bash'
+        for ref, mac, win, allowed in ((f'v{app_version()}-rc.3', 'true', 'true', True),
+                                       (f'v{app_version()}', 'true', 'true', False),
+                                       ('main', 'true', 'true', False),
+                                       ('v0.0.0-rc.1', 'true', 'true', False),
+                                       (f'v{app_version()}-rc.3', 'false', 'true', False),
+                                       (f'v{app_version()}-rc.3', 'true', 'false', False)):
+            with self.subTest(ref=ref, mac=mac, win=win):
+                script = gate['run'].replace('python3', '"' + sys.executable.replace('\\', '/') + '"')
+                result = subprocess.run([bash, '-e', '-c', script], cwd=ROOT, capture_output=True, text=True,
+                                        env={**os.environ, 'GITHUB_REF_NAME':ref, 'MAC_SIGNED':mac, 'WIN_SIGNED':win})
+                self.assertEqual(result.returncode == 0, allowed, result.stderr)
+        publish = job['steps'][-1]['run']
+        self.assertLess(publish.index('sha256sum --check'), publish.index('gh release create'))
+        self.assertIn('--verify-tag --draft --prerelease --latest=false', publish)
+        self.assertIn('--draft=false --prerelease --latest=false', publish)
+
     def test_shipped_files_have_the_same_bytes_on_every_platform(self):
         """Git must not convert line endings on Windows: the SBOM hashes the shipped files."""
         import shutil

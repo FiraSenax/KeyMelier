@@ -42,6 +42,15 @@ class AppUpdateTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), PAYLOAD)
         self.assertEqual(path.name, "KeyMelier-macOS.dmg")
 
+    def test_verified_rc_download_and_cross_candidate_checksums(self):
+        asset = {key: value.replace('v9.9.9/', 'v9.9.9-rc.3/') for key, value in ASSET.items()}
+        with patch('requests.get', side_effect=fake_get(hashlib.sha256(PAYLOAD).hexdigest())):
+            self.assertEqual(app_update.download(asset).read_bytes(), PAYLOAD)
+        for bad in ('v9.9.9-rc.2', 'v9.9.9', 'v9.9.9-rc.03', 'v9.9.9-beta.1', 'v9.9.9-rc.3%2f..'):
+            with self.subTest(bad=bad), patch('requests.get') as get, self.assertRaises(app_update.UpdateError):
+                app_update.download({**asset, 'url': asset['url'].replace('v9.9.9-rc.3', bad)})
+            get.assert_not_called()
+
     def test_checksum_mismatch_deletes_file(self):
         with patch("requests.get", side_effect=fake_get("f" * 64)):
             with self.assertRaises(app_update.UpdateError) as e:
@@ -137,6 +146,72 @@ class CheckTests(unittest.TestCase):
         self.assertTrue(result["newer"])
         self.assertFalse(result["failed"])
         self.assertEqual(result["latest"], "99.0.0")
+
+    @staticmethod
+    def release(tag, **overrides):
+        prefix = app_update.DOWNLOAD_PREFIX + tag + '/'
+        return {'tag_name': tag, 'draft': False, 'prerelease': '-rc.' in tag,
+                'assets': [{'name': name, 'browser_download_url': prefix + name}
+                           for name in ('KeyMelier-macOS.dmg', 'SHA256SUMS.txt')], **overrides}
+
+    def check_releases(self, releases, current='1.8.6', include_rc=True, stable=None):
+        def get(url, **kwargs):
+            body = releases if url == app_update.RC_RELEASES_API else stable or self.release('v1.8.6')
+            return self.response(json.dumps(body).encode())
+        with patch('requests.get', side_effect=get) as request, \
+             patch.object(app_update, 'current_version', return_value=current), \
+             patch.object(app_update.sys, 'platform', 'darwin'):
+            result = app_update.check(include_rc=include_rc)
+        return result, request
+
+    def test_rcs_require_opt_in_and_numeric_order_not_api_order(self):
+        releases = [self.release(tag) for tag in ('v1.8.7-rc.2', 'v1.8.7-rc.10', 'v1.8.7-rc.3')]
+        result, request = self.check_releases(releases, include_rc=False)
+        self.assertFalse(result['newer'])
+        self.assertEqual([c.args[0] for c in request.call_args_list], [app_update.RELEASES_API])
+        result, _ = self.check_releases(releases, current='1.8.7-rc.2')
+        self.assertEqual(result['latest'], '1.8.7-rc.10')
+        self.assertTrue(result['newer'])
+        self.assertTrue(result['prerelease'])
+        self.assertIn('/v1.8.7-rc.10/', result['asset']['url'])
+
+    def test_final_follows_rc_even_when_outside_the_recent_list(self):
+        result, _ = self.check_releases([self.release('v1.8.7-rc.99')], current='1.8.7-rc.99',
+                                        stable=self.release('v1.8.7'))
+        self.assertEqual(result['latest'], '1.8.7')
+        self.assertTrue(result['newer'])
+        self.assertFalse(result['prerelease'])
+
+    def test_stable_channel_on_rc_waits_for_final_without_downgrade(self):
+        for tag, newer in (('v1.8.6', False), ('v1.8.7', True)):
+            result, _ = self.check_releases([], current='1.8.7-rc.3', include_rc=False, stable=self.release(tag))
+            self.assertEqual(result['newer'], newer)
+        result, _ = self.check_releases([self.release('v1.8.7-rc.3')], current='1.8.7')
+        self.assertFalse(result['newer'])
+
+    def test_same_or_older_rc_is_not_offered_again(self):
+        for tag in ('v1.8.7-rc.2', 'v1.8.7-rc.3'):
+            result, _ = self.check_releases([self.release(tag)], current='1.8.7-rc.3')
+            self.assertFalse(result['newer'])
+
+    def test_drafts_other_previews_invalid_tags_and_incomplete_rcs_are_ignored(self):
+        releases = [self.release('v99.0.0-rc.1', draft=True), self.release('v99.0.0-beta.1', prerelease=True),
+                    self.release('v99.0.0-rc.0'), self.release('v99.0.0-rc.01'),
+                    self.release('v99.0.0-rc.1', prerelease=False), self.release('v99.0.0', prerelease=True),
+                    self.release('v99.0.0-rc.1', assets=[]), {'tag_name': ['malformed']}, None,
+                    self.release('v1.8.7-rc.3')]
+        result, _ = self.check_releases(releases)
+        self.assertEqual(result['latest'], '1.8.7-rc.3')
+        wrong = self.release('v99.0.0-rc.1')
+        wrong['assets'][1]['browser_download_url'] = app_update.DOWNLOAD_PREFIX + 'v99.0.0/SHA256SUMS.txt'
+        result, _ = self.check_releases([wrong])
+        self.assertFalse(result['newer'])
+
+    def test_running_version_uses_the_validated_build_tag(self):
+        with patch.object(app_update.build_info, 'load', return_value={'release_tag':'v1.8.7-rc.3'}):
+            self.assertEqual(app_update.current_version(), '1.8.7-rc.3')
+        with patch.object(app_update.build_info, 'load', return_value={}):
+            self.assertEqual(app_update.current_version(), app_update.__version__)
 
 if __name__ == "__main__":
     unittest.main()

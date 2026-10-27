@@ -33,7 +33,6 @@ from keymelier_core import reset as reset_mod
 from keymelier_core.history import History, key_id
 from keymelier_core.pin import PinError
 from keymelier_core.scanner import DeviceBusy, DeviceNotFound
-from keymelier_core.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +118,8 @@ class KeyService:
         self._otp_lock = threading.Lock()
         self._probe_cancel: set[str] = set()
         self._app_update = None
+        self._app_update_lock = threading.RLock()
+        self._update_generation = 0
         self._exporter = exporter
         self._mds3 = mds3_client
         self._session_settings = {}
@@ -222,6 +223,10 @@ class KeyService:
             threading.Event().wait(interval)
 
     def update_download(self) -> dict:
+        with self._app_update_lock:
+            return self._start_update_download()
+
+    def _start_update_download(self) -> dict:
         """Download and verify the newer release for this platform (in the
         background; progress via update_progress events)."""
         from keymelier_core import app_update
@@ -269,9 +274,16 @@ class KeyService:
             self._advisories.check_for_update()
         self._last_update_check = now_iso()
         from keymelier_core import app_update
-        self._app_update = app_update.check()
-        if self._app_update.get("newer"):
-            self.emit("app_update", self._app_update)
+        with self._app_update_lock:
+            generation = self._update_generation
+            include_rc = self._stored_settings().get("include_rc_updates") is True
+        result = app_update.check(include_rc=include_rc)
+        with self._app_update_lock:
+            # A check started before switching channels must not restore an old RC offer.
+            if generation == self._update_generation:
+                self._app_update = result
+                if result.get("newer"):
+                    self.emit("app_update", result)
         # Expiry can change the assessment even when no new blob arrives.
         self._scanner.reevaluate_all()
         status = self.data_status()
@@ -295,11 +307,12 @@ class KeyService:
         return bool(self._advisories) and url in self._advisories.policy_links()
 
     def data_status(self) -> dict:
+        from keymelier_core import app_update
         return {
             "advisories": self._advisories.info() if self._advisories else None,
             "mds": self.mds_status(),
             "last_check": self._last_update_check,
-            "app": self._app_update or {"current": __version__},
+            "app": self._app_update or {"current": app_update.current_version()},
         }
 
     def mds_status(self) -> dict:
@@ -383,15 +396,27 @@ class KeyService:
         return {}
 
     def get_settings(self) -> dict:
+        from keymelier_core import app_update
+        settings = self._stored_settings()
+        try:
+            managed = app_update.is_msix()
+        except OSError:
+            managed = True  # package identity unknown: do not offer GitHub updates
         # lang: the user's explicit choice (absent = follow the system)
         return {"history_enabled": not stateless(), "remember_sites": not stateless(), "personal_mode": True,
-                **self._stored_settings(),
+                **settings, "include_rc_updates": settings.get("include_rc_updates") is True,
+                "update_managed": managed,
                 "stateless": stateless(), "system_languages": system_languages(),
                 "problems": [p for p in (self._settings_problem, self.history.load_problem) if p],
                 "platform": sys.platform, "build": build_info.load()}
 
     def set_settings(self, values: dict) -> dict:
+        with self._app_update_lock:
+            return self._set_settings(values)
+
+    def _set_settings(self, values: dict) -> dict:
         settings = self._stored_settings()
+        old_rc = settings.get("include_rc_updates") is True
         for key, value in (values or {}).items():
             if key == "lang":
                 if value:
@@ -405,6 +430,12 @@ class KeyService:
                 self.history.set_enabled(settings[key])
                 if settings.get("remember_sites") is False:
                     self.history.clear_sites()
+            elif key == "include_rc_updates":
+                if not isinstance(value, bool):
+                    raise PinError("Expected a boolean", "invalid_input")
+                if value != old_rc and getattr(self, "_update_running", False):
+                    raise PinError("Wait for the current update download to finish.", "disabled")
+                settings[key] = value
             elif key == "onboarding_done":
                 # the first-start introduction was finished or skipped
                 if not isinstance(value, bool):
@@ -422,6 +453,11 @@ class KeyService:
                 if not settings["remember_sites"]:
                     self.history.clear_sites()
         self._write_settings(settings)
+        if old_rc != (settings.get("include_rc_updates") is True):
+            self._update_generation += 1
+            self._app_update = None
+            self._update_path = None
+            self.emit("data_status", self.data_status())
         if "history_enabled" in (values or {}):
             self._sync_configure()   # sync needs the history
         return self.get_settings()
