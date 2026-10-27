@@ -131,6 +131,9 @@ Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclit
 
 ## Privacy and security
 
+Found a vulnerability? Public reports are welcome; see the [security policy](SECURITY.md)
+for reporting details and supported versions.
+
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
 - PINs are used for the operation that needs them and are not logged or written to storage by KeyMelier. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only. Inputs pass through JavaScript, the bridge and Python: these runtimes can retain immutable copies until memory is reused. KeyMelier does not guarantee that PINs or other secrets are erased from a RAM/crash dump; copying them into a wipeable buffer would not erase the earlier copies.
 - Network: the app contacts the FIDO Alliance (metadata), GlobalSign (signer certificate revocation lists), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
