@@ -79,8 +79,8 @@ def _gpg():
 # Functions the page may call. pywebview resolves js_api names as dotted
 # attribute paths without filtering private members ("_window.gui.os…"), so
 # the page gets plain wrapper functions only – never an object.
-BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "read_oath_qr", "choose_folder", "open_licenses",
-          "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
+BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "read_oath_qr", "choose_folder", "open_licenses", "get_licenses",
+          "save_license", "gpg_available", "gpg_import", "set_ui_language", "client_log", "client_error")
 
 
 def _lock_navigation(window, page_url=None):
@@ -123,7 +123,7 @@ def _expose_bridge(window, api, extra=()):
                 if name in {"call", "gpg_import", "read_oath_qr"}:
                     return {"ok": False, "error": "The operation could not be completed.",
                             "code": "error", "status": 500}
-                if name in {"copy_text", "open_licenses", "gpg_available"}:
+                if name in {"copy_text", "open_licenses", "gpg_available", "save_license"}:
                     return False
                 return None
         bridge.__name__ = name
@@ -156,7 +156,12 @@ class Api:
         where the user chooses. Returns the path or None if cancelled."""
         name = Path(str(filename)).name[:120] or "keymelier.txt"
         text = str(text)
-        if stateless() or self._window is None or len(text) > 1_000_000:
+        if len(text) > 1_000_000:
+            return None
+        return self._save_document(name, text, private)
+
+    def _save_document(self, name, text, private=False):
+        if stateless() or self._window is None:
             return None
         chosen = self._window.create_file_dialog(
             webview.FileDialog.SAVE, directory=str(Path.home() / "Documents"), save_filename=name)
@@ -259,6 +264,17 @@ class Api:
         except Exception as e:
             logger.debug("Opening licenses failed: %s", type(e).__name__)
             return False
+
+    def get_licenses(self):
+        """Return only fixed, local legal documents for the in-app reader."""
+        from keymelier_core.licenses import documents
+        return documents(ROOT_DIR, bundled=bool(getattr(sys, "frozen", False)))
+
+    def save_license(self, document_id):
+        # Read the document ourselves: no arbitrary paths or large bridge input.
+        from keymelier_core.licenses import document
+        name, text = document(ROOT_DIR, document_id, bundled=bool(getattr(sys, "frozen", False)))
+        return self._save_document(name, text)
 
     def copy_text(self, text):
         """Put a code or certificate on the system clipboard (the web view's clipboard API is unreliable)."""

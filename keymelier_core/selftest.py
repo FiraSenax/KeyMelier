@@ -46,6 +46,11 @@ PAGE_CHECKS = r"""
        Math.round(document.querySelector('.sidebar').getBoundingClientRect().width));
     ok('page: account model loaded', typeof buildAccountModel === 'function' && typeof filterAccountRows === 'function');
     const st = await call('data_status');
+    const legal = await window.pywebview.api.get_licenses();
+    ok('bridge: complete bundled license documents', legal?.bundled === true &&
+      legal.documents.some(d => d.id === 'notices' && d.text.includes('PyInstaller') && d.text.includes('MIT')) &&
+      legal.documents.some(d => d.id === 'app' && d.text.includes('Permission is hereby granted')) &&
+      legal.documents.some(d => d.id === 'sources' && JSON.parse(d.text).sources.length > 0));
     ok('bridge: data_status', st && st.advisories && st.advisories.count > 0, JSON.stringify(st?.advisories));
     const tk = await call('tokens');
     ok('bridge: tokens (scanner off in self-test)', Array.isArray(tk?.tokens) && tk.tokens.length === 0, tk?.tokens?.length);

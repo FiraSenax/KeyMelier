@@ -9,6 +9,7 @@
 - Keep the existing CSV header and column order. The deprecated `mds_description` and `mds_status` columns now contain empty values and are planned for removal in a future format change.
 - Explain expired or unverified FIDO MDS data separately from an AAGUID absent from current metadata, in all supported languages. A still-valid cache works offline; otherwise model text, icon and certification status are withheld until verification succeeds. Device operations remain available.
 - Remove detached MDS fields from saved history and sync; existing history snapshots are migrated. Manufacturer inference uses device information, without copying MDS descriptions into persistent identity fields.
+- Add an offline, searchable license reader under About, with complete document export, including the macOS About entry.
 
 ## 1.8.6 — 2026-10-26
 

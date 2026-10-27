@@ -208,6 +208,15 @@
       client_log: async () => true, client_error: async () => true, set_ui_language: async () => true,
       copy_text: async () => true, open_url: async () => true, gpg_available: async () => false,
       open_licenses: async () => true, choose_folder: async () => null,
+      get_licenses: async () => ({ bundled: true, documents: [
+        { id: 'notices', filename: 'THIRD_PARTY_LICENSES.txt', text: 'KeyMelier – licenses and notices\n\nMIT License\n\nPython · PSF License\n\nThis is a demo of the license reader. The installed app includes the complete original texts.\n\n\x3cscript>window.__licenseInjected = true\x3c/script>\nMIT License' },
+        { id: 'app', filename: 'LICENSE', text: 'MIT License\nDemo copyright notice' },
+        { id: 'sources', filename: 'THIRD_PARTY_SOURCES.json', text: '{"sources": []}' },
+      ] }),
+      save_license: async id => {
+        const doc = (await window.pywebview.api.get_licenses()).documents.find(d => d.id === id);
+        if (doc) window.__lastSave = { name: doc.filename, text: doc.text };
+      },
       save_text: async (name, text, priv) => { window.__lastSave = { name, text, priv }; return `/tmp/${name}`; },
     },
   };
