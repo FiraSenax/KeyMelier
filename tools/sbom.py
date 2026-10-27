@@ -429,7 +429,7 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
             name = _norm(c["name"])
             policy = json.loads((ROOT / 'packaging/license-policy.json').read_text())
             review = policy.get(name, {})
-            if c.get('version') != review.get('version') or c.get('licenses') != _licenses(review.get('expression')):
+            if c.get('version') not in review.get('versions', []) or c.get('licenses') != _licenses(review.get('expression')):
                 problems.append(f'{label}: new or changed license needs review in packaging/license-policy.json')
             controlled = next((p['value'] for p in c.get('properties', [])
                                if p.get('name') == 'keymelier:controlled-build'), None)

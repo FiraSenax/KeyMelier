@@ -34,7 +34,7 @@ def check(root=ROOT):
         problems.append('Python source manifest is stale: run python tools/license_inputs.py --refresh')
     versions = {p['name']: p['version'] for p in tomllib.loads((root / 'uv.lock').read_text())['package']}
     for name, review in json.loads((root / 'packaging/license-policy.json').read_text()).items():
-        if name in versions and versions[name] != review['version']:
+        if name in versions and versions[name] not in review['versions']:
             problems.append('Review dependency license/source changes before approving ' + name + ' ' + versions[name])
     for name, review in json.loads((root / 'packaging/license-overrides.json').read_text()).items():
         if versions.get(name) != review['version']:

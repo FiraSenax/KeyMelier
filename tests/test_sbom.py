@@ -84,6 +84,19 @@ class SbomTests(unittest.TestCase):
         package['licenses'] = [{'license': {'id': 'MIT'}}]
         self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
 
+    def test_nested_vendor_uses_its_own_reviewed_version(self):
+        from importlib.metadata import distribution, distributions
+        vendors = distributions(path=[str(distribution('setuptools').locate_file('setuptools/_vendor'))])
+        vendor = next(d for d in vendors if d.metadata['Name'] == 'packaging')
+        bom = copy.deepcopy(self.bom)
+        package = next(c for c in bom['components'] if c['name'] == 'packaging')
+        package['version'] = vendor.version
+        package['licenses'] = sbom._licenses(sbom.spdx_expression(vendor))
+        package['properties'] = [{'name': 'keymelier:bundled-in', 'value': 'setuptools wheel; see parent artifact hash'}]
+        self.assertEqual(sbom.validate(bom), [])
+        package['version'] = '999.0'
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+
     def test_cli_checks_default_file_without_treating_strict_as_a_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
