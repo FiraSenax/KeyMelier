@@ -85,14 +85,15 @@ class SbomTests(unittest.TestCase):
         self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
 
     def test_nested_vendor_uses_its_own_reviewed_version(self):
-        from importlib.metadata import distribution, distributions
-        vendors = distributions(path=[str(distribution('setuptools').locate_file('setuptools/_vendor'))])
-        vendor = next(d for d in vendors if d.metadata['Name'] == 'packaging')
         bom = copy.deepcopy(self.bom)
-        package = next(c for c in bom['components'] if c['name'] == 'packaging')
-        package['version'] = vendor.version
-        package['licenses'] = sbom._licenses(sbom.spdx_expression(vendor))
-        package['properties'] = [{'name': 'keymelier:bundled-in', 'value': 'setuptools wheel; see parent artifact hash'}]
+        # Exact nested copy observed in the built Setuptools 84 wheel. Unit-test
+        # environments intentionally do not install all packaging dependencies.
+        package = {'type': 'library', 'name': 'packaging', 'version': '26.0',
+            'bom-ref': 'pkg:pypi/packaging@26.0#nested-regression', 'purl': 'pkg:pypi/packaging@26.0',
+            'licenses': sbom._licenses('Apache-2.0 OR BSD-2-Clause'),
+            'properties': [{'name': 'keymelier:bundled-in', 'value': 'setuptools wheel; see parent artifact hash'}]}
+        bom['components'].append(package)
+        bom['dependencies'][0]['dependsOn'].append(package['bom-ref'])
         self.assertEqual(sbom.validate(bom), [])
         package['version'] = '999.0'
         self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
