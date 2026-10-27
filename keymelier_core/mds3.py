@@ -1,8 +1,13 @@
+import base64
+import binascii
 import json
 import logging
+import re
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote_to_bytes
 from keymelier_core.network import read_limited
 from keymelier_core.storage import atomic_write, stateless
 
@@ -13,6 +18,66 @@ logger = logging.getLogger(__name__)
 MDS3_URL = "https://mds.fidoalliance.org/"
 CACHE_PATH = Path.home() / ".keymelier" / "mds3_cache.json"
 CACHE_MAX_AGE_HOURS = 24
+
+
+def display_icon(value):
+    """Return a bounded, passive MDS PNG/SVG as an inline image, or None.
+
+    The original artwork is retained. Render only through an HTML img element;
+    never insert supplier SVG markup into the document or fetch external images.
+    """
+    if not isinstance(value, str) or len(value) > 200_000:
+        return None
+    match = re.fullmatch(r"data:(image/(?:png|svg\+xml))(;base64)?,(.*)", value, re.S)
+    if not match:
+        return None
+    mime, encoded, content = match.groups()
+    try:
+        if encoded:
+            content = re.sub(rb"\s+", b"", unquote_to_bytes(content))
+            raw = base64.b64decode(content + b"=" * (-len(content) % 4), validate=True)
+        else:
+            raw = unquote_to_bytes(content)
+        if mime == "image/png":
+            # Some vendor statements label JPEG data as PNG. Preserve the
+            # passive raster image and correct its MIME type for the browser.
+            if raw.startswith(b"\xff\xd8\xff"):
+                mime = "image/jpeg"
+            elif not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+                return None
+        else:
+            text = raw.decode("utf-8")
+            if "\x00" in text or re.search(r"<!\s*(?:DOCTYPE|ENTITY)", text, re.I):
+                return None
+            # defusedxml would add a dependency without replacing the SVG/CSS
+            # allowlist below. This UTF-8-only, size-bounded path rejects DTDs
+            # and entities before stdlib parsing (including expansion payloads).
+            # Reject NULs too: Expat otherwise auto-detects UTF-16 without a
+            # BOM, bypassing a textual DOCTYPE check even after UTF-8 decoding.
+            # Keep those gates if the parser changes; never parse raw bytes.
+            svg = ET.fromstring(text)
+            if svg.tag != "{http://www.w3.org/2000/svg}svg":
+                return None
+            allowed = {"svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+                       "title", "desc", "metadata", "defs", "clipPath", "mask", "linearGradient", "radialGradient",
+                       "stop", "use", "style", "text", "tspan"}
+            for el in svg.iter():
+                if el.tag not in {"{http://www.w3.org/2000/svg}" + tag for tag in allowed}:
+                    return None
+                for key, val in el.attrib.items():
+                    local = key.rsplit("}", 1)[-1].lower()
+                    if local.startswith("on") or local == "base" or (local == "href" and not val.startswith("#")):
+                        return None
+            # Inspect decoded XML values too: character references must not
+            # hide external CSS URLs. CSS escapes are deliberately unsupported.
+            styles = " ".join(part for el in svg.iter() for part in [el.text or "", *el.attrib.values()])
+            if re.search(r"@import|@font-face|\\|/\*", styles, re.I):
+                return None
+            if any(not url.strip(" \t\r\n\"'").startswith("#") for url in re.findall(r"url\s*\((.*?)\)", styles, re.I | re.S)):
+                return None
+    except (ValueError, binascii.Error, ET.ParseError):
+        return None
+    return "data:" + mime + ";base64," + base64.b64encode(raw).decode("ascii")
 
 # Higher index = higher priority (most severe first)
 STATUS_PRIORITY = [
@@ -43,6 +108,7 @@ class MDS3Client:
         self._loaded = False
         self._next_update = None
         self._verified_until = None
+        self._legal_header = None
 
     def _read_cache(self) -> dict | None:
         """Return the cached, signature-verified blob, or None.
@@ -56,8 +122,11 @@ class MDS3Client:
             return None
         try:
             data = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-            payload = verify_jwt(data["jwt"], require_revocation=False)
-            return {"fetched_at": datetime.fromisoformat(data["fetched_at"]), "payload": payload}
+            payload = verify_jwt(data["jwt"], require_revocation=True)
+            fetched = datetime.fromisoformat(data["fetched_at"])
+            if fetched.tzinfo is None:
+                raise ValueError("cache timestamp lacks timezone")
+            return {"fetched_at": fetched, "payload": payload}
         except FileNotFoundError:
             return None
         except (MdsVerificationError, KeyError, ValueError, TypeError, OSError) as e:
@@ -75,7 +144,7 @@ class MDS3Client:
         logger.info("Fetching MDS3 from %s", MDS3_URL)
         with requests.get(MDS3_URL, timeout=20, stream=True) as resp:
             jwt = read_limited(resp, 16 * 1024 * 1024).decode("utf-8")
-        payload = verify_jwt(jwt, require_revocation=False)  # raises MdsVerificationError
+        payload = verify_jwt(jwt, require_revocation=True)  # raises MdsVerificationError
         cached = self._read_cache()
         if cached and payload.get("no", 0) < cached["payload"].get("no", 0):
             raise ValueError(f"MDS3 blob #{payload.get('no')} is older than cached #{cached['payload'].get('no')}")
@@ -86,6 +155,7 @@ class MDS3Client:
         self._next_update = payload["nextUpdate"]
         self._verified_until = payload["_verified_until"]
         self._serial = payload.get("no")
+        self._legal_header = payload.get("legalHeader")
         self._save_cache(jwt)
         entries = payload.get("entries", [])
         logger.info("MDS3 fetched and verified: blob #%s, %d entries", payload.get("no"), len(entries))
@@ -99,12 +169,13 @@ class MDS3Client:
 
     def _load_cache(self) -> list[dict]:
         cache = self._read_cache()
-        if cache is None:
+        if cache is None or not self._payload_current(cache["payload"]):
             raise ValueError("no valid MDS3 cache")
         self._fetched_at = cache["fetched_at"]
         self._serial = cache["payload"].get("no")
         self._next_update = cache["payload"].get("nextUpdate")
         self._verified_until = cache["payload"].get("_verified_until")
+        self._legal_header = cache["payload"].get("legalHeader")
         return cache["payload"].get("entries", [])
 
     def _index(self, entries: list[dict]):
@@ -128,12 +199,13 @@ class MDS3Client:
             self._index(entries)
         except Exception as e:
             logger.warning("MDS3 load failed (%s); using empty metadata", type(e).__name__)
-            # Fall back to stale cache if available
+            # A cache older than the refresh interval may still be valid.
+            # Never use an expired BLOB or one without valid revocation evidence.
             if CACHE_PATH.exists():
                 try:
                     entries = self._load_cache()
                     self._index(entries)
-                    logger.info("Using stale MDS3 cache (%d entries)", len(entries))
+                    logger.info("Using still-valid MDS3 cache (%d entries)", len(entries))
                 except Exception:
                     self._entries = []
                     self._by_aaguid = {}
@@ -147,7 +219,7 @@ class MDS3Client:
         re-verify a fresh cache whose revocation evidence is missing/expired
         (e.g. after an offline start). Returns True if the state changed."""
         if self._is_cache_fresh():
-            if not self._entries or self.is_current():
+            if self._entries and self.is_current():
                 return False
             try:
                 entries = self._load_cache()  # re-runs signature, path and revocation checks
@@ -181,7 +253,19 @@ class MDS3Client:
         except (TypeError, ValueError):
             return False
 
+    def seconds_until_expiry(self):
+        """Wake the updater when the displayed statement's evidence expires."""
+        try:
+            deadline = min(datetime.strptime(self._next_update, "%Y-%m-%d").replace(tzinfo=timezone.utc),
+                           datetime.fromisoformat(self._verified_until))
+            return max(0, (deadline - datetime.now(timezone.utc)).total_seconds())
+        except (TypeError, ValueError):
+            return None
+
     def lookup(self, aaguid: str) -> Optional[dict]:
+        # Check on every use: an already loaded BLOB can expire during a session.
+        if not self.is_current():
+            return None
         return self._by_aaguid.get(aaguid.lower().strip())
 
     def get_description(self, aaguid: str) -> Optional[str]:
@@ -211,7 +295,7 @@ class MDS3Client:
 
     def get_cache_info(self) -> dict:
         return {
-            "cached": self._loaded and bool(self._entries),
+            "cached": self._loaded and self.is_current(),
             "fetched_at": self._fetched_at.isoformat() if self._fetched_at else None,
             "entry_count": len(self._entries),
             "serial": self._serial,
@@ -219,4 +303,5 @@ class MDS3Client:
             "next_update": self._next_update,
             "revocation_checked": bool(self._entries) and self._verified_until is not None,
             "verified": bool(self._entries),  # only verified blobs are ever loaded
+            "legal_header": self._legal_header,
         }

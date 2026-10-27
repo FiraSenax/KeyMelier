@@ -5099,6 +5099,65 @@ const I18N_PACKAGE_UPDATES = {
 };
 for (const [code, text] of Object.entries(I18N_PACKAGE_UPDATES)) STRINGS[code]['upd.managed'] = text;
 
+const I18N_MDS_TERMS = {
+  "de": {
+    "mds.terms": "FIDO-Metadaten: Nutzungsbedingungen",
+    "mds.termsNotice": "Metadaten unterliegen den Bedingungen der FIDO Alliance und der Hersteller.",
+    "mds.legalHeader": "Rechtlicher Hinweis"
+  },
+  "en": {
+    "mds.terms": "FIDO metadata terms",
+    "mds.termsNotice": "Metadata is subject to the terms of the FIDO Alliance and contributing vendors.",
+    "mds.legalHeader": "Legal header"
+  },
+  "es": {
+    "mds.terms": "Condiciones de los metadatos FIDO",
+    "mds.termsNotice": "Los metadatos están sujetos a las condiciones de FIDO Alliance y de los fabricantes.",
+    "mds.legalHeader": "Aviso legal"
+  },
+  "fr": {
+    "mds.terms": "Conditions des métadonnées FIDO",
+    "mds.termsNotice": "Les métadonnées sont soumises aux conditions de FIDO Alliance et des fabricants.",
+    "mds.legalHeader": "Mention légale"
+  },
+  "it": {
+    "mds.terms": "Condizioni dei metadati FIDO",
+    "mds.termsNotice": "I metadati sono soggetti alle condizioni di FIDO Alliance e dei produttori.",
+    "mds.legalHeader": "Avviso legale"
+  },
+  "nl": {
+    "mds.terms": "Voorwaarden voor FIDO-metadata",
+    "mds.termsNotice": "Voor metadata gelden de voorwaarden van de FIDO Alliance en de fabrikanten.",
+    "mds.legalHeader": "Juridische kennisgeving"
+  },
+  "pl": {
+    "mds.terms": "Warunki metadanych FIDO",
+    "mds.termsNotice": "Metadane podlegają warunkom FIDO Alliance i producentów.",
+    "mds.legalHeader": "Informacja prawna"
+  },
+  "pt": {
+    "mds.terms": "Termos dos metadados FIDO",
+    "mds.termsNotice": "Os metadados estão sujeitos aos termos da FIDO Alliance e dos fabricantes.",
+    "mds.legalHeader": "Aviso legal"
+  },
+  "ja": {
+    "mds.terms": "FIDO メタデータの利用条件",
+    "mds.termsNotice": "メタデータには FIDO Alliance と提供メーカーの利用条件が適用されます。",
+    "mds.legalHeader": "法的通知"
+  },
+  "ko": {
+    "mds.terms": "FIDO 메타데이터 이용 약관",
+    "mds.termsNotice": "메타데이터에는 FIDO Alliance 및 제공 제조업체의 약관이 적용됩니다.",
+    "mds.legalHeader": "법적 고지"
+  },
+  "zh": {
+    "mds.terms": "FIDO 元数据使用条款",
+    "mds.termsNotice": "元数据受 FIDO 联盟及提供商的使用条款约束。",
+    "mds.legalHeader": "法律声明"
+  }
+};
+for (const [code, strings] of Object.entries(I18N_MDS_TERMS)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {
@@ -5128,3 +5187,18 @@ function applyI18n(root = document) {
   root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
 }
+
+const I18N_MDS_STATE = {
+  "de": "Herstellerdaten (FIDO MDS) abgelaufen oder nicht verifiziert – Internetverbindung herstellen.",
+  "en": "Manufacturer data (FIDO MDS) expired or unverified – connect to the internet.",
+  "es": "Datos del fabricante (FIDO MDS) caducados o sin verificar: conéctate a Internet.",
+  "fr": "Données du fabricant (FIDO MDS) expirées ou non vérifiées : connectez-vous à Internet.",
+  "it": "Dati del produttore (FIDO MDS) scaduti o non verificati: connettiti a Internet.",
+  "nl": "Fabrikantgegevens (FIDO MDS) zijn verlopen of niet geverifieerd. Maak verbinding met internet.",
+  "pl": "Dane producenta (FIDO MDS) wygasły lub nie zostały zweryfikowane. Połącz się z internetem.",
+  "pt": "Dados do fabricante (FIDO MDS) expirados ou não verificados. Ligue-se à Internet.",
+  "ja": "メーカー情報（FIDO MDS）の有効期限が切れているか、未検証です。インターネットに接続してください。",
+  "ko": "제조사 데이터(FIDO MDS)가 만료되었거나 검증되지 않았습니다. 인터넷에 연결하세요.",
+  "zh": "制造商数据（FIDO MDS）已过期或未经验证，请连接互联网。"
+};
+for (const [code, text] of Object.entries(I18N_MDS_STATE)) STRINGS[code]["sec.mds.unverified"] = text;

@@ -14,3 +14,13 @@ and removal of statements withdrawn from the latest BLOB. They include
 warranty disclaimers and liability limitations; consult the linked terms.
 KeyMelier does not grant a separate license to redistribute MDS statements.
 
+KeyMelier uses MDS for local authenticator checks. It preserves the signed
+BLOB, including legal headers, in a replaceable local cache. It does not ship
+the BLOB or put MDS model metadata in new history/sync/CSV exports. Icons from
+current verified statements identify authenticators in the application, as
+described by the Metadata Statement specification's icon field:
+https://fidoalliance.org/specs/mds/fido-metadata-statement-v3.1-ps-20250521.html#metadata-keys
+This use does not imply that a vendor sponsors or endorses KeyMelier.
+Unavailable or expired verification evidence
+cannot establish authenticity. A result is a technical observation, not a
+guarantee by KeyMelier, FIDO or a contributing vendor.

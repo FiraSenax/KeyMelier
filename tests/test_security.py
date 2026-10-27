@@ -205,6 +205,8 @@ class ExtendedSecurityTests(unittest.TestCase):
         from keymelier_core.mds3 import MDS3Client
         m = MDS3Client()
         m._index([{'aaguid':'test','statusReports':[{'status':'NEW_UNKNOWN'}, {'status':'REVOKED'}]}])
+        m._next_update = '2999-01-01'
+        m._verified_until = '2999-01-01T00:00:00+00:00'
         self.assertEqual(m.get_highest_security_status('test'), 'REVOKED')
 
     def test_revocation_fails_closed(self):

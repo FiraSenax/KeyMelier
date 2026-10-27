@@ -139,12 +139,96 @@ produce UNKNOWN/UNVERIFIED; this is intentional. Optional history encryption is
 covered with a mocked credential store, not an interactive OS keychain write.
 Old plaintext files/exports/backups are preserved and are not automatically erased.
 
+## MDS-Daten: was gespeichert/exportiert wird und warum
+
+Prüfstand: 2026-10-27. Die Entfernung aller `mds_*`-Felder war eine
+vorsichtige Implementierungsentscheidung, **kein belegtes allgemeines
+Speicherverbot**. KeyMeliers eigener Code bleibt MIT; heruntergeladene
+MDS-Inhalte erhalten dadurch keine MIT-Lizenz.
+
+### Fundstellen und Grenzen
+
+Die [Metadata Usage Terms für Entwickler](https://fidoalliance.org/metadata-usage-terms-for-developers/),
+Abschnitte 1.1–1.3, beschränken die eingeräumte Nutzung auf FIDO-Authentifizierung.
+Abschnitt 3.1(a) verlangt unveränderte Legal Headers; 3.1(b) erteilt keine
+allgemeine Weitergabelizenz. Nach 3.1(c) sind Signaturen vor Nutzung zu prüfen;
+ungültige BLOBs dürfen nicht verwendet werden. 3.1(d) verlangt die Entfernung
+von Kopien zurückgezogener Statements. Abschnitt 1.4 betrifft Hinweise und
+Schutzbedingungen für Drittnutzer. Diese Regeln betreffen BLOBs/Statements,
+nicht ausdrücklich jede einzelne daraus gelesene Tatsache.
+
+Die [Bedingungen für Nutzer/Relying Parties](https://fidoalliance.org/metadata-usage-terms-for-relying-parties-or-service-providers-2/),
+Abschnitte 1 und 3.1, sind zusätzlich relevant. Der
+[MDS Legal Terms-Einstieg](https://fidoalliance.org/metadata-legal-terms/)
+ordnet die Vereinbarungen den Beteiligten zu. Ein Quellenlink allein erfüllt
+weder die Bedingungen zur Verwendung noch die Pflege bereits verteilter Kopien.
+Er ist keine zusätzliche Erlaubnis zur Weitergabe.
+
+### Entscheidungen je Datenpfad
+
+* **CSV (`exporter.py`):** Ein weitergegebenes CSV kann nicht aktualisiert oder
+  zurückgerufen werden. Es enthält weder das signierte Statement noch dessen
+  Gültigkeitsnachweise. `mds_description` bleibt deshalb leer. Das Entfernen der
+  Spalten selbst war unnötig und wird korrigiert: beide bisherigen Spalten
+  bleiben an derselben Position, als auslaufende Kompatibilitätsfelder.
+* **Status:** `mds_status` stammt aus `statusReports`, nicht aus dem
+  Modelltext/Icon im `metadataStatement` (siehe
+  [MDS-Spezifikation, §3.1.1 Metadata BLOB Payload Entry](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1-ps-20250521.html#metadata-blob-payload-entry-dictionary)).
+  Eine identische urheberrechtliche Behandlung von Text, Bild und kurzem
+  Statuswert ist damit nicht belegt. Seine Entfernung wird **nicht** als
+  zwingende Lizenzfolge behauptet. Der Status bleibt in der aktuellen,
+  verifizierten Laufzeitanzeige erhalten. Ein möglicher späterer Export wäre
+  ein ausdrücklich historischer Prüfbefund mit Zeitpunkt, BLOB-Seriennummer,
+  Gültigkeit und Herkunft. Der bisherige nackte CSV-Wert besitzt diesen Kontext
+  nicht; eine gesonderte Weitergabefreigabe ist ebenfalls nicht festgestellt.
+  Deshalb bleibt auch diese CSV-Spalte vorerst leer, aus Vorsicht und gegen
+  irreführende alte Zertifizierungsaussagen, nicht wegen eines behaupteten
+  Verbots einzelner Fakten.
+* **History (`history.py`, `_MDS_FIELDS`):** Abgetrennte Modelltexte, Icons,
+  Versionen, Statuswerte und Legal Headers werden nicht dauerhaft kopiert.
+  Die Migration entfernt sie aus geladenen Snapshots und schreibt diese
+  bereinigte History zurück. So können zurückgezogene Statements nicht aus
+  älteren Snapshots wieder erscheinen. Eigene Labels, Geräteangaben und
+  Ereignisse bleiben erhalten. Bereits außerhalb der App liegende Exporte
+  oder Backups werden nicht nachträglich gelöscht.
+* **Sync (`_SNAPSHOT_TEXT`):** `mds_description` wird nicht importiert;
+  Sicherheitsstatus wurde bereits unabhängig davon nicht als vertrauenswürdig
+  importiert. Jeder Rechner beschafft seine aktuelle MDS-Evidenz selbst.
+* **Hersteller (`scanner.py`):** Ein bloßer abgeleiteter Herstellername ist
+  kein vollständiges Statement. Für seine Speicherung ist ebenfalls kein
+  ausdrückliches Verbot nachgewiesen. Die bisherige Heuristik überschrieb aber
+  das dauerhaft gespeicherte Feld `manufacturer` ohne Herkunft oder Ablauf.
+  Sie bleibt deshalb für MDS-Text abgeschaltet; Hersteller aus Geräteangaben
+  und USB-Zuordnung bleiben erhalten. Eine künftige MDS-Heuristik müsste ein
+  separates, flüchtiges Anzeigefeld verwenden. Diese Entscheidung dient der
+  Herkunftstrennung und ist keine zwingende Lizenzvorgabe.
+
+### Laufzeit und Offline-Verhalten
+
+KeyMelier verwendet aktuelle, verifizierte Metadaten zur lokalen Prüfung von
+Authentifikatoren. Die [Metadata-Statement-Spezifikation, §4, `icon`](https://fidoalliance.org/specs/mds/fido-metadata-statement-v3.1-ps-20250521.html#metadata-keys)
+sieht die Darstellung des Gerätebilds zur Identifikation vor. Daraus folgt
+keine allgemeine Erlaubnis für Werbung, gebündelte Logos oder beliebige
+Inventardatenbanken. Die Einordnung der lokalen Authentifikatorprüfung als
+zweckgebundene Nutzung ist unsere Implementierungsbewertung, keine allgemeine
+rechtliche Freigabe für jede Verwendung der Daten.
+
+Der ersetzbare lokale Cache bewahrt den signierten BLOB einschließlich seiner
+Legal Headers. Ein neuer BLOB ersetzt die alten Statements. Einträge werden
+nur angezeigt, solange Signatur-, Zertifikats-, Widerrufs- und `nextUpdate`-
+Nachweise aktuell sind. Ein noch gültiger Cache funktioniert auch offline.
+Fehlende aktuelle Widerrufsevidenz beweist nicht, dass ein Zertifikat widerrufen
+ist: Das Unterdrücken der Anzeige ist eine bewusst strenge Sicherheitsregel.
+Die Oberfläche unterscheidet fehlende aktuelle Evidenz von einer AAGUID,
+die im aktuellen MDS nicht verzeichnet ist. Quellenhinweise und der erhaltene
+Legal Header bleiben bei der Laufzeitanzeige zugänglich.
+
 ## Maintainer decisions after the remediation (2026-09-26)
 
 | Topic | Decision | Safeguard kept |
 |---|---|---|
 | Release signing | Optional: sign/notarize when credentials are configured, otherwise publish unsigned builds | Release notes state the actual signing state per platform; checksums, locks and source commit attached; first-launch steps documented |
-| MDS revocation offline | Verified CRLs are persisted in `~/.keymelier/crl/` and re-validated (issuer, signature, validity) on every use. If revocation status cannot be established, signature- and path-verified metadata is used for display only | `is_current()` stays false without revocation evidence, so no "no known findings" assessment and no attestation chain verification; a CRL that lists the signer as revoked is never soft-failed (`RevokedError`) |
+| MDS revocation offline | Verified CRLs are persisted in `~/.keymelier/crl/` and re-validated (issuer, signature, validity) on every use. Without current revocation evidence, MDS model data is withheld from display as well | `is_current()` gates lookup and display, positive assessments and attestation chain verification; distinguish stale/unavailable evidence from an AAGUID absent from current metadata |
 | Key history | On by default; contents (websites, authenticator accounts, OpenPGP fingerprints) remembered by default, names only | Stateless mode still disables all storage; turning history off keeps existing files |
 | Diagnostic report (2026-09-27) | Built from an explicit list of fields, each passed through a type/enumeration filter (keymelier_core/diagnostics.py); errors are recorded as bridge operation name + error code only, never their message; UI script errors only counted | No free text can enter it (names, serials, accounts, paths, URLs, host names, sync ids, passphrases, messages); unknown fields never copied; preview equals the saved text; saved only on an explicit click to a user-chosen file (owner-only); never transmitted. Tests inject synthetic secrets into settings, history, errors and data status |
 | Links from company advisory sources (2026-09-27) | Besides the fixed hosts, the app opens exactly the `https://` reference URLs of loaded, signature-verified company sources (e.g. intranet pages) | Exact URL match, not the host; no spaces/control characters, at most 10 per finding; unsigned or invalid sources contribute nothing; opened only in the system browser, never in the app window |
