@@ -36,6 +36,9 @@ def notes(mac_signed: bool, win_signed: bool) -> str:
         "(e.g. Ubuntu 24.04, Debian 13, Fedora 40); if your key does not appear, see *Linux* in the documentation "
         "(udev rules).",
         "- `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip` – the same apps without installer (portable).",
+        "- Windows requires the separately installed Microsoft Visual C++ x64 runtime, version 14.44.35211.0 or newer. "
+        "Setup checks this prerequisite; portable packages include WINDOWS-README.txt. "
+        "[Install the runtime from Microsoft](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).",
         "- `KeyMelier-Sources-<platform>.tar` – corresponding library sources, application source and rebuild instructions.",
         "",
         "Checksums (SHA256SUMS.txt), dependency locks and the source commit are attached. Unsigned builds have no "
