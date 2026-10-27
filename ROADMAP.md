@@ -2,6 +2,34 @@
 
 Planned work after 1.8.0. Nothing here is implemented yet.
 
+## Security review follow-ups (27 October 2026)
+
+- **Windows privilege separation:** design a small, authenticated helper for raw
+  HID management so the web UI need not run elevated. The installed python-fido2
+  2.2.1 `WindowsClient` wraps WebAuthn registration/assertion; it does not expose
+  arbitrary CTAP2 getInfo, PIN management, credential management or vendor
+  commands. It is not a drop-in replacement for the scanner. Preserve selection
+  of the actual connected key and test standard/elevated users on Windows.
+  [Yubico API](https://developers.yubico.com/python-fido2/API_Documentation/autoapi/fido2/client/windows/index.html)
+- **Secret lifetime:** shorten DOM, request and task references; where native
+  libraries support mutable buffers, wipe those owned buffers after use. Audit
+  cancellation/error paths and PIN-token expiry. JS/Python immutable copies and
+  bridge serialization prevent an end-to-end zeroization guarantee; do not add
+  a cosmetic `memset` and describe all secret copies as erased.
+- **Bridge contracts:** extend method-specific input and output types/limits
+  around CTAP, PIV, OpenPGP and OATH, including malformed device strings and
+  oversized/deep payloads. The current app already has an allow-list, argument
+  binding, token-ID validation, error redaction, DOM escaping and a restrictive
+  CSP. These remain necessary even if a schema library is introduced.
+- **Static checking:** introduce strict mypy/pyright checks in reviewed protocol
+  adapters with pinned tooling and typed third-party boundaries, then expand
+  coverage. Do not claim whole-project strict coverage by suppressing existing
+  errors or using broad `Any`/ignore rules. Current CI runs Ruff and tests.
+
+These are scoped follow-ups from the supplied review, not a claim that a full
+security audit has been completed. The license reader treats upstream texts as
+plain text and tests script-like content, delayed responses and large exports.
+
 ## 1.9 – Tell apart keys of the same model without a serial number
 
 **Detailed implementation plan: [plans/1.9-key-identity.md](plans/1.9-key-identity.md)**

@@ -95,7 +95,7 @@ Managed devices may require your organization's approval.
 cp -R dist/KeyMelier.app /Applications/
 ```
 
-The local build is ad-hoc signed for testing, without a verified publisher identity. No drivers are needed (macOS uses IOKit HID).
+The local build is ad-hoc signed for testing, without a verified publisher identity. Xcode / Command Line Tools 16.2 or newer are required for the controlled barcode-library build. No drivers are needed (macOS uses IOKit HID).
 
 ### From source
 
@@ -110,7 +110,16 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 ### Windows
 
-> On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`.
+> On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`; compiling the barcode library requires Visual Studio 2022 Build Tools with the C++ workload and Windows SDK.
+
+Windows 10/11 x64 requires the [Microsoft Visual C++ v14 x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
+(14.44.35211.0 or later), installed directly from Microsoft. Setup checks for it
+and offers to open Microsoft's download page if it is missing; ZIP users must
+install it first. Setup never accepts Microsoft's terms for the user. Windows
+provides UCRT and API libraries. Packaging excludes VC/UCRT/MFC/API-set DLLs from
+every collected directory, and the final ZIP check rejects accidental inclusion.
+The WebView2 SDK/loader remains bundled under its own BSD-style terms; the Edge
+WebView2 Runtime is a separate system prerequisite.
 
 ### Linux
 
@@ -118,12 +127,15 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 ./build-linux.sh             # produces dist/KeyMelier-Linux-<arch>.AppImage
 ```
 
-Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` and the AppImage runtime are downloaded at fixed versions and checked against pinned SHA-256 sums. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
+Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` is downloaded at a fixed version and checked against its pinned SHA-256. Building the AppImage runtime requires Docker: its pinned Alpine container compiles the checked source archives with networking disabled and records every static linker input. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
 
 ## Privacy and security
 
+Found a vulnerability? Public reports are welcome; see the [security policy](SECURITY.md)
+for reporting details and supported versions.
+
 - KeyMelier is a native window (pywebview). The UI talks to Python directly — there is **no local web server or open port**, so browser extensions, websites and other programs cannot reach it.
-- PINs are only held in memory for the single operation that needs them and are never logged or stored. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only.
+- PINs are used for the operation that needs them and are not logged or written to storage by KeyMelier. Unlocking for passkey/fingerprint management keeps a short-lived, key-scoped token (5 minutes) in memory only. Inputs pass through JavaScript, the bridge and Python: these runtimes can retain immutable copies until memory is reused. KeyMelier does not guarantee that PINs or other secrets are erased from a RAM/crash dump; copying them into a wipeable buffer would not erase the earlier copies.
 - Network: the app contacts the FIDO Alliance (metadata), GlobalSign (signer certificate revocation lists), `raw.githubusercontent.com` (signed advisory database) and `api.github.com` (is a newer KeyMelier release available?). It never sends information about your keys.
 - History is enabled by default: key models, serial numbers and events are saved locally so previously seen keys stay in the sidebar. Turn it off in the "Backup & loss" view (existing files are kept) or use stateless mode. Remembering what is on each key (passkey websites, authenticator account names, OpenPGP key fingerprints — never secrets or codes) is also on by default so you know what is affected when a key is lost; it can reveal accounts and internal domains, so turn it off in the same view if needed. Disabling it removes these lists and account details from history events.
 - CSV files are created only using the export button; exported metadata is plaintext. Formula-like cells are neutralized.
@@ -182,6 +194,7 @@ then regenerate every export:
 python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 uv lock
 python tools/export_requirements.py
+python tools/license_inputs.py --refresh
 python tools/export_requirements.py --check
 ```
 
@@ -241,9 +254,13 @@ packaging/linux/         # AppImage entry point, desktop entry, udev rules
 
 KeyMelier is released under the [MIT License](LICENSE).
 
-The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). Their notices are in `THIRD_PARTY_LICENSES.txt` inside the app ("Open-source licenses" in the app) and attached to every release; `tools/third_party_licenses.py` generates it during the build.
+The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). **About → Licenses & notices** opens an offline reader with the complete original texts, literal search, document export, the KeyMelier MIT license, and the matching source manifest. It is also available from the macOS application menu and app settings. The documents are in `THIRD_PARTY_LICENSES.txt` inside the app and attached to every release; `tools/third_party_licenses.py` generates them from the collected build components. Windows Setup also displays the complete notices. Microsoft system prerequisites are installed separately from Microsoft under its terms.
 
-A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) lists every bundled component – Python packages, the PyInstaller bootloader, CPython, the OpenSSL builds and the Simple Icons data – with version, package URL, SPDX license and the SHA-256 of the file that was actually installed (checked against the lock file). Every build validates it (`tools/sbom.py --check --strict`); other native libraries inside CPython are covered by the CPython entry.
+A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) inventories collected Python packages, the PyInstaller bootloader, CPython, OpenSSL, reviewed artwork and native Linux packages. Python archive hashes come from pip's installation report and are checked against the lock file. Brand assets retain their individual usage terms; native package notices are preserved from their distribution. Controlled builds additionally record nanobind/robin-map and the AppImage runtime libraries, their source hashes, build recipes and linker evidence.
+
+Dependency upgrades must also pass `tools/license_inputs.py`: generated Python source pins must match `uv.lock`; embedded sources, Qt archives, reviewed SPDX overrides and original notice checksums must remain consistent. `--refresh` regenerates source pins but does not approve changed embedded code or license terms. Review the resulting diff and follow [the dependency upgrade procedure](packaging/DEPENDENCY-UPGRADES.md).
+
+`KeyMelier-Sources-<platform>.tar` accompanies the binaries with corresponding source archives, the application source and library replacement instructions. `THIRD_PARTY_SOURCES.json` records exact versions and checksums. See [library replacement and rebuild instructions](packaging/licenses/LIBRARY-REPLACEMENT.txt). The build excludes unused GNU Readline and collects pyscard's Python modules as external, replaceable files.
 
 It builds on open-source libraries under their own licenses, among them
 [python-fido2](https://github.com/Yubico/python-fido2) (BSD-2-Clause),
@@ -252,5 +269,4 @@ It builds on open-source libraries under their own licenses, among them
 [requests](https://github.com/psf/requests) (Apache-2.0),
 [yubikey-manager / yubikit](https://github.com/Yubico/yubikey-manager) (BSD-2-Clause); app bundles are built with
 [PyInstaller](https://pyinstaller.org) (GPL with bootloader exception, which permits this use).
-FIDO metadata is downloaded at runtime from the FIDO Alliance Metadata Service; vendor
-icons shown in the app come from that service. Product names are trademarks of their owners.
+FIDO metadata and authenticator icons are downloaded at runtime from the FIDO Alliance Metadata Service for local authenticator checks. They are separate from the app's MIT license and governed by the [FIDO usage terms](https://fidoalliance.org/metadata-usage-terms-for-relying-parties-or-service-providers-2/); see the [MDS notice](packaging/licenses/FIDO-METADATA-NOTICE.txt). Icons are displayed from current verified statements and are not bundled or retained in history/sync exports. Product names and logos belong to their owners; no endorsement is implied. Separately bundled service logos and the assessed usage conditions are documented in [the brand review](packaging/brands/review.json).
