@@ -173,7 +173,7 @@ Er ist keine zusätzliche Erlaubnis zur Weitergabe.
   bleiben an derselben Position, als auslaufende Kompatibilitätsfelder.
 * **Status:** `mds_status` stammt aus `statusReports`, nicht aus dem
   Modelltext/Icon im `metadataStatement` (siehe
-  [MDS-Spezifikation, §3.1.5 Metadata BLOB Payload Entry](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1-ps-20250521.html#metadata-blob-payload-entry-dictionary)).
+  [MDS-Spezifikation, §3.1.1 Metadata BLOB Payload Entry](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1-ps-20250521.html#metadata-blob-payload-entry-dictionary)).
   Eine identische urheberrechtliche Behandlung von Text, Bild und kurzem
   Statuswert ist damit nicht belegt. Seine Entfernung wird **nicht** als
   zwingende Lizenzfolge behauptet. Der Status bleibt in der aktuellen,
