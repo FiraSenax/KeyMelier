@@ -150,15 +150,18 @@ def check_sources(r: Report, path: Path, commit=None):
                         f'{path.name}: controlled {name} build source is included')
             r.check({"pyscard", "certifi", "fido2"} <= components, f"{path.name}: required Python sources present")
             if "Linux" in path.name:
-                from build_runtime import validate_proof as validate_runtime
+                from build_runtime import LOCK as runtime_lock, validate_proof as validate_runtime
                 validate_runtime(manifest.get('runtime_build', {}))
                 evidence = archive.extractfile('runtime-build/runtime.map').read()
                 r.check(hashlib.sha256(evidence).hexdigest() == manifest['runtime_build']['link_map_sha256'],
                         f'{path.name}: runtime linker evidence matches build proof')
                 r.check({"qtbase", "qtdeclarative", "qtwebengine", "pyside-setup"} <= components,
                         f"{path.name}: Qt corresponding sources present")
-                r.check(any(s["filename"] == "fuse-3.15.0.tar.xz" for s in sources),
-                        f"{path.name}: static libfuse source present")
+                for expected in json.loads(runtime_lock.read_text())['sources']:
+                    r.check(any(s.get('component') == expected['component']
+                                and s.get('version') == expected['version']
+                                and s.get('sha256') == expected['sha256'] for s in sources),
+                            f"{path.name}: controlled {expected['component']} source present")
             for source in sources:
                 name = "upstream/" + source["filename"]
                 member = archive.getmember(name)

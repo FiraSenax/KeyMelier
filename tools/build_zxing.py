@@ -10,7 +10,6 @@ import sys
 import tarfile
 from importlib.metadata import distribution
 
-from corresponding_sources import fetch
 from license_inputs import check
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,6 +55,7 @@ def verify_installed():
 
 
 def main():
+    from corresponding_sources import fetch
     problems = check()
     if problems:
         raise SystemExit('\n'.join(problems))

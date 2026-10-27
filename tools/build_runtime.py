@@ -8,8 +8,6 @@ import shutil
 import subprocess
 import struct
 
-from corresponding_sources import fetch
-
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = ROOT / 'packaging/runtime-build.json'
 PROOF = ROOT / 'build/runtime-build.json'
@@ -63,6 +61,10 @@ def validate_proof(proof):
         raise ValueError('Unreviewed AppImage runtime toolchain')
     if proof.get('toolchain_commits') != lock['toolchain_commits']:
         raise ValueError('Runtime toolchain package source commits differ')
+    versions = {s['component']: s['version'] for s in lock['sources']
+                if s['component'] in {'zlib', 'zstd', 'mimalloc', 'libfuse', 'squashfuse'}}
+    if proof.get('component_versions') != versions:
+        raise ValueError('Actually compiled runtime component versions differ from the source lock')
     if not proof.get('linked_files') or len(proof.get('sha256', '')) != 64:
         raise ValueError('Missing AppImage runtime linker/artifact evidence')
     known = {'libc.a', 'libgcc.a', 'libgcc_eh.a', 'libssp_nonshared.a', 'libsquashfuse.a', 'libsquashfuse_ll.a',
@@ -85,6 +87,7 @@ def verify_built():
 
 
 def main():
+    from corresponding_sources import fetch
     lock = json.loads(LOCK.read_text())
     work = ROOT / 'build/runtime-controlled'
     shutil.rmtree(work, ignore_errors=True)
@@ -123,6 +126,7 @@ def main():
              'recipe_sha256': recipe_hash(), 'container': lock['container'],
              'toolchain_packages': installed, 'sha256': digest(output / 'runtime'),
              'toolchain_commits': commits,
+             'component_versions': json.loads((output / 'component-versions.json').read_text()),
              'normalized_sha256': normalized_hash((output / 'runtime').read_bytes()),
              'linked_files': json.loads((output / 'linked-files.json').read_text()),
              'link_map_sha256': digest(output / 'runtime.map')}

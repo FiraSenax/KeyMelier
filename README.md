@@ -95,7 +95,7 @@ Managed devices may require your organization's approval.
 cp -R dist/KeyMelier.app /Applications/
 ```
 
-The local build is ad-hoc signed for testing, without a verified publisher identity. Xcode Command Line Tools are required for the controlled barcode-library build. No drivers are needed (macOS uses IOKit HID).
+The local build is ad-hoc signed for testing, without a verified publisher identity. Xcode / Command Line Tools 16.2 or newer are required for the controlled barcode-library build. No drivers are needed (macOS uses IOKit HID).
 
 ### From source
 

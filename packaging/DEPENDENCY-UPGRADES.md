@@ -13,6 +13,7 @@ license evidence; it does not automatically approve new legal terms.
    sources/build requirements and update the exact embedded archives and notices.
    For a changed manual SPDX mapping, inspect the original license, then update
    `license-overrides.json`; do not just copy the old permission assumption.
+   If the expression itself changes, update its mapping in `tools/sbom.py` too.
    Qt sources and their module selection must match the new PySide version.
 4. Run `python tools/license_inputs.py` and the Python tests. CI repeats the check
    on every platform before packaging, including dependency-update PRs.

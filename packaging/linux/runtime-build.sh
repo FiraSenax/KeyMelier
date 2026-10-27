@@ -42,7 +42,7 @@ readelf -d runtime > /out/elf-dynamic.txt
 apk info -v > /out/alpine-packages.txt
 cp /lib/apk/db/installed /out/alpine-installed.txt
 python3 - <<'PY'
-import hashlib,json,re
+import hashlib,json,re,subprocess
 from pathlib import Path
 files={p for p in re.findall(r'(/[^\s()]+\.(?:a|o))',Path('/out/runtime.map').read_text())}
 records=[]
@@ -51,4 +51,14 @@ for filename in sorted(files):
     if path.is_file():
         records.append({'file':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
 Path('/out/linked-files.json').write_text(json.dumps(records,indent=2)+'\n')
+packages={'zlib':'zlib','zstd':'libzstd','mimalloc':'mimalloc','libfuse':'fuse3','squashfuse':'squashfuse'}
+versions={name:subprocess.check_output(['pkg-config','--modversion',package],text=True).strip()
+          for name,package in packages.items()}
+# mimalloc's .pc file records only major.minor. Ask the actual static library
+# for its complete version instead of reporting a guessed patch release.
+Path('/tmp/mi-version.c').write_text('#include <stdio.h>\nextern int mi_version(void);\nint main(void) { printf("%d", mi_version()); return 0; }\n')
+subprocess.run(['cc','/tmp/mi-version.c','/usr/local/lib/libmimalloc.a','-pthread','-o','/tmp/mi-version'],check=True)
+number=int(subprocess.check_output(['/tmp/mi-version'],text=True))
+versions['mimalloc']=f'{number//100}.{number//10%10}.{number%10}'
+Path('/out/component-versions.json').write_text(json.dumps(versions,indent=2)+'\n')
 PY

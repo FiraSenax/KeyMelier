@@ -89,6 +89,19 @@ def fake_squashfs(version=VERSION, files=APPIMAGE_FILES, commit=COMMIT, modified
 LICENSES = "fido2 … cryptography … lucide-LICENSE.txt … feather-LICENSE.txt … PyInstaller bootloader"
 
 
+def runtime_fixture_lock(testcase, folder):
+    import build_runtime
+    data = json.loads(build_runtime.LOCK.read_text())
+    for source in data['sources']:
+        raw = ('fixture runtime source ' + source['component']).encode()
+        source.update(sha256=hashlib.sha256(raw).hexdigest(), size=len(raw))
+    path = folder / 'runtime-fixture-lock.json'
+    path.write_text(json.dumps(data))
+    mocked = patch.object(build_runtime, 'LOCK', path)
+    mocked.start()
+    testcase.addCleanup(mocked.stop)
+
+
 def source_bundle(path, commit=COMMIT):
     contents = {"KeyMelier-source.tar": b"fixture app source", "LIBRARY-REPLACEMENT.txt": b"fixture instructions"}
     sources = []
@@ -97,6 +110,12 @@ def source_bundle(path, commit=COMMIT):
         raw = ("fixture source " + name).encode()
         contents["upstream/" + filename] = raw
         sources.append({"component": name, "filename": filename, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)})
+    import build_runtime
+    for source in json.loads(build_runtime.LOCK.read_text())['sources']:
+        raw = ('fixture runtime source ' + source['component']).encode()
+        sources = [s for s in sources if s['filename'] != source['filename']]
+        sources.append(source)
+        contents['upstream/' + source['filename']] = raw
     contents['runtime-build/runtime.map'] = b'fixture linker map'
     contents["THIRD_PARTY_SOURCES.json"] = json.dumps({"source_commit": commit, "modified_worktree": False, "sources": sources,
         'zxing_build': {'inputs': {}},
@@ -157,6 +176,7 @@ class CheckArtifactsTests(unittest.TestCase):
             self.addCleanup(mocked.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        runtime_fixture_lock(self, self.tmp)
         self.dir = self.tmp / "artifacts"
         self.dir.mkdir()
         # SBOM contents are checked by tests/test_sbom.py; here only that the check runs

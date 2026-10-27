@@ -195,7 +195,7 @@ def prepare(names, packages=()):
         archive.add(target, arcname=target.name, recursive=False)
         archive.add(ROOT / "packaging/licenses/LIBRARY-REPLACEMENT.txt", arcname="LIBRARY-REPLACEMENT.txt", recursive=False)
         if sys.platform.startswith('linux'):
-            for filename in ('runtime.map', 'alpine-packages.txt', 'alpine-installed.txt', 'linked-files.json'):
+            for filename in ('runtime.map', 'alpine-packages.txt', 'alpine-installed.txt', 'linked-files.json', 'component-versions.json'):
                 archive.add(ROOT / 'build/runtime-controlled/out' / filename,
                             arcname='runtime-build/' + filename, recursive=False)
         info = tarfile.TarInfo("KeyMelier-source.tar")

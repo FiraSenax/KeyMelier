@@ -59,6 +59,8 @@ class ControlledBuildTests(unittest.TestCase):
                  'recipe_sha256': build_runtime.recipe_hash(), 'sha256': 'a' * 64,
                  'container': lock['container'], 'toolchain_packages': lock['toolchain_packages'],
                  'toolchain_commits': lock['toolchain_commits'],
+                 'component_versions': {s['component']: s['version'] for s in lock['sources']
+                    if s['component'] in {'zlib', 'zstd', 'mimalloc', 'libfuse', 'squashfuse'}},
                  'linked_files': [{'file': '/usr/lib/' + n, 'sha256': 'b' * 64}
                                   for n in ('libc.a', 'libfuse3.a', 'libsquashfuse.a')]}
         build_runtime.validate_proof(proof)
@@ -66,6 +68,7 @@ class ControlledBuildTests(unittest.TestCase):
                        lambda p: p.update(container='alpine:latest'),
                        lambda p: p.update(inputs_sha256='c' * 64),
                        lambda p: p.update(toolchain_commits={}),
+                       lambda p: p['component_versions'].update(zlib='0.0.0'),
                        lambda p: p.update(linked_files=[])):
             changed = copy.deepcopy(proof)
             mutate(changed)
