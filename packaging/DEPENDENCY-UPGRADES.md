@@ -47,3 +47,21 @@ manifest automatically. No manual copying into frontend strings is necessary.
 The earlier upstream zxing and AppImage binaries cannot gain missing historical
 build evidence retroactively. Controlled builds replace those inputs in new
 packages. Nothing in this procedure rewrites a published release.
+
+## Setuptools 84.2.1 review (2026-10-27)
+
+The upgrade from 84.0.0 includes the archive extraction and legacy wheel namespace
+path traversal fixes introduced in 84.1.0. The version, wheel hashes, exported
+build requirements and matching source archive are updated together. Review used
+the original PyPI wheels and source archives, verified against `uv.lock`:
+
+- Wheel SHA-256: `ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2`.
+- Source SHA-256: `3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc`.
+
+All 17 license/notice files are byte-identical to 84.0.0 after accounting for the
+vendored packaging directory's version change from 26.0 to 26.3. The remaining
+vendored distributions retain their versions. Packaging 26.3 already has an exact
+reviewed policy entry. The parent license expression and individual vendor terms
+remain unchanged; only the reviewed Setuptools version is advanced. Upstream
+changes are documented in the source archive's `NEWS.rst` and
+[release notes](https://github.com/pypa/setuptools/releases/tag/v84.2.1).

@@ -328,7 +328,7 @@
   "setuptools": {
     "expression": "MIT AND BSD-3-Clause AND MPL-2.0",
     "versions": [
-      "84.0.0"
+      "84.2.1"
     ]
   },
   "shiboken6": {
