@@ -76,6 +76,20 @@ try {
     Copy-Item "$root\LICENSE" "$root\build\THIRD_PARTY_LICENSES.txt"
     & "$root\tools\build-windows-installer.ps1" -AppVersion 1.8.6 -Signed
     $checks.Add('Built and verified signed setup and embedded uninstaller')
+    # Exercise the real missing/too-old prerequisite path without removing
+    # system DLLs from the runner: this test setup requires a future version.
+    $missingOutput = Join-Path $work 'missing-runtime'
+    New-Item $missingOutput -ItemType Directory | Out-Null
+    & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" '/DAppVersion=1.8.6' '/DVCMinVersion=65535.0.0.0' "/O$missingOutput" "$root\packaging\keymelier.iss"
+    if ($LASTEXITCODE -ne 0) { throw 'Missing-runtime probe build failed.' }
+    $missingInstall = Join-Path $work 'must-not-install'
+    $p = Start-Process (Join-Path $missingOutput 'KeyMelier-Windows-Setup.exe') `
+        -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$missingInstall`"") -PassThru
+    if (-not $p.WaitForExit(120000)) { $p.Kill(); throw 'Missing-runtime installer did not stop.' }
+    if ($p.ExitCode -ne 7 -or (Test-Path "$missingInstall\KeyMelier.exe")) {
+        throw "Missing-runtime installation was not refused before copying the app (exit $($p.ExitCode))."
+    }
+    $checks.Add('Missing/old Microsoft runtime blocks silent installation before copying files')
     $setup = "$root\dist\KeyMelier-Windows-Setup.exe"
     Write-Host 'Install the test package.'
     $p = Start-Process $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$install`"") -PassThru

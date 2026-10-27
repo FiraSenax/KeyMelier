@@ -123,7 +123,7 @@ def _expose_bridge(window, api, extra=()):
                 if name in {"call", "gpg_import", "read_oath_qr"}:
                     return {"ok": False, "error": "The operation could not be completed.",
                             "code": "error", "status": 500}
-                if name in {"copy_text", "open_licenses", "gpg_available"}:
+                if name in {"copy_text", "open_licenses", "gpg_available", "save_license"}:
                     return False
                 return None
         bridge.__name__ = name

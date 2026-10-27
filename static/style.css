@@ -1386,6 +1386,8 @@ textarea.piv-pem { width: 100%; font-family: var(--mono); font-size: 0.78rem; }
 .licenses-dialog h2, .licenses-dialog p { margin: 0; }
 .license-search { display: flex; gap: 8px; }
 .license-search input { flex: 1; min-width: 0; }
+.licenses-dialog select, .license-search input { font: inherit; font-size: 0.88rem; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
 .license-text { flex: 1; width: 100%; min-height: 100px; resize: none; overflow: auto;
   font-family: ui-monospace, monospace; font-size: 13px; line-height: 20px; tab-size: 4;
   background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }

@@ -345,6 +345,10 @@ class CheckArtifactsTests(unittest.TestCase):
         make_release(self.dir)
         r = ca.run(["windows", str(self.dir), "--signed", "false"])
         self.assertEqual(r.problems, [])
+        with zipfile.ZipFile(self.dir / "KeyMelier-Windows.zip", "a") as archive:
+            archive.writestr("KeyMelier/_internal/wheel/VCRUNTIME140.dll", b"accidental runtime copy")
+        self.assertTrue(any("Microsoft system runtimes" in p for p in
+                            ca.run(["windows", str(self.dir), "--signed", "false"]).problems))
         (self.dir / "KeyMelier-Windows.zip").write_bytes(zip_bytes({"KeyMelier/readme.txt": b"no exe"}))
         self.assertTrue(ca.run(["windows", str(self.dir), "--signed", "false"]).problems)
 

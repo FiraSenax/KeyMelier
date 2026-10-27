@@ -9,9 +9,9 @@ import re
 
 def family(filename):
     name = filename.replace("\\", "/").rsplit("/", 1)[-1].lower()
-    if name == "ucrtbase.dll" or name.startswith(("api-ms-win-", "ext-ms-win-")) and name.endswith(".dll"):
+    if name in {"ucrtbase.dll", "ucrtbased.dll"} or name.startswith(("api-ms-win-", "ext-ms-win-")) and name.endswith(".dll"):
         return "ucrt"
-    if re.fullmatch(r"(?:vcruntime|msvcp|concrt|vcomp|mfc|mfcm)\d+[a-z0-9_]*\.dll", name):
+    if re.fullmatch(r"(?:vcruntime|msvcr|msvcp|concrt|vcomp|mfc|mfcm)\d+[a-z0-9_]*\.dll", name):
         return "vc"
     return None
 

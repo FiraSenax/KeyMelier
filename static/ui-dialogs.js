@@ -210,7 +210,9 @@ function findLicenseText() {
 async function saveLicenseDocument() {
   const doc = licenseDocuments?.[Number($('license-document')?.value)];
   if (!doc) return;
-  try { await window.pywebview.api.save_license(doc.id); }
+  try {
+    if (await window.pywebview.api.save_license(doc.id) === false) showToast(t('licenses.error'), 'error');
+  }
   catch { showToast(t('licenses.error'), 'error'); }
 }
 
