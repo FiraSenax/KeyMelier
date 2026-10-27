@@ -84,6 +84,7 @@ const ICONS = {
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
   plug: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
   trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
   passkey: '<circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6"/><circle cx="18" cy="14" r="2.5"/><path d="M18 16.5V22m0-2h2"/>',
   settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
@@ -207,16 +208,19 @@ function aaguidValue(token) {
 
 function aaguidValueHtml(token) {
   const value = aaguidValue(token);
+  const notes = [];
+  if (value === '00000000-0000-0000-0000-000000000000') notes.push(t('aaguid.zero'));
+  if (token.offline) notes.push(t('aaguid.saved'));
   return `<div class="aaguid-value"><code>${escHtml(value || t('aaguid.unavailable'))}</code>
-    <button type="button" class="btn btn-secondary" data-copy-aaguid="${escHtml(value)}" ${value ? '' : 'disabled'}>${escHtml(t('aaguid.copy'))}</button></div>`;
+    <button type="button" class="btn btn-secondary" data-copy-aaguid="${escHtml(value)}" ${value ? '' : 'disabled'}>${escHtml(t('aaguid.copy'))}</button></div>
+    ${notes.length ? `<p class="field-hint">${escHtml(notes.join(' '))}</p>` : ''}`;
 }
 
 function renderAaguid(token) {
-  const notes = [];
-  if (aaguidValue(token) === '00000000-0000-0000-0000-000000000000') notes.push(t('aaguid.zero'));
-  if (token.offline) notes.push(t('aaguid.saved'));
-  $('aaguid-card').innerHTML = `<div class="aaguid-heading"><h2>${escHtml(t('det.aaguid'))}</h2>${aaguidValueHtml(token)}</div>
-    ${notes.length ? `<p class="field-hint">${escHtml(notes.join(' '))}</p>` : ''}`;
+  const value = aaguidValue(token);
+  const copyLabel = escHtml(t('aaguid.copy'));
+  $('key-aaguid').innerHTML = `<span>${escHtml(t('det.aaguid'))}</span><code>${escHtml(value || t('aaguid.unavailable'))}</code>
+    <button type="button" class="btn-icon" data-copy-aaguid="${escHtml(value)}" title="${copyLabel}" aria-label="${copyLabel}" ${value ? '' : 'disabled'}>${icon('copy', 14)}</button>`;
 }
 
 // { cls: pass|fail|partial|running, text } for an attestation result

@@ -341,6 +341,18 @@ button { font: inherit; color: inherit; }
   margin-top: 2px;
 }
 
+.key-aaguid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+.key-aaguid code { min-width: 0; font-family: var(--mono); overflow-wrap: anywhere; user-select: text; }
+.key-aaguid .btn-icon { flex-shrink: 0; padding: 5px; }
+.key-aaguid .btn-icon:disabled { opacity: 0.5; cursor: default; background: transparent; color: var(--text-3); }
+
 .status-pill {
   flex-shrink: 0;
   display: inline-flex;
@@ -564,13 +576,10 @@ dl.kv dd {
 dl.kv dd.mono { font-family: var(--mono); font-size: 0.8rem; }
 
 /* The model identifier is available as soon as a key is detected. */
-.aaguid-heading, .aaguid-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.aaguid-heading h2 { margin: 0; }
-.aaguid-value { min-width: 0; }
+.aaguid-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
 .aaguid-value code { font-family: var(--mono); font-size: 0.8rem; overflow-wrap: anywhere; user-select: text; }
 .aaguid-value .btn { padding: 5px 10px; font-size: 0.8rem; }
-.aaguid-card { margin-bottom: 14px; }
-.aaguid-card .field-hint { margin: 8px 0 0; }
+.aaguid-value + .field-hint { margin: 8px 0 0; }
 
 /* Pills */
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
