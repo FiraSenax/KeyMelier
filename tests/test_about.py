@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -51,6 +52,15 @@ class AboutPanelTests(unittest.TestCase):
         text = self.credits("fr", {"about.what": "<b>x</b>" * 200})
         self.assertIn("<b>x</b>", text.string())            # shown literally, never parsed as markup
         self.assertLessEqual(len(self.menubar.ABOUT_TEXTS["fr"]["about.what"]), 600)
+
+    def test_native_menu_callbacks_leave_main_thread_available(self):
+        # A mock window cannot catch Cocoa's synchronous JavaScript wait.
+        # Use a separate real GUI process so a regression times out safely.
+        probe = Path(__file__).with_name("macos_menu_probe.py")
+        result = subprocess.run([sys.executable, str(probe)], capture_output=True,
+                                text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.count("PASS native menu action"), 3)
 
 
 if __name__ == "__main__":

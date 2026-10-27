@@ -9,6 +9,7 @@ All AppKit calls run on the main thread via PyObjCTools.AppHelper.
 """
 
 import logging
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -237,13 +238,25 @@ class MenuBar:
 
     def _check_updates(self):
         self._open()
-        self._window.evaluate_js("window.__kmCheckUpdates && window.__kmCheckUpdates()")
+        self._evaluate_js("window.__kmCheckUpdates && window.__kmCheckUpdates()")
 
     def _show_about(self):
         # The same About dialog on every platform includes the offline license
         # reader, build identity and diagnostics.
         self._open()
-        self._window.evaluate_js("window.__kmAbout && window.__kmAbout()")
+        self._evaluate_js("window.__kmAbout && window.__kmAbout()")
+
+    def _evaluate_js(self, script):
+        # Native menu callbacks run on AppKit's main thread. pywebview's
+        # Cocoa evaluate_js queues work on that same thread and waits for
+        # its result, so calling it here directly deadlocks the whole UI.
+        def run():
+            try:
+                self._window.evaluate_js(script)
+            except Exception as e:
+                logger.warning("Menu action failed (%s)", type(e).__name__)
+
+        threading.Thread(target=run, daemon=True, name="menu-action").start()
 
     def _open(self, token_id=None):
         import json
@@ -256,7 +269,7 @@ class MenuBar:
             pass
         NSApp.activateIgnoringOtherApps_(True)
         if token_id:
-            self._window.evaluate_js(f"window.__kmSelectToken && window.__kmSelectToken({json.dumps(str(token_id))})")
+            self._evaluate_js(f"window.__kmSelectToken && window.__kmSelectToken({json.dumps(str(token_id))})")
 
     def _quit(self):
         try:

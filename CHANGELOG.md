@@ -5,8 +5,9 @@
 ## 1.8.7 — 2026-10-27
 
 Release candidate under test; the stable release has not been published.
-License distribution, metadata freshness and build dependency maintenance.
+License distribution, metadata freshness, macOS menu responsiveness and build dependency maintenance.
 
+- Fix a macOS UI deadlock when using the native About, Check for Updates or key-selection menu actions. Run their JavaScript calls off the AppKit thread and exercise all three actions in a native regression test.
 - Update the build dependency setuptools to 84.2.1, including the archive and legacy wheel path traversal fixes from 84.1.0; refresh its reviewed licenses and source evidence together.
 - Reduce service logos to individually reviewed assets for licensing reasons; other services use a letter avatar.
 - Include complete third-party notices, source archives and build provenance. Check reviewed dependency versions, licenses and embedded sources on upgrades; retain KeyMelier’s MIT license.
