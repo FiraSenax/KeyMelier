@@ -162,7 +162,10 @@ async function main() {
         renderSecurity({...tokens.get('demo-yk5'), mds_description:null, mds_status:null,
           mds_authenticator_version:null, mds_legal_header:null, mds_state:'not_found'});
         const text = $('sec-mds').textContent;
-        return text.includes(t('sec.mds.notFound')) && !text.includes(t('sec.mds.unverified'));
+        if (!text.includes(t('sec.mds.notFound')) || text.includes(t('sec.mds.unverified'))) return false;
+        renderSecurity({...tokens.get('demo-yk5'), mds_description:null, mds_state:'current'});
+        const current = $('sec-mds').textContent;
+        return !current.includes(t('sec.mds.notFound')) && !current.includes(t('sec.mds.unverified'));
       } finally { renderSecurity(tokens.get('demo-yk5')); }
     })()`), 'missing AAGUID is only reported for current metadata');
   });

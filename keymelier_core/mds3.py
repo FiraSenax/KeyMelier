@@ -47,12 +47,14 @@ def display_icon(value):
                 return None
         else:
             text = raw.decode("utf-8")
-            if re.search(r"<!\s*(?:DOCTYPE|ENTITY)", text, re.I):
+            if "\x00" in text or re.search(r"<!\s*(?:DOCTYPE|ENTITY)", text, re.I):
                 return None
             # defusedxml would add a dependency without replacing the SVG/CSS
             # allowlist below. This UTF-8-only, size-bounded path rejects DTDs
             # and entities before stdlib parsing (including expansion payloads).
-            # Keep that gate even if the parser changes; never parse raw bytes.
+            # Reject NULs too: Expat otherwise auto-detects UTF-16 without a
+            # BOM, bypassing a textual DOCTYPE check even after UTF-8 decoding.
+            # Keep those gates if the parser changes; never parse raw bytes.
             svg = ET.fromstring(text)
             if svg.tag != "{http://www.w3.org/2000/svg}svg":
                 return None

@@ -815,7 +815,8 @@ function renderSecurity(token) {
 
   $('sec-mds').innerHTML = buildKv([
     [t('sec.mds.description'), token.mds_description || t(
-      token.mds_state === 'not_found' ? 'sec.mds.notFound' : 'sec.mds.unverified')],
+      token.mds_state === 'not_found' ? 'sec.mds.notFound' :
+        token.mds_state === 'current' ? 'unknown' : 'sec.mds.unverified')],
     [t('sec.mds.status'), token.mds_status || '—'],
     [t('sec.mds.version'), token.mds_authenticator_version != null ? String(token.mds_authenticator_version) : '—'],
     ...(typeof mdsInfo?.legal_header === 'string' ? [[t('mds.legalHeader'), mdsInfo.legal_header]] : []),

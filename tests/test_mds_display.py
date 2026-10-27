@@ -144,6 +144,11 @@ class MdsDisplayTests(unittest.TestCase):
 
     def test_icon_accepts_passive_data_and_rejects_active_or_remote_content(self):
         self.assertEqual(mds3.display_icon(ICON), ICON)
+        declaration = ('<!DOCTYPE svg [<!ENTITY fixture "expanded">]>'
+                       '<svg xmlns="http://www.w3.org/2000/svg"><text>&fixture;</text></svg>')
+        for encoding in ("utf-8", "utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"):
+            value = "data:image/svg+xml;base64," + base64.b64encode(declaration.encode(encoding)).decode()
+            self.assertIsNone(mds3.display_icon(value), encoding)
         for body in ('<metadata/><path d="M0 0L1 1"/>', '<defs><path id="x"/></defs><use href="#x"/>'):
             svg = '<svg xmlns="http://www.w3.org/2000/svg">' + body + '</svg>'
             self.assertIsNotNone(mds3.display_icon("data:image/svg+xml," + svg))
