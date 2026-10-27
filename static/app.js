@@ -139,10 +139,10 @@ function keyArt(token, size) {
   </svg>`;
 }
 
-// Illustration plus the vendor's logo (from the FIDO metadata) as a badge
+// Runtime MDS icon identifies this authenticator; it is not bundled artwork.
 function keyAvatar(token, size) {
   const src = token.mds_icon;
-  const badge = typeof src === 'string' && src.startsWith('data:image/')
+  const badge = typeof src === 'string' && /^data:image\/(png|jpeg|svg\+xml);base64,/.test(src)
     ? `<img class="vendor-badge" src="${escHtml(src)}" alt="">` : '';
   return `<span class="key-art-wrap">${keyArt(token, size)}${badge}</span>`;
 }
@@ -296,6 +296,7 @@ function renderMds() {
   } else {
     box.classList.add('error');
     text.textContent = t('mds.unavailable');
+    box.title = t('sec.mds.unverified');
   }
 }
 
@@ -813,9 +814,13 @@ function renderSecurity(token) {
   };
 
   $('sec-mds').innerHTML = buildKv([
-    [t('sec.mds.description'), token.mds_description || t('sec.mds.notFound')],
+    [t('sec.mds.description'), token.mds_description || t(
+      token.mds_state === 'not_found' ? 'sec.mds.notFound' : 'sec.mds.unverified')],
     [t('sec.mds.status'), token.mds_status || '—'],
     [t('sec.mds.version'), token.mds_authenticator_version != null ? String(token.mds_authenticator_version) : '—'],
+    ...(typeof mdsInfo?.legal_header === 'string' ? [[t('mds.legalHeader'), mdsInfo.legal_header]] : []),
+    ...(typeof token.mds_legal_header === 'string' && token.mds_legal_header !== mdsInfo?.legal_header
+      ? [[t('mds.legalHeader'), token.mds_legal_header]] : []),
   ]);
 }
 
@@ -1007,9 +1012,9 @@ function renderDataStatus() {
       t(`data.policy.${['ok', 'invalid', 'unreachable'].includes(p.status) ? p.status : 'pending'}`, { name: p.name, n: p.count })]),
     ...(adv.policy?.length ? [['', t('data.policy.hint')]] : []),
     [t('data.mds'), st.mds?.fetched_at
-      ? `${fmtDate(st.mds.fetched_at)}${st.mds.serial ? ` · #${st.mds.serial}` : ''}${st.mds.verified ? ` · ${t('data.verified')}` : ''}`
+      ? `${fmtDate(st.mds.fetched_at)}${st.mds.serial ? ` · #${st.mds.serial}` : ''}${st.mds.current ? ` · ${t('data.verified')}` : ''}`
       : t('data.none')],
-    ...(st.mds?.entry_count && !st.mds.revocation_checked ? [['', t('data.revocationUnknown')]] : []),
+    ...(!st.mds?.current ? [['', t('sec.mds.unverified')]] : []),
     [t('data.lastCheck'), st.last_check ? fmtDate(st.last_check) : t('data.pending')],
     [t('data.appVersion'), st.app?.current
       ? `${st.app.current}${st.app.managed ? ` · ${t('upd.managed')}` : st.app.latest ? ` · ${st.app.newer ? t('upd.available', { v: st.app.latest }) : t('upd.upToDate')}` : ''}`

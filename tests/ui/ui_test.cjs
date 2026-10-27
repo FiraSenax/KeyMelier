@@ -139,7 +139,33 @@ async function main() {
     }
   });
 
+  await test('expired or unverified MDS explains recovery in all languages', async () => {
+    assert(await js(`(() => {
+      const original = LANG;
+      try {
+        return Object.keys(STRINGS).length === 11 && Object.keys(STRINGS).every(code => {
+          LANG = code;
+          const key = {...tokens.get('demo-yk5'), mds_description:null, mds_status:null,
+            mds_authenticator_version:null, mds_legal_header:null, mds_state:'unverified'};
+          renderSecurity(key);
+          const text = $('sec-mds').textContent;
+          return STRINGS[code]['sec.mds.unverified'] && text.includes(STRINGS[code]['sec.mds.unverified']) &&
+            !text.includes(t('sec.mds.notFound'));
+        });
+      } finally { LANG = original; renderSecurity(tokens.get('demo-yk5')); }
+    })()`), 'explicit recovery notice, without claiming the AAGUID is absent');
+  });
 
+  await test('AAGUID absent from current MDS is distinct from stale evidence', async () => {
+    assert(await js(`(() => {
+      try {
+        renderSecurity({...tokens.get('demo-yk5'), mds_description:null, mds_status:null,
+          mds_authenticator_version:null, mds_legal_header:null, mds_state:'not_found'});
+        const text = $('sec-mds').textContent;
+        return text.includes(t('sec.mds.notFound')) && !text.includes(t('sec.mds.unverified'));
+      } finally { renderSecurity(tokens.get('demo-yk5')); }
+    })()`), 'missing AAGUID is only reported for current metadata');
+  });
 
   // ── 1. Navigation ──
   await test('backup page: coverage, lost key and replacement visible at 1280x800 without scrolling', async () => {

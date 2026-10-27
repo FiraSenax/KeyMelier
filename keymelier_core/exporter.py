@@ -64,8 +64,11 @@ class CSVExporter:
             str(record.max_cred_count) if record.max_cred_count is not None else "",
             record.security_status,
             "|".join(record.cve_ids or []),
-            record.mds_description or "",
-            record.mds_status or "",
+            # Preserve the established CSV layout; these deprecated fields
+            # deliberately carry no detached MDS data. See SECURITY_REVIEW.md,
+            # "MDS-Daten: was gespeichert/exportiert wird und warum".
+            "",
+            "",
             str(att.get("ran", "")),
             str(att.get("passed", "")),
             att.get("status", "UNVERIFIED"),

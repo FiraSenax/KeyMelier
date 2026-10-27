@@ -53,8 +53,8 @@ def verify_jwt(token: str, require_revocation: bool = True) -> dict:
     With require_revocation=False a payload whose signature and certificate
     path are valid is returned even when the signer's revocation status cannot
     be established (e.g. offline). It is then marked "_revocation_ok": False
-    and "_verified_until": None, so it can name models but never support a
-    positive security assessment (see MDS3Client.is_current).
+    and "_verified_until": None. This is a diagnostic mode only; MDS3Client
+    requires revocation evidence for both display and security assessment.
     """
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
