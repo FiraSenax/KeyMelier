@@ -80,6 +80,7 @@ function HasVCRuntime(): Boolean;
 var
   Version, Minimum: Int64;
 begin
+  Log('Checking Microsoft C++ x64 runtime >= {#VCMinVersion}');
   if not StrToVersion('{#VCMinVersion}', Minimum) then RaiseException('Invalid C++ runtime minimum version');
   Result := GetPackedVersion(ExpandConstant('{sys}\vcruntime140.dll'), Version);
   if Result then Result := ComparePackedVersion(Version, Minimum) >= 0;

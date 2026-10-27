@@ -80,13 +80,15 @@ try {
     # system DLLs from the runner: this test setup requires a future version.
     $missingOutput = Join-Path $work 'missing-runtime'
     New-Item $missingOutput -ItemType Directory | Out-Null
-    & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" '/DAppVersion=1.8.6' '/DVCMinVersion=65535.0.0.0' "/O$missingOutput" "$root\packaging\keymelier.iss"
+    & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" '/DAppVersion=1.8.6' '/DVCMinVersion=99.0.0.0' "/O$missingOutput" "$root\packaging\keymelier.iss"
     if ($LASTEXITCODE -ne 0) { throw 'Missing-runtime probe build failed.' }
     $missingInstall = Join-Path $work 'must-not-install'
+    $missingLog = Join-Path $work 'missing-runtime.log'
     $p = Start-Process (Join-Path $missingOutput 'KeyMelier-Windows-Setup.exe') `
-        -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$missingInstall`"") -PassThru
+        -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$missingInstall`"", "/LOG=`"$missingLog`"") -PassThru
     if (-not $p.WaitForExit(120000)) { $p.Kill(); throw 'Missing-runtime installer did not stop.' }
     if ($p.ExitCode -ne 7 -or (Test-Path "$missingInstall\KeyMelier.exe")) {
+        if (Test-Path $missingLog) { Get-Content $missingLog | Write-Host }
         throw "Missing-runtime installation was not refused before copying the app (exit $($p.ExitCode))."
     }
     $checks.Add('Missing/old Microsoft runtime blocks silent installation before copying files')
