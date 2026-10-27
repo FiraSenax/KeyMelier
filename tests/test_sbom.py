@@ -71,6 +71,16 @@ class SbomTests(unittest.TestCase):
         problems = sbom.validate(self.bom, "9.9.9", strict=True)
         self.assertTrue(any("no hash of the installed artifact" in p for p in problems))
 
+    def test_known_spdx_license_still_requires_component_review(self):
+        bom = copy.deepcopy(self.bom)
+        package = next(c for c in bom['components'] if c['name'] == 'requests')
+        package['licenses'] = [{'license': {'id': 'GPL-3.0-only'}}]
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+        package['name'] = 'new-package'
+        package['purl'] = 'pkg:pypi/new-package@1.0'
+        package['licenses'] = [{'license': {'id': 'MIT'}}]
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+
     def test_cli_checks_default_file_without_treating_strict_as_a_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
