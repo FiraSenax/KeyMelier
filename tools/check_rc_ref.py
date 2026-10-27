@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RC tags select signed artifact builds, never public releases."""
+"""Validate that an RC tag matches the packaged base version."""
 import re
 import sys
 from pathlib import Path
@@ -21,4 +21,4 @@ if __name__ == '__main__':
         validate(sys.argv[1])
     except (IndexError, ValueError) as exc:
         raise SystemExit(str(exc)) from None
-    print('RC tag matches the packaged version; artifact-only build')
+    print('RC tag matches the packaged version')

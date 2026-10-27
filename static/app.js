@@ -664,6 +664,15 @@ function renderSettingsView() {
   $('settings-content').innerHTML = `
     <div class="callout app-settings-note"><div class="callout-text">${escHtml(t('app.settings.keyHint'))}</div></div>
     <section class="card">
+      <h2>${escHtml(t('upd.settings'))}</h2>
+      ${appSettings.update_managed ? `<p class="card-text">${escHtml(t('upd.managed'))}</p>` : `
+      <label class="switch-row">
+        <input type="checkbox" id="include-rc-updates" ${appSettings.include_rc_updates === true ? 'checked' : ''} ${updateFlow?.stage === 'downloading' ? 'disabled' : ''}>
+        <span>${escHtml(t('upd.includeRC'))}</span>
+      </label>
+      <p class="field-hint bk-hint">${escHtml(t('upd.rcHint'))}</p>`}
+    </section>
+    <section class="card">
       <h2>${escHtml(t('app.settings.data'))}</h2>
       <label class="switch-row">
         <input type="checkbox" id="bk-remember" ${remember ? 'checked' : ''} ${appSettings.stateless ? 'disabled' : ''}>
@@ -1546,6 +1555,23 @@ function init() {
   });
   for (const panel of ['backup-content', 'settings-content', 'replace-content']) $(panel).addEventListener('change', async ev => {
     const el = ev.target;
+    if (el.id === 'include-rc-updates') {
+      el.disabled = true;
+      try {
+        appSettings = await call('set_settings', { values: { include_rc_updates: el.checked } });
+        updateFlow = null;
+        dataStatus = await call('data_status');
+        renderDataStatus();
+        dataStatus = await call('check_updates');
+        renderDataStatus();
+        if (dataStatus.app?.failed) showToast(t('upd.checkFailed'), 'error');
+      } catch (e) {
+        showToast(errorMessage(e), 'error');
+      } finally {
+        renderPanel();
+      }
+      return;
+    }
     if (el.id === 'rp-open-only') { replaceOpenOnly = el.checked; return renderPanel(); }
     if (el.id === 'history-enabled') {
       appSettings = await call('set_settings', { values: { history_enabled: el.checked } }).catch(() => appSettings);

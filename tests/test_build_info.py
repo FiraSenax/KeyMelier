@@ -32,7 +32,7 @@ class ModifiedStateTests(unittest.TestCase):
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "initial")
         self.head = self.git("rev-parse", "HEAD")
-        env = patch.dict(os.environ, {"GITHUB_SHA": ""})   # the runner's value must not leak in
+        env = patch.dict(os.environ, {"GITHUB_SHA": "", "GITHUB_REF": ""})   # runner values must not leak in
         env.start()
         self.addCleanup(env.stop)
 
@@ -102,6 +102,18 @@ class ModifiedStateTests(unittest.TestCase):
         with patch.dict(os.environ, {"GITHUB_SHA": self.head}):
             self.assertEqual(self.info(ci=True)["commit"], self.head)
         with patch.dict(os.environ, {"GITHUB_SHA": "f" * 40}), self.assertRaises(SystemExit):
+            self.info(ci=True)
+
+    def test_rc_tag_is_recorded_only_for_a_clean_matching_tag_build(self):
+        self.git('tag', 'v1.8.7-rc.3')
+        with patch.dict(os.environ, {'GITHUB_REF':'refs/tags/v1.8.7-rc.3'}):
+            self.assertEqual(self.info(ci=True)['release_tag'], 'v1.8.7-rc.3')
+            self.assertIsNone(self.info(ci=False)['release_tag'])
+            (self.repo / 'app.py').write_text('changed')
+            with self.assertRaises(SystemExit):
+                self.info(ci=True)
+        self.git('checkout', '--', 'app.py')
+        with patch.dict(os.environ, {'GITHUB_REF':'refs/tags/v1.8.7-rc.4'}), self.assertRaises(SystemExit):
             self.info(ci=True)
 
 

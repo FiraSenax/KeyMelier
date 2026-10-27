@@ -11,6 +11,10 @@ build.json are in .gitignore). A local build with changes never claims to be
 that exact commit. If the status cannot be determined, modified is unknown
 (null) – never false – and a CI build stops. Without Git the commit stays
 unknown. No paths, user or host names, no remote URLs.
+
+release_tag: the stable or RC tag selected in CI, verified against HEAD and
+recorded only for a clean checkout. This distinguishes RCs without changing
+the numeric version required by the native app bundle and Windows installer.
 """
 
 import json
@@ -48,7 +52,15 @@ def build_info(signed: bool, notarized: bool, ci: bool, root: Path = ROOT) -> di
                 raise SystemExit("git status failed: cannot tell whether the tree is unmodified")
         else:
             modified = bool(status)
-    return {"signed": signed, "notarized": notarized, "ci": ci, "commit": commit, "modified": modified}
+    tag = None
+    ref = os.environ.get("GITHUB_REF", "")
+    if ci and ref.startswith("refs/tags/v"):
+        tag = ref.removeprefix("refs/tags/")
+        if (not re.fullmatch(r"v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?", tag)
+                or git("rev-parse", ref + "^{commit}", cwd=root) != commit or modified is not False):
+            raise SystemExit("release tag must identify this clean checkout")
+    return {"signed": signed, "notarized": notarized, "ci": ci, "commit": commit,
+            "modified": modified, "release_tag": tag}
 
 
 def main(argv: list[str]) -> int:

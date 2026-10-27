@@ -12,6 +12,11 @@ on:
         type: boolean
         default: false
         required: false
+      publish_rc:
+        description: 'Publish a signed RC tag as a GitHub prerelease after all checks (requires signed_rc)'
+        type: boolean
+        default: false
+        required: false
 permissions:
   contents: read
 jobs:
@@ -516,3 +521,38 @@ jobs:
             release-check.md
           if-no-files-found: warn
           retention-days: 30
+  # Explicit opt-in only: RC tag pushes and ordinary rehearsals stay artifact-only.
+  # Reuse exactly the checked files from this run; never replace an existing release.
+  release-candidate:
+    needs: [release-rehearsal, build-macos, build-windows]
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_rc && inputs.publish_rc && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release-signing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Require an RC tag and both verified signatures
+        env:
+          MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
+          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
+        run: |
+          python3 tools/check_rc_ref.py "$GITHUB_REF_NAME"
+          test "$MAC_SIGNED" = true
+          test "$WIN_SIGNED" = true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-rehearsal
+          path: rc-release
+      - name: Verify the checked files and publish a prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: rc-release
+        run: |
+          test "$(cat artifacts/SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
+          (cd artifacts && sha256sum --check SHA256SUMS.txt)
+          python3 -c 'from pathlib import Path; p=Path("release-notes.md"); p.write_text("Release candidate for testing. Enable Settings → Updates → Include release candidates to receive future RCs.\n\n" + p.read_text())'
+          gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --draft --prerelease --latest=false --title "KeyMelier $GITHUB_REF_NAME" --notes-file release-notes.md
+          gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false

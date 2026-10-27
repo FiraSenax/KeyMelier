@@ -141,10 +141,11 @@ git push origin v1.8.3-rc.1
 
 A tag push starts the workflow even when the candidate commit is on a review
 branch. Do not move an existing RC tag; use `rc.2`, `rc.3`, etc. for fixes.
-The packaged application version remains `1.8.3`; the RC tag, source commit,
-Actions run and `RC-MANIFEST.json` identify the candidate. Installing the later
-stable build with the same version is manual: the normal updater compares
-release versions, not RC run numbers.
+The native package version remains numeric, for example `1.8.7`. New builds also
+record the verified RC tag in `data/build.json`, so the app can compare
+`1.8.7-rc.2 < 1.8.7-rc.3 < 1.8.7`. The source commit, Actions run and
+`RC-MANIFEST.json` identify the exact candidate. Older RCs without this metadata
+or the update-channel setting need one manual upgrade.
 
 The output is the **`release-rehearsal` artifact**, retained for 30 days, with
 packages, checksums, source commit, dependency locks, SBOMs and a check report:
@@ -168,6 +169,27 @@ remains unsigned. Apple notarization applies only to macOS.
 
 Only the separate stable tag `v1.8.3` publishes a normal release. The RC tag
 condition explicitly excludes RCs from that publishing job.
+
+## Public release candidates for the optional update channel
+
+After merging and reviewing the candidate, select its new `vX.Y.Z-rc.N` tag in
+**Actions → Build → Run workflow** and enable both **`signed_rc`** and
+**`publish_rc`**. The tag push itself still produces artifacts only. Avoid running
+both builds concurrently; the publication run rebuilds and verifies all packages.
+
+The separate `release-candidate` job requires a successful complete rehearsal,
+matching RC tag and verified macOS/Windows signing. It downloads only that run's
+checked artifact, verifies the source commit and checksums again, creates a draft
+with all files and then publishes it with `prerelease=true` and latest disabled.
+It never replaces an existing release. If an upload fails, inspect the draft
+before retrying; it remains invisible to the app's updater.
+
+In the app, **Settings → Updates → Include release candidates** is off by default.
+Enabling it includes public RCs in the normal update check. The final stable
+version follows its RCs even if the option is switched off; older stable versions
+are never offered as a downgrade. MSIX installations retain package-managed
+updates. Neither the website's latest stable download nor stable-only users are
+switched to RCs.
 
 ## Clean build environments
 

@@ -5158,6 +5158,21 @@ const I18N_MDS_TERMS = {
 };
 for (const [code, strings] of Object.entries(I18N_MDS_TERMS)) Object.assign(STRINGS[code], strings);
 
+const I18N_RC_UPDATES = {
+  de: { 'upd.settings': 'Updates', 'upd.includeRC': 'Release Candidates berücksichtigen', 'upd.rcHint': 'Auch Vorabversionen zum Testen anbieten. Sie können noch Fehler enthalten. Ausgeschaltet werden nur stabile Updates angeboten; eine installierte RC wird nicht heruntergestuft.' },
+  en: { 'upd.settings': 'Updates', 'upd.includeRC': 'Include release candidates', 'upd.rcHint': 'Also offer preview versions for testing. They may still contain bugs. When off, only stable updates are offered; an installed RC is not downgraded.' },
+  es: { 'upd.settings': 'Actualizaciones', 'upd.includeRC': 'Incluir versiones candidatas', 'upd.rcHint': 'Ofrecer también versiones preliminares para pruebas. Pueden contener errores. Si se desactiva, solo se ofrecen actualizaciones estables; no se vuelve a una versión anterior desde una RC instalada.' },
+  fr: { 'upd.settings': 'Mises à jour', 'upd.includeRC': 'Inclure les versions candidates', 'upd.rcHint': 'Proposer aussi les préversions à tester. Elles peuvent encore contenir des erreurs. Si désactivé, seules les mises à jour stables sont proposées ; une RC installée ne revient pas à une version antérieure.' },
+  it: { 'upd.settings': 'Aggiornamenti', 'upd.includeRC': 'Includi le release candidate', 'upd.rcHint': 'Proponi anche versioni di anteprima da provare. Possono contenere errori. Se disattivato, vengono proposti solo aggiornamenti stabili; una RC installata non viene sostituita con una versione precedente.' },
+  nl: { 'upd.settings': 'Updates', 'upd.includeRC': 'Release candidates meenemen', 'upd.rcHint': 'Bied ook voorlopige versies aan om te testen. Die kunnen nog fouten bevatten. Uitgeschakeld worden alleen stabiele updates aangeboden; een geïnstalleerde RC wordt niet teruggezet naar een oudere versie.' },
+  pl: { 'upd.settings': 'Aktualizacje', 'upd.includeRC': 'Uwzględniaj wersje kandydujące', 'upd.rcHint': 'Oferuj również wersje testowe. Mogą nadal zawierać błędy. Po wyłączeniu oferowane są tylko stabilne aktualizacje; zainstalowana wersja RC nie zostanie cofnięta do starszej wersji.' },
+  pt: { 'upd.settings': 'Atualizações', 'upd.includeRC': 'Incluir versões candidatas', 'upd.rcHint': 'Oferecer também versões preliminares para testes. Podem conter erros. Quando desativado, só são oferecidas atualizações estáveis; uma RC instalada não é substituída por uma versão anterior.' },
+  ja: { 'upd.settings': 'アップデート', 'upd.includeRC': 'リリース候補版を含める', 'upd.rcHint': 'テスト用のプレビュー版も表示します。不具合が残っている場合があります。オフにすると安定版の更新のみが表示されます。インストール済みの RC が古いバージョンに戻ることはありません。' },
+  ko: { 'upd.settings': '업데이트', 'upd.includeRC': '출시 후보 버전 포함', 'upd.rcHint': '테스트용 미리 보기 버전도 제공합니다. 아직 오류가 있을 수 있습니다. 끄면 안정 버전 업데이트만 제공하며, 설치된 RC를 이전 버전으로 되돌리지 않습니다.' },
+  zh: { 'upd.settings': '更新', 'upd.includeRC': '包含候选发布版本', 'upd.rcHint': '同时提供用于测试的预发布版本，其中可能仍有错误。关闭后仅提供稳定版更新；已安装的 RC 不会降级。' },
+};
+for (const [code, strings] of Object.entries(I18N_RC_UPDATES)) Object.assign(STRINGS[code], strings);
+
 // First supported language from a list like ["de-DE", "en-US"]
 function pickLanguage(candidates) {
   for (const c of candidates || []) {

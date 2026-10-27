@@ -139,6 +139,41 @@ async function main() {
     }
   });
 
+  await test('RC updates: opt in, persist, recheck, switch off, failed save and package-managed install', async () => {
+    await js(`window.__rcOriginalCall = window.pywebview.api.call;
+      window.pywebview.api.call = async (method, args) => {
+        const response = await window.__rcOriginalCall(method, args);
+        if (method === 'check_updates' && appSettings.include_rc_updates) response.data.app = {
+          current: '1.8.7-rc.2', latest: '1.8.7-rc.3', newer: true, prerelease: true,
+          url: 'https://github.com/FiraSenax/KeyMelier/releases/tag/v1.8.7-rc.3'
+        };
+        return response;
+      };`);
+    try {
+      await click('#nav-settings');
+      assert(await js('!$("include-rc-updates").checked'), 'stable is the default');
+      await click('#include-rc-updates');
+      await until('appSettings.include_rc_updates && !$("include-rc-updates").disabled', 'saved and rechecked');
+      assert(await js('call("get_settings").then(s => s.include_rc_updates === true)'), 'preference saved through bridge');
+      assert(await js('!$("update-banner").classList.contains("hidden") && $("update-text").textContent.includes("1.8.7-rc.3")'), 'candidate clearly identified');
+      await js('updateFlow = {stage:"ready", platform:"darwin"}');
+      await click('#include-rc-updates');
+      await until('!appSettings.include_rc_updates && !$("include-rc-updates").disabled', 'stable channel saved');
+      assert(await js('updateFlow === null && $("update-banner").classList.contains("hidden")'), 'old RC offer and ready action cleared');
+      await js(`window.pywebview.api.call = (method, args) => method === 'set_settings'
+        ? Promise.resolve({ok:false, error:'Settings unavailable', code:'settings_locked'})
+        : window.__rcOriginalCall(method, args);`);
+      await click('#include-rc-updates');
+      await until('!$("include-rc-updates").checked && !$("include-rc-updates").disabled', 'failed save rolled back');
+      assert(await js('!appSettings.include_rc_updates'), 'failed save does not opt in');
+      await js('appSettings.update_managed = true; renderSettingsView()');
+      assert(await js('!$("include-rc-updates")'), 'no GitHub channel switch for package-managed installs');
+      assert(await js('Object.values(STRINGS).every(s => s["upd.includeRC"] && s["upd.rcHint"] && s["upd.settings"])'), 'translated for every supported language');
+    } finally {
+      await js('window.pywebview.api.call = window.__rcOriginalCall; call("set_settings", {values:{include_rc_updates:false}}).then(s => { appSettings = s; updateFlow = null; selectToken("demo-yk5"); });');
+    }
+  });
+
   await test('expired or unverified MDS explains recovery in all languages', async () => {
     assert(await js(`(() => {
       const original = LANG;
