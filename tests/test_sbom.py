@@ -74,6 +74,9 @@ class SbomTests(unittest.TestCase):
     def test_known_spdx_license_still_requires_component_review(self):
         bom = copy.deepcopy(self.bom)
         package = next(c for c in bom['components'] if c['name'] == 'requests')
+        package['version'] = '999.0'
+        self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
+        package['version'] = next(c['version'] for c in self.bom['components'] if c['name'] == 'requests')
         package['licenses'] = [{'license': {'id': 'GPL-3.0-only'}}]
         self.assertTrue(any('new or changed license needs review' in p for p in sbom.validate(bom)))
         package['name'] = 'new-package'

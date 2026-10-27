@@ -14,9 +14,9 @@ license evidence; it does not automatically approve new legal terms.
    For a changed manual SPDX mapping, inspect the original license, then update
    `license-overrides.json`; do not just copy the old permission assumption.
    If the expression itself changes, update its mapping in `tools/sbom.py` too.
-   `license-policy.json` also fixes the reviewed license expression for each
+   `license-policy.json` also fixes the reviewed version and license expression for each
    Python component, including nested vendors. A newly collected package or a
-   different expression fails validation even when it is a recognized SPDX ID.
+   new version or different expression fails validation even when it is a recognized SPDX ID.
    Inspect the actual grant and distribution obligations before updating it;
    `--refresh` deliberately never approves this file automatically.
    Qt sources and their module selection must match the new PySide version.

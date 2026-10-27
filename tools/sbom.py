@@ -428,7 +428,8 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
         if purl.startswith("pkg:pypi/"):
             name = _norm(c["name"])
             policy = json.loads((ROOT / 'packaging/license-policy.json').read_text())
-            if name not in policy or c.get('licenses') != _licenses(policy[name]):
+            review = policy.get(name, {})
+            if c.get('version') != review.get('version') or c.get('licenses') != _licenses(review.get('expression')):
                 problems.append(f'{label}: new or changed license needs review in packaging/license-policy.json')
             controlled = next((p['value'] for p in c.get('properties', [])
                                if p.get('name') == 'keymelier:controlled-build'), None)
