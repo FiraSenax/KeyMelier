@@ -81,6 +81,9 @@ SPDX_IDS = {"MIT", "MIT-0", "MIT-CMU", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clau
             "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-2.0-or-later",
             "LGPL-3.0-only", "GPL-2.0-only", "GPL-3.0-only", "CC0-1.0", "Unlicense", "0BSD"}
 SPDX_EXCEPTIONS = {"Bootloader-exception"}
+SPDX_IDS.add('Zlib')
+SPDX_IDS.add('GPL-3.0-or-later')
+SPDX_EXCEPTIONS.add('GCC-exception-3.1')
 
 
 def _norm(name: str) -> str:
@@ -91,6 +94,9 @@ def spdx_expression(dist) -> str | None:
     """SPDX expression for an installed distribution, or None if unknown."""
     name = _norm(dist.metadata["Name"])
     if name in SPDX_OVERRIDES:
+        reviews = json.loads((ROOT / 'packaging/license-overrides.json').read_text())
+        if name in reviews and (reviews[name]['version'] != dist.version or reviews[name]['expression'] != SPDX_OVERRIDES[name]):
+            raise ValueError('Review the original license before reusing the SPDX override for ' + name)
         return SPDX_OVERRIDES[name]
     expr = (dist.metadata.get("License-Expression") or "").strip()
     if expr:
@@ -155,6 +161,13 @@ def _package(name: str, allowed: dict, artifacts: dict, component_type="library"
     component = {"type": component_type, "bom-ref": purl, "name": dist.metadata["Name"], "version": dist.version,
                  "purl": purl, "licenses": _licenses(spdx_expression(dist))}
     art = artifacts.get(norm)
+    if norm == 'zxing-cpp' and art:
+        from build_zxing import PROOF, verify_installed
+        if PROOF.is_file():
+            proof = verify_installed()
+            component['hashes'] = [{'alg': 'SHA-256', 'content': proof['wheel_sha256']}]
+            component['properties'] = [{'name': 'keymelier:controlled-build', 'value': json.dumps(proof, sort_keys=True)}]
+            return component
     if art and art.get("version") == dist.version:
         # the file pip actually installed; it must be one the lock file allows
         component["hashes"] = [{"alg": "SHA-256", "content": art["sha256"]}]
@@ -220,6 +233,41 @@ def _native_components(packages):
     return out
 
 
+def _runtime_components():
+    from build_runtime import LOCK, PROOF, verify_built
+    lock = json.loads(LOCK.read_text())
+    proof = verify_built() if PROOF.is_file() else None
+    version = next(s['version'] for s in lock['sources'] if s['component'] == 'type2-runtime')
+    root = {'type': 'application', 'bom-ref': 'pkg:generic/appimage-type2-runtime@' + version,
+            'name': 'AppImage type2 runtime', 'version': version,
+            'purl': 'pkg:generic/appimage-type2-runtime@' + version,
+            'licenses': [{'license': {'name': 'AppImage runtime and static dependency notices'}}]}
+    if not proof:
+        return [root]  # Development inventory; strict release validation rejects missing proof.
+    root['hashes'] = [{'alg': 'SHA-256', 'content': proof['sha256']}]
+    root['properties'] = [{'name': 'keymelier:runtime-build', 'value': json.dumps(proof, sort_keys=True)}]
+    components = [root]
+    licenses = {'libfuse': 'LGPL-2.1-or-later', 'squashfuse': 'BSD-2-Clause',
+                'zstd': 'BSD-3-Clause', 'zlib': 'Zlib', 'mimalloc': 'MIT', 'musl': 'MIT'}
+    for source in lock['sources']:
+        name = source['component']
+        if name not in licenses:
+            continue
+        version = lock['toolchain_packages']['musl-dev'] if name == 'musl' else source['version']
+        purl = f'pkg:generic/{name}@{version}'
+        components.append({'type': 'library', 'bom-ref': purl + '#appimage', 'name': name,
+            'version': version, 'purl': purl, 'licenses': _licenses(licenses[name]),
+            'properties': [{'name': 'keymelier:bundled-in', 'value': root['bom-ref']},
+                           {'name': 'keymelier:source-sha256', 'value': source['sha256']}],
+            'externalReferences': [{'type': 'source-distribution', 'url': source['url']}]})
+    version = lock['toolchain_packages']['gcc']
+    components.append({'type': 'library', 'bom-ref': f'pkg:generic/gcc-runtime@{version}#appimage',
+        'name': 'GCC runtime', 'version': version, 'purl': f'pkg:generic/gcc-runtime@{version}',
+        'licenses': _licenses('GPL-3.0-or-later WITH GCC-exception-3.1'),
+        'properties': [{'name': 'keymelier:bundled-in', 'value': root['bom-ref']}]})
+    return components
+
+
 def build(app_version: str, report_glob: str | None = None, names=None, native_packages=(), vendors=(), upstream_sboms=()) -> dict:
     allowed = lock_hashes()
     artifacts = installed_artifacts(report_glob)
@@ -266,14 +314,20 @@ def build(app_version: str, report_glob: str | None = None, names=None, native_p
         components.append({"type": "library", "bom-ref": purl, "name": "Microsoft.Web.WebView2", "version": "1.0.3856.49",
             "purl": purl, "licenses": _licenses("BSD-3-Clause")})
     if sys.platform.startswith("linux"):
-        purl = "pkg:generic/appimage-type2-runtime@20251108"
-        digest = {"x86_64": "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d",
-                  "aarch64": "00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444"}[platform.machine()]
-        components.append({"type": "application", "bom-ref": purl, "name": "AppImage type2 runtime", "version": "20251108",
-            "purl": purl, "licenses": [{"license": {"name": "AppImage runtime and static dependency notices"}}],
-            "hashes": [{"alg": "SHA-256", "content": digest}],
-            "properties": [{"name": "keymelier:static-dependencies", "value": "musl, libfuse 3.15.0, squashfuse 0.5.2, zstd, zlib, mimalloc; see THIRD_PARTY_LICENSES.txt and sources"}],
-            "externalReferences": [{"type": "distribution", "url": "https://github.com/AppImage/type2-runtime/releases/tag/20251108"}]})
+        components.extend(_runtime_components())
+    for component in list(components):
+        evidence = next((p['value'] for p in component.get('properties', [])
+                         if p.get('name') == 'keymelier:controlled-build'), None)
+        if evidence:
+            proof = json.loads(evidence)
+            version = proof['inputs']['nanobind']['version']
+            nested = [('nanobind', version, 'BSD-3-Clause')]
+            nested += [(name, info['version'], info['license']) for name, info in proof['vendored_components'].items()]
+            for name, version, license_expr in nested:
+                purl = f'pkg:generic/{name}@{version}'
+                components.append({'type': 'library', 'bom-ref': purl, 'name': name,
+                    'version': version, 'purl': purl, 'licenses': _licenses(license_expr),
+                    'properties': [{'name': 'keymelier:bundled-in', 'value': component['bom-ref']}]})
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
@@ -348,7 +402,7 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
             custom = (entry.get("license") or {}).get("name")
             documented_asset = c.get("name", "").startswith("brand:") and custom == "Brand usage terms"
             documented_native = c.get("purl", "").startswith("pkg:deb/") and custom == "Debian copyright file (included in THIRD_PARTY_LICENSES.txt)"
-            documented_runtime = c.get("purl") == "pkg:generic/appimage-type2-runtime@20251108" and custom == "AppImage runtime and static dependency notices"
+            documented_runtime = c.get('purl', '').startswith('pkg:generic/appimage-type2-runtime@') and custom == "AppImage runtime and static dependency notices"
             if not (documented_asset or documented_native or documented_runtime) and (not expr or not expression_ok(expr)):
                 problems.append(f"{label}: license is not a known SPDX expression: {entry}")
             if documented_native and not any(p.get("name") == "keymelier:copyright:sha256" and re.fullmatch(r"[0-9a-f]{64}", p.get("value", "")) for p in c.get("properties", [])):
@@ -357,15 +411,46 @@ def validate(bom: dict, app_version: str | None = None, strict: bool = False) ->
             if h.get("alg") != "SHA-256" or not re.fullmatch(r"[0-9a-f]{64}", h.get("content", "")):
                 problems.append(f"{label}: malformed hash")
         purl = c.get("purl", "")
+        if purl.startswith('pkg:generic/appimage-type2-runtime@'):
+            evidence = next((p['value'] for p in c.get('properties', [])
+                             if p.get('name') == 'keymelier:runtime-build'), None)
+            try:
+                from build_runtime import validate_proof
+                if evidence:
+                    proof = json.loads(evidence)
+                    validate_proof(proof)
+                    if c.get('hashes') != [{'alg': 'SHA-256', 'content': proof['sha256']}]:
+                        raise ValueError('Runtime artifact hash differs from its build proof')
+                elif strict:
+                    raise ValueError('Runtime build proof missing')
+            except (ValueError, KeyError, TypeError) as error:
+                problems.append(f'{label}: {error}')
         if purl.startswith("pkg:pypi/"):
             name = _norm(c["name"])
+            controlled = next((p['value'] for p in c.get('properties', [])
+                               if p.get('name') == 'keymelier:controlled-build'), None)
+            controlled_hash = None
+            if controlled:
+                try:
+                    from build_zxing import validate_proof
+                    proof = json.loads(controlled)
+                    validate_proof(proof)
+                    if name != 'zxing-cpp' or c['version'] != proof['inputs']['zxing-cpp']['version']:
+                        raise ValueError('Controlled build does not match this package')
+                    controlled_hash = proof['wheel_sha256']
+                    if c.get('hashes') != [{'alg': 'SHA-256', 'content': controlled_hash}]:
+                        raise ValueError('Controlled wheel hash differs from SBOM artifact')
+                except (ValueError, KeyError, TypeError) as error:
+                    problems.append(f'{label}: invalid controlled build proof: {error}')
+            if strict and name == 'zxing-cpp' and not controlled_hash:
+                problems.append(f'{label}: controlled source build proof missing')
             vendored = any(p.get("value") == "setuptools wheel; see parent artifact hash" for p in c.get("properties", []))
             if not vendored and not allowed.get(name):
                 problems.append(f"{label}: collected package is not pinned in the dependency lock")
             if strict and not c.get("hashes") and not vendored:
                 problems.append(f"{label}: no hash of the installed artifact (pip report missing?)")
             for h in c.get("hashes") or []:
-                if allowed.get(name) and h["content"] not in allowed[name]:
+                if allowed.get(name) and h["content"] not in allowed[name] and h['content'] != controlled_hash:
                     problems.append(f"{label}: installed artifact hash is not allowed by the lock file")
     names = {c.get("name") for c in comps}
     for required in ("CPython", "OpenSSL", "Lucide", "Feather") + (("pyinstaller",) if strict else ()):

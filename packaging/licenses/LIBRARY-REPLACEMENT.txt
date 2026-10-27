@@ -27,7 +27,10 @@ _internal/PySide6/Qt; replacement builds must retain ABI compatibility.
 For a full rebuild, check out that source commit, create a fresh Python virtual
 environment, install the pinned requirements, then install your modified
 library into that environment and run PyInstaller with keymelier.spec.
-Adjust packaging/python-sources.json to document your source modifications.
+First run tools/build_zxing.py (and tools/build_runtime.py on Linux) to generate
+the controlled build evidence. For a deliberately modified library, adapt its
+source pin and recipe as well; the standard release checks reject stale evidence.
+Document your source modifications in the source manifest.
 The normal build scripts reinstall the original pinned libraries, so invoke
 PyInstaller directly after installing a replacement. Run tools/smoke_packaged.py
 on the result; see TESTING.md for platform setup.
@@ -48,12 +51,17 @@ This proves loading a modified native library; it is not a complete Qt source
 rebuild. The macOS copy is signed ad-hoc. Originals and publisher keys are not
 modified. Reports and before/after hashes are in build/smoke-artifacts/replacement.
 
-The AppImage runtime statically links libfuse. Its source archive, the exact
-libfuse and squashfuse sources and the libfuse patch are included. The runtime
-archive's scripts/chroot/chroot_build.sh and scripts/common/install-dependencies.sh
-describe rebuilding it in Alpine 3.21. Use the same build recipe with your
-modified libfuse, then pass the new runtime to appimagetool --runtime-file.
-The prebuilt runtime's Alpine package versions for permissive dependencies are
-not individually attested; a rebuild need not be byte-identical. The application
-directory can also be extracted with --appimage-extract and run without the
-original runtime. No publisher signature is needed to create a local AppImage.
+The AppImage runtime statically links libfuse. Its exact source, libfuse patch,
+other library sources, Alpine musl packaging/patches and linker inventory are
+included in the source bundle. packaging/runtime-build.json pins the inputs;
+packaging/linux/runtime-build.sh is the offline recipe. Run
+    python tools/build_runtime.py
+with Docker available to rebuild it. To use a modified libfuse, change the source
+archive/checksum in that manifest and run the same recipe, then supply the output
+from build/appimage-tools/runtime-<arch> to appimagetool --runtime-file.
+GCC startup/support objects retain GPLv3 with the GCC Runtime Library Exception
+3.1; the original terms accompany the notices. The complete Alpine package
+inventory, source package commits, static archive hashes and linker map are
+retained in the source bundle. No claim of byte-for-byte reproducibility is made.
+The application directory can also be extracted with --appimage-extract and run
+without the original runtime. No publisher signature is needed for local builds.

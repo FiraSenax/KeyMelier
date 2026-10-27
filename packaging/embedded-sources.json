@@ -425,7 +425,7 @@
   {
     "parent": "zxing-cpp",
     "parent_version": "3.1.1",
-    "component": "nanobind license reference",
+    "component": "nanobind",
     "version": "2.11.0",
     "filename": "nanobind-2.11.0.tar.gz",
     "url": "https://files.pythonhosted.org/packages/7c/d6/2d17c0a630fabc05785c0ea57a994bb165b342416bec8e41c96f3fee5add/nanobind-2.11.0.tar.gz",
@@ -433,6 +433,13 @@
     "sha256": "6d98d063c61dbbd05a2d903e59be398bfcff9d59c54fbbc9d4488960485d40d0",
     "modified": false,
     "notices": true,
-    "relationship": "License reference at the minimum required nanobind version, not an attestation of the exact version embedded by the upstream wheel build."
+    "vendored_components": {
+      "tsl-robin-map": {
+        "version": "1.4.0",
+        "file": "ext/robin_map/CMakeLists.txt",
+        "sha256": "c0032ace0ade5fdbe756bcf1dd98febfcba459289fcfb9a2cfb5a6cbeed24c51",
+        "license": "MIT"
+      }
+    }
   }
 ]

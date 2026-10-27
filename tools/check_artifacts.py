@@ -142,8 +142,19 @@ def check_sources(r: Report, path: Path, commit=None):
                         f"{path.name}: source commit matches clean binary build")
             sources = manifest.get("sources", [])
             components = {s.get("component") for s in sources}
+            from build_zxing import validate_proof
+            validate_proof(manifest.get('zxing_build', {}))
+            for name, evidence in manifest['zxing_build']['inputs'].items():
+                r.check(any(s.get('component') == name and s.get('version') == evidence['version']
+                            and s.get('sha256') == evidence['sha256'] for s in sources),
+                        f'{path.name}: controlled {name} build source is included')
             r.check({"pyscard", "certifi", "fido2"} <= components, f"{path.name}: required Python sources present")
             if "Linux" in path.name:
+                from build_runtime import validate_proof as validate_runtime
+                validate_runtime(manifest.get('runtime_build', {}))
+                evidence = archive.extractfile('runtime-build/runtime.map').read()
+                r.check(hashlib.sha256(evidence).hexdigest() == manifest['runtime_build']['link_map_sha256'],
+                        f'{path.name}: runtime linker evidence matches build proof')
                 r.check({"qtbase", "qtdeclarative", "qtwebengine", "pyside-setup"} <= components,
                         f"{path.name}: Qt corresponding sources present")
                 r.check(any(s["filename"] == "fuse-3.15.0.tar.xz" for s in sources),
@@ -329,6 +340,14 @@ def check_appimage(r: Report, path: Path, arch: str, version: str, commit: str |
                   f"{internal}/THIRD_PARTY_SOURCES.json", "usr/share/keymelier/70-keymelier.rules"):
         r.check(entry in entries, f"{path.name} contains {entry}")
     check_build_commit(r, path.name, read(BUILD_JSON["linux"]), commit)
+    try:
+        from build_runtime import validate_proof, normalized_hash
+        evidence = json.loads(read(f'{internal}/THIRD_PARTY_SOURCES.json'))['runtime_build']
+        validate_proof(evidence)
+        r.check(evidence['architecture'] == arch and normalized_hash(head) == evidence['normalized_sha256'],
+                f'{path.name}: actual runtime matches its controlled source build')
+    except (ValueError, KeyError, TypeError) as error:
+        r.check(False, f'{path.name}: runtime provenance', str(error))
     m = re.search(r'__version__\s*=\s*"([^"]+)"', read(f"{internal}/keymelier_core/version.py"))
     r.check(m is not None and m.group(1) == version, f"{path.name}: app version {version}", m.group(1) if m else "none")
 

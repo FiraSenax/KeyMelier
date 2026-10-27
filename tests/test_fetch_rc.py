@@ -22,6 +22,12 @@ RUN = "123456"
 
 class FetchRCTests(unittest.TestCase):
     def setUp(self):
+        for target, result in (('build_zxing.validate_proof', None),
+                               ('build_runtime.validate_proof', None),
+                               ('build_runtime.normalized_hash', 'fixture-hash')):
+            mocked = patch(target, return_value=result)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.dist = self.tmp / "dist"

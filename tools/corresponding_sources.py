@@ -147,7 +147,18 @@ def prepare(names, packages=()):
         pins = json.loads((ROOT / "packaging/linux-sources.json").read_text())
         sources += [{"component": filename.split("-everywhere")[0], "filename": filename, **pin}
                     for filename, pin in pins.items()]
+        runtime_sources = json.loads((ROOT / 'packaging/runtime-build.json').read_text())['sources']
+        sources += runtime_sources
         sources += debian_sources(packages)
+    # Python source pins and embedded-notice recipes can describe the same
+    # archive. Keep one verified copy, preserving the stricter notice settings.
+    unique = {}
+    for source in sources:
+        old = unique.get(source['filename'])
+        if old and (old['sha256'], old['size']) != (source['sha256'], source['size']):
+            raise ValueError('Conflicting source archive: ' + source['filename'])
+        unique[source['filename']] = {**(old or {}), **source}
+    sources = list(unique.values())
     paths = []
     for source in sources:
         print("Corresponding source:", source["filename"], flush=True)
@@ -166,6 +177,12 @@ def prepare(names, packages=()):
     modified = bool(subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT).strip())
     manifest = {"schema": 1, "source_commit": source_commit, "modified_worktree": modified,
                 "sources": sources, "instructions": "LIBRARY-REPLACEMENT.txt"}
+    if 'zxing-cpp' in parents:
+        from build_zxing import verify_installed
+        manifest['zxing_build'] = verify_installed()
+    if sys.platform.startswith('linux'):
+        from build_runtime import verify_built
+        manifest['runtime_build'] = verify_built()
     target = ROOT / "build/THIRD_PARTY_SOURCES.json"
     target.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     label = {"darwin": "macOS", "win32": "Windows"}.get(sys.platform, "Linux-" + platform.machine())
@@ -177,6 +194,10 @@ def prepare(names, packages=()):
             archive.add(path, arcname="upstream/" + source["filename"], recursive=False)
         archive.add(target, arcname=target.name, recursive=False)
         archive.add(ROOT / "packaging/licenses/LIBRARY-REPLACEMENT.txt", arcname="LIBRARY-REPLACEMENT.txt", recursive=False)
+        if sys.platform.startswith('linux'):
+            for filename in ('runtime.map', 'alpine-packages.txt', 'alpine-installed.txt', 'linked-files.json'):
+                archive.add(ROOT / 'build/runtime-controlled/out' / filename,
+                            arcname='runtime-build/' + filename, recursive=False)
         info = tarfile.TarInfo("KeyMelier-source.tar")
         info.size = len(app_source)
         archive.addfile(info, io.BytesIO(app_source))

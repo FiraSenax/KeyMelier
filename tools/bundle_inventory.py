@@ -66,8 +66,14 @@ def linux_packages(binaries):
 
 
 def collect(analysis):
+    from license_inputs import check
+    problems = check()
+    if problems:
+        raise ValueError('\n'.join(problems))
     entries = list(analysis.pure) + list(analysis.binaries) + list(analysis.datas)
     names = collected_packages(entries)
+    from build_zxing import verify_installed
+    zxing_build = verify_installed() if 'zxing-cpp' in names else None
     if any("libreadline" in dest.lower() for dest, _src, _kind in analysis.binaries):
         raise ValueError("GNU Readline is not needed by KeyMelier and must not be bundled")
     if sys.platform == "win32":
@@ -103,7 +109,8 @@ def collect(analysis):
     inventory = {"schema": 1, "python_packages": names,
                  "setuptools_vendors": [{"name": d.metadata["Name"], "version": d.version} for d in vendors],
                  "native_packages": [{k: v for k, v in p.items() if k != "notice"} for p in natives],
-                 "binary_inputs": binary_inputs, "upstream_sboms": evidence, "pillow": pillow}
+                 "binary_inputs": binary_inputs, "upstream_sboms": evidence, "pillow": pillow,
+                 "zxing_build": zxing_build}
     target = ROOT / "build" / "BUNDLE_INVENTORY.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(inventory, indent=2) + "\n")

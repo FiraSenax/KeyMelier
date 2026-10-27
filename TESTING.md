@@ -157,7 +157,9 @@ All test jobs install `requirements-quality.txt` with
 tests, Ruff and uv; the Linux job runs the Ruff correctness checks. These tools
 come from the isolated `quality` group in `pyproject.toml` and `uv.lock`, and are
 never installed in package builds. Update their pins in `pyproject.toml`, run
-`uv lock`, then regenerate all three exports with `tools/export_requirements.py`.
+`uv lock`, then regenerate all three exports with `tools/export_requirements.py`
+and the source manifest with `tools/license_inputs.py --refresh`. Changed embedded
+versions or SPDX overrides require review; see `packaging/DEPENDENCY-UPGRADES.md`.
 Each platform checks the manifest, lock and exports offline; `--check` never
 rewrites files or resolves newer package versions.
 

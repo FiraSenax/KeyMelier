@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "container": "alpine:3.21@sha256:ee16d92f96db08d9d2d07da48555a27f3a69d8f0759021dbc601195ed0d2b5bd",
+  "toolchain_packages": {
+    "musl-dev": "1.2.5-r12",
+    "gcc": "14.2.0-r4",
+    "libgcc": "14.2.0-r4"
+  },
+  "sources": [
+    {
+      "component": "type2-runtime",
+      "filename": "type2-runtime-20251108.tar.gz",
+      "url": "https://codeload.github.com/AppImage/type2-runtime/tar.gz/dd6cebedcbddde9c82f89b011e8e1d40b6e43868",
+      "sha256": "f5fec23be76e50e2445ed2d018bac49b367490fc483c62c4637e99ec705d27ba",
+      "size": 31069,
+      "version": "20251108",
+      "modified": false,
+      "notices": true
+    },
+    {
+      "component": "libfuse",
+      "filename": "fuse-3.15.0.tar.xz",
+      "url": "https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz",
+      "sha256": "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0",
+      "size": 4589124,
+      "modified": true,
+      "modifications": "type2-runtime patches/libfuse/mount.c.diff",
+      "notices": true
+    },
+    {
+      "component": "squashfuse",
+      "filename": "squashfuse-0.5.2.tar.gz",
+      "url": "https://github.com/vasi/squashfuse/archive/0.5.2.tar.gz",
+      "sha256": "db0238c5981dabbd80ee09ae15387f390091668ca060a7bc38047912491443d3",
+      "size": 75404,
+      "modified": false,
+      "modifications": "",
+      "notices": true
+    },
+    {
+      "component": "zstd",
+      "version": "1.5.6",
+      "url": "https://codeload.github.com/facebook/zstd/tar.gz/refs/tags/v1.5.6",
+      "filename": "zstd-1.5.6.tar.gz",
+      "sha256": "30f35f71c1203369dc979ecde0400ffea93c27391bfd2ac5a9715d2173d92ff7",
+      "size": 2425452,
+      "modified": false,
+      "notices": true
+    },
+    {
+      "component": "zlib",
+      "version": "1.3.1",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "filename": "zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "size": 1512791,
+      "modified": false,
+      "notices": true
+    },
+    {
+      "component": "mimalloc",
+      "version": "2.1.7",
+      "url": "https://codeload.github.com/microsoft/mimalloc/tar.gz/refs/tags/v2.1.7",
+      "filename": "mimalloc-2.1.7.tar.gz",
+      "sha256": "0eed39319f139afde8515010ff59baf24de9e47ea316a315398e8027d198202d",
+      "size": 1181422,
+      "modified": false,
+      "notices": true
+    },
+    {
+      "component": "musl",
+      "version": "1.2.5",
+      "url": "https://musl.libc.org/releases/musl-1.2.5.tar.gz",
+      "filename": "musl-1.2.5.tar.gz",
+      "sha256": "a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4",
+      "size": 1080786,
+      "modified": false,
+      "notices": true
+    },
+    {
+      "component": "alpine-musl-build",
+      "version": "5245849e14d213abe18d589b4b80d65793327940",
+      "url": "https://codeload.github.com/alpinelinux/aports/tar.gz/5245849e14d213abe18d589b4b80d65793327940",
+      "filename": "alpine-musl-build-5245849e14d213abe18d589b4b80d65793327940.tar.gz",
+      "sha256": "e63fe34178270d2d8cc74f1bab303ec1868150606e66f6da2c16221e6ec86034",
+      "size": 13722355,
+      "modified": false,
+      "notices": false
+    },
+    {
+      "component": "alpine-gcc-build",
+      "version": "1a03a2a9c9e77f1a07d48b6f6805e72c8c63c03f",
+      "url": "https://codeload.github.com/alpinelinux/aports/tar.gz/1a03a2a9c9e77f1a07d48b6f6805e72c8c63c03f",
+      "filename": "alpine-gcc-build-1a03a2a9c9e77f1a07d48b6f6805e72c8c63c03f.tar.gz",
+      "sha256": "fa78002197d55fe1c360efcbba9d6e914ec171987648f388b04a161740d15f22",
+      "size": 13249119,
+      "modified": false,
+      "notices": false
+    }
+  ],
+  "runtime_commit": "dd6cebedcbddde9c82f89b011e8e1d40b6e43868",
+  "toolchain_commits": {
+    "musl-dev": "5245849e14d213abe18d589b4b80d65793327940",
+    "gcc": "1a03a2a9c9e77f1a07d48b6f6805e72c8c63c03f",
+    "libgcc": "1a03a2a9c9e77f1a07d48b6f6805e72c8c63c03f"
+  }
+}

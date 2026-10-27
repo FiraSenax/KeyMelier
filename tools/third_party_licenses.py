@@ -159,8 +159,8 @@ def build(names=None, native_notices=()) -> str:
             out += [rule, "Microsoft WebView2 SDK 1.0.3856.49 – " + filename, rule,
                     (ROOT / "packaging" / "licenses" / filename).read_text(), ""]
     if sys.platform.startswith("linux"):
-        for filename in ("appimage-runtime-LICENSE.txt", "musl-COPYRIGHT.txt", "zstd-LICENSE.txt",
-                         "zlib-LICENSE.txt", "mimalloc-LICENSE.txt"):
+        for filename in ("appimage-runtime-LICENSE.txt", "gcc-14.2.0-COPYING3.txt",
+                         "gcc-14.2.0-RUNTIME-EXCEPTION.txt"):
             out += [rule, "AppImage runtime / static dependency — " + filename, rule,
                     (ROOT / "packaging/licenses" / filename).read_text(), ""]
     for name, text in native_notices:

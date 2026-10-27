@@ -78,9 +78,12 @@ def build_json(commit=COMMIT, modified=False):
 
 
 def fake_squashfs(version=VERSION, files=APPIMAGE_FILES, commit=COMMIT, modified=False):
-    def read(inner):
+    def read(inner, arch):
+        if inner.endswith('THIRD_PARTY_SOURCES.json'):
+            return json.dumps({'runtime_build': {'architecture': arch, 'normalized_sha256': 'fixture-hash'}})
         return build_json(commit, modified) if inner.endswith("data/build.json") else f'__version__ = "{version}"\n'
-    return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"}, read)
+    return lambda path, offset: (set(files) | {f"{INTERNAL}/data/build.json"},
+        lambda inner: read(inner, 'aarch64' if 'aarch64' in path.name else 'x86_64'))
 
 
 LICENSES = "fido2 … cryptography … lucide-LICENSE.txt … feather-LICENSE.txt … PyInstaller bootloader"
@@ -94,7 +97,10 @@ def source_bundle(path, commit=COMMIT):
         raw = ("fixture source " + name).encode()
         contents["upstream/" + filename] = raw
         sources.append({"component": name, "filename": filename, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)})
-    contents["THIRD_PARTY_SOURCES.json"] = json.dumps({"source_commit": commit, "modified_worktree": False, "sources": sources}).encode()
+    contents['runtime-build/runtime.map'] = b'fixture linker map'
+    contents["THIRD_PARTY_SOURCES.json"] = json.dumps({"source_commit": commit, "modified_worktree": False, "sources": sources,
+        'zxing_build': {'inputs': {}},
+        'runtime_build': {'link_map_sha256': hashlib.sha256(contents['runtime-build/runtime.map']).hexdigest()}}).encode()
     with tarfile.open(path, "w") as archive:
         for name, raw in contents.items():
             info = tarfile.TarInfo(name)
@@ -141,6 +147,14 @@ def make_release(folder: Path, *, mac_version=VERSION, exe_version=VERSION, sign
 
 class CheckArtifactsTests(unittest.TestCase):
     def setUp(self):
+        # Full controlled-build drift checks have their own negative tests in
+        # test_controlled_builds.py; these fixtures exercise container formats.
+        for target, result in (('build_zxing.validate_proof', None),
+                               ('build_runtime.validate_proof', None),
+                               ('build_runtime.normalized_hash', 'fixture-hash')):
+            mocked = patch(target, return_value=result)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.dir = self.tmp / "artifacts"

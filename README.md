@@ -95,7 +95,7 @@ Managed devices may require your organization's approval.
 cp -R dist/KeyMelier.app /Applications/
 ```
 
-The local build is ad-hoc signed for testing, without a verified publisher identity. No drivers are needed (macOS uses IOKit HID).
+The local build is ad-hoc signed for testing, without a verified publisher identity. Xcode Command Line Tools are required for the controlled barcode-library build. No drivers are needed (macOS uses IOKit HID).
 
 ### From source
 
@@ -110,7 +110,7 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 ### Windows
 
-> On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`.
+> On Windows 10 1903 and later, direct CTAP2 HID access requires elevated privileges. Right-click `run.bat` → **Run as administrator**. `build-windows.bat` builds `dist\KeyMelier\KeyMelier.exe`; compiling the barcode library requires Visual Studio 2022 Build Tools with the C++ workload and Windows SDK.
 
 Windows 10/11 x64 requires the [Microsoft Visual C++ v14 x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
 (14.44.35211.0 or later), installed directly from Microsoft. Setup checks for it
@@ -127,7 +127,7 @@ WebView2 Runtime is a separate system prerequisite.
 ./build-linux.sh             # produces dist/KeyMelier-Linux-<arch>.AppImage
 ```
 
-Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` and the AppImage runtime are downloaded at fixed versions and checked against pinned SHA-256 sums. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
+Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` is downloaded at a fixed version and checked against its pinned SHA-256. Building the AppImage runtime requires Docker: its pinned Alpine container compiles the checked source archives with networking disabled and records every static linker input. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
 
 ## Privacy and security
 
@@ -191,6 +191,7 @@ then regenerate every export:
 python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
 uv lock
 python tools/export_requirements.py
+python tools/license_inputs.py --refresh
 python tools/export_requirements.py --check
 ```
 
@@ -252,7 +253,9 @@ KeyMelier is released under the [MIT License](LICENSE).
 
 The app bundles the Python runtime and open-source packages under their own licenses (MIT, BSD, Apache-2.0, PSF, MPL-2.0 for certifi, LGPL-2.1+ for pyscard, which ships as separate replaceable files). **About → Licenses & notices** opens an offline reader with the complete original texts, literal search, document export, the KeyMelier MIT license, and the matching source manifest. It is also available from the macOS application menu and app settings. The documents are in `THIRD_PARTY_LICENSES.txt` inside the app and attached to every release; `tools/third_party_licenses.py` generates them from the collected build components. Windows Setup also displays the complete notices. Microsoft system prerequisites are installed separately from Microsoft under its terms.
 
-A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) inventories collected Python packages, the PyInstaller bootloader, CPython, OpenSSL, reviewed artwork and native Linux packages. Python archive hashes come from pip's installation report and are checked against the lock file. Brand assets retain their individual usage terms; native package notices are preserved from their distribution. Not every statically linked subcomponent is independently versioned in this inventory.
+A CycloneDX SBOM (`keymelier-sbom.cdx.json` in the app, `KeyMelier-<platform>.cdx.json` in each release) inventories collected Python packages, the PyInstaller bootloader, CPython, OpenSSL, reviewed artwork and native Linux packages. Python archive hashes come from pip's installation report and are checked against the lock file. Brand assets retain their individual usage terms; native package notices are preserved from their distribution. Controlled builds additionally record nanobind/robin-map and the AppImage runtime libraries, their source hashes, build recipes and linker evidence.
+
+Dependency upgrades must also pass `tools/license_inputs.py`: generated Python source pins must match `uv.lock`; embedded sources, Qt archives, reviewed SPDX overrides and original notice checksums must remain consistent. `--refresh` regenerates source pins but does not approve changed embedded code or license terms. Review the resulting diff and follow [the dependency upgrade procedure](packaging/DEPENDENCY-UPGRADES.md).
 
 `KeyMelier-Sources-<platform>.tar` accompanies the binaries with corresponding source archives, the application source and library replacement instructions. `THIRD_PARTY_SOURCES.json` records exact versions and checksums. See [library replacement and rebuild instructions](packaging/licenses/LIBRARY-REPLACEMENT.txt). The build excludes unused GNU Readline and collects pyscard's Python modules as external, replaceable files.
 
