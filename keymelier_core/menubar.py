@@ -240,13 +240,10 @@ class MenuBar:
         self._window.evaluate_js("window.__kmCheckUpdates && window.__kmCheckUpdates()")
 
     def _show_about(self):
-        from AppKit import NSApp
-        from keymelier_core.version import __version__
-        NSApp.activateIgnoringOtherApps_(True)
-        NSApp.orderFrontStandardAboutPanelWithOptions_({
-            "ApplicationName": "KeyMelier", "ApplicationVersion": __version__, "Version": "",
-            "Credits": self.about_credits(), "Copyright": COPYRIGHT,
-        })
+        # The same About dialog on every platform includes the offline license
+        # reader, build identity and diagnostics.
+        self._open()
+        self._window.evaluate_js("window.__kmAbout && window.__kmAbout()")
 
     def _open(self, token_id=None):
         import json
