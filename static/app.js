@@ -1428,10 +1428,11 @@ const EVENT_HANDLERS = {
     }
   },
   update_progress: p => { updateFlow = { stage: 'downloading', pct: p.pct }; renderUpdateBanner(); },
-  update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); call('update_open').catch(() => {}); },
+  update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); },
   update_failed: p => {
     updateFlow = { stage: 'failed' };
-    showToast(t(p.code === 'update_checksum' ? 'err.update_checksum' : 'upd.failed'), 'error');
+    const message = { update_checksum: 'err.update_checksum', update_signature: 'err.update_signature' }[p.code] || 'upd.failed';
+    showToast(t(message), 'error');
     renderUpdateBanner();
   },
 };

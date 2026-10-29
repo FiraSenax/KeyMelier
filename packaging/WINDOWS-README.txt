@@ -8,10 +8,15 @@ Install the C++ runtime directly from Microsoft before running KeyMelier:
 https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
 Choose the X64 download and complete Microsoft's installer.
 
-The KeyMelier Setup checks this prerequisite. For the ZIP edition, install
-it yourself if required. You can use Microsoft's offline installer on another
-computer, subject to Microsoft's terms. KeyMelier does not download it in the
-background or accept Microsoft's terms on your behalf.
+KeyMelier Setup checks this prerequisite and skips the extra step if a suitable
+runtime is already installed. Otherwise it asks before downloading Microsoft's
+official x64 installer, checks its Microsoft signature and opens its normal UI.
+Complete Microsoft's setup to return automatically to KeyMelier installation.
+You can decline or cancel; KeyMelier is not installed until the prerequisite is
+available. A required reboot is reported and never forced by the runtime helper.
+For the ZIP edition or silent deployment, install it separately if required.
+You can use Microsoft's offline installer on another computer, subject to
+Microsoft's terms. KeyMelier never accepts those terms on your behalf.
 
 If WebView2 Runtime is missing, install it directly from Microsoft:
 https://developer.microsoft.com/en-us/microsoft-edge/webview2/

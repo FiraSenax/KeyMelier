@@ -232,6 +232,57 @@ without credentials is ad-hoc signed, except for signed RCs which require Apple 
 require their first real CI run after provisioning; they cannot be validated with
 ad-hoc certificates.
 
+## Independent update signatures
+
+The publication jobs also require `KEYMELIER_UPDATE_SIGNING_KEY`, an Ed25519 PEM
+stored only as a secret of the existing `release-signing` environment. This is
+separate from the advisory key and from the paid Windows/macOS certificates.
+Ed25519 keys have no certificate expiry and need no scheduled renewal.
+
+One-time setup, from the project environment with `gh` authenticated:
+
+```sh
+python tools/update_signing.py setup
+```
+
+The command checks that the GitHub environment restricts deployment refs,
+generates an owner-only private backup at
+`~/.config/keymelier/update-signing-key.pem`, sends it to GitHub through stdin,
+and writes only the public key to `data/update-public-key.txt`. Keep a secure
+backup of the private file. Review and commit the public file with the updater
+and workflow changes **before building the next release**. Re-running setup
+reuses the backup; it refuses mismatched keys or replacement of an existing
+remote key whose local backup is missing. It publishes nothing.
+
+After the normal artifact checks, the protected publication job signs the exact
+release tag and `SHA256SUMS.txt`, with a dedicated protocol prefix. The extra
+`SHA256SUMS.txt.sig` is uploaded alongside the unchanged checksum list. The
+signing step rechecks every file and the source commit, requires the secret to
+match the embedded public key, and verifies its result before publication. A
+missing or mismatched key fails the release. PR jobs and artifact-only rehearsals
+do not receive this secret or generate production update signatures. Windows
+Authenticode and macOS notarization remain required independently.
+
+New clients authenticate the signed checksums before downloading an executable
+and require a separate Open action after verifying the download. Old clients
+continue to read the existing checksum format; the new signature file is
+additive. New clients keep the release-page link for older unsigned stable
+releases but do not download them in-app. RCs without the complete signed asset
+set are not offered. This deliberately fails closed; there is no checksum-only
+fallback. Artifact-only RCs can still be obtained with the existing rehearsal
+workflow. To validate downloaded published artifacts, include the exact tag:
+
+```sh
+python tools/update_signing.py verify artifacts --tag v1.8.7-rc.4 --commit COMMIT
+```
+
+Do not replace the key on a timer: installed clients trust the key embedded in
+their app. A planned rotation needs an explicitly reviewed transition release
+and support for clients still trusting the old key. A compromised signing key
+requires a separate recovery plan; the download host alone cannot revoke a
+trusted key safely. This implementation does not claim automatic compromise
+recovery or protection against withholding newer releases.
+
 ## Website signing status
 
 The prepared website reads a `keymelier-signing` marker from the latest stable

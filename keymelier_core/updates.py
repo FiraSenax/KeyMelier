@@ -86,26 +86,22 @@ def load_best(bundled_dir: Path) -> tuple[dict | None, str]:
     return best, source
 
 
-# When a signed advisory file was last retrieved from the source (in memory)
-LAST_CONFIRMED: datetime | None = None
-FRESH_FOR = 45  # days a database counts as current without contact to the source
+FRESH_FOR = 45  # days since the maintainer's signed review timestamp
 
 
 def is_fresh(document: dict | None) -> bool:
-    """A "no known vulnerabilities" verdict needs a database that is recent,
-    or whose source was reachable recently (the maintainer may not publish
-    for weeks when nothing happens)."""
+    """A positive verdict requires a recent, signed review timestamp.
+
+    Retrieving a valid signature proves authenticity, not freshness: the source
+    can replay an old signed document. Network contact must not extend its life.
+    """
     from datetime import timedelta
     if document is None:
         return False
     now = datetime.now(timezone.utc)
-    if LAST_CONFIRMED and now - LAST_CONFIRMED < timedelta(days=FRESH_FOR):
-        return True
     try:
-        updated = datetime.fromisoformat(str(document.get("updated")))
-        if updated.tzinfo is None:
-            updated = updated.replace(tzinfo=timezone.utc)
-    except ValueError:
+        updated = _updated(document)
+    except (KeyError, TypeError, AttributeError, ValueError):
         return False
     return now - timedelta(days=FRESH_FOR) < updated <= now + timedelta(days=1)
 
@@ -129,8 +125,6 @@ def fetch(current: dict | None) -> dict | None:
     if doc is None:
         logger.warning("Downloaded advisories rejected: malformed")
         return None
-    global LAST_CONFIRMED
-    LAST_CONFIRMED = datetime.now(timezone.utc)  # the signed source was reachable
     if current is not None and _updated(doc) <= _updated(current):
         return None
     if not stateless():

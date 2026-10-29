@@ -55,6 +55,22 @@ Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "pt"; MessagesFile: "compiler:Languages\Portuguese.isl"
 Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
 
+[CustomMessages]
+RuntimeRequired=Microsoft Visual C++ v14 Redistributable (x64, {#VCMinVersion} or later) is required. Install it from Microsoft, then retry.
+RuntimeOffer=The required Microsoft Visual C++ runtime is missing or too old.%n%nDownload it directly from Microsoft and open its installer now? After you complete Microsoft's setup, KeyMelier Setup will continue automatically.
+RuntimeDownload=Downloading the Microsoft Visual C++ runtime
+RuntimeDownloadHint=The Microsoft installer opens after its signature has been checked.
+RuntimeFailed=The Microsoft runtime could not be downloaded, verified or installed. KeyMelier has not been installed. Retry or install the runtime directly from Microsoft.
+RuntimeCancelled=The runtime installation was cancelled. KeyMelier has not been installed. Retry when you are ready.
+RuntimeRestart=Microsoft requires a restart to finish installing the runtime. Restart Windows, then run KeyMelier Setup again.
+de.RuntimeRequired=Microsoft Visual C++ v14 Redistributable (x64, ab {#VCMinVersion}) wird benötigt. Installiere es von Microsoft und versuche es erneut.
+de.RuntimeOffer=Die benötigte Microsoft-Visual-C++-Runtime fehlt oder ist zu alt.%n%nJetzt direkt von Microsoft herunterladen und deren Installer öffnen? Sobald du das Microsoft-Setup abgeschlossen hast, setzt KeyMelier seine Installation automatisch fort.
+de.RuntimeDownload=Microsoft-Visual-C++-Runtime wird heruntergeladen
+de.RuntimeDownloadHint=Nach der Signaturprüfung öffnet sich der Microsoft-Installer.
+de.RuntimeFailed=Die Microsoft-Runtime konnte nicht heruntergeladen, geprüft oder installiert werden. KeyMelier wurde nicht installiert. Versuche es erneut oder installiere die Runtime direkt von Microsoft.
+de.RuntimeCancelled=Die Runtime-Installation wurde abgebrochen. KeyMelier wurde nicht installiert. Du kannst es erneut versuchen.
+de.RuntimeRestart=Microsoft benötigt einen Neustart, um die Runtime-Installation abzuschließen. Starte Windows neu und führe danach das KeyMelier-Setup erneut aus.
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
@@ -64,17 +80,39 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "..\dist\KeyMelier\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\tools\install-vc-runtime.ps1"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\KeyMelier"; Filename: "{app}\KeyMelier.exe"
 Name: "{autodesktop}\KeyMelier"; Filename: "{app}\KeyMelier.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\KeyMelier.exe"; Description: "{cm:LaunchProgram,KeyMelier}"; Flags: nowait postinstall skipifsilent shellexec
+Filename: "{app}\KeyMelier.exe"; Description: "{cm:LaunchProgram,KeyMelier}"; Flags: nowait postinstall skipifsilent shellexec; Check: CanLaunchKeyMelier
 
 [Code]
 const
   RuntimeHelp = 'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist';
+  RuntimeDownload = 'https://aka.ms/vc14/vc_redist.x64.exe';
+
+var
+  RuntimePage: TDownloadWizardPage;
+  RuntimeRestartRequired: Boolean;
+
+procedure InitializeWizard;
+begin
+  RuntimePage := CreateDownloadPage(CustomMessage('RuntimeDownload'), CustomMessage('RuntimeDownloadHint'), nil);
+  RuntimePage.ShowBaseNameInsteadOfUrl := True;
+end;
+
+function CanLaunchKeyMelier(): Boolean;
+begin
+  Result := not RuntimeRestartRequired;
+end;
+
+function NeedRestart(): Boolean;
+begin
+  Result := RuntimeRestartRequired;
+end;
 
 function HasVCRuntime(): Boolean;
 var
@@ -93,17 +131,52 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
-  MessageText: String;
+  Parameters: String;
 begin
   Result := '';
   if HasVCRuntime() then Exit;
-  MessageText := 'Microsoft Visual C++ v14 Redistributable (x64, {#VCMinVersion} or later) is required.' + #13#10 +
-    'Install it directly from Microsoft, then retry KeyMelier Setup.' + #13#10 + RuntimeHelp;
-  if ActiveLanguage = 'de' then
-    MessageText := 'Microsoft Visual C++ v14 Redistributable (x64, ab {#VCMinVersion}) wird benötigt.' + #13#10 +
-      'Installiere es direkt von Microsoft und starte danach die Installation erneut.' + #13#10 + RuntimeHelp;
-  Result := MessageText;
-  if not WizardSilent() then
-    if MsgBox(MessageText + #13#10#13#10 + 'Microsoft Download?', mbConfirmation, MB_YESNO) = IDYES then
-      ShellExec('open', RuntimeHelp, '', '', SW_SHOWNORMAL, ewNoWait, Code);
+  Result := CustomMessage('RuntimeRequired') + #13#10 + RuntimeHelp;
+  // Silent deployments retain the existing no-download behavior. Administrators
+  // provision the prerequisite separately; interactive downloads need consent.
+  if WizardSilent() then Exit;
+  if MsgBox(CustomMessage('RuntimeOffer'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then Exit;
+  Result := CustomMessage('RuntimeFailed') + #13#10 + RuntimeHelp;
+  try
+    try
+      RuntimePage.Clear;
+      RuntimePage.Add(RuntimeDownload, 'vc_redist.x64.exe', '');
+      RuntimePage.Show;
+      try
+        RuntimePage.Download;
+      finally
+        RuntimePage.Hide;
+      end;
+      ExtractTemporaryFile('install-vc-runtime.ps1');
+      Parameters := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+        ExpandConstant('{tmp}\install-vc-runtime.ps1') + '" -RuntimePath "' +
+        ExpandConstant('{tmp}\vc_redist.x64.exe') + '" -MinimumVersion "{#VCMinVersion}"';
+      // The embedded helper verifies Microsoft's Authenticode publisher before
+      // launching the downloaded EXE, and waits for Microsoft's interactive UI.
+      if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        Parameters, '', SW_HIDE, ewWaitUntilTerminated, Code) then Exit;
+      Log(Format('Microsoft runtime installer exit code: %d', [Code]));
+      if Code = 1602 then begin
+        Result := CustomMessage('RuntimeCancelled');
+        Exit;
+      end;
+      if (Code <> 0) and (Code <> 1638) and (Code <> 3010) and (Code <> 1641) then Exit;
+      RuntimeRestartRequired := (Code = 3010) or (Code = 1641);
+      if HasVCRuntime() then
+        Result := ''
+      else if RuntimeRestartRequired then begin
+        NeedsRestart := True;
+        Result := CustomMessage('RuntimeRestart');
+      end;
+    except
+      if RuntimePage.AbortedByUser then Result := CustomMessage('RuntimeCancelled');
+      Log('Microsoft runtime prerequisite did not complete.');
+    end;
+  finally
+    DeleteFile(ExpandConstant('{tmp}\vc_redist.x64.exe'));
+  end;
 end;

@@ -14,6 +14,11 @@ Company advisory sources (ENTERPRISE.md) use the same format with their own key:
 The private key is read from $KEYMELIER_SIGNING_KEY (a PEM file path, or the
 PEM itself, e.g. from a GitHub secret) or ~/.config/keymelier/advisory-signing-key.pem.
 Never commit it: whoever holds it can change what every KeyMelier reports.
+
+Review and sign the official database at least every 45 days, even if no entries
+change. Signing renews the authenticated review timestamp. Merely fetching an
+old signed file cannot renew freshness; expired data still supplies warnings,
+but cannot support a "no known findings" verdict.
 """
 
 import base64

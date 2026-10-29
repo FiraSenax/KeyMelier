@@ -1,3 +1,44 @@
+# Update security follow-up — 2026-10-29
+
+- Advisory freshness previously trusted recent retrieval of any validly signed
+  document, including rejected older copies. Replaying an old signed document
+  could restore `OK` with a stale database. Freshness now depends solely on the
+  signed review date (45 days); tests cover older/equal replays, newer-but-stale
+  data, signature tampering and the scanner verdict. Existing warnings remain
+  available when the database expires. Maintainers must review and re-sign it
+  within 45 days even if entries do not change.
+- A release host compromise could replace both the update binary and its unsigned
+  checksum; download completion also opened the installer automatically. A
+  separate Ed25519 key now authenticates the checksum bytes and exact release
+  tag before binary download. Tests reject altered checksums, foreign keys and
+  cross-release replay. Opening is a separate user action. The protected stable
+  and RC publication jobs sign and verify checked artifacts. See
+  [the key setup and compatibility procedure](RELEASING.md#independent-update-signatures).
+- Linux PySide/Qt moves to 6.11.3 with coupled dependency and source evidence.
+  The upstream HTTP/2 advisory motivated the patch; exploitability through
+  KeyMelier's current network paths has not been established.
+- Windows Setup offers prerequisite installation only when the checked x64
+  runtime files are missing or below the minimum. Its helper requires valid
+  Microsoft Authenticode, the x64 VC++ product and the minimum version, holds
+  the downloaded file against replacement while starting it, and uses Microsoft's
+  interactive installer. Cancellation/failure prevents app-file replacement;
+  reboot requirements are propagated. Silent deployments retain their previous
+  no-download behavior.
+
+Local validation: 407 Python tests passed (two platform-specific skips), UI
+security/account/website checks, PowerShell prerequisite safety tests with mocked
+execution, Ruff, lock exports, license/source checks and strict macOS build
+environment SBOM validation passed. The signing dependency bootstrap was also
+installed in an isolated environment using the locked wheel hashes. The update
+secret is provisioned in the tag-restricted `release-signing` environment; the
+public key is included in this working tree. No release has been published.
+
+These changes do not revoke already released clients or retroactively add
+signature enforcement to them. A compromised signing key, a compromised trusted
+build/review process, local administrator control and release withholding are
+outside the new updater guarantee. Native Windows installation and Linux Qt
+packaging still require their platform checks before release.
+
 # Refactoring and security verification — 2026-10-26
 
 The core package and PyInstaller spec now use the KeyMelier name throughout

@@ -37,7 +37,8 @@ def notes(mac_signed: bool, win_signed: bool) -> str:
         "(udev rules).",
         "- `KeyMelier-macOS.zip`, `KeyMelier-Windows.zip` – the same apps without installer (portable).",
         "- Windows requires the separately installed Microsoft Visual C++ x64 runtime, version 14.44.35211.0 or newer. "
-        "Setup checks this prerequisite; portable packages include WINDOWS-README.txt. "
+        "If it is missing or too old, Setup asks to download Microsoft's signed installer, waits for its completion "
+        "and then continues. Portable packages include WINDOWS-README.txt. "
         "[Install the runtime from Microsoft](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).",
         "- `KeyMelier-Sources-<platform>.tar` – corresponding library sources, application source and rebuild instructions.",
         "",

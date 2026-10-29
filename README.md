@@ -127,8 +127,12 @@ Or double-click `run.command` (macOS) / `run.bat` (Windows).
 
 Windows 10/11 x64 requires the [Microsoft Visual C++ v14 x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
 (14.44.35211.0 or later), installed directly from Microsoft. Setup checks for it
-and offers to open Microsoft's download page if it is missing; ZIP users must
-install it first. Setup never accepts Microsoft's terms for the user. Windows
+and, only if it is missing or too old, asks to download the official x64 package.
+After checking Microsoft's signature, Setup opens Microsoft's installer and waits;
+once the required runtime is present, KeyMelier installation resumes automatically.
+Cancellation, verification failures and required restarts are handled before app
+files are replaced. Silent deployments and ZIP users must install the runtime
+separately. Setup never accepts Microsoft's terms for the user. Windows
 provides UCRT and API libraries. Packaging excludes VC/UCRT/MFC/API-set DLLs from
 every collected directory, and the final ZIP check rejects accidental inclusion.
 The WebView2 SDK/loader remains bundled under its own BSD-style terms; the Edge

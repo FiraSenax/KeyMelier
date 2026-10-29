@@ -142,7 +142,7 @@ def prepare(names, packages=()):
     if sys.platform.startswith("linux"):
         # Qt module mapping corresponds to QT_KEEP in keymelier.spec.
         for name in ("PySide6-Essentials", "PySide6-Addons", "shiboken6"):
-            if distribution(name).version != "6.11.2":
+            if distribution(name).version != "6.11.3":
                 raise ValueError("Review the Qt corresponding source archives after a version change")
         pins = json.loads((ROOT / "packaging/linux-sources.json").read_text())
         sources += [{"component": filename.split("-everywhere")[0], "filename": filename, **pin}

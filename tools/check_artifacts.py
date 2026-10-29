@@ -9,6 +9,7 @@
 must name exactly this commit in data/build.json, built from an unmodified tree.
     check_artifacts.py release DIR --commit SHA --notes NOTES.md --mac-signed X --win-signed Y
                               [--report REPORT.md --jobs "test=success,build-linux=success,…"]
+                              [--update-tag vVERSION]  # required when the detached update signature is present
     check_artifacts.py restore-exec DIR
 
 restore-exec (release job, right after downloading the artifacts): GitHub's
@@ -359,15 +360,21 @@ def check_sums(r: Report, folder: Path) -> None:
     sums = folder / "SHA256SUMS.txt"
     listed = {}
     for line in sums.read_text().splitlines():
-        m = re.fullmatch(r"([0-9a-f]{64})\s+\*?(.+)", line.strip())
-        if m:
-            listed[m.group(2)] = m.group(1)
-    expected = {p.name for p in folder.iterdir() if p.is_file() and p.name != "SHA256SUMS.txt"}
+        m = re.fullmatch(r"([0-9a-f]{64}) [ *]([A-Za-z0-9][A-Za-z0-9._-]*)", line)
+        if not r.check(m is not None, 'checksum entry has a safe filename'):
+            continue
+        if not r.check(m[2] not in listed, 'checksum entry is unique: ' + m[2]):
+            continue
+        listed[m[2]] = m[1]
+    # A detached signature cannot include its own hash in the signed bytes.
+    expected = {p.name for p in folder.iterdir() if p.is_file() and p.name not in ('SHA256SUMS.txt', 'SHA256SUMS.txt.sig')}
     r.check(set(listed) == expected, "SHA256SUMS.txt lists exactly the released files",
             f"missing {sorted(expected - set(listed))}, extra {sorted(set(listed) - expected)}")
     for name, digest in listed.items():
         f = folder / name
-        r.check(f.is_file() and hashlib.sha256(f.read_bytes()).hexdigest() == digest, f"checksum of {name}")
+        if r.check(f.is_file() and not f.is_symlink(), f'regular release file: {name}'):
+            with f.open('rb') as stream:
+                r.check(hashlib.file_digest(stream, 'sha256').hexdigest() == digest, f"checksum of {name}")
 
 
 def check_notes(r: Report, notes: Path, mac_signed: bool, win_signed: bool) -> None:
@@ -445,7 +452,8 @@ def run(argv: list[str]) -> Report:
     elif mode == "release":
         check_files(r, folder, RELEASE_FILES)
         present = {p.name for p in folder.iterdir() if p.is_file()}
-        r.check(present <= set(RELEASE_FILES), "no unexpected files", str(sorted(present - set(RELEASE_FILES))))
+        allowed = set(RELEASE_FILES) | {'SHA256SUMS.txt.sig'}
+        r.check(present <= allowed, "no unexpected files", str(sorted(present - allowed)))
         commit = (folder / "SOURCE_COMMIT.txt").read_text().strip() if (folder / "SOURCE_COMMIT.txt").exists() else ""
         r.check(re.fullmatch(r"[0-9a-f]{40}", commit) is not None and commit == opts.get("--commit"),
                 "SOURCE_COMMIT.txt is the built commit", f"{commit} vs {opts.get('--commit')}")
@@ -468,6 +476,13 @@ def run(argv: list[str]) -> Report:
             check_sources(r, folder / name, commit)
         if (folder / "SHA256SUMS.txt").exists():
             check_sums(r, folder)
+        if 'SHA256SUMS.txt.sig' in present or opts.get('--update-tag'):
+            try:
+                from update_signing import verify
+                verify(folder, opts.get('--update-tag', ''), opts.get('--commit', ''))
+                r.check(True, 'release-bound update signature')
+            except (OSError, ValueError):
+                r.check(False, 'release-bound update signature', 'valid signature and --update-tag required')
         if opts.get("--notes"):
             check_notes(r, Path(opts["--notes"]), bool(flag("--mac-signed")), bool(flag("--win-signed")))
     else:

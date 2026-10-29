@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Prepared for v1.8.7-rc.4 (2026-10-29), a test candidate without a stable release.
+
+- Fix the blurry sidebar logo on macOS by using the existing high-resolution PNG instead of the filtered SVG at small display sizes.
+- Bind advisory freshness to its signed review timestamp; replaying old signed data no longer restores a positive security verdict. Reviewed advisory data must be re-signed within 45 days.
+- Authenticate update checksums with a separate, pinned Ed25519 key and the exact release tag. Automate protected release signing and one-time key setup; require an explicit Open action after downloading.
+- Update the Linux PySide/Qt runtime to 6.11.3 with matching source/license evidence and the library replacement probe.
+- When the Windows C++ runtime is missing or too old, offer its official Microsoft download, verify its signature, open Microsoft's installer and resume KeyMelier setup after success. Existing runtimes skip this step; silent installations still require prior provisioning.
+
 ## 1.8.7 — 2026-10-27
 
 Release candidate under test; the stable release has not been published.

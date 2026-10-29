@@ -247,7 +247,7 @@ class KeyService:
                 self._update_path = path
                 self.emit("update_ready", {"name": path.name, "platform": sys.platform})
             except app_update.UpdateError as e:
-                code = "update_checksum" if str(e) == "checksum" else "update_failed"
+                code = {'checksum': 'update_checksum', 'signature': 'update_signature'}.get(str(e), 'update_failed')
                 self.emit("update_failed", {"code": code, "error": "The update could not be downloaded and verified."})
             finally:
                 self._update_running = False
