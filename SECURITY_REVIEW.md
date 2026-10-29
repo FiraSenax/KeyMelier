@@ -1,3 +1,30 @@
+# Stable 1.8.7 release preparation — 2026-10-29
+
+The stable preparation changes only release documentation. Application code,
+dependencies and release workflows match `v1.8.7-rc.9` (`39cb474`), merged into
+protected main through PR #30. The stable tag will run the full signed pipeline
+again; the evidence below describes the already published candidate.
+
+RC9 publication run
+[40872601879](https://github.com/FiraSenax/KeyMelier/actions/runs/40872601879)
+passed the main-source gate, the 467-test Python suite on all three platforms,
+42 browser UI tests, 20 stress tests, all platform builds, eleven Linux
+compatibility jobs and release validation. Platform-specific skips apply.
+Windows app, installer and uninstaller signatures were verified; macOS app and
+DMG signing, notarization, stapling and Gatekeeper checks passed. Packaged
+application start checks passed.
+
+After publication, the public update signature and exact source commit were
+verified independently, all 22 artifact metadata hashes matched the signed
+checksums, and the downloaded Windows installer matched its signed hash.
+RC8-to-RC9 update discovery passed, while the stable channel remained at 1.8.6.
+No open GitHub Code Scanning alerts were returned during stable preparation.
+
+Windows 11 including Bio unlock has been confirmed by the maintainer. Manual
+Linux hardware testing remains open; automated container startup checks do not
+replace it. The accepted shared-account signing limits and deferred hardening
+items recorded below remain unchanged.
+
 # RC9 preparation — 2026-10-29
 
 The RC9 candidate includes the post-RC8 UI guidance and the main-ancestry gate
