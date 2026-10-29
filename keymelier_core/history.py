@@ -74,7 +74,7 @@ class History:
             self._forgotten = _clean_forgotten(data.get("forgotten"))
             removed_metadata = False
             for entry in self._entries.values():
-                _normalize_times(entry)
+                _normalize_times(entry, local=True)
                 snap = entry.get("snapshot", {})
                 for field in _MDS_FIELDS:
                     if field in snap:
@@ -353,7 +353,7 @@ class History:
     def list(self) -> list[dict]:
         with self._lock:
             items = [self._summary(e) for e in self._entries.values()]
-        return sorted(items, key=lambda e: e["last_seen"], reverse=True)
+        return sorted(items, key=lambda e: _clean_stamp(e.get("last_seen")), reverse=True)
 
     def get(self, kid: str) -> dict | None:
         with self._lock:
@@ -439,7 +439,7 @@ class History:
             before = json.dumps([self._entries, self._forgotten], sort_keys=True)
             self._forgotten = _clean_forgotten(self._forgotten)
             for current in self._entries.values():
-                _normalize_times(current)
+                _normalize_times(current, local=True)
             for kid, when in forgotten.items():
                 if when > self._forgotten.get(kid, ""):
                     self._forgotten[kid] = when
@@ -455,7 +455,10 @@ class History:
                     self._entries[entry["key_id"]] = candidate
             for kid, when in list(self._forgotten.items()):
                 entry = self._entries.get(kid)
-                if entry is not None and _last_change(entry) <= when:
+                last_change = _last_change(entry) if entry is not None else ""
+                # An unknown local chronology is not evidence that a remote
+                # deletion happened later. Preserve the user's entry.
+                if entry is not None and last_change and last_change <= when:
                     del self._entries[kid]
                 elif entry is not None:
                     del self._forgotten[kid]   # seen again after it was removed
@@ -491,14 +494,14 @@ _ID = __import__("re").compile(r"^[0-9a-f]{16}$")
 _TIME = __import__("re").compile(r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?")
 
 
-def _clean_stamp(value) -> str:
+def _clean_stamp(value, *, allow_future: bool = False) -> str:
     """Legacy naive times mean UTC; incoming times cannot pin state in the future."""
     if not isinstance(value, str) or len(value) > 40 or not _TIME.fullmatch(value):
         return ""
     try:
         stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
         stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp.astimezone(timezone.utc)
-        if stamp > datetime.now(timezone.utc) + CLOCK_SKEW:
+        if not allow_future and stamp > datetime.now(timezone.utc) + CLOCK_SKEW:
             return ""
         return stamp.isoformat(timespec="microseconds")
     except (ValueError, OverflowError):
@@ -512,12 +515,17 @@ def _clean_forgotten(value) -> dict:
             if isinstance(kid, str) and _ID.fullmatch(kid) and (stamp := _clean_stamp(when))}
 
 
-def _normalize_times(entry: dict) -> None:
+def _normalize_times(entry: dict, *, local: bool = False) -> None:
+    """Keep local clock mistakes as user data; filter untrusted incoming dates.
+
+    Merge ordering still uses _clean_stamp's strict default, so preserved
+    future values cannot prevent a subsequent, valid change from winning.
+    """
     for field in ("first_seen", "last_seen", "sites_updated", "lost_since", "label_at", "lost_at", "replace_at"):
-        stamp = _clean_stamp(entry.get(field))
+        stamp = _clean_stamp(entry.get(field), allow_future=local)
         if stamp:
             entry[field] = stamp
-        else:
+        elif not local:
             entry.pop(field, None)
     for field in ("first_seen", "last_seen"):
         entry.setdefault(field, "1970-01-01T00:00:00.000000+00:00")
@@ -527,7 +535,9 @@ def _normalize_times(entry: dict) -> None:
     groups += [(item, "checked") for item in entry.get("probe_rp", {}).values()]
     for item, field in groups:
         if isinstance(item, dict):
-            item[field] = _clean_stamp(item.get(field))
+            stamp = _clean_stamp(item.get(field), allow_future=local)
+            if stamp or not local:
+                item[field] = stamp
 
 
 # Snapshot fields an import may carry: descriptive only. Security verdicts
@@ -563,7 +573,7 @@ def _last_change(entry: dict) -> str:
     stamps = [entry.get("last_seen", ""), entry.get("label_at", ""), entry.get("lost_at", ""),
               entry.get("replace_at", ""), entry.get("sites_updated", "")]
     stamps += [str(v.get("updated", "")) for v in (entry.get("inventory") or {}).values() if isinstance(v, dict)]
-    return max(s for s in stamps if isinstance(s, str))
+    return max(_clean_stamp(s) for s in stamps)
 
 
 _PROBE_STATUS = ("found", "none", "unsupported", "uv_required", "error")
@@ -676,8 +686,10 @@ def _clean_entry(raw, source: str = "import") -> dict | None:
 
 
 def _merge_entry(current: dict, other: dict) -> None:
-    current["first_seen"] = min(current.get("first_seen", other["first_seen"]), other["first_seen"])
-    if other["last_seen"] > current.get("last_seen", ""):
+    first = _clean_stamp(current.get("first_seen"), allow_future=True)
+    if (first and other["first_seen"] < first) or "first_seen" not in current:
+        current["first_seen"] = other["first_seen"]
+    if other["last_seen"] > _clean_stamp(current.get("last_seen")):
         current["last_seen"] = other["last_seen"]
         if other.get("snapshot"):
             # only fill descriptive gaps; never take verdicts from an import
@@ -687,7 +699,7 @@ def _merge_entry(current: dict, other: dict) -> None:
             current["snapshot"] = {**filled, **current.get("snapshot", {})}
     current["connect_count"] = max(current.get("connect_count", 0), other.get("connect_count", 0))
     if other.get("label_at") or current.get("label_at"):
-        if other.get("label_at", "") > current.get("label_at", ""):
+        if other.get("label_at", "") > _clean_stamp(current.get("label_at")):
             current["label"], current["label_at"] = other.get("label", ""), other["label_at"]
     elif not current.get("label") and other.get("label"):
         current["label"] = other["label"]
@@ -696,7 +708,7 @@ def _merge_entry(current: dict, other: dict) -> None:
     seen = {(_clean_stamp(e.get("ts")) or e.get("ts"), e.get("type")) for e in current.get("events", [])}
     events = current.get("events", []) + [e for e in other["events"] if (e["ts"], e["type"]) not in seen]
     current["events"] = sorted(events, key=lambda e: e.get("ts", ""))[-MAX_EVENTS:]
-    if other.get("sites") is not None and other.get("sites_updated", "") > current.get("sites_updated", ""):
+    if other.get("sites") is not None and other.get("sites_updated", "") > _clean_stamp(current.get("sites_updated")):
         current["sites"], current["sites_updated"] = other["sites"], other["sites_updated"]
         # coverage belongs to the site list it describes
         for field in ("sites_probed", "probe_rp", "probe"):
@@ -708,11 +720,11 @@ def _merge_entry(current: dict, other: dict) -> None:
         mine = current.setdefault("inventory", {}).get(section)
         if not isinstance(mine, dict):
             mine = None
-        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > str(mine.get("updated", ""))):
+        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > _clean_stamp(mine.get("updated"))):
             current["inventory"][section] = inv
     if other.get("lost_at") or current.get("lost_at"):
         # the newest decision wins – also "no longer lost"
-        if other.get("lost_at", "") > current.get("lost_at", ""):
+        if other.get("lost_at", "") > _clean_stamp(current.get("lost_at")):
             for field in ("lost_since", "lost_done"):
                 if field in other:
                     current[field] = other[field]
@@ -725,7 +737,7 @@ def _merge_entry(current: dict, other: dict) -> None:
         if other.get("lost_done"):
             mine = [x for x in current.get("lost_done", []) if isinstance(x, str)]
             current["lost_done"] = sorted(set(mine) | set(other["lost_done"]))
-    if other.get("replace_at", "") > current.get("replace_at", ""):
+    if other.get("replace_at", "") > _clean_stamp(current.get("replace_at")):
         if "replace" in other:
             current["replace"] = other["replace"]
         else:

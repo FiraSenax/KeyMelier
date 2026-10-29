@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-Prepared for v1.8.7-rc.7 (2026-10-29), a test candidate without a stable release.
+## v1.8.7-rc.8 — 2026-10-29
+
+- Preserve local history timestamps and lost/replacement state when the computer clock was wrong; keep strict validation for imports and sync and prevent preserved future dates from pinning merge decisions.
+- Show a specific, localized error for unreadable update revocation data and preserve all evidence; known revocation markers still take precedence. Document recovery without deleting the emergency stop.
+- Check accidental revocation of the active update key in CI; require an explicit matching emergency acknowledgement while keeping the release signer's unconditional rejection of revoked keys.
+- Document intranet/VPN offline behavior and cover three-digit decimal firmware fallback separately from known vendor encodings.
+- Clarify in every supported language that touching a key for the authenticity test does not unlock it for management; the sidebar lock reflects the separate management unlock.
+
+## v1.8.7-rc.7 — 2026-10-29
+
+Test candidate; the stable release has not been published.
 
 - Require every managed advisory source to be current and valid before showing `OK`; retain signed warnings and rollback protection across restarts and reject source redirects.
 - Isolate damaged sync files, consume peer files only after successful merging, normalize timestamps to UTC and reject future-dated changes/removal marks. Preserve the existing sync format and prevent duplicate legacy events after normalization.

@@ -66,7 +66,8 @@ async function main() {
   };
   const press = async (key, { shift = false } = {}) => {
     const k = KEYS[key];
-    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, modifiers: shift ? 8 : 0 };
+    // CDP's Windows virtual code is portable; native codes differ on macOS.
+    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode, modifiers: shift ? 8 : 0 };
     await send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', ...base, ...(k.text ? { text: k.text, unmodifiedText: k.text } : {}) });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
     await sleep(40);
@@ -172,6 +173,23 @@ async function main() {
     } finally {
       await js('window.pywebview.api.call = window.__rcOriginalCall; call("set_settings", {values:{include_rc_updates:false}}).then(s => { appSettings = s; updateFlow = null; selectToken("demo-yk5"); });');
     }
+  });
+
+  await test('unreadable revocation state is translated, visible and cannot open a ready installer', async () => {
+    assert(await js(`(() => {
+      const original = LANG, app = dataStatus.app, flow = updateFlow;
+      try {
+        dataStatus.app = {current:'1.8.7', failed:true, code:'update_revocation_state'};
+        updateFlow = {stage:'ready', platform:'win32'};
+        return Object.keys(STRINGS).every(code => {
+          LANG = code;
+          renderUpdateBanner();
+          return STRINGS[code]['err.update_revocation_state'] &&
+            $('update-text').textContent === STRINGS[code]['err.update_revocation_state'] &&
+            !$('update-banner').classList.contains('hidden') && $('update-btn').disabled;
+        });
+      } finally { LANG = original; dataStatus.app = app; updateFlow = flow; renderUpdateBanner(); }
+    })()`), 'all languages show the specific recovery error and disable the action');
   });
 
   await test('expired or unverified MDS explains recovery in all languages', async () => {

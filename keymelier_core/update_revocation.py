@@ -30,6 +30,10 @@ class RevokedKeyError(ValueError):
     pass
 
 
+class RevocationStateError(ValueError):
+    """Local revocation evidence cannot be read; never discard it to recover."""
+
+
 def fingerprint() -> str:
     from keymelier_core.update_auth import public_key
     return hashlib.sha256(public_key().public_bytes_raw()).hexdigest()
@@ -55,13 +59,17 @@ def _read(path: Path, *, optional=False) -> set[str]:
     except FileNotFoundError:
         if optional:
             return set()
-        raise
+        raise RevocationStateError('Local update revocation data is missing.') from None
+    except (OSError, ValueError, RecursionError):
+        raise RevocationStateError('Local update revocation data is unreadable.') from None
 
 
 def _remember(values: set[str]) -> None:
     """Called under _lock; persist additions before reporting a revoked key."""
     key = fingerprint()
     marker = CACHE.with_name('revoked-update-key-' + key)
+    if key in _seen or (not stateless() and marker.exists()):
+        raise RevokedKeyError('Update signing key has been revoked.')
     saved = set() if stateless() else _read(CACHE, optional=True)
     _seen.update(saved | values)
     if not stateless() and marker.exists():

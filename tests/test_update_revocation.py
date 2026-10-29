@@ -81,10 +81,44 @@ class UpdateRevocationTests(unittest.TestCase):
 
     def test_invalid_local_cache_fails_closed(self):
         self.cache.write_bytes(b'invalid')
-        with self.assertRaises(ValueError):
+        with self.assertRaises(revocation.RevocationStateError):
             revocation.ensure_allowed()
-        with self.assertRaises(app_update.UpdateError):
+        with self.assertRaisesRegex(app_update.UpdateError, '^revocation_state$'):
             app_update.open_download(self.root / 'installer.exe')
+
+    def test_corrupt_cache_has_a_specific_error_without_network_or_file_replacement(self):
+        from test_app_update import ASSET
+        self.cache.write_bytes(b'invalid')
+        with patch('requests.get') as network:
+            result = app_update.check()
+            self.assertTrue(result['failed'])
+            self.assertEqual(result['code'], 'update_revocation_state')
+            self.assertNotIn('asset', result)
+            with self.assertRaisesRegex(app_update.UpdateError, '^revocation_state$'):
+                app_update.download(ASSET)
+            network.assert_not_called()
+        self.assertEqual(self.cache.read_bytes(), b'invalid')
+
+    def test_known_revocation_takes_precedence_over_a_corrupt_aggregate_cache(self):
+        self.cache.write_bytes(b'invalid')
+        marker = self.cache.with_name('revoked-update-key-' + self.key)
+        marker.write_text(self.key + '\n')
+        result = app_update.check()
+        self.assertTrue(result['revoked'])
+        self.assertEqual(self.cache.read_bytes(), b'invalid')
+        self.assertTrue(marker.exists())
+
+    def test_service_open_preserves_the_specific_cache_error(self):
+        from keymelier_core.service import KeyService
+        from keymelier_core.pin import PinError
+        service = KeyService.__new__(KeyService)
+        service._update_path = self.root / 'installer.exe'
+        service._update_path.write_bytes(b'not executable')
+        self.cache.write_bytes(b'invalid')
+        with patch.object(app_update, 'is_msix', return_value=False):
+            with self.assertRaises(PinError) as caught:
+                service.update_open()
+        self.assertEqual(caught.exception.code, 'update_revocation_state')
 
     def test_revocation_blocks_check_download_and_open_before_network_or_execution(self):
         from test_app_update import ASSET

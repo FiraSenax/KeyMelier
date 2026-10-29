@@ -44,3 +44,14 @@ for (const platform of ['win32', 'darwin', 'linux']) {
 updates.onUpdateButton();
 assert.deepEqual(calls, ['update_open']);
 console.log('Updates require an explicit Open action');
+
+const notices = [];
+updates.showToast = (text, level) => notices.push({text, level});
+calls.length = 0;
+updates.window.__kmEvent('update_failed', {code: 'update_revocation_state'});
+assert.equal(elements.get('update-text').textContent, 'err.update_revocation_state');
+assert.equal(elements.get('update-btn').disabled, true);
+updates.onUpdateButton();
+assert.deepEqual(calls, [], 'unreadable revocation state never opens or downloads an installer');
+assert.equal(notices.at(-1).text, 'err.update_revocation_state');
+console.log('Unreadable revocation state stays visible and blocks installer actions');

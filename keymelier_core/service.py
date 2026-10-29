@@ -248,7 +248,7 @@ class KeyService:
                 self.emit("update_ready", {"name": path.name, "platform": sys.platform})
             except app_update.UpdateError as e:
                 code = {'checksum': 'update_checksum', 'signature': 'update_signature',
-                        'revoked': 'update_revoked'}.get(str(e), 'update_failed')
+                        'revoked': 'update_revoked', 'revocation_state': 'update_revocation_state'}.get(str(e), 'update_failed')
                 self.emit("update_failed", {"code": code, "error": "The update could not be downloaded and verified."})
             finally:
                 self._update_running = False
@@ -266,7 +266,7 @@ class KeyService:
         try:
             app_update.open_download(path)
         except app_update.UpdateError as error:
-            code = 'update_revoked' if str(error) == 'revoked' else 'update_failed'
+            code = {'revoked': 'update_revoked', 'revocation_state': 'update_revocation_state'}.get(str(error), 'update_failed')
             raise PinError('The update could not be opened safely.', code) from None
         return {"opened": True}
 

@@ -49,6 +49,8 @@ jobs:
         run: |
           python tools/export_requirements.py --check
           python tools/license_inputs.py
+      - name: Reject an accidental update-key emergency stop
+        run: python tools/check_update_revocation.py
       - run: python -m unittest discover -s tests -v
       - name: Windows runtime prerequisite safety tests
         if: runner.os == 'Windows'

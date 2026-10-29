@@ -300,6 +300,24 @@ Obtain the currently pinned public-key fingerprint without reading its private k
 python tools/update_signing.py fingerprint
 ```
 
+CI runs `python tools/check_update_revocation.py` on every normal build and PR.
+If the currently embedded key is listed, the same document must also contain an
+explicit acknowledgement, for example:
+
+```json
+"emergency_stop": {
+  "fingerprint": "THE_SAME_64_CHARACTER_PUBLIC_KEY_FINGERPRINT",
+  "reason": "Confirmed incident; automatic updates intentionally stopped."
+}
+```
+
+The reason must be 10–1000 characters and public. The acknowledgement is only an
+accident guard; the release signer still refuses a revoked key. Require the
+Build checks before merging changes to `main` for this check to prevent an
+accidental publication. A check that runs only after a direct push cannot stop
+clients from observing that push. It does not defend against an attacker who
+can change both the list and the acknowledgement or workflow.
+
 To stop a compromised key, append its fingerprint and publish the reviewed file
 on `main`. Clients fetch that fixed HTTPS URL during update checks, before a
 download, and immediately before opening a downloaded installer. Bundled and
@@ -327,6 +345,24 @@ channel. Affected installations must install that recovery version manually;
 do not remove the old fingerprint or disable signature checks to resume updates.
 This project does not yet implement a signed multi-key transition for planned
 rotation. Do not overwrite the current key as a routine maintenance step.
+
+### Unreadable local revocation state
+
+`update_revocation_state` means the local revocation evidence cannot be read.
+The app shows a specific message and blocks update checks, downloads and opening
+installers; normal key operations remain available. An existing revocation
+marker takes precedence and continues to report the key as revoked.
+
+Close KeyMelier and preserve a backup of
+`~/.keymelier/revoked-update-keys.json` and every
+`~/.keymelier/revoked-update-key-*` marker before investigating filesystem access
+or damaged content. Do not delete them or replace the list with an empty one.
+Restore access permissions if that is the cause. For damaged JSON, restore a
+verified backup only after checking that it retains all previously observed
+revocations; keep every marker. If that evidence cannot be recovered, use the
+maintainer-reviewed manual incident recovery path above. Bundle data and the
+current-key marker alone cannot reconstruct all previously observed revoked
+keys, so the app deliberately does not rebuild the aggregate cache automatically.
 
 ### Signed advisory review before releases
 

@@ -74,7 +74,7 @@ async function main() {
   };
   const press = async key => {
     const k = KEYS[key];
-    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode };
+    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode };
     await send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', ...base, ...(k.text ? { text: k.text, unmodifiedText: k.text } : {}) });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
     await sleep(30);

@@ -1,3 +1,31 @@
+# RC8: RC7 external review follow-up — 2026-10-29
+
+Base: `95247da` (`v1.8.7-rc.7`). Small compatibility and recovery corrections;
+the previously accepted automatic-signing setup and open hardening work remain.
+
+| Review item | Disposition |
+|---|---|
+| N1 — offline managed source | Keep the strict existing rule. ENTERPRISE.md now explicitly describes VPN loss: verified cached warnings survive, but an unreachable configured source cannot authorize `OK`. |
+| N2 — unreadable revocation cache | Specific `update_revocation_state` error through check/download/open and all UI languages. Evidence stays intact; a known current-key marker still reports revocation. Recovery documented; no unsafe automatic reconstruction from incomplete evidence. |
+| N3 — accidental repository stop | CI rejects the active fingerprint unless the document contains a matching explicit emergency acknowledgement and reason. Release signing still refuses the key. Prevention requires checks before merge; neither this guard nor the unsigned list protects against repository takeover. |
+| N4 — three-digit firmware fallback | Regression coverage for 503 → 0.5.3 and known packed-byte vendors. No further decoding change or claim of physical-device validation. |
+| N5 — local history normalization | Preserve local malformed/future timestamps and lost/replacement state across load, unrelated saves and empty sync. Normalize valid instants to UTC; compare strictly validated dates during merge so preserved future values cannot pin decisions. Incoming future timestamps and tombstones remain rejected. |
+
+RC7 evidence was completed after the previous review text: publication run
+[40844729678](https://github.com/FiraSenax/KeyMelier/actions/runs/40844729678)
+passed all platform builds, signing/notarization, packaged smoke tests, Linux
+compatibility checks and release rehearsal. The maintainer reported successful
+Windows 11 use, including Bio-key unlock. This does not establish a manual
+Linux hardware test or exhaustive destructive-device-operation validation.
+
+RC8 local validation: 457 Python tests, no failures and two platform skips;
+41 browser UI tests and 20 UI stress tests passed, including the new localized
+revocation-error path.
+Ruff, UI security/account/website checks, locked dependency exports, license
+inputs and the 14-day advisory-signature gate passed. The UI test driver now
+lets Chromium derive native keyboard codes instead of supplying Windows codes
+as macOS native codes; the latter caused reproducible local Enter-key timeouts.
+
 # RC7: RC4 external review follow-up on RC6 — 2026-10-29
 
 Base: `7b47f14` (`v1.8.7-rc.6`). This follow-up is included in the

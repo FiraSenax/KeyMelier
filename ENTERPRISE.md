@@ -112,6 +112,12 @@ interpreted.
   use and keep the rollback floor and known warnings across restarts. A failed
   current source check still prevents `OK`. Stateless mode does not persist
   this cache. Same-user cache deletion remains outside this rollback guarantee.
+- **Laptops without VPN:** an unreachable intranet HTTPS source prevents `OK`
+  even when its verified cache is still fresh. This is intentional: the cache
+  preserves known warnings, not an offline positive assessment of current
+  company policy. Device operations remain available. Reconnect the VPN and
+  run the update check to revalidate the source. Existing warnings and critical
+  findings are not replaced by `UNKNOWN`.
 - **Transport:** HTTPS sources must return the document and signature directly
   with HTTP 200; redirects are rejected, including redirects to HTTP. Configure
   the final HTTPS URL when migrating an existing source.

@@ -93,6 +93,9 @@ def check(include_rc: bool = False) -> dict:
     except update_revocation.RevokedKeyError:
         result.update(failed=True, revoked=True)
         return result
+    except update_revocation.RevocationStateError:
+        result.update(failed=True, code='update_revocation_state')
+        return result
     except Exception as e:
         logger.info("App update check failed: %s", type(e).__name__)
         result["failed"] = True   # offline or GitHub unreachable – say so when asked
@@ -141,7 +144,7 @@ def _require_allowed_key(*, refresh=False):
     except update_revocation.RevokedKeyError:
         raise UpdateError('revoked') from None
     except (OSError, ValueError):
-        raise UpdateError('Could not verify the local update revocation state.') from None
+        raise UpdateError('revocation_state') from None
 
 
 def _download_dir() -> Path:

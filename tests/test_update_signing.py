@@ -67,6 +67,19 @@ class UpdateSigningTests(unittest.TestCase):
             update_signing.sign(self.folder, 'v1.8.7', self.commit)
         self.assertFalse((self.folder / update_auth.SIGNATURE_FILE).exists())
 
+    def test_emergency_acknowledgement_never_permits_signing_with_the_revoked_key(self):
+        from keymelier_core import update_revocation
+        key = update_revocation.fingerprint()
+        bundled = self.root / 'revoked.json'
+        bundled.write_text(json.dumps({'version': 1, 'revoked': [key],
+                                        'emergency_stop': {'fingerprint': key, 'reason': 'Confirmed incident'}}))
+        with patch.object(update_revocation, 'BUNDLED', bundled), \
+                patch.object(update_revocation, 'stateless', return_value=True), \
+                patch.object(update_revocation, '_seen', set()):
+            with self.assertRaises(update_revocation.RevokedKeyError):
+                update_signing.sign(self.folder, 'v1.8.7-rc.8', self.commit)
+        self.assertFalse((self.folder / update_auth.SIGNATURE_FILE).exists())
+
     def test_signer_rejects_mismatched_key_commit_and_changed_files(self):
         self.public.write_text(base64.b64encode(Ed25519PrivateKey.generate().public_key().public_bytes_raw()).decode())
         with self.assertRaisesRegex(ValueError, 'does not match'):
