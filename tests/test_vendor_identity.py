@@ -60,7 +60,7 @@ class VendorIdentityTests(unittest.TestCase):
         base = TokenRecord('connection', 'path', 'Token2', None, 'Token2', 'model-aaguid',
                            [], [], {}, [], None, None, '', 'now', vendor_id=0x349E, product_id=0x22)
         with tempfile.TemporaryDirectory() as tmp:
-            history = History(Path(tmp) / 'history.json', enabled=True)
+            history = History(Path(tmp) / 'history.json', enabled=True, encrypted=False)
             history.update_snapshot(base)
             legacy_id = key_id(base)
             for serial in ('1234567890', '1234567891'):

@@ -218,10 +218,11 @@ function aaguidValueHtml(token) {
 }
 
 function renderAaguid(token) {
-  const value = aaguidValue(token);
-  const copyLabel = escHtml(t('aaguid.copy'));
-  $('key-aaguid').innerHTML = `<span>${escHtml(t('det.aaguid'))}</span><code>${escHtml(value || t('aaguid.unavailable'))}</code>
-    <button type="button" class="btn-icon" data-copy-aaguid="${escHtml(value)}" title="${copyLabel}" aria-label="${copyLabel}" ${value ? '' : 'disabled'}>${icon('copy', 14)}</button>`;
+  const value = aaguidValue(token), label = t('aaguid.copy');
+  $('key-aaguid').replaceChildren(uiElement('span', {}, t('det.aaguid')),
+    uiElement('code', {}, value || t('aaguid.unavailable')),
+    uiElement('button', {type: 'button', class: 'btn-icon', 'data-copy-aaguid': value,
+      title: label, 'aria-label': label, disabled: !value}, iconNode('copy', 14)));
 }
 
 // { cls: pass|fail|partial|running, text } for an attestation result
@@ -256,36 +257,37 @@ function serialLabel(tok) {
   return tok?.serial_number ? t('key.sn', { n: tok.serial_number }) : '';
 }
 
+function sidebarKeyNode(tok, historyEntry = null) {
+  const offline = historyEntry !== null;
+  const active = mainView === 'key' && (offline ? historyEntry.key_id === selectedHist : tok.id === selectedId);
+  const serial = serialLabel(tok);
+  const subtitle = (offline ? [serial, historyEntry.lost_since ? t('bk.lostBadge') : relTime(historyEntry.last_seen)]
+    : serial ? [serial, tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · ');
+  const row = uiElement('button', {type: 'button', class: `key-item${offline ? ' offline' : ''}${active ? ' active' : ''}`,
+    [offline ? 'data-hist' : 'data-id']: offline ? historyEntry.key_id : tok.id},
+    uiElement('span', {class: 'key-item-icon'}, keyAvatarNode(tok, 28)),
+    uiElement('span', {class: 'key-item-text'}, uiElement('span', {class: 'key-item-name'}, displayName(tok)),
+      uiElement('span', {class: 'key-item-sub', title: subtitle}, subtitle)));
+  if (!offline) {
+    const manage = canManage(tok) && (tok.options?.clientPin || tok.options?.uv);
+    const unlocked = manage && isUnlocked(tok.id);
+    row.append(uiElement('span', {class: `quick-lock${unlocked ? ' open' : ''}`,
+      [manage ? 'data-unlock' : 'data-read']: tok.id, role: 'button', tabindex: '0',
+      title: t(manage ? unlocked ? 'ql.lock' : 'ql.unlock' : 'probe.sidebar')},
+      iconNode(manage ? unlocked ? 'lockOpen' : 'lock' : 'refresh', 15)));
+  }
+  const status = tok.security_status || 'UNKNOWN';
+  row.append(uiElement('span', {class: 'status-dot ' + status, title: t(`status.${status}`)}));
+  return row;
+}
+
 function renderSidebar() {
-  const list = $('key-list');
   $('key-list-empty').classList.toggle('hidden', tokens.size > 0);
   const live = new Set([...tokens.values()].map(tok => tok.history_id));
   const past = [...historyKeys.values()].filter(e => !live.has(e.key_id));
   $('history-label').classList.toggle('hidden', !past.length);
-  $('history-list').innerHTML = past.map(e => {
-    const tok = offlineToken(e);
-    return `<button type="button" class="key-item offline${e.key_id === selectedHist && mainView === 'key' ? ' active' : ''}" data-hist="${escHtml(e.key_id)}">
-      <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
-      <span class="key-item-text">
-        <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub" title="${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}">${escHtml([serialLabel(tok), e.lost_since ? t('bk.lostBadge') : relTime(e.last_seen)].filter(Boolean).join(' · '))}</span>
-      </span>
-      <span class="status-dot ${escHtml(tok.security_status || '')}" title="${escHtml(t(`status.${tok.security_status || 'UNKNOWN'}`))}"></span>
-    </button>`;
-  }).join('');
-  list.innerHTML = [...tokens.values()].map(tok => `
-    <button type="button" class="key-item${tok.id === selectedId && mainView === 'key' ? ' active' : ''}" data-id="${escHtml(tok.id)}">
-      <span class="key-item-icon">${keyAvatar(tok, 28)}</span>
-      <span class="key-item-text">
-        <span class="key-item-name">${escHtml(displayName(tok))}</span>
-        <span class="key-item-sub" title="${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}">${escHtml((serialLabel(tok) ? [serialLabel(tok), tok.manufacturer] : [tok.manufacturer, t(`status.${tok.security_status}`)]).filter(Boolean).join(' · '))}</span>
-      </span>
-      ${canManage(tok) && (tok.options?.clientPin || tok.options?.uv)
-        ? `<span class="quick-lock${isUnlocked(tok.id) ? ' open' : ''}" data-unlock="${escHtml(tok.id)}" role="button" tabindex="0"
-            title="${escHtml(t(isUnlocked(tok.id) ? 'ql.lock' : 'ql.unlock'))}">${icon(isUnlocked(tok.id) ? 'lockOpen' : 'lock', 15)}</span>`
-        : `<span class="quick-lock" data-read="${escHtml(tok.id)}" role="button" tabindex="0" title="${escHtml(t('probe.sidebar'))}">${icon('refresh', 15)}</span>`}
-      <span class="status-dot ${escHtml(tok.security_status)}" title="${escHtml(t(`status.${tok.security_status}`))}"></span>
-    </button>`).join('');
+  $('history-list').replaceChildren(...past.map(e => sidebarKeyNode(offlineToken(e), e)));
+  $('key-list').replaceChildren(...[...tokens.values()].map(tok => sidebarKeyNode(tok)));
 }
 
 function renderMds() {
@@ -1294,6 +1296,7 @@ async function exportHistory() {
 async function importHistory() {
   const text = await window.pywebview.api.open_text('json');
   if (!text) return;
+  if (typeof text !== 'string') { showToast(errorMessage({ data: text, message: text.error }), 'error'); return; }
   try {
     const res = await call('history_import', { text });
     await loadHistory();

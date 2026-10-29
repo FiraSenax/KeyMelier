@@ -39,7 +39,7 @@ class AuditRegressions(unittest.TestCase):
         self.scanner = TokenScanner()
         self.key = record()
         self.scanner._known[self.key.path] = self.key
-        self.history = History(self.root / "history.json", enabled=True)
+        self.history = History(self.root / "history.json", enabled=True, encrypted=False)
         self.service = service.KeyService(self.scanner, Mock(), history=self.history)
 
     def test_stateless_public_and_low_level_writes_are_blocked(self):
@@ -97,8 +97,9 @@ class AuditRegressions(unittest.TestCase):
         with patch.dict(os.environ, KEYMELIER_ENCRYPT_HISTORY="1"), \
              patch("keyring.get_keyring", return_value=unavailable):
             history = History(self.root / "encrypted.json", enabled=True)
-            with self.assertRaisesRegex(RuntimeError, "no plaintext"):
-                history.update_snapshot(self.key)
+            self.assertFalse(history.enabled)
+            self.assertEqual(history.load_problem["code"], "history_locked")
+            history.update_snapshot(self.key)
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_turning_tracking_off_scrubs_even_disabled_history(self):

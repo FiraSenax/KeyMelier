@@ -123,7 +123,7 @@ class SecurityTests(unittest.TestCase):
     def test_privacy_and_permissions(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'private'/'history.json'
-            h = History(path)
+            h = History(path, encrypted=False)
             h.update_snapshot(record())
             self.assertFalse(path.exists())
             h.set_enabled(True)
@@ -133,7 +133,7 @@ class SecurityTests(unittest.TestCase):
                 self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
             before = path.read_bytes()
             with patch.dict(os.environ, KEYMELIER_STATELESS='1'):
-                h = History(path, enabled=True)
+                h = History(path, enabled=True, encrypted=False)
                 h.update_snapshot(record())
                 self.assertEqual(path.read_bytes(), before)
                 with self.assertRaises(ValueError):
@@ -145,7 +145,7 @@ class SecurityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, patch('keymelier_core.service.SETTINGS_FILE', Path(tmp)/'settings.json'):
             (Path(tmp)/'settings.json').write_text('{"remember_sites": false}')
             exporter = Mock()
-            service = KeyService(TokenScanner(), exporter, history=History(Path(tmp)/'history.json'))
+            service = KeyService(TokenScanner(), exporter, history=History(Path(tmp)/'history.json', encrypted=False))
             r = record()
             service._on_connect(r)
             service._log(r, 'passkey_deleted', site='company.internal', user='alice')
@@ -387,18 +387,18 @@ class ExtendedSecurityTests(unittest.TestCase):
     def test_enable_history_preserves_previous_entries(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'history.json'
-            h = History(path, enabled=True)
+            h = History(path, enabled=True, encrypted=False)
             old = record()
             old.aaguid = 'old'
             h.update_snapshot(old)
-            h = History(path)
+            h = History(path, encrypted=False)
             h.update_snapshot(record())
             h.set_enabled(True)
-            self.assertEqual(len(History(path,enabled=True).list()),2)
+            self.assertEqual(len(History(path,enabled=True, encrypted=False).list()),2)
 
     def test_disabling_sites_scrubs_old_event_details(self):
         with tempfile.TemporaryDirectory() as tmp:
-            h = History(Path(tmp)/'history.json', enabled=True)
+            h = History(Path(tmp)/'history.json', enabled=True, encrypted=False)
             h.add_event(record(), 'passkey_deleted', site='internal.example',user='alice')
             h.clear_sites()
             self.assertNotIn('internal.example', h._path.read_text())

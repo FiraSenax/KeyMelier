@@ -46,7 +46,7 @@ class KeyringTests(unittest.TestCase):
         with patch.object(service_mod, "SETTINGS_FILE", tmp / "settings.json"), \
                 self.use(backend("keyring.backends.fail")):
             svc = service_mod.KeyService(types.SimpleNamespace(set_callbacks=lambda **kw: None), None,
-                                         history=History(tmp / "h.json", enabled=True))
+                                         history=History(tmp / "h.json", enabled=True, encrypted=False))
             (tmp / "sync").mkdir()
             with self.assertRaises(PinError) as ctx:
                 svc.sync_enable(str(tmp / "sync"), "a long enough passphrase")
@@ -138,45 +138,30 @@ class DesktopTests(unittest.TestCase):
 
 
 class NavigationLockTests(unittest.TestCase):
-    """Linux loads the page from a file: that file (as Qt reports it) stays, anything else is reverted."""
-
-    class Window:
-        def __init__(self, url):
-            self.url, self.loaded = url, []
-            self.events = types.SimpleNamespace(loaded=self)
-
-        def __iadd__(self, handler):
-            self.handler = handler
-            return self
-
-        def get_current_url(self):
-            return self.url
-
-        def load_url(self, url):
-            self.loaded.append(url)
-
-        def load_html(self, html):
-            self.loaded.append("inline")
-
-    def visit(self, current, page_url):
-        import app
-        window = self.Window(current)
-        app._lock_navigation(window, page_url)
-        window.events.loaded.handler()
-        return window.loaded
+    """The native guard is installed before the first document is loaded."""
 
     def test_own_page_file_is_kept_even_as_qt_reports_it(self):
+        from keymelier_core.native_ui import NavigationPolicy
         page = PurePosixPath("/run/user/1000/keymelier-a b/keymelier.html").as_uri()
-        self.assertEqual(self.visit("file:///run/user/1000/keymelier-a b/keymelier.html", page), [])
-        self.assertEqual(self.visit(page + "#section", page), [])
+        self.assertTrue(NavigationPolicy(page).allow("file:///run/user/1000/keymelier-a b/keymelier.html"))
+        self.assertFalse(NavigationPolicy(page).allow(page + "#section"))
 
-    def test_other_documents_are_reverted(self):
+    def test_other_documents_are_blocked_before_loading(self):
+        import app
+        from webview.event import Event
+        window = types.SimpleNamespace(events=types.SimpleNamespace())
+        window.events.initialized = Event(window, True)
         page = PurePosixPath("/run/user/1000/keymelier-x/keymelier.html").as_uri()
+        policy = app._lock_navigation(window, page)
+        with patch('keymelier_core.native_ui._qt') as install:
+            self.assertFalse(window.events.initialized.set('qtwebengine'))
+            install.assert_called_once_with(policy)
         for url in ("file:///etc/passwd", "https://example.com/", "file:///run/user/1000/keymelier-x/other.html",
                     "data:text/html,<script>alert(1)</script>"):
-            with self.subTest(url):
-                self.assertEqual(self.visit(url, page), [page])
-        self.assertEqual(self.visit("https://example.com/", None), ["inline"], "macOS/Windows: inline page")
+            with self.subTest(url=url):
+                self.assertFalse(policy.allow(url))
+        self.assertTrue(policy.allow(page))
+        self.assertFalse(policy.allow(page))
 
 
 class UpdateAssetTests(unittest.TestCase):

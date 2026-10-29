@@ -81,6 +81,19 @@ def _fingerprint(fp: bytes) -> str:
     return " ".join(h[i:i + 4] for i in range(0, len(h), 4))
 
 
+def _optional_read(read, default=None):
+    from yubikit.core import NotSupportedError
+    from yubikit.core.smartcard import ApduError
+    try:
+        return read()
+    except NotSupportedError:
+        return default
+    except ApduError as error:
+        if error.sw in (0x6A82, 0x6A88, 0x6D00, 0x6A86):
+            return default  # optional data/command absent on this card
+        raise  # authentication/transport failures are not missing capabilities
+
+
 def info(conn) -> dict:
     from yubikit.openpgp import DO, KEY_REF, KEY_STATUS, PIN_POLICY, UIF
 
@@ -91,10 +104,7 @@ def info(conn) -> dict:
         pw = disc.pw_status
         fingerprints = disc.fingerprints
         times = disc.generation_times
-        try:
-            key_info = session.get_key_information()
-        except Exception:
-            key_info = {}
+        key_info = _optional_read(session.get_key_information, {})
         keys = []
         for slot, ref in SLOTS.items():
             ref = KEY_REF(ref)
@@ -105,7 +115,7 @@ def info(conn) -> dict:
             try:
                 entry["algorithm"] = _algorithm(disc.attributes_sig if slot == "sig" else
                                                 disc.attributes_dec if slot == "dec" else disc.attributes_aut)
-            except Exception:
+            except (ValueError, KeyError):
                 entry["algorithm"] = None
             if present:
                 entry["fingerprint"] = _fingerprint(fp)
@@ -116,27 +126,16 @@ def info(conn) -> dict:
                                    "imported" if status == KEY_STATUS.IMPORTED else None)
             touch = None
             if not session._generic:
-                try:
-                    touch = {UIF.OFF: "off", UIF.ON: "on", UIF.FIXED: "fixed",
-                             UIF.CACHED: "cached", UIF.CACHED_FIXED: "cached_fixed"}.get(session.get_uif(ref))
-                except Exception:
-                    touch = None
+                touch = {UIF.OFF: "off", UIF.ON: "on", UIF.FIXED: "fixed",
+                         UIF.CACHED: "cached", UIF.CACHED_FIXED: "cached_fixed"}.get(
+                             _optional_read(lambda: session.get_uif(ref)))
             entry["touch"] = touch
             keys.append(entry)
-        try:
-            counter = session.get_signature_counter()
-        except Exception:
-            counter = None
-        name = url = ""
-        try:
-            holder = session.get_data(DO.CARDHOLDER_RELATED_DATA)
-            name = _cardholder_name(holder)
-        except Exception:
-            pass
-        try:
-            url = session.get_data(DO.URL).decode("utf-8", "replace")
-        except Exception:
-            pass
+        counter = _optional_read(session.get_signature_counter)
+        holder = _optional_read(lambda: session.get_data(DO.CARDHOLDER_RELATED_DATA))
+        name = _cardholder_name(holder) if holder else ""
+        url_data = _optional_read(lambda: session.get_data(DO.URL))
+        url = url_data.decode("utf-8", "replace") if url_data else ""
     except CardError:
         raise
     except Exception as e:
@@ -164,7 +163,7 @@ def _cardholder_name(holder: bytes) -> str:
     from yubikit.core import Tlv
     try:
         inner = Tlv.unpack(0x65, holder)
-    except Exception:
+    except ValueError:
         inner = holder
     for tlv in Tlv.parse_list(inner):
         if tlv.tag == 0x5B:
@@ -361,8 +360,8 @@ def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
         raise
     except ApduError as e:
         raise map_card_error(e) from None
-    except Exception:
-        raise CardError("Key generation failed.", "card_error") from None
+    except Exception as error:
+        raise map_card_error(error) from None
 
     primary = keys[KEY_REF.SIG]
 
@@ -388,8 +387,8 @@ def generate_keys(conn, algorithm: str, name: str, email: str, expire_days: int,
         revocation = P.revocation(primary, signer, created)
     except CardError:
         raise
-    except Exception:
-        raise CardError("Signing on the key failed.", "card_error") from None
+    except Exception as error:
+        raise map_card_error(error) from None
     fingerprint = primary.fingerprint.hex().upper()
     logger.info("OpenPGP keys generated on the card")
     return {

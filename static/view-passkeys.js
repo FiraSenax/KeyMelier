@@ -75,58 +75,56 @@ function renderPasskeys() {
     return;
   }
 
-  html += '<section class="card pk-compact">' + groups.map(({ rp, creds }) => {
-    const name = rp.rp_id || rp.rp_name || t('pk.unknownSite');
-    return `<div class="pk-group">
-      <div class="pk-group-head">${serviceAvatar(rp.rp_id, rp.rp_name)}
-        <span class="pk-rp-name">${escHtml(name)}</span>
-        ${rp.rp_name && rp.rp_name !== name ? `<span class="pk-rp-sub">${escHtml(rp.rp_name)}</span>` : ''}
-        ${creds.length > 1 ? `<span class="pill">${escHtml(t('pk.accountsN', { n: creds.length }))}</span>` : ''}
-      </div>
-      <ul class="pk-list">` + creds.map(c => {
-        const main = c.user_name || c.display_name || t('pk.noName');
-        const sub = c.display_name && c.user_name && c.user_name !== c.display_name ? c.display_name : '';
-        const prot = credProtectLabel(c.cred_protect);
-        const confirming = pkConfirm === c.credential_id;
-        if (pkRename === c.credential_id) {
-          return `<li class="pk-item">
-            <form class="pk-rename-form" data-id="${escHtml(c.credential_id)}">
-              <input type="text" class="pk-rename-display" value="${escHtml(c.display_name)}" placeholder="${escHtml(t('pk.rename.display'))}" aria-label="${escHtml(t('pk.rename.display'))}" maxlength="64" spellcheck="false">
-              <input type="text" class="pk-rename-name" value="${escHtml(c.user_name)}" placeholder="${escHtml(t('pk.rename.name'))}" aria-label="${escHtml(t('pk.rename.name'))}" maxlength="64" spellcheck="false">
-              <div class="pk-rename-actions">
-                <button type="button" class="btn btn-secondary" data-act="rename-cancel">${escHtml(t('pk.delete.cancel'))}</button>
-                <button type="submit" class="btn btn-primary">${escHtml(t('fp.save'))}</button>
-              </div>
-            </form></li>`;
-        }
-        return `<li class="pk-item${confirming ? ' confirming' : ''}">
-          <div class="pk-user">
-            <div class="pk-user-name">${escHtml(main)}${sub ? ` <span class="pk-user-sub">· ${escHtml(sub)}</span>` : ''}</div>
-            <details class="pk-details" data-cred="${escHtml(c.credential_id)}" ${pkOpenDetails.has(c.credential_id) ? 'open' : ''}>
-              <summary>${escHtml(t('pk.details'))}</summary>
-              <dl class="kv pk-kv">
-                ${prot ? `<dt>${escHtml(t('pk.protection'))}</dt><dd>${escHtml(prot)}</dd>` : ''}
-                <dt>${escHtml(t('pk.largeBlob'))}</dt><dd>${escHtml(t(c.large_blob ? 'pk.yes' : 'pk.no'))}</dd>
-                <dt>${escHtml(t('pk.credId'))}</dt><dd class="pk-identifier"><code>${escHtml(c.credential_id)}</code>
-                  <button type="button" class="btn-small" data-act="copy-credential" data-id="${escHtml(c.credential_id)}" aria-label="${escHtml(t('pk.copy') + ': ' + t('pk.credId'))}">${escHtml(t('pk.copy'))}</button></dd>
-                <dt>${escHtml(t('pk.userId'))}</dt><dd class="pk-identifier"><code>${escHtml(c.user_id || '')}</code>
-                  ${c.user_id ? `<button type="button" class="btn-small" data-act="copy-user" data-id="${escHtml(c.credential_id)}" aria-label="${escHtml(t('pk.copy') + ': ' + t('pk.userId'))}">${escHtml(t('pk.copy'))}</button>` : '—'}</dd>
-              </dl>
-            </details>
-          </div>
-          ${confirming ? `
-            <div class="pk-confirm" role="group" aria-label="${escHtml(t('pk.delete.confirm'))}">
-              <span>${escHtml(t('pk.delete.confirm'))}</span>
-              <button type="button" class="btn btn-secondary" data-act="cancel">${escHtml(t('pk.delete.cancel'))}</button>
-              <button type="button" class="btn btn-danger" data-act="delete" data-id="${escHtml(c.credential_id)}">${escHtml(t('pk.delete.do'))}</button>
-            </div>` : `<div class="pk-actions">
-            ${st.rename ? `<button type="button" class="btn-small" data-act="rename" data-id="${escHtml(c.credential_id)}">${icon('pencil', 14)}<span>${escHtml(t('fp.rename'))}</span></button>` : ''}
-            <button type="button" class="btn-small danger" data-act="ask-delete" data-id="${escHtml(c.credential_id)}">${icon('trash', 14)}<span>${escHtml(t('pk.delete.do'))}</span></button></div>`}
-        </li>`;
-      }).join('') + '</ul></div>';
-  }).join('') + '</section>';
-  if (pkConfirm) html += `<p class="field-hint">${escHtml(t('pk.delete.warning'))}</p>`;
   el.innerHTML = html;
+  el.append(uiElement('section', {class: 'card pk-compact'}, groups.map(({rp, creds}) => passkeyGroupNode(rp, creds, st))));
+  if (pkConfirm) el.append(uiElement('p', {class: 'field-hint'}, t('pk.delete.warning')));
+}
+
+function passkeyGroupNode(rp, creds, st) {
+  const name = rp.rp_id || rp.rp_name || t('pk.unknownSite');
+  const head = uiElement('div', {class: 'pk-group-head'}, serviceAvatarNode(rp.rp_id, rp.rp_name),
+    uiElement('span', {class: 'pk-rp-name'}, name));
+  if (rp.rp_name && rp.rp_name !== name) head.append(uiElement('span', {class: 'pk-rp-sub'}, rp.rp_name));
+  if (creds.length > 1) head.append(uiElement('span', {class: 'pill'}, t('pk.accountsN', {n: creds.length})));
+  return uiElement('div', {class: 'pk-group'}, head, uiElement('ul', {class: 'pk-list'}, creds.map(c => {
+    const action = (act, content, cls = 'btn btn-secondary', attrs = {}) => uiElement('button',
+      {type: 'button', class: cls, 'data-act': act, 'data-id': c.credential_id, ...attrs}, content);
+    if (pkRename === c.credential_id) {
+      return uiElement('li', {class: 'pk-item'}, uiElement('form', {class: 'pk-rename-form', 'data-id': c.credential_id},
+        ...['display', 'name'].map(field => uiElement('input', {type: 'text', class: 'pk-rename-' + field,
+          value: field === 'display' ? c.display_name : c.user_name, placeholder: t('pk.rename.' + field),
+          'aria-label': t('pk.rename.' + field), maxlength: 64, spellcheck: 'false'})),
+        uiElement('div', {class: 'pk-rename-actions'}, action('rename-cancel', t('pk.delete.cancel')),
+          uiElement('button', {type: 'submit', class: 'btn btn-primary'}, t('fp.save')))));
+    }
+    const main = c.user_name || c.display_name || t('pk.noName');
+    const sub = c.display_name && c.user_name && c.user_name !== c.display_name ? c.display_name : '';
+    const userName = uiElement('div', {class: 'pk-user-name'}, main);
+    if (sub) userName.append(' ', uiElement('span', {class: 'pk-user-sub'}, '· ' + sub));
+    const values = uiElement('dl', {class: 'kv pk-kv'});
+    const prot = credProtectLabel(c.cred_protect);
+    if (prot) values.append(uiElement('dt', {}, t('pk.protection')), uiElement('dd', {}, prot));
+    values.append(uiElement('dt', {}, t('pk.largeBlob')), uiElement('dd', {}, t(c.large_blob ? 'pk.yes' : 'pk.no')));
+    for (const [label, value, act] of [['pk.credId', c.credential_id, 'copy-credential'], ['pk.userId', c.user_id, 'copy-user']]) {
+      const cell = uiElement('dd', {class: 'pk-identifier'}, uiElement('code', {}, value || ''));
+      cell.append(' ', value ? action(act, t('pk.copy'), 'btn-small', {'aria-label': t('pk.copy') + ': ' + t(label)}) : '—');
+      values.append(uiElement('dt', {}, t(label)), cell);
+    }
+    const details = uiElement('details', {class: 'pk-details', 'data-cred': c.credential_id, open: pkOpenDetails.has(c.credential_id)},
+      uiElement('summary', {}, t('pk.details')), values);
+    const confirming = pkConfirm === c.credential_id;
+    const row = uiElement('li', {class: 'pk-item' + (confirming ? ' confirming' : '')},
+      uiElement('div', {class: 'pk-user'}, userName, details));
+    if (confirming) row.append(uiElement('div', {class: 'pk-confirm', role: 'group', 'aria-label': t('pk.delete.confirm')},
+      uiElement('span', {}, t('pk.delete.confirm')), action('cancel', t('pk.delete.cancel')), action('delete', t('pk.delete.do'), 'btn btn-danger')));
+    else {
+      const actions = uiElement('div', {class: 'pk-actions'});
+      if (st.rename) actions.append(action('rename', [iconNode('pencil', 14), uiElement('span', {}, t('fp.rename'))], 'btn-small'));
+      actions.append(action('ask-delete', [iconNode('trash', 14), uiElement('span', {}, t('pk.delete.do'))], 'btn-small danger'));
+      row.append(actions);
+    }
+    return row;
+  })));
 }
 
 // retried: the key rejected the unlock (expired) – reload once to get the

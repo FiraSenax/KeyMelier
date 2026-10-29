@@ -5,12 +5,13 @@ from unexpected failures in UI responses. Domain errors retain actionable text.
 """
 
 import inspect
-import os
-import traceback
+import copy
 import logging
+from contextlib import nullcontext
 
 from keymelier_core.pin import PinError
 from keymelier_core.scanner import DeviceBusy, DeviceNotFound
+from keymelier_core.safe_errors import log_failure
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def _failure(service, method, code, message, status):
     return {"ok": False, "error": message, "code": code, "status": status}
 
 
-def dispatch(service, method, kwargs=None):
+def dispatch(service, method, kwargs=None, *, authorize=None):
     if not isinstance(method, str) or method not in ALLOWED:
         return {"ok": False, "error": "Unknown method.", "code": "unknown_method", "status": 400}
     if kwargs is None:
@@ -56,13 +57,16 @@ def dispatch(service, method, kwargs=None):
     if "token_id" in kwargs and (not isinstance(kwargs["token_id"], str)
                                  or not 0 < len(kwargs["token_id"]) <= 256):
         return _failure(service, method, "invalid_input", "Invalid request.", 400)
+    if authorize:
+        kwargs = copy.deepcopy(kwargs)
     handler = getattr(service, method)
     try:
         inspect.signature(handler).bind(**kwargs)
     except TypeError:
         return _failure(service, method, "invalid_input", "Invalid request.", 400)
     try:
-        return {"ok": True, "data": handler(**kwargs)}
+        with authorize(method, kwargs) if authorize else nullcontext():
+            return {"ok": True, "data": handler(**kwargs)}
     except PinError as e:
         logger.warning("%s -> %s", method, e.code)
         service.error_log.record(method, e.code, e.extra.get("reason"))
@@ -76,7 +80,5 @@ def dispatch(service, method, kwargs=None):
         # Keep the operation/type for debugging, never arguments or messages.
         # Where it happened (file name, line, function) keeps field reports
         # diagnosable; no source lines (literals) and no full paths (user name).
-        where = " < ".join(f"{os.path.basename(f.filename)}:{f.lineno} {f.name}"
-                           for f in reversed(traceback.extract_tb(e.__traceback__)))
-        logger.error("%s failed (%s) at %s", method, type(e).__name__, where)
+        log_failure(logger, method, e)
         return _failure(service, method, "error", "The operation could not be completed.", 500)

@@ -84,7 +84,7 @@ class DiagnosticsTests(unittest.TestCase):
         self.addCleanup(keychain.stop)
 
     def service(self, records):
-        history = History(self.tmp / "history.json", enabled=True)
+        history = History(self.tmp / "history.json", enabled=True, encrypted=False)
         svc = service_mod.KeyService(FakeScanner(records), None, history=history, advisories=FakeAdvisories())
         if records:
             entry = history.update_snapshot(records[0])
@@ -119,7 +119,8 @@ class DiagnosticsTests(unittest.TestCase):
             raise RuntimeError(f"{SECRETS['error message']} in {SECRETS['home path']}/.keymelier {SECRETS['internal url']}")
         svc.pin_update = fail
         svc.sync_now = crash
-        api.call("pin_update", {"token_id": "tok-1", "current": SECRETS["pin"], "new": "31415926"})
+        with patch.object(api._consent, "confirm", return_value=True):
+            api.call("pin_update", {"token_id": "tok-1", "current": SECRETS["pin"], "new": "31415926"})
         api.call("sync_now", {})
         svc.error_log.record(f"{SECRETS['home path']}/op", f"code {SECRETS['internal url']}")
         api.client_error(f"TypeError at file://{SECRETS['home path']}/{SECRETS['error message']}")

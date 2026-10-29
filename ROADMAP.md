@@ -1,6 +1,17 @@
 # Roadmap
 
-Planned work after 1.8.0. Nothing here is implemented yet.
+Work planned after 1.8.0; implementation status is noted where applicable.
+
+## Next security release: selected feedback implemented (29 October 2026)
+
+All thirteen points from the external 1.8.7 feedback have been checked against
+`2237689`: [findings, proposed priorities and acceptance gates](SECURITY_REVIEW.md#external-187-feedback-triage).
+The selected five work areas are implemented in the working tree: native consent,
+pre-navigation blocking and targeted DOM rendering, GnuPG/import handling, selective
+smart-card exceptions with safe diagnostics, and default history encryption with a
+verified legacy copy. See [implementation and limits](SECURITY_REVIEW.md#selected-security-changes--2026-10-29).
+Publication and platform/hardware release checks remain outstanding. Broader
+refactors, sync-secret lifetime and the open security items below remain separate.
 
 ## Security review follow-ups (27 October 2026)
 

@@ -171,13 +171,13 @@ class MdsDisplayTests(unittest.TestCase):
         TokenScanner(mds3_client=client())._enrich_record(r)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "history.json"
-            history = History(path, enabled=True)
+            history = History(path, enabled=True, encrypted=False)
             history.update_snapshot(r)
             raw = json.loads(path.read_text())
             self.assertFalse(any(k.startswith("mds_") for k in raw["keys"][0]["snapshot"]))
             raw["keys"][0]["snapshot"].update(dataclasses.asdict(r))
             path.write_text(json.dumps(raw))
-            History(path, enabled=True)
+            History(path, enabled=True, encrypted=False)
             migrated = json.loads(path.read_text())
             self.assertFalse(any(k.startswith("mds_") for k in migrated["keys"][0]["snapshot"]))
 

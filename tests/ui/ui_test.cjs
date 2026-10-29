@@ -113,6 +113,39 @@ async function main() {
     assert(await js('!tokens.has("retired-connection") && tokens.size === ' + count), 'unknown connection ignored');
   });
 
+  await test('device, passkey and OATH fields remain literal DOM text and attributes', async () => {
+    const payload = '<img src=x onerror="globalThis.__deviceInjected=true">\'"<&>';
+    assert(await callPage(send, payload => {
+      const key = {...tokens.get('demo-yk5'), id: payload, history_id: 'dom-probe', product_name: payload,
+        mds_description: payload, serial_number: payload, mds_icon: ''};
+      const sidebar = sidebarKeyNode(key);
+      const passkeys = passkeyGroupNode({rp_id: payload, rp_name: payload}, [{credential_id: payload,
+        user_id: payload, user_name: payload, display_name: payload}], {rename: true});
+      const oath = oathAccountNode({id: payload, issuer: payload, name: payload, code: payload,
+        valid_to: payload, period: payload}, {can_rename: true});
+      return [sidebar, passkeys, oath].every(node => !node.querySelector('script, [onerror]')) &&
+        sidebar.querySelector('.key-item-name').textContent === payload && sidebar.dataset.id === payload &&
+        passkeys.querySelector('.pk-user-name').textContent === payload &&
+        passkeys.querySelector('[data-cred]').dataset.cred === payload &&
+        oath.querySelector('.pk-user-name').textContent === payload &&
+        oath.querySelector('[data-code]').dataset.code === payload && !globalThis.__deviceInjected;
+    }, payload), 'untrusted names, IDs, code and timing fields cannot create markup');
+  });
+
+  await test('invalid UTF-8 import shows a translated error and never merges data', async () => {
+    assert(await js(`(async () => {
+      const api = window.pywebview.api, open = api.open_text, originalCall = api.call, toast = showToast;
+      let called = false, shown = '';
+      try {
+        api.open_text = async () => ({ ok: false, code: 'history_encoding', error: 'fallback' });
+        api.call = async () => { called = true; };
+        showToast = message => { shown = message; };
+        await importHistory();
+        return !called && shown === t('err.history_encoding') && shown !== 'fallback';
+      } finally { api.open_text = open; api.call = originalCall; showToast = toast; }
+    })()`), 'file errors reach the UI without calling history_import');
+  });
+
   await test('reviewed service logos link to their owner; runtime MDS icons stay available', async () => {
     assert(await js(`(() => {
       const div = document.createElement('div');

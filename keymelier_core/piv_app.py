@@ -166,11 +166,14 @@ def info(conn) -> dict:
 
 def _is_default_mgmt(session) -> bool:
     from yubikit.piv import DEFAULT_MANAGEMENT_KEY
+    from yubikit.core.smartcard import ApduError
     try:
         session.authenticate(DEFAULT_MANAGEMENT_KEY)
         return True
-    except Exception:
-        return False
+    except ApduError as error:
+        if error.sw in (0x6982, 0x6983):
+            return False
+        raise
 
 
 def _check_pin(pin: str, code: str):
@@ -209,6 +212,7 @@ def _authenticate(session, pin: str | None, management_key: str | None):
     """Authenticate with the management key (see module docstring)."""
     from yubikit.piv import DEFAULT_MANAGEMENT_KEY
     from ykman.piv import get_pivman_data, get_pivman_protected_data
+    from yubikit.core.smartcard import ApduError
 
     pivman = get_pivman_data(session)
     if pivman.has_protected_key:
@@ -227,11 +231,11 @@ def _authenticate(session, pin: str | None, management_key: str | None):
         try:
             session.authenticate(key)
             return
-        except Exception:
+        except ApduError:
             raise CardError("Wrong management key.", "piv_mgmt_invalid") from None
     try:
         session.authenticate(DEFAULT_MANAGEMENT_KEY)
-    except Exception:
+    except ApduError:
         raise CardError("This key uses a custom management key. Enter it to continue.",
                         "piv_mgmt_required") from None
 
@@ -259,7 +263,7 @@ def generate(conn, slot: str, key_type: str, subject: str, days: int, pin: str,
         subject = f"CN={subject}"
     try:
         parse_rfc4514_string(subject)
-    except Exception:
+    except (TypeError, ValueError):
         raise CardError("The name is not a valid certificate subject.", "piv_subject_invalid") from None
     days = max(1, min(int(days or 365), 3650))
     try:
@@ -290,11 +294,12 @@ def generate(conn, slot: str, key_type: str, subject: str, days: int, pin: str,
 def import_certificate(conn, slot: str, pem: str, pin: str | None = None,
                        management_key: str | None = None) -> None:
     from cryptography import x509
+    from cryptography.exceptions import UnsupportedAlgorithm
     try:
         data = (pem or "").strip().encode()
         cert = (x509.load_pem_x509_certificate(data) if data.startswith(b"-----")
                 else x509.load_der_x509_certificate(bytes.fromhex(pem)))
-    except Exception:
+    except (TypeError, ValueError, UnsupportedAlgorithm):
         raise CardError("This is not a valid certificate (PEM).", "piv_cert_invalid") from None
     session = _session(conn)
     target = _slot(slot)
@@ -307,24 +312,29 @@ def import_certificate(conn, slot: str, pem: str, pin: str | None = None,
 
 def export_certificate(conn, slot: str) -> str:
     from cryptography.hazmat.primitives.serialization import Encoding
+    from yubikit.core.smartcard import ApduError, SW
     session = _session(conn)
     try:
         cert = session.get_certificate(_slot(slot))
-    except Exception:
-        raise CardError("This slot holds no certificate.", "not_found", status=404) from None
+    except ApduError as error:
+        if error.sw == SW.FILE_NOT_FOUND:
+            raise CardError("This slot holds no certificate.", "not_found", status=404) from None
+        raise map_card_error(error) from None
     return cert.public_bytes(Encoding.PEM).decode()
 
 
 def delete(conn, slot: str, pin: str | None = None, management_key: str | None = None,
            key: bool = False) -> None:
+    from yubikit.core.smartcard import ApduError, SW
     session = _session(conn)
     target = _slot(slot)
     _authenticate(session, pin, management_key)
     try:
         try:
             session.delete_certificate(target)
-        except Exception:
-            pass  # no certificate is fine when deleting the key
+        except ApduError as error:
+            if error.sw != SW.FILE_NOT_FOUND:
+                raise  # failed access must not proceed to private-key deletion
         if key and _has(session, (5, 7, 0)):
             session.delete_key(target)
     except Exception as e:

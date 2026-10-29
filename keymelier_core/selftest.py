@@ -213,7 +213,7 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
         raw = policy.read_raw()
         return {"sources": [s["name"] for s in policy.advisory_sources(raw)], "configured": bool(raw)}
     check("runtime: managed configuration reader", managed_policy)
-    for name in ("advisories.json", "advisories.json.sig"):
+    for name in ("advisories.json", "advisories.json.sig", "native-ui.json"):
         check(f"data: {name}", lambda n=name: (data_dir / n).is_file())
     from keymelier_core.page import SCRIPTS
     for name in ("index.html", "style.css", *SCRIPTS, "icon.svg", "icon.png", "menubar.png"):
@@ -221,6 +221,27 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
     for name in ("LICENSE", "THIRD_PARTY_LICENSES.txt", "keymelier-sbom.cdx.json"):
         check(f"resource: {name}", lambda n=name: (root / n).is_file())
     return out
+
+
+def native_navigation_checks(window):
+    """Exercise native pre-navigation handling inside each packaged backend."""
+    import tempfile
+    checks = []
+    with tempfile.TemporaryDirectory(prefix="keymelier-navigation-") as folder:
+        foreign = Path(folder) / "foreign.html"
+        foreign.write_text('<html><body>Foreign test document</body></html>', encoding="utf-8")
+        window.evaluate_js('document.body.dataset.navigationProbe = "original"; undefined')
+        for kind, url in (("file", foreign.as_uri()), ("data", "data:text/html,<body>Foreign test document</body>")):
+            try:
+                # Public load_url resets bridge readiness and waits for another
+                # load; this test intentionally expects no second document.
+                window.gui.load_url(url, window.uid)
+                time.sleep(0.2)
+                ok = window.evaluate_js('document.body.dataset.navigationProbe') == "original"
+                checks.append({"name": f"native: {kind} navigation blocked", "ok": ok, "info": ""})
+            except Exception as error:
+                checks.append({"name": f"native: {kind} navigation blocked", "ok": False, "info": type(error).__name__})
+    return checks
 
 
 class SelfTest:
@@ -231,6 +252,7 @@ class SelfTest:
         self.ui_errors: list[str] = []
         self.passed = False
         self._done = threading.Event()
+        self._page_started = threading.Event()
         log = logging.FileHandler(self.result_path.with_suffix(".log"), encoding="utf-8")
         log.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
         logging.getLogger().addHandler(log)   # windowed Windows builds have no console
@@ -241,6 +263,9 @@ class SelfTest:
         window.events.loaded += self._on_loaded
 
     def _on_loaded(self, *_):
+        if self._page_started.is_set():
+            return
+        self._page_started.set()
         logger.info("Page loaded, running page checks")
         self.window.evaluate_js(PAGE_CHECKS)
 
@@ -256,6 +281,7 @@ class SelfTest:
             self.result_path.with_name("page-snapshot.txt").write_text(snapshot.get("text", ""), encoding="utf-8")
             self.result_path.with_name("page-snapshot.html").write_text(snapshot.get("html", ""), encoding="utf-8")
         checks = backend_checks(self.root, self.data_dir, self.static_dir, self.advisories) + page
+        checks.extend(native_navigation_checks(self.window))
         checks.append({"name": "page: no JavaScript errors", "ok": not self.ui_errors, "info": "; ".join(self.ui_errors)[:300]})
         self.passed = all(c["ok"] for c in checks)
         self.result_path.write_text(json.dumps({"passed": self.passed, "checks": checks}, indent=1), encoding="utf-8")
