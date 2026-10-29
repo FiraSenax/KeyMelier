@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Automatically publish reviewed RC tag pushes as public, signed GitHub prereleases after all release checks; retain manual artifact-only rehearsals and the separate stable update channel.
+
 ## v1.8.7-rc.8 — 2026-10-29
 
 - Preserve local history timestamps and lost/replacement state when the computer clock was wrong; keep strict validation for imports and sync and prevent preserved future dates from pinning merge decisions.

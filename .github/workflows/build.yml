@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       signed_rc:
-        description: 'Signed/notarized artifact-only RC (select a reviewed v* tag permitted by release-signing)'
+        description: 'Signed/notarized RC rehearsal (artifact-only unless publish_rc is also enabled)'
         type: boolean
         default: false
         required: false
@@ -475,7 +475,7 @@ jobs:
           WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
         run: |
           if [ "$MAC_SIGNED" != true ] || [ "$WIN_SIGNED" != true ]; then
-            echo "::error::Stable releases require verified macOS and Windows signing. Use an RC tag while Certum setup is pending."
+            echo "::error::Stable releases require verified macOS and Windows signing. Complete signing setup before publishing."
             exit 1
           fi
       - uses: ./.github/actions/prepare-release
@@ -520,7 +520,7 @@ jobs:
           MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
         run: |
           test "$MAC_SIGNED" = true
-          echo "Signed RC: notarized macOS app and DMG, tested packages, artifact only. No GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
+          echo "Signed RC rehearsal verified: notarized macOS app and DMG, tested packages. Public RCs are published by the following release-candidate job." >> "$GITHUB_STEP_SUMMARY"
       - name: Report
         if: always()
         run: |
@@ -535,11 +535,14 @@ jobs:
             release-check.md
           if-no-files-found: warn
           retention-days: 30
-  # Explicit opt-in only: RC tag pushes and ordinary rehearsals stay artifact-only.
+  # Reviewed RC tag pushes publish automatically; manual rehearsals require opt-in.
   # Reuse exactly the checked files from this run; never replace an existing release.
   release-candidate:
     needs: [release-rehearsal, build-macos, build-windows]
-    if: github.event_name == 'workflow_dispatch' && inputs.signed_rc && inputs.publish_rc && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.') &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.signed_rc && inputs.publish_rc))
     runs-on: ubuntu-24.04
     environment: release-signing
     permissions:

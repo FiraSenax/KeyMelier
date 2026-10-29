@@ -9,7 +9,7 @@ website use the verified build outputs, not merely the presence of credentials.
 The repository provides the workflow; the maintainer must obtain identities and
 configure the GitHub `release-signing` environment. Stable releases (including
 1.8.6) are blocked until both macOS and Windows jobs report verified signing.
-Use artifact-only RC tags while Certum setup is pending. Never commit certificates,
+Public RCs require both verified signatures too. Never commit certificates,
 private keys, app passwords or cloud credentials. Restrict that environment to
 reviewed version tags and configure appropriate environment protection rules.
 
@@ -123,7 +123,7 @@ certificate. Store distribution still requires a real Partner Center identity,
 review of `allowElevation`, hardware/client testing and certification. Microsoft's
 Store signature applies to the Store MSIX, not to the GitHub EXE installer.
 
-## Signed release candidates without publication
+## Signed release candidates
 
 RCs use reviewed tags **`v<version>-rc.N`**, for example `v1.8.3-rc.1`.
 They use the existing `release-signing` environment (its `v*` tag restriction
@@ -140,28 +140,31 @@ git push origin v1.8.3-rc.1
 ```
 
 A tag push starts the workflow even when the candidate commit is on a review
-branch. Do not move an existing RC tag; use `rc.2`, `rc.3`, etc. for fixes.
+branch and automatically publishes a public GitHub prerelease after all checks
+pass. No second manual build is required. Do not move an existing RC tag; use
+`rc.2`, `rc.3`, etc. for fixes.
 The native package version remains numeric, for example `1.8.7`. New builds also
 record the verified RC tag in `data/build.json`, so the app can compare
 `1.8.7-rc.2 < 1.8.7-rc.3 < 1.8.7`. The source commit, Actions run and
 `RC-MANIFEST.json` identify the exact candidate. Older RCs without this metadata
 or the update-channel setting need one manual upgrade.
 
-The output is the **`release-rehearsal` artifact**, retained for 30 days, with
+The workflow also keeps the **`release-rehearsal` artifact** for 30 days, with
 packages, checksums, source commit, dependency locks, SBOMs and a check report:
 
 ```bash
 python3 tools/fetch_rc.py RUN_ID
 ```
 
-No GitHub Release is created, no tag is marked latest, and nothing writes to
-GitHub Pages. The normal `/releases/latest` update check cannot discover these
-artifacts. **Artifact-only does not mean confidential:** tags and workflow
-metadata in this public repository remain visible, and artifact access follows
-GitHub's repository permissions.
+For a signed **artifact-only rehearsal**, repeat a reviewed tag via
+**Actions → Build → Run workflow** with **`signed_rc` enabled** and
+**`publish_rc` disabled**. This manual run creates no GitHub Release, does not
+mark anything latest and does not write to GitHub Pages. The updater cannot
+discover Actions artifacts. **Artifact-only does not mean confidential:** tags
+and workflow metadata in this public repository remain visible, and artifact
+access follows GitHub's repository permissions.
 
-You can also repeat a reviewed tag via **Actions → Build → Run workflow** with
-**`signed_rc` enabled**. Select a tag permitted by `release-signing`; arbitrary
+Select a tag permitted by `release-signing`; arbitrary
 branches are intentionally blocked by the environment. The default manual branch run
 remains the unsigned rehearsal. Existing environment protection rules
 still apply. Windows signing runs when explicitly enabled; Linux
@@ -172,10 +175,11 @@ condition explicitly excludes RCs from that publishing job.
 
 ## Public release candidates for the optional update channel
 
-After merging and reviewing the candidate, select its new `vX.Y.Z-rc.N` tag in
-**Actions → Build → Run workflow** and enable both **`signed_rc`** and
-**`publish_rc`**. The tag push itself still produces artifacts only. Avoid running
-both builds concurrently; the publication run rebuilds and verifies all packages.
+Pushing a reviewed new `vX.Y.Z-rc.N` tag automatically builds and publishes the
+RC in the same run. Do not start a second manual publication run for that tag.
+The manual fallback remains available for an older, unpublished candidate:
+select its tag in **Actions → Build → Run workflow** and enable both
+**`signed_rc`** and **`publish_rc`**. It rebuilds and verifies all packages.
 
 The separate `release-candidate` job requires a successful complete rehearsal,
 matching RC tag and verified macOS/Windows signing. It downloads only that run's

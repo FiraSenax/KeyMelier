@@ -74,7 +74,7 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertGreater(removal, max(users), "the signing keychain is removed before a step that signs")
         self.assertIn("always()", steps[removal])
 
-    def test_signed_rc_uses_signing_but_never_the_publish_job(self):
+    def test_signed_rc_uses_signing_but_never_the_stable_publish_job(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
         trigger = workflow.get('on', workflow.get(True))
         self.assertFalse(trigger['workflow_dispatch']['inputs']['signed_rc']['default'])
@@ -97,7 +97,36 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertFalse(any('action-gh-release' in s.get('uses', '') for s in rc['steps']))
         self.assertTrue(any(s.get('name') == 'Verify signed RC result' for s in rc['steps']))
 
-    def test_rc_publication_requires_manual_opt_in_green_rehearsal_and_signatures(self):
+    def test_rc_publication_trigger_preserves_manual_rehearsals_and_stable_channel(self):
+        from types import SimpleNamespace
+
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
+        expression = workflow['jobs']['release-candidate']['if']
+        expression = expression.replace('&&', ' and ').replace('||', ' or ')
+        cases = (
+            ('push', 'refs/tags/v1.8.7-rc.9', False, False, True),
+            ('push', 'refs/tags/v1.8.7', False, False, False),
+            ('push', 'refs/heads/v1.8.7-rc.9', False, False, False),
+            ('push', 'refs/heads/main', False, False, False),
+            ('pull_request', 'refs/pull/1/merge', True, True, False),
+            ('workflow_dispatch', 'refs/tags/v1.8.7-rc.9', True, True, True),
+            ('workflow_dispatch', 'refs/tags/v1.8.7-rc.9', True, False, False),
+            ('workflow_dispatch', 'refs/tags/v1.8.7-rc.9', False, True, False),
+            ('workflow_dispatch', 'refs/tags/v1.8.7-rc.9', False, False, False),
+            ('workflow_dispatch', 'refs/tags/v1.8.7', True, True, False),
+            ('workflow_dispatch', 'refs/heads/v1.8.7-rc.9', True, True, False),
+        )
+        for event, ref, signed, publish, allowed in cases:
+            with self.subTest(event=event, ref=ref, signed=signed, publish=publish):
+                # These expressions only use boolean operators, string predicates
+                # and the explicit event/input context. Evaluate the real YAML gate.
+                context = {'__builtins__': {}, 'startsWith': str.startswith,
+                           'contains': lambda value, part: part in value,
+                           'github': SimpleNamespace(event_name=event, ref=ref, ref_name=ref.rsplit('/', 1)[-1]),
+                           'inputs': SimpleNamespace(signed_rc=signed, publish_rc=publish)}
+                self.assertEqual(eval(expression, context), allowed)
+
+    def test_rc_publication_requires_green_rehearsal_and_signatures(self):
         import os
         import subprocess
         workflow = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())
