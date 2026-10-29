@@ -359,17 +359,17 @@ pyscard==2.3.1 \
     --hash=sha256:e228c78e028b74e5411a604c765852bdc8fd04321f03e62d25cad8e90de27597 \
     --hash=sha256:f58b46cd78455a29a0abceabff21b37da81a385a737b29e6dd5e25acb7e3f3da
     # via yubikey-manager
-pyside6==6.11.2 ; sys_platform == 'linux' \
-    --hash=sha256:57fe867a6c93821a085d74e8a26f863fc2363516848181c466032595b33b1729 \
-    --hash=sha256:dc6d03990489a5085842770718392ef5de36352d8f608d9a9fe03e60af4d7b66
+pyside6==6.11.3 ; sys_platform == 'linux' \
+    --hash=sha256:aa85bea06acb593564ec9cc1b0218510115341bcaa9585348760e4b9cac260cf \
+    --hash=sha256:ef2bdb61b1ad7e5e8db8ca7fb1a60d8b7960dfd490c582d005d8903044ab44f1
     # via keymelier
-pyside6-addons==6.11.2 ; sys_platform == 'linux' \
-    --hash=sha256:a2ca3c73e5f060d4aca49451abd9fba68dd0e1c66ff40cea3a1fe0415def579a \
-    --hash=sha256:a8b00956925fbdeffc7052cf933506391289f35ac4f3f71a0a167ec195cd47b4
+pyside6-addons==6.11.3 ; sys_platform == 'linux' \
+    --hash=sha256:5cab663fbff1b7a1fa7e641754de3ca1ea410407fc70bd4e240144b42d09a69c \
+    --hash=sha256:6d536493003c5f409ba1bf52d8053e23f9c97f291e2a347a676902bfe0a1a31e
     # via pyside6
-pyside6-essentials==6.11.2 ; sys_platform == 'linux' \
-    --hash=sha256:aaf9f25f0f324874085fa5b26a610318db8a8e243cf85bb3e5400595191c7778 \
-    --hash=sha256:d3ec6e1885c46e57f16364f38ea8040ffc5dc0b18341058f608fede3ba930567
+pyside6-essentials==6.11.3 ; sys_platform == 'linux' \
+    --hash=sha256:b7d77901d5fb413e96788cb15c56177cbbad0ff12605c716abdc79eabe4ba859 \
+    --hash=sha256:c6a5c3b58bf55aef6e09a7de690ff6133335014ab81a7f22f56363ea08e8f6a3
     # via
     #   pyside6
     #   pyside6-addons
@@ -418,9 +418,9 @@ secretstorage==3.5.0 ; sys_platform == 'linux' \
     --hash=sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137 \
     --hash=sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be
     # via keyring
-shiboken6==6.11.2 ; sys_platform == 'linux' \
-    --hash=sha256:4bbbd6fa4d7cff5ec5e12bc4c10e1d845fa30c89457ecb13cc64f7bddb77f6f9 \
-    --hash=sha256:7a7a0a72a9ed26c9bf77d42246b1c736486befb8f31aa2fb29957ea4cdd1c1c2
+shiboken6==6.11.3 ; sys_platform == 'linux' \
+    --hash=sha256:01d172ec9599fed315aec025b1424ff945ae5358f87588a848797616a18de6e7 \
+    --hash=sha256:e601c957011345c741b88f661a12486f478db881d6777bdf37e3dc7a8d3387c6
     # via
     #   pyside6
     #   pyside6-addons

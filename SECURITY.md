@@ -47,3 +47,25 @@ such a vulnerability is affected.
 
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md) records implementation reviews and known
 limitations; it is not an independent security certification.
+
+## Sync trust and recovery
+
+Everyone who knows a sync passphrase has equal authority over the shared history,
+including labels, account inventories, loss/replacement decisions and removals.
+AES-GCM authenticates possession of that shared secret, not an individual
+computer. Model/device security verdicts are assessed locally; imported test
+events are historical claims marked with their import/sync origin.
+
+Incoming merge timestamps must be ISO dates/times and are normalized to UTC
+(legacy dates and naive times mean UTC). Timestamps more than one day in the
+future are ignored, including previously stored future removal marks. A peer
+with a badly wrong clock must correct it before resending its changes. Removal
+marks are limited to 5,000 per input and retained state; ordinary histories and
+the version-1 encrypted sync format remain supported.
+
+If a passphrase or computer is compromised, turn sync off on every trusted
+computer, review/restore the trusted local histories, and configure a **new,
+empty sync folder with a new passphrase** on those computers. Remove the old
+folder's sharing permissions and the compromised computer's access separately.
+Keep any old files needed for recovery outside the new sync folder. Changing a
+passphrase cannot revoke access to copies already obtained with the old one.

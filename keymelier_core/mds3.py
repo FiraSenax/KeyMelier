@@ -279,7 +279,7 @@ class MDS3Client:
         if not entry:
             return None
         reports = entry.get("statusReports", [])
-        statuses = [r.get("status", "") for r in reports]
+        statuses = [r.get("status", "") if isinstance(r, dict) else "" for r in reports]
         best = None
         best_priority = -1
         unknown = False
@@ -291,7 +291,28 @@ class MDS3Client:
                     best = s
             except ValueError:
                 unknown = True
-        return "UNKNOWN" if unknown and best_priority < STATUS_PRIORITY.index("UPDATE_AVAILABLE") else best
+        if best_priority >= STATUS_PRIORITY.index("UPDATE_AVAILABLE"):
+            return best  # never hide a compromise/bypass report behind later certification
+        if unknown:
+            return "UNKNOWN"
+        certifications = []
+        for report in reports:
+            status = report.get("status", "") if isinstance(report, dict) else ""
+            if status not in STATUS_PRIORITY[:STATUS_PRIORITY.index("UPDATE_AVAILABLE")]:
+                continue
+            effective = report.get("effectiveDate")
+            if not effective and status in {"NOT_FIDO_CERTIFIED", "SELF_ASSERTION_SUBMITTED"}:
+                return status  # an undated negative status is effective while present
+            try:
+                date = datetime.fromisoformat(effective.replace("Z", "+00:00")) if effective else datetime.min
+                date = date.replace(tzinfo=timezone.utc) if date.tzinfo is None else date.astimezone(timezone.utc)
+            except (ValueError, TypeError, AttributeError, OverflowError):
+                return "UNKNOWN"
+            if date <= datetime.now(timezone.utc):
+                certifications.append((date, -STATUS_PRIORITY.index(status), status))
+        # A later NOT_FIDO_CERTIFIED supersedes earlier certification. At an
+        # ambiguous equal date, prefer the less reassuring status.
+        return max(certifications)[2] if certifications else None
 
     def get_cache_info(self) -> dict:
         return {

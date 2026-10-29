@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       signed_rc:
-        description: 'Signed/notarized artifact-only RC (select a reviewed v* tag permitted by release-signing)'
+        description: 'Signed/notarized RC rehearsal (artifact-only unless publish_rc is also enabled)'
         type: boolean
         default: false
         required: false
@@ -20,6 +20,25 @@ on:
 permissions:
   contents: read
 jobs:
+  release-source:
+    # No production environment or secrets: reject an off-main version tag
+    # before any dependent signing/build/publication job can start.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a release commit already merged into main
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          python3 tools/check_release_source.py --ref "$RELEASE_REF" --sha "$RELEASE_SHA"
   test:
     strategy:
       matrix:
@@ -49,8 +68,17 @@ jobs:
         run: |
           python tools/export_requirements.py --check
           python tools/license_inputs.py
+      - name: Reject an accidental update-key emergency stop
+        run: python tools/check_update_revocation.py
       - run: python -m unittest discover -s tests -v
+      - name: Windows runtime prerequisite safety tests
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tests/windows_runtime_test.ps1
       - run: python tools/advisories_sign.py verify
+      - name: Require recently reviewed advisories for release builds
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)
+        run: python tools/advisories_sign.py verify --max-age-days 14
       - name: Syntax of every UI script
         shell: bash
         run: for f in static/*.js; do node --check "$f"; done
@@ -97,7 +125,7 @@ jobs:
   # Signing is used when the credentials are configured as secrets; without
   # them the builds are published unsigned and clearly labelled as such.
   build-macos:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     runs-on: macos-14
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     env:
@@ -228,7 +256,7 @@ jobs:
             dist/KeyMelier-Sources-macOS.tar
           retention-days: 14
   build-windows:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     runs-on: windows-2022
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     timeout-minutes: 35
@@ -339,7 +367,7 @@ jobs:
   # script as locally (build-linux.sh); the start test runs the AppImage itself
   # under Xvfb with a D-Bus session and an unlocked Secret Service.
   build-linux:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     strategy:
       fail-fast: false
       matrix:
@@ -446,9 +474,10 @@ jobs:
   # The real release (version tags only) and the rehearsal (manual runs) share
   # every step up to publishing: .github/actions/prepare-release
   release:
-    needs: [build-macos, build-windows, build-linux, linux-compat]
+    needs: [release-source, test, ui, build-macos, build-windows, build-linux, linux-compat]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-rc.')
     runs-on: ubuntu-24.04
+    environment: release-signing
     permissions:
       contents: write
     steps:
@@ -465,13 +494,17 @@ jobs:
           WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
         run: |
           if [ "$MAC_SIGNED" != true ] || [ "$WIN_SIGNED" != true ]; then
-            echo "::error::Stable releases require verified macOS and Windows signing. Use an RC tag while Certum setup is pending."
+            echo "::error::Stable releases require verified macOS and Windows signing. Complete signing setup before publishing."
             exit 1
           fi
       - uses: ./.github/actions/prepare-release
         with:
           mac-signed: ${{ needs.build-macos.outputs.signed }}
           win-signed: ${{ needs.build-windows.outputs.signed }}
+      - uses: ./.github/actions/sign-update
+        with:
+          directory: artifacts
+          private-key: ${{ secrets.KEYMELIER_UPDATE_SIGNING_KEY }}
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: KeyMelier ${{ github.ref_name }}
@@ -506,7 +539,7 @@ jobs:
           MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
         run: |
           test "$MAC_SIGNED" = true
-          echo "Signed RC: notarized macOS app and DMG, tested packages, artifact only. No GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
+          echo "Signed RC rehearsal verified: notarized macOS app and DMG, tested packages. Public RCs are published by the following release-candidate job." >> "$GITHUB_STEP_SUMMARY"
       - name: Report
         if: always()
         run: |
@@ -521,11 +554,14 @@ jobs:
             release-check.md
           if-no-files-found: warn
           retention-days: 30
-  # Explicit opt-in only: RC tag pushes and ordinary rehearsals stay artifact-only.
+  # Reviewed RC tag pushes publish automatically; manual rehearsals require opt-in.
   # Reuse exactly the checked files from this run; never replace an existing release.
   release-candidate:
-    needs: [release-rehearsal, build-macos, build-windows]
-    if: github.event_name == 'workflow_dispatch' && inputs.signed_rc && inputs.publish_rc && startsWith(github.ref, 'refs/tags/v')
+    needs: [release-source, release-rehearsal, build-macos, build-windows]
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.') &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.signed_rc && inputs.publish_rc))
     runs-on: ubuntu-24.04
     environment: release-signing
     permissions:
@@ -546,6 +582,10 @@ jobs:
         with:
           name: release-rehearsal
           path: rc-release
+      - uses: ./.github/actions/sign-update
+        with:
+          directory: rc-release/artifacts
+          private-key: ${{ secrets.KEYMELIER_UPDATE_SIGNING_KEY }}
       - name: Verify the checked files and publish a prerelease
         env:
           GH_TOKEN: ${{ github.token }}

@@ -101,6 +101,28 @@ interpreted.
 - **What it can change:** only add findings. Official findings cannot be
   removed, weakened or replaced, and an older document never replaces a
   newer one.
+- **When a green assessment is allowed:** every configured source must have
+  loaded successfully with a valid signature and a signed review less than
+  45 days old. Pending, unreachable, invalid, truncated or expired sources
+  prevent `OK`; known warnings remain visible. Background loading, including
+  potentially slow network file paths, therefore starts at `UNKNOWN`.
+- **Across restarts:** the exact signed bytes and signature of the last accepted
+  document are cached atomically under `~/.keymelier/managed-advisories/`, bound
+  to the source configuration and signing key. They are verified again before
+  use and keep the rollback floor and known warnings across restarts. A failed
+  current source check still prevents `OK`. Stateless mode does not persist
+  this cache. Same-user cache deletion remains outside this rollback guarantee.
+- **Laptops without VPN:** an unreachable intranet HTTPS source prevents `OK`
+  even when its verified cache is still fresh. This is intentional: the cache
+  preserves known warnings, not an offline positive assessment of current
+  company policy. Device operations remain available. Reconnect the VPN and
+  run the update check to revalidate the source. Existing warnings and critical
+  findings are not replaced by `UNKNOWN`. The key overview and security details
+  name unreachable company sources and suggest reconnecting the VPN if needed,
+  then checking for updates. This is connection guidance, not VPN detection.
+- **Transport:** HTTPS sources must return the document and signature directly
+  with HTTP 200; redirects are rejected, including redirects to HTTP. Configure
+  the final HTTPS URL when migrating an existing source.
 
 Sign it with the tool from this repository (Python 3 with `cryptography`):
 

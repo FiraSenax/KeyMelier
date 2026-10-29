@@ -4,6 +4,7 @@
     python3 tools/advisories_sign.py keygen          # once: create the signing key
     python3 tools/advisories_sign.py sign            # after editing advisories.json
     python3 tools/advisories_sign.py verify          # check the committed signature
+    python3 tools/advisories_sign.py verify --max-age-days 14  # release freshness gate
 
 Company advisory sources (ENTERPRISE.md) use the same format with their own key:
 
@@ -14,8 +15,14 @@ Company advisory sources (ENTERPRISE.md) use the same format with their own key:
 The private key is read from $KEYMELIER_SIGNING_KEY (a PEM file path, or the
 PEM itself, e.g. from a GitHub secret) or ~/.config/keymelier/advisory-signing-key.pem.
 Never commit it: whoever holds it can change what every KeyMelier reports.
+
+Review and sign the official database at least every 45 days, even if no entries
+change. Signing renews the authenticated review timestamp. Merely fetching an
+old signed file cannot renew freshness; expired data still supplies warnings,
+but cannot support a "no known findings" verdict.
 """
 
+import argparse
 import base64
 import json
 import os
@@ -79,17 +86,33 @@ def sign():
     _verify(advisories, None if advisories == ADVISORIES else base64.b64encode(raw).decode())
 
 
-def _verify(advisories: Path, public_key: str | None):
-    from keymelier_core.updates import PUBLIC_KEY_B64, verify as check
+def verify_file(advisories: Path, public_key: str | None = None, max_age_days: int | None = None):
+    from keymelier_core.updates import PUBLIC_KEY_B64, is_fresh, parse, verify as check
 
-    ok = check(advisories.read_bytes(), Path(str(advisories) + ".sig").read_text(encoding="ascii"),
-               public_key or PUBLIC_KEY_B64)
-    print("Signature valid" if ok else "SIGNATURE INVALID")
-    sys.exit(0 if ok else 1)
+    data = advisories.read_bytes()
+    if not check(data, Path(str(advisories) + ".sig").read_text(encoding="ascii"), public_key or PUBLIC_KEY_B64):
+        raise ValueError("SIGNATURE INVALID")
+    if max_age_days is not None and (not 0 < max_age_days <= 45 or
+                                    not is_fresh(parse(data), max_age_days=max_age_days)):
+        raise ValueError(f"Advisory review must be less than {max_age_days} days old and not future-dated. "
+                         "Review the vendor/MDS sources before re-signing; do not renew the timestamp blindly.")
+
+
+def _verify(advisories: Path, public_key: str | None, max_age_days: int | None = None):
+    try:
+        verify_file(advisories, public_key, max_age_days)
+    except (OSError, ValueError) as error:
+        sys.exit(str(error))
+    print("Signature valid" + (f"; signed review less than {max_age_days} days old" if max_age_days else ""))
 
 
 def verify():
-    _verify(Path(_arg(2, ADVISORIES)), _arg(3))
+    parser = argparse.ArgumentParser(description="Verify advisory signature and optional release freshness.")
+    parser.add_argument("file", nargs="?", type=Path, default=ADVISORIES)
+    parser.add_argument("public_key", nargs="?")
+    parser.add_argument("--max-age-days", type=int)
+    args = parser.parse_args(sys.argv[2:])
+    _verify(args.file, args.public_key, args.max_age_days)
 
 
 if __name__ == "__main__":

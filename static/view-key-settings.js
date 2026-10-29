@@ -76,12 +76,14 @@ function renderConfig() {
   if (gate !== null) { el.innerHTML = gate; focusUnlockPin('settings'); return; }
 
   const parts = [toolbarHtml(t('cfg.title'))];
+  const minPin = Number.isInteger(st.min_pin_length) && st.min_pin_length >= 4 && st.min_pin_length <= 63
+    ? st.min_pin_length : 4;
   if (st.can_set_min_pin) {
     parts.push(`<form class="card form-card cfg-minpin-form" autocomplete="off">
       <h2>${escHtml(t('cfg.minPin.title'))}</h2>
       <p class="card-text">${escHtml(t('cfg.minPin.text', { n: st.min_pin_length }))}</p>
       <div class="inline-form">
-        <input type="number" class="cfg-minpin" min="${st.min_pin_length + 1}" max="63" value="${Math.max(st.min_pin_length + 1, 6)}">
+        <input type="number" class="cfg-minpin" min="${minPin + 1}" max="63" value="${Math.max(minPin + 1, 6)}">
         <button type="submit" class="btn btn-primary" ${cfgBusy ? 'disabled' : ''}>${escHtml(t('cfg.minPin.do'))}</button>
       </div>
       <p class="field-hint">${escHtml(t('cfg.minPin.warn'))}</p>

@@ -13,7 +13,7 @@ Sign with tools/advisories_sign.py; the private key never lives in the repo.
 import base64
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from keymelier_core.network import read_limited
 from keymelier_core.storage import atomic_write, stateless
@@ -28,6 +28,8 @@ CACHE_SIG = CACHE_DIR / "advisories.json.sig"
 
 # Ed25519 public key (raw, base64) of the advisory signing key
 PUBLIC_KEY_B64 = "ggYXnLxwx1iO6YQlNOG7fP0IpqbK7s8HZsiIayMikJQ="
+FRESH_FOR = 45  # days since the maintainer's signed review timestamp
+CLOCK_SKEW = timedelta(days=1)
 
 
 def verify(data: bytes, signature_b64: str, public_key_b64: str = PUBLIC_KEY_B64) -> bool:
@@ -59,6 +61,18 @@ def _updated(doc: dict) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+def has_usable_date(document: dict | None) -> bool:
+    """Reject future dates before selection, caching or rollback comparison.
+
+    Older signed documents still supply warnings. A mistakenly future-dated
+    document must not become a permanent high-water mark that blocks recovery.
+    """
+    try:
+        return _updated(document) <= datetime.now(timezone.utc) + CLOCK_SKEW
+    except (KeyError, TypeError, AttributeError, ValueError):
+        return False
+
+
 def _read_signed(path: Path, sig_path: Path) -> dict | None:
     try:
         data = path.read_bytes()
@@ -68,7 +82,11 @@ def _read_signed(path: Path, sig_path: Path) -> dict | None:
     if not verify(data, sig):
         logger.warning("Ignoring %s: signature invalid", path)
         return None
-    return parse(data)
+    doc = parse(data)
+    if not has_usable_date(doc):
+        logger.warning("Ignoring %s: malformed or future review date", path)
+        return None
+    return doc
 
 
 def load_best(bundled_dir: Path) -> tuple[dict | None, str]:
@@ -86,28 +104,20 @@ def load_best(bundled_dir: Path) -> tuple[dict | None, str]:
     return best, source
 
 
-# When a signed advisory file was last retrieved from the source (in memory)
-LAST_CONFIRMED: datetime | None = None
-FRESH_FOR = 45  # days a database counts as current without contact to the source
+def is_fresh(document: dict | None, *, max_age_days: int = FRESH_FOR) -> bool:
+    """A positive verdict requires a recent, signed review timestamp.
 
-
-def is_fresh(document: dict | None) -> bool:
-    """A "no known vulnerabilities" verdict needs a database that is recent,
-    or whose source was reachable recently (the maintainer may not publish
-    for weeks when nothing happens)."""
-    from datetime import timedelta
+    Retrieving a valid signature proves authenticity, not freshness: the source
+    can replay an old signed document. Network contact must not extend its life.
+    """
     if document is None:
         return False
     now = datetime.now(timezone.utc)
-    if LAST_CONFIRMED and now - LAST_CONFIRMED < timedelta(days=FRESH_FOR):
-        return True
     try:
-        updated = datetime.fromisoformat(str(document.get("updated")))
-        if updated.tzinfo is None:
-            updated = updated.replace(tzinfo=timezone.utc)
-    except ValueError:
+        updated = _updated(document)
+    except (KeyError, TypeError, AttributeError, ValueError):
         return False
-    return now - timedelta(days=FRESH_FOR) < updated <= now + timedelta(days=1)
+    return now - timedelta(days=max_age_days) < updated <= now + CLOCK_SKEW
 
 
 def fetch(current: dict | None) -> dict | None:
@@ -129,9 +139,10 @@ def fetch(current: dict | None) -> dict | None:
     if doc is None:
         logger.warning("Downloaded advisories rejected: malformed")
         return None
-    global LAST_CONFIRMED
-    LAST_CONFIRMED = datetime.now(timezone.utc)  # the signed source was reachable
-    if current is not None and _updated(doc) <= _updated(current):
+    if not has_usable_date(doc):
+        logger.warning("Downloaded advisories rejected: future review date")
+        return None
+    if has_usable_date(current) and _updated(doc) <= _updated(current):
         return None
     if not stateless():
         atomic_write(CACHE_FILE, data)

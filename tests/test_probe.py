@@ -195,7 +195,7 @@ class CoverageTests(unittest.TestCase):
         entry = _clean_entry({'key_id': 'a' * 16, 'sites': [], 'sites_probed': 3, 'probe_rp': {
             'a.com': {'status': 'none', 'checked': '2026-09-27'}, 'b.com': {'status': 'gone'},
             'c.com': 'none', '': {'status': 'none'}}})
-        self.assertEqual(entry['probe_rp'], {'a.com': {'status': 'none', 'checked': '2026-09-27'}})
+        self.assertEqual(entry['probe_rp'], {'a.com': {'status': 'none', 'checked': '2026-09-27T00:00:00.000000+00:00'}})
         legacy = _clean_entry({'key_id': 'a' * 16, 'sites': [], 'sites_probed': 3})
         self.assertNotIn('probe_rp', legacy)   # the model then treats every site as unknown
 

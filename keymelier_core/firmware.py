@@ -75,8 +75,8 @@ def _packed_decimal(raw: int) -> Optional[str]:
     if len(s) < 3:
         return None
     patch = int(s[-2:])
-    minor = int(s[-4:-2]) if len(s) >= 4 else 0
-    major = int(s[:-4]) if len(s) > 4 else (int(s[:-2]) if len(s) <= 4 else 0)
+    minor = int(s[-4:-2])
+    major = int(s[:-4]) if len(s) > 4 else 0
     if minor > 99 or patch > 99:
         return None
     return f"{major}.{minor}.{patch}"

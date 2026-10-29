@@ -145,6 +145,7 @@ class Api:
         self._menubar = None  # private: pywebview only exposes public members
         self._window = None
         self._selftest = None  # set by --self-test
+        self._selected_sync_folder = None
 
     def set_ui_language(self, lang, texts=None):
         """The page tells the menu bar which language and texts it shows."""
@@ -192,13 +193,15 @@ class Api:
 
     def choose_folder(self):
         """Let the user pick the sync folder; returns its path (or None)."""
+        self._selected_sync_folder = None
         if self._window is None:
             return None
         chosen = self._window.create_file_dialog(webview.FileDialog.FOLDER, directory=str(Path.home()))
         if not chosen:
             return None
         path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
-        return str(path) if path.is_dir() else None
+        self._selected_sync_folder = str(path) if path.is_dir() else None
+        return self._selected_sync_folder
 
     def read_oath_qr(self):
         """Preview only the image selected in the native dialog, never a JS path."""
@@ -309,7 +312,15 @@ class Api:
     def open_url(self, url):
         """Open advisory links in the default browser (never inside the app)."""
         from urllib.parse import urlparse
-        parsed = urlparse(str(url))
+        if not isinstance(url, str) or re.search(r"[\s\\\x00-\x1f\x7f-\x9f]", url):
+            return
+        try:
+            parsed = urlparse(url)
+            parsed.port  # validate the port syntax; managed intranet links may use non-default ports
+            if parsed.username is not None or parsed.password is not None:
+                return
+        except ValueError:
+            return
         # Fixed hosts, or exactly a link from a signed company advisory source
         if parsed.scheme == "https" and (parsed.hostname in ALLOWED_LINK_HOSTS
                                          or self._service._link_allowed(str(url))):
@@ -320,6 +331,14 @@ class Api:
                 webbrowser.open(parsed.geturl())
 
     def call(self, method, kwargs=None):
+        if method == "sync_enable":
+            # A JS argument alone must never initiate SMB/UNC access. Existing
+            # saved configuration remains usable when re-entering the passphrase.
+            folder = kwargs.get("folder") if isinstance(kwargs, dict) else None
+            configured = self._service._stored_settings().get("sync_folder")
+            if not isinstance(folder, str) or not folder or folder not in (self._selected_sync_folder, configured):
+                return {"ok": False, "error": "Choose the sync folder in the folder dialog.",
+                        "code": "invalid_input", "status": 400}
         return dispatch(self._service, method, kwargs)
 
 

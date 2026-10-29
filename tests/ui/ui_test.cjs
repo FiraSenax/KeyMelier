@@ -66,7 +66,8 @@ async function main() {
   };
   const press = async (key, { shift = false } = {}) => {
     const k = KEYS[key];
-    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, modifiers: shift ? 8 : 0 };
+    // CDP's Windows virtual code is portable; native codes differ on macOS.
+    const base = { key, code: k.code, windowsVirtualKeyCode: k.keyCode, modifiers: shift ? 8 : 0 };
     await send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', ...base, ...(k.text ? { text: k.text, unmodifiedText: k.text } : {}) });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
     await sleep(40);
@@ -172,6 +173,52 @@ async function main() {
     } finally {
       await js('window.pywebview.api.call = window.__rcOriginalCall; call("set_settings", {values:{include_rc_updates:false}}).then(s => { appSettings = s; updateFlow = null; selectToken("demo-yk5"); });');
     }
+  });
+
+  await test('unreadable revocation state is translated, visible and cannot open a ready installer', async () => {
+    assert(await js(`(() => {
+      const original = LANG, app = dataStatus.app, flow = updateFlow;
+      try {
+        dataStatus.app = {current:'1.8.7', failed:true, code:'update_revocation_state'};
+        updateFlow = {stage:'ready', platform:'win32'};
+        return Object.keys(STRINGS).every(code => {
+          LANG = code;
+          renderUpdateBanner();
+          return STRINGS[code]['err.update_revocation_state'] &&
+            $('update-text').textContent === STRINGS[code]['err.update_revocation_state'] &&
+            !$('update-banner').classList.contains('hidden') && $('update-btn').disabled;
+        });
+      } finally { LANG = original; dataStatus.app = app; updateFlow = flow; renderUpdateBanner(); }
+    })()`), 'all languages show the specific recovery error and disable the action');
+  });
+
+  await test('unreachable company source explains VPN recovery live in every language and preserves warnings', async () => {
+    assert(await js(`(() => {
+      const original = LANG, status = dataStatus, key = tokens.get('demo-yk5');
+      const name = '<img src=x onerror=alert(1)> Intranet';
+      try {
+        tokens.set(key.id, {...key, security_status:'UNKNOWN', cve_ids:[], advisories:[]});
+        const translated = Object.keys(STRINGS).length === 11 && Object.keys(STRINGS).every(code => {
+          LANG = code;
+          window.__kmEvent('data_status', {...status, advisories:{...status.advisories,
+            policy:[{name, status:'unreachable', count:0}]}});
+          const expected = t('chk.policyUnreachable', {names:name});
+          return STRINGS[code]['chk.policyUnreachable']?.includes('VPN') &&
+            $('check').textContent.includes(expected) && $('sec-advisories').textContent.includes(expected) &&
+            !$('check').querySelector('img') && !$('sec-advisories').querySelector('img') &&
+            !securityChecks(tokens.get(key.id)).some(c => c.text === t('chk.noVulns'));
+        });
+        const vulnerable = {...tokens.get(key.id), security_status:'VULNERABLE', mds_status:'REVOKED',
+          cve_ids:['CVE-TEST'], advisories:[{id:'CVE-TEST'}]};
+        renderSecurityCheck(vulnerable); renderSecurity(vulnerable);
+        const retained = $('check').querySelector('.crit') && $('check').querySelector('.warn') &&
+          $('sec-advisories').textContent.includes('CVE-TEST') && $('sec-advisories').textContent.includes(name);
+        window.__kmEvent('data_status', {...status, advisories:{...status.advisories,
+          policy:[{name, status:'ok', count:0}]}});
+        const cleared = !$('check').textContent.includes(name) && !$('sec-advisories').textContent.includes(name);
+        return !!(translated && retained && cleared);
+      } finally { LANG = original; tokens.set(key.id, key); dataStatus = status; renderDataStatus(); render(); }
+    })()`), 'overview and security details update immediately, escape names and preserve critical findings');
   });
 
   await test('expired or unverified MDS explains recovery in all languages', async () => {

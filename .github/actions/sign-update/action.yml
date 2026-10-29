@@ -1,0 +1,33 @@
+name: Sign update checksums
+description: Authenticate the prepared release with the independent update key; publishes nothing.
+inputs:
+  directory:
+    description: Prepared and checked release directory
+    required: true
+  private-key:
+    description: Ed25519 PEM from the protected release-signing environment
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      with:
+        python-version: '3.12'
+    - name: Install hash-pinned signing dependencies
+      shell: bash
+      run: |
+        python tools/update_signing.py requirements > "$RUNNER_TEMP/update-signing-requirements.txt"
+        python -m venv "$RUNNER_TEMP/update-signing-venv"
+        "$RUNNER_TEMP/update-signing-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r "$RUNNER_TEMP/update-signing-requirements.txt"
+    - name: Recheck advisory freshness immediately before publication
+      shell: bash
+      run: '"$RUNNER_TEMP/update-signing-venv/bin/python" tools/advisories_sign.py verify --max-age-days 14'
+    - name: Sign and independently verify the exact release tag and checksums
+      shell: bash
+      env:
+        KEYMELIER_UPDATE_SIGNING_KEY: ${{ inputs.private-key }}
+        RELEASE_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        "$RUNNER_TEMP/update-signing-venv/bin/python" tools/update_signing.py sign "$RELEASE_DIRECTORY" --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"
+        unset KEYMELIER_UPDATE_SIGNING_KEY
+        "$RUNNER_TEMP/update-signing-venv/bin/python" tools/update_signing.py verify "$RELEASE_DIRECTORY" --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"

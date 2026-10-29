@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import tempfile
@@ -5,18 +6,29 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from keymelier_core import app_update
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from keymelier_core import app_update, update_auth, update_revocation
 
 PREFIX = app_update.DOWNLOAD_PREFIX + "v9.9.9/"
-ASSET = {"name": "KeyMelier-macOS.dmg", "url": PREFIX + "KeyMelier-macOS.dmg", "sums": PREFIX + "SHA256SUMS.txt"}
+ASSET = {"name": "KeyMelier-macOS.dmg", "url": PREFIX + "KeyMelier-macOS.dmg", "sums": PREFIX + "SHA256SUMS.txt",
+         "signature": PREFIX + update_auth.SIGNATURE_FILE}
 PAYLOAD = b"disk image bytes" * 1000
+SIGNING_KEY = Ed25519PrivateKey.generate()
 
 
-def fake_get(sums_digest):
+def fake_get(sums_digest, *, signed_tag=None, key=SIGNING_KEY):
     def get(url, **kwargs):
         resp = MagicMock()
         resp.__enter__.return_value = resp
         resp.headers = {}
+        if url == update_revocation.URL:
+            resp.iter_content.return_value = [b'{"version":1,"revoked":[]}']
+            return resp
+        if url.endswith("SHA256SUMS.txt.sig"):
+            sums = f"{sums_digest}  KeyMelier-macOS.dmg\n{'0' * 64}  KeyMelier-Windows-Setup.exe\n".encode()
+            signature = key.sign(update_auth.signing_payload(signed_tag or url.rsplit('/', 2)[1], sums))
+            resp.iter_content.return_value = [base64.b64encode(signature)]
+            return resp
         if url.endswith("SHA256SUMS.txt"):
             resp.text = f"{sums_digest}  KeyMelier-macOS.dmg\n{'0' * 64}  KeyMelier-Windows-Setup.exe\n"
             resp.iter_content.side_effect = lambda **kw: [resp.text.encode()]
@@ -35,6 +47,9 @@ class AppUpdateTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self.tmp.cleanup)
+        key = patch.object(update_auth, 'public_key', return_value=SIGNING_KEY.public_key())
+        key.start()
+        self.addCleanup(key.stop)
 
     def test_verified_download(self):
         with patch("requests.get", side_effect=fake_get(hashlib.sha256(PAYLOAD).hexdigest())):
@@ -57,6 +72,34 @@ class AppUpdateTests(unittest.TestCase):
                 app_update.download(ASSET)
         self.assertEqual(str(e.exception), "checksum")
         self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
+
+    def test_replayed_release_signature_and_wrong_key_rejected_before_binary_download(self):
+        for kwargs in ({'signed_tag': 'v9.9.8'}, {'key': Ed25519PrivateKey.generate()}):
+            with self.subTest(kwargs=tuple(kwargs)), \
+                 patch('requests.get', side_effect=fake_get(hashlib.sha256(PAYLOAD).hexdigest(), **kwargs)) as get:
+                with self.assertRaisesRegex(app_update.UpdateError, '^signature$'):
+                    app_update.download(ASSET)
+                self.assertNotIn(ASSET['url'], [call.args[0] for call in get.call_args_list])
+                self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
+
+    def test_replacing_binary_and_checksum_cannot_bypass_signature(self):
+        original = fake_get(hashlib.sha256(PAYLOAD).hexdigest())
+        def substituted(url, **kwargs):
+            response = original(url, **kwargs)
+            if url.endswith('SHA256SUMS.txt'):
+                response.text = f"{'f' * 64}  KeyMelier-macOS.dmg\n"
+            return response
+        with patch('requests.get', side_effect=substituted) as get:
+            with self.assertRaisesRegex(app_update.UpdateError, '^signature$'):
+                app_update.download(ASSET)
+        self.assertNotIn(ASSET['url'], [call.args[0] for call in get.call_args_list])
+
+    def test_unsigned_or_cross_release_signature_location_rejected(self):
+        for signature in (None, ASSET['signature'].replace('v9.9.9', 'v9.9.8')):
+            with self.subTest(signature=signature), patch('requests.get') as get:
+                with self.assertRaises(app_update.UpdateError):
+                    app_update.download({**ASSET, 'signature': signature})
+                get.assert_not_called()
 
     def test_only_project_release_urls(self):
         for bad in ({**ASSET, "url": "https://evil.example/KeyMelier-macOS.dmg"},
@@ -152,11 +195,12 @@ class CheckTests(unittest.TestCase):
         prefix = app_update.DOWNLOAD_PREFIX + tag + '/'
         return {'tag_name': tag, 'draft': False, 'prerelease': '-rc.' in tag,
                 'assets': [{'name': name, 'browser_download_url': prefix + name}
-                           for name in ('KeyMelier-macOS.dmg', 'SHA256SUMS.txt')], **overrides}
+                           for name in ('KeyMelier-macOS.dmg', 'SHA256SUMS.txt', update_auth.SIGNATURE_FILE)], **overrides}
 
     def check_releases(self, releases, current='1.8.6', include_rc=True, stable=None):
         def get(url, **kwargs):
-            body = releases if url == app_update.RC_RELEASES_API else stable or self.release('v1.8.6')
+            body = ({'version': 1, 'revoked': []} if url == update_revocation.URL else
+                    releases if url == app_update.RC_RELEASES_API else stable or self.release('v1.8.6'))
             return self.response(json.dumps(body).encode())
         with patch('requests.get', side_effect=get) as request, \
              patch.object(app_update, 'current_version', return_value=current), \
@@ -168,7 +212,7 @@ class CheckTests(unittest.TestCase):
         releases = [self.release(tag) for tag in ('v1.8.7-rc.2', 'v1.8.7-rc.10', 'v1.8.7-rc.3')]
         result, request = self.check_releases(releases, include_rc=False)
         self.assertFalse(result['newer'])
-        self.assertEqual([c.args[0] for c in request.call_args_list], [app_update.RELEASES_API])
+        self.assertEqual([c.args[0] for c in request.call_args_list], [update_revocation.URL, app_update.RELEASES_API])
         result, _ = self.check_releases(releases, current='1.8.7-rc.2')
         self.assertEqual(result['latest'], '1.8.7-rc.10')
         self.assertTrue(result['newer'])

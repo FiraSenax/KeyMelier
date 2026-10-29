@@ -168,7 +168,7 @@ class KeyService:
     # ── Scanner callbacks ────────────────────────────────────────────────────
 
     def _on_connect(self, record):
-        logger.info("Token connected: %s", record.product_name)
+        logger.info("Token connected")
         self.history.update_snapshot(record)
         self._log(record, "connected")
         self.emit("token_connected", self._record_dict(record))
@@ -183,7 +183,7 @@ class KeyService:
         self._attestation_logged.discard(record.id)
         self._reader_tokens = {reader: token for reader, token in self._reader_tokens.items()
                                if token != record.id}
-        logger.info("Token disconnected: %s", record.product_name)
+        logger.info("Token disconnected")
         self._log(record, "disconnected")
         self.emit("token_disconnected", {"id": record.id, "product_name": record.product_name})
 
@@ -247,7 +247,8 @@ class KeyService:
                 self._update_path = path
                 self.emit("update_ready", {"name": path.name, "platform": sys.platform})
             except app_update.UpdateError as e:
-                code = "update_checksum" if str(e) == "checksum" else "update_failed"
+                code = {'checksum': 'update_checksum', 'signature': 'update_signature',
+                        'revoked': 'update_revoked', 'revocation_state': 'update_revocation_state'}.get(str(e), 'update_failed')
                 self.emit("update_failed", {"code": code, "error": "The update could not be downloaded and verified."})
             finally:
                 self._update_running = False
@@ -262,7 +263,11 @@ class KeyService:
         path = getattr(self, "_update_path", None)
         if not path or not path.exists():
             raise PinError("The update file is no longer there.", "no_update")
-        app_update.open_download(path)
+        try:
+            app_update.open_download(path)
+        except app_update.UpdateError as error:
+            code = {'revoked': 'update_revoked', 'revocation_state': 'update_revocation_state'}.get(str(error), 'update_failed')
+            raise PinError('The update could not be opened safely.', code) from None
         return {"opened": True}
 
     def check_updates(self) -> dict:

@@ -29,13 +29,13 @@ def modify_pyscard(path):
 
 def modify_qt(path):
     raw = path.read_bytes()
-    old, new = b"6.11.2\0", b"6.11.3\0"
+    old, new = b"6.11.3\0", b"6.11.4\0"
     if old not in raw:
         raise ValueError("Review the Qt replacement probe for this version")
     modified = raw.replace(old, new)
     path.write_bytes(modified)
     return {"file": path.name, "before": hashlib.sha256(raw).hexdigest(),
-            "after": hashlib.sha256(modified).hexdigest(), "expected_qVersion": "6.11.3"}
+            "after": hashlib.sha256(modified).hexdigest(), "expected_qVersion": "6.11.4"}
 
 
 def main():
@@ -56,7 +56,7 @@ def main():
             if not qt.resolve().is_relative_to(copy):
                 raise ValueError("Replacement target escapes the disposable copy")
             modifications.append(modify_qt(qt.resolve()))
-            expected["qt"] = "6.11.3"
+            expected["qt"] = "6.11.4"
         if sys.platform == "darwin":
             subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(copy)], check=True)
             app = copy

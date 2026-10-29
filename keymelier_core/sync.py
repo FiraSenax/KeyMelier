@@ -168,10 +168,7 @@ def unseal(data: bytes, passphrase: str) -> tuple[str, dict]:
 def _unseal(data, derive_key) -> tuple[str, dict]:
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    try:
-        header = json.loads(data)
-    except ValueError:
-        raise SyncError("Damaged sync file.", "sync_damaged") from None
+    header = _json_object(data)
     if not isinstance(header, dict) or header.get("format") != FORMAT or header.get("v") != VERSION \
             or not isinstance(header.get("device"), str) or not re.fullmatch(r"[0-9a-f]{16}", header["device"]):
         raise SyncError("Not a KeyMelier sync file of this version.", "sync_damaged")
@@ -182,10 +179,34 @@ def _unseal(data, derive_key) -> tuple[str, dict]:
         plain = AESGCM(derive_key(salt)).decrypt(nonce, ct, _aad(header))
     except InvalidTag:
         raise SyncError("Wrong passphrase, or the file was changed.", "sync_passphrase") from None
-    payload = json.loads(plain)
-    if not isinstance(payload, dict):
-        raise SyncError("Damaged sync file.", "sync_damaged")
+    payload = _json_object(plain)
     return header["device"], payload
+
+
+def _json_object(data: bytes) -> dict:
+    """Bound both encrypted-file JSON and authenticated plaintext complexity."""
+    if len(data) > MAX_FILE:
+        raise SyncError("Sync file is too large.", "sync_damaged")
+    try:
+        value = json.loads(data)
+        if not isinstance(value, dict):
+            raise ValueError("object required")
+        pending = [iter(value.values())]
+        while pending:
+            if len(pending) > 32:
+                raise ValueError("too deeply nested")
+            try:
+                node = next(pending[-1])
+            except StopIteration:
+                pending.pop()
+                continue
+            if isinstance(node, dict):
+                pending.append(iter(node.values()))
+            elif isinstance(node, list):
+                pending.append(iter(node))
+        return value
+    except (ValueError, RecursionError):
+        raise SyncError("Not a readable sync file.", "sync_damaged") from None
 
 
 # ── The folder ───────────────────────────────────────────────────────────────
@@ -317,7 +338,7 @@ class SyncFolder:
                 data = _read_regular(path)
             except FileInTransit:
                 continue   # not marked as seen: read again next round
-            except PermissionError:
+            except OSError:
                 # still locked after the retries: report this file, read the others
                 errors.append({"file": path.name, "code": "sync_locked"})
                 continue
@@ -332,11 +353,14 @@ class SyncFolder:
             if device != m.group(1):
                 errors.append({"file": path.name, "code": "sync_damaged"})  # renamed/copied file
                 continue
-            self._seen[path.name] = stamp
             found.append({"device": device, "name": str(payload.get("device_name") or "")[:80],
                           "written": str(payload.get("written") or "")[:40],
-                          "history": payload.get("history") if isinstance(payload.get("history"), dict) else {}})
+                          "history": payload.get("history"), "file": path.name, "stamp": stamp})
         return found, errors
+
+    def acknowledge(self, other: dict) -> None:
+        """Only a successful merge consumes a file; failed peers remain retryable."""
+        self._seen[other["file"]] = other["stamp"]
 
 
 # ── Background syncing ───────────────────────────────────────────────────────
@@ -406,20 +430,29 @@ class Syncer:
                     # first run, or someone else wrote our file: keep what is in it
                     kind, code, payload = folder.read_own()
                     if kind == "ok":
-                        changed |= self._history.merge_sync(payload.get("history") or {},
-                                                            keep_contents=self._keep_contents())
-                        writer = payload.get("machine")
-                        if writer and folder.machine and writer != folder.machine:
-                            self._switch_device(folder, "sync_shared_id")
-                    else:
+                        try:
+                            changed |= self._history.merge_sync(payload.get("history"),
+                                                                keep_contents=self._keep_contents())
+                        except (ValueError, TypeError, RecursionError):
+                            kind, code = "error", "sync_damaged"
+                        else:
+                            writer = payload.get("machine")
+                            if writer and folder.machine and writer != folder.machine:
+                                self._switch_device(folder, "sync_shared_id")
+                    if kind != "ok":
                         # never overwrite what we cannot read (incomplete, damaged, other passphrase)
                         logger.warning("Own sync file unreadable (%s)", code)
                         self._switch_device(folder, "sync_own_unreadable")
                 others, problems = folder.read_others(only_new=not full)
                 for other in others:
+                    try:
+                        changed |= self._history.merge_sync(other["history"], keep_contents=self._keep_contents())
+                    except (ValueError, TypeError, RecursionError):
+                        problems.append({"file": other["file"], "code": "sync_damaged"})
+                        continue
+                    folder.acknowledge(other)
                     self.devices[other["device"]] = {"device": other["device"], "name": other["name"],
                                                      "written": other["written"]}
-                    changed |= self._history.merge_sync(other["history"], keep_contents=self._keep_contents())
                 if changed or self._history.revision != self._last_revision or full:
                     folder.write(self._history.sync_state(), force=full)
                     self._last_revision = self._history.revision   # a failed write is retried next round

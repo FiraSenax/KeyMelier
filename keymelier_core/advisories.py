@@ -1,14 +1,21 @@
+import base64
+import hashlib
+import json
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Optional
 
 from keymelier_core.firmware import firmware_from_raw as _firmware_from_raw, parse_firmware_str as _parse_firmware
+from keymelier_core.network import read_limited
+from keymelier_core.storage import atomic_write, stateless
 
 logger = logging.getLogger(__name__)
 
 
 MAX_SOURCE_BYTES = 2_000_000
+CACHE_DIR = Path.home() / ".keymelier" / "managed-advisories"
 SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 
 
@@ -18,17 +25,25 @@ def _read_source(location: str) -> tuple[bytes, str]:
         import requests
 
         def get(url):
-            r = requests.get(url, timeout=15, stream=True)
-            r.raise_for_status()
-            data = r.raw.read(MAX_SOURCE_BYTES + 1, decode_content=True)
-            if len(data) > MAX_SOURCE_BYTES:
-                raise ValueError("too large")
-            return data
+            with requests.get(url, timeout=15, stream=True, allow_redirects=False) as response:
+                if response.status_code != 200:
+                    raise ValueError("source must return HTTP 200 without redirects")
+                return read_limited(response, MAX_SOURCE_BYTES)
         return get(location), get(location + ".sig").decode("ascii")
-    path = Path(location)
-    if path.stat().st_size > MAX_SOURCE_BYTES:
+    return _read_file(Path(location), MAX_SOURCE_BYTES), _read_file(Path(location + ".sig"), 1024).decode("ascii")
+
+
+def _read_file(path: Path, limit: int) -> bytes:
+    with path.open("rb") as file:
+        data = file.read(limit + 1)
+    if len(data) > limit:
         raise ValueError("too large")
-    return path.read_bytes(), Path(location + ".sig").read_text(encoding="ascii")
+    return data
+
+
+def _cache_path(source: dict) -> Path:
+    identity = json.dumps(source, sort_keys=True).encode()
+    return CACHE_DIR / (hashlib.sha256(identity).hexdigest() + ".json")
 
 
 # Company advisories (policy sources) are checked field by field against a
@@ -92,6 +107,8 @@ class AdvisoryChecker:
         from keymelier_core import policy, updates
 
         self._data_path = Path(data_path)
+        self._source_lock = threading.RLock()
+        self._loading_policy = False
         self._advisories: list[dict] = []
         self._official: list[dict] = []
         self.document: Optional[dict] = None
@@ -99,11 +116,26 @@ class AdvisoryChecker:
         # Managed sources (company policy): name -> state; they only ever add findings
         self._sources = policy.advisory_sources() if policy_sources is None else policy_sources
         self._extra: dict[str, dict] = {s["name"]: {"status": "pending", "document": None} for s in self._sources}
+        if not stateless():
+            for src in self._sources:
+                try:
+                    cached = json.loads(_read_file(_cache_path(src), MAX_SOURCE_BYTES * 2))
+                    if not isinstance(cached, dict) or not all(isinstance(cached.get(k), str) for k in ("data", "signature")):
+                        continue
+                    data = base64.b64decode(cached["data"], validate=True)
+                    if len(data) > MAX_SOURCE_BYTES or not updates.verify(data, cached["signature"], src["public_key"]):
+                        continue
+                    document = updates.parse(data)
+                    if updates.has_usable_date(document):
+                        self._extra[src["name"]]["document"] = document
+                except (OSError, ValueError, TypeError, KeyError, RecursionError):
+                    pass
         doc, source = updates.load_best(self._data_path)
         if doc is not None:
             self.use(doc, source)
         else:
             logger.warning("No advisory database available")
+            self._merge()
         if not defer_policy:
             self.load_policy_sources(network=False)
 
@@ -115,6 +147,14 @@ class AdvisoryChecker:
         logger.info("Loaded %d advisories (%s, updated %s)", len(self._official), source, document.get("updated"))
 
     def load_policy_sources(self, network: bool = True) -> bool:
+        with self._source_lock:
+            self._loading_policy = True
+            try:
+                return self._load_policy_sources(network)
+            finally:
+                self._loading_policy = False
+
+    def _load_policy_sources(self, network: bool) -> bool:
         """(Re)load the managed sources; file sources always, URLs only with network.
 
         Returns True if the findings changed. A source that fails keeps its
@@ -138,23 +178,37 @@ class AdvisoryChecker:
                 state["status"] = "invalid"
                 continue
             doc = updates.parse(data)
-            if doc is None:
-                logger.warning("Advisory source %s ignored: malformed", src["name"])
+            if doc is None or not updates.has_usable_date(doc):
+                logger.warning("Advisory source %s ignored: malformed or future review date", src["name"])
                 state["status"] = "invalid"
                 continue
             old = state["document"]
-            state["status"] = "ok"
-            try:
-                if old is not None and updates._updated(doc) <= updates._updated(old):
+            state["status"] = "ok" if updates.is_fresh(doc) else "invalid"
+            if updates.has_usable_date(old):
+                if updates._updated(doc) < updates._updated(old) or (updates._updated(doc) == updates._updated(old) and doc != old):
+                    state["status"] = "invalid"
                     continue
-            except (TypeError, ValueError) as e:
-                logger.warning("Advisory source %s: dates not comparable (%s); keeping the loaded one", src["name"], type(e).__name__)
+            if not stateless():
+                try:
+                    # One atomic envelope keeps the exact signed bytes and signature together.
+                    atomic_write(_cache_path(src), json.dumps({"data": base64.b64encode(data).decode("ascii"),
+                                                              "signature": sig}).encode())
+                except OSError:
+                    state["status"] = "invalid"  # no durable rollback protection
+                    logger.warning("Advisory source %s: verified cache could not be saved", src["name"])
+            if doc == old:
                 continue
             state["document"] = doc
             changed = True
         if changed:
             self._merge()
         return changed
+
+    def policy_is_current(self) -> bool:
+        """Every configured source must have succeeded and still be fresh."""
+        from keymelier_core import updates
+        return not self._loading_policy and all(state["status"] == "ok" and not state.get("dropped") and updates.is_fresh(state["document"])
+                   for state in self._extra.values())
 
     def _merge(self):
         """Official advisories first and unchanged; managed ones only add new ids."""
@@ -164,6 +218,7 @@ class AdvisoryChecker:
             state = self._extra[src["name"]]
             state["count"] = state["dropped"] = 0
             advisories = (state["document"] or {}).get("advisories", [])
+            state["dropped"] = max(0, len(advisories) - MAX_ADVISORIES)
             if len(advisories) > MAX_ADVISORIES:
                 logger.warning("Advisory source %s: only the first %d entries are used", src["name"], MAX_ADVISORIES)
             for adv in advisories[:MAX_ADVISORIES]:

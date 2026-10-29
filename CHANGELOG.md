@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## v1.8.7-rc.9 — 2026-10-29
+
+- Require version tags to match the workflow checkout and a commit already contained in main before production signing or publication; unsigned branch builds remain available. This workflow guard does not separate a human from an agent sharing owner credentials.
+- Explain unreachable company advisory sources directly in the key overview and security details, with VPN/update-check guidance in every supported language; retain all known security findings.
+- Automatically publish reviewed RC tag pushes as public, signed GitHub prereleases after all release checks; retain manual artifact-only rehearsals and the separate stable update channel.
+
+## v1.8.7-rc.8 — 2026-10-29
+
+- Preserve local history timestamps and lost/replacement state when the computer clock was wrong; keep strict validation for imports and sync and prevent preserved future dates from pinning merge decisions.
+- Show a specific, localized error for unreadable update revocation data and preserve all evidence; known revocation markers still take precedence. Document recovery without deleting the emergency stop.
+- Check accidental revocation of the active update key in CI; require an explicit matching emergency acknowledgement while keeping the release signer's unconditional rejection of revoked keys.
+- Document intranet/VPN offline behavior and cover three-digit decimal firmware fallback separately from known vendor encodings.
+- Clarify in every supported language that touching a key for the authenticity test does not unlock it for management; the sidebar lock reflects the separate management unlock.
+
+## v1.8.7-rc.7 — 2026-10-29
+
+Test candidate; the stable release has not been published.
+
+- Require every managed advisory source to be current and valid before showing `OK`; retain signed warnings and rollback protection across restarts and reject source redirects.
+- Isolate damaged sync files, consume peer files only after successful merging, normalize timestamps to UTC and reject future-dated changes/removal marks. Preserve the existing sync format and prevent duplicate legacy events after normalization.
+- Label imported or synced test events by their origin; correct decimal firmware decoding and use the latest effective certification status while retaining compromise warnings.
+- Check advisory expiry during normal device polling, restrict sync-folder setup to native selections or existing configuration, harden browser links and PIN-length display, and omit device names from connection logs.
+- Keep the app usable when encrypted history cannot be opened, preserving the encrypted file and reporting the blocked history without a plaintext fallback.
+
+- Fix the blurry sidebar logo on macOS by using the existing high-resolution PNG instead of the filtered SVG at small display sizes.
+- Bind advisory freshness to its signed review timestamp; replaying old signed data no longer restores a positive security verdict. Reviewed advisory data must be re-signed within 45 days.
+- Reject future-dated official and managed advisory files before caching/comparing dates, and recover from such caches. Require a signed review less than 14 days old for release builds and publication; the daily check flags reviews at 30 days.
+- Review and re-sign the advisory database on 2026-10-29; add CVE-2025-29991 and CVE-2024-35311 with vendor-specific firmware boundaries and verified FIDO model identifiers.
+- Authenticate update checksums with a separate, pinned Ed25519 key and the exact release tag. Automate protected release signing and one-time key setup; require an explicit Open action after downloading.
+- Add a repository emergency stop by public-key fingerprint. Once observed, a revocation persists locally and blocks update downloads and installer opening, including offline. This deny-only mechanism cannot establish trust in a replacement key or defeat a repository attacker withholding the initial notice.
+- Update the Linux PySide/Qt runtime to 6.11.3 with matching source/license evidence and the library replacement probe.
+- When the Windows C++ runtime is missing or too old, offer its official Microsoft download, verify its signature, open Microsoft's installer and resume KeyMelier setup after success. Existing runtimes skip this step; silent installations still require prior provisioning.
+
 ## 1.8.7 — 2026-10-27
 
 Release candidate under test; the stable release has not been published.

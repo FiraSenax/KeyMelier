@@ -1,5 +1,5 @@
 {
-  "_comment": "Only advisories verified against the vendor advisory and the FIDO MDS3 metadata (AAGUID + authenticatorVersion). Last reviewed 2026-09-26.",
+  "_comment": "Advisories checked against vendor publications and signature/CRL-verified FIDO MDS3 sequence 292 (nextUpdate 2026-11-01), including AAGUID and authenticatorVersion. Last reviewed 2026-10-29.",
   "advisories": [
     {
       "id": "CVE-2024-45678",
@@ -49,7 +49,130 @@
       ],
       "firmware_max_exclusive": "5.7.2",
       "firmware_min_inclusive": null
+    },
+    {
+      "id": "CVE-2025-29991",
+      "title": "FIDO PIN/UV Auth Protocol Two signature length (YSA-2025-02)",
+      "note": "Affected keys check only 16 bytes of the Protocol Two authentication code instead of 32. Exploitation is difficult and existing protocol protections remain. Fixed in firmware 5.7.4; maintain physical control of the key and avoid untrusted local software.",
+      "severity": "LOW",
+      "cvss": 2.2,
+      "references": [
+        "https://www.yubico.com/support/security-advisories/ysa-2025-02/"
+      ],
+      "scope": "YubiKey 5 (incl. FIPS/CSPN), Security Key Series: firmware 5.4.1 through 5.7.3",
+      "affected_aaguids": [
+        "0bb43545-fd2c-4185-87dd-feb0b2916ace",
+        "19083c3d-8383-4b18-bc03-8f1c9ab2fd1b",
+        "1ac71f64-468d-4fe0-bef1-0e5f2f551f18",
+        "20ac7a17-c814-4833-93fe-539f0d5e3389",
+        "2772ce93-eb4b-4090-8b73-330f48477d73",
+        "2fc0579f-8113-47ea-b116-bb5a8db9202a",
+        "3124e301-f14e-4e38-876d-fbeeb090e7bf",
+        "34f5766d-1536-4a24-9033-0e294e510fb0",
+        "47ab2fb4-66ac-4184-9ae1-86be814012d5",
+        "5b0e46ba-db02-44ac-b979-ca9b84f5e335",
+        "62e54e98-c209-4df3-b692-de71bb6a8528",
+        "73bb0cd4-e502-49b8-9c6f-b59445bf720b",
+        "760eda36-00aa-4d29-855b-4012a182cdeb",
+        "85203421-48f9-4355-9bc8-8a53846e5083",
+        "9ff4cc65-6154-4fff-ba09-9e2af7882ad2",
+        "a02167b9-ae71-4ac7-9a07-06432ebb6f1c",
+        "a25342c0-3cdc-4414-8e46-f4807fca511c",
+        "a4e9fc6d-4cbe-4758-b8ba-37598bb5bbaa",
+        "b90e7dc1-316e-4fee-a25a-56a666a670fe",
+        "c1f9a0bc-1dd2-404a-b27f-8e29047a43fd",
+        "c5ef55ff-ad9a-4b9f-b580-adebafe026d0",
+        "e77e3c64-05e3-428b-8824-0cbeb04b829d",
+        "ee882879-721c-4913-9775-3dfcce97072a"
+      ],
+      "firmware_max_exclusive": "5.7.4",
+      "firmware_min_inclusive": "5.4.1"
+    },
+    {
+      "id": "CVE-2025-29991",
+      "title": "FIDO PIN/UV Auth Protocol Two signature length (YSA-2025-02)",
+      "note": "Affected keys check only 16 bytes of the Protocol Two authentication code instead of 32. Exploitation is difficult and existing protocol protections remain. Fixed in firmware 5.7.4; maintain physical control of the key and avoid untrusted local software.",
+      "severity": "LOW",
+      "cvss": 2.2,
+      "references": [
+        "https://www.yubico.com/support/security-advisories/ysa-2025-02/"
+      ],
+      "scope": "YubiKey Bio Series: firmware 5.5.0 through 5.7.3",
+      "affected_aaguids": [
+        "7d1351a6-e097-4852-b8bf-c9ac5c9ce4a3",
+        "83c47309-aabb-4108-8470-8be838b573cb",
+        "8c39ee86-7f9a-4a95-9ba3-f6b097e5c2ee",
+        "90636e1f-ef82-43bf-bdcf-5255f139d12f",
+        "97e6a830-c952-4740-95fc-7c78dc97ce47",
+        "d8522d9f-575b-4866-88a9-ba99fa02f35b",
+        "dd86a2da-86a0-4cbe-b462-4bd31f57bc6f"
+      ],
+      "firmware_max_exclusive": "5.7.4",
+      "firmware_min_inclusive": "5.5.0"
+    },
+    {
+      "id": "CVE-2024-35311",
+      "title": "FIDO relying-party enumeration without expected user verification (YSA-2024-02)",
+      "note": "Physical possession of the key or local access to its host can reveal services with discoverable FIDO2 credentials without the expected PIN prompt. Credentials and secret key material are not exposed. Non-discoverable credentials are unaffected; maintain physical control and avoid untrusted local software.",
+      "severity": "LOW",
+      "cvss": 3.3,
+      "references": [
+        "https://www.yubico.com/support/security-advisories/ysa-2024-02/"
+      ],
+      "scope": "YubiKey 5/CSPN and Security Key Series: firmware < 5.7.0",
+      "affected_aaguids": [
+        "0bb43545-fd2c-4185-87dd-feb0b2916ace",
+        "149a2021-8ef6-4133-96b8-81f8d5b7f1f5",
+        "2fc0579f-8113-47ea-b116-bb5a8db9202a",
+        "6d44ba9b-f6ec-2e49-b930-0c8fe920cb73",
+        "a4e9fc6d-4cbe-4758-b8ba-37598bb5bbaa",
+        "b92c3f9a-c014-4056-887f-140a2501163b",
+        "c5ef55ff-ad9a-4b9f-b580-adebafe026d0",
+        "cb69481e-8ff7-4039-93ec-0a2729a154a8",
+        "ee882879-721c-4913-9775-3dfcce97072a",
+        "f8a011f3-8c0a-4d15-8006-17111f9edc7d",
+        "fa2b99dc-9e39-4257-8f92-4a30d23c4118"
+      ],
+      "firmware_max_exclusive": "5.7.0",
+      "firmware_min_inclusive": null
+    },
+    {
+      "id": "CVE-2024-35311",
+      "title": "FIDO relying-party enumeration without expected user verification (YSA-2024-02)",
+      "note": "Physical possession of the key or local access to its host can reveal services with discoverable FIDO2 credentials without the expected PIN prompt. Credentials and secret key material are not exposed. Non-discoverable credentials are unaffected; maintain physical control and avoid untrusted local software.",
+      "severity": "LOW",
+      "cvss": 3.3,
+      "references": [
+        "https://www.yubico.com/support/security-advisories/ysa-2024-02/"
+      ],
+      "scope": "YubiKey 5 FIPS Series: firmware < 5.7.2",
+      "affected_aaguids": [
+        "5b0e46ba-db02-44ac-b979-ca9b84f5e335",
+        "62e54e98-c209-4df3-b692-de71bb6a8528",
+        "73bb0cd4-e502-49b8-9c6f-b59445bf720b",
+        "85203421-48f9-4355-9bc8-8a53846e5083",
+        "c1f9a0bc-1dd2-404a-b27f-8e29047a43fd"
+      ],
+      "firmware_max_exclusive": "5.7.2",
+      "firmware_min_inclusive": null
+    },
+    {
+      "id": "CVE-2024-35311",
+      "title": "FIDO relying-party enumeration without expected user verification (YSA-2024-02)",
+      "note": "Physical possession of the key or local access to its host can reveal services with discoverable FIDO2 credentials without the expected PIN prompt. Credentials and secret key material are not exposed. Non-discoverable credentials are unaffected; maintain physical control and avoid untrusted local software.",
+      "severity": "LOW",
+      "cvss": 3.3,
+      "references": [
+        "https://www.yubico.com/support/security-advisories/ysa-2024-02/"
+      ],
+      "scope": "YubiKey Bio Series: firmware < 5.6.4",
+      "affected_aaguids": [
+        "83c47309-aabb-4108-8470-8be838b573cb",
+        "d8522d9f-575b-4866-88a9-ba99fa02f35b"
+      ],
+      "firmware_max_exclusive": "5.6.4",
+      "firmware_min_inclusive": null
     }
   ],
-  "updated": "2026-09-26T18:09:57+00:00"
+  "updated": "2026-10-29T06:50:57+00:00"
 }

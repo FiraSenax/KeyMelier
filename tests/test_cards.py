@@ -170,7 +170,7 @@ class CardTests(unittest.TestCase):
                              'security_status': 'OK'},
                 'inventory': {'oath': {'items': 'x'}, 'evil': {'items': []}},
                 'lost_done': [{}, 'site'],
-                'events': [{'ts': 't', 'type': 'connected', 'nested': {'a': 1}}],
+                'events': [{'ts': '2026-09-27T00:00:00Z', 'type': 'connected', 'nested': {'a': 1}}],
             }]}
             h.import_(forged)
             snap = h.get(kid)['snapshot']

@@ -182,7 +182,7 @@ class NavigationLockTests(unittest.TestCase):
 class UpdateAssetTests(unittest.TestCase):
     RELEASE = {"tag_name": "v99.0.0", "html_url": "https://github.com/x", "assets": [
         {"name": n, "browser_download_url": app_update.DOWNLOAD_PREFIX + "v99.0.0/" + n}
-        for n in ("KeyMelier-Linux-x86_64.AppImage", "KeyMelier-Linux-aarch64.AppImage", "SHA256SUMS.txt")]}
+        for n in ("KeyMelier-Linux-x86_64.AppImage", "KeyMelier-Linux-aarch64.AppImage", "SHA256SUMS.txt", "SHA256SUMS.txt.sig")]}
 
     def check(self, machine):
         body = json.dumps(self.RELEASE).encode()

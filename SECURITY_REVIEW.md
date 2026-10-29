@@ -1,3 +1,254 @@
+# RC9 preparation — 2026-10-29
+
+The RC9 candidate includes the post-RC8 UI guidance and the main-ancestry gate
+below. Publish it only after this branch has passed the protected PR path into
+`main`; the tag's own workflow must then pass the source gate and the complete
+signed release pipeline. The stable release remains separate.
+
+Development run [40870687807](https://github.com/FiraSenax/KeyMelier/actions/runs/40870687807)
+has passed the 467-test Python suite on Windows, macOS and Linux, all 42 browser
+tests and 20 UI stress tests. These are checks of the unsigned development path,
+not evidence of production signing or a manual Linux hardware test. The public
+RC9 publication run supplies the separate signing and package evidence.
+No open GitHub Code Scanning alerts were returned during RC9 preparation.
+
+# After RC8: automatic RC publication follow-up — 2026-10-29
+
+Review of `fd82d9a` and `6fa3f23` confirmed that automatic publication had no
+main-ancestry gate. Builds still ran their tests, but a new tag on a development
+branch could reach signing and the public RC channel without the main PR path.
+
+A new `release-source` job has only read access and no production environment
+or secrets. It fetches main, checks the exact tag/checkout/workflow commit match,
+and requires that commit to be an ancestor of main. All builds and production
+signing/publication jobs depend on it. Version tags and manually dispatched
+signed builds require the gate; unsigned development builds remain available.
+Missing refs/history, mismatched commits and off-main candidates fail closed.
+Automatic public RCs remain enabled after this gate and the existing checks.
+
+Local validation: 46 release/source/signing/artifact tests passed, including real
+Git histories with annotated and lightweight tags, stale/mismatched refs and a
+branch commit rejected before merge and accepted after merge. Ruff and workflow
+YAML checks passed. No new tag or release was created for this follow-up.
+
+**Authority remains a separate open issue.** The live tag ruleset was read via
+GitHub API: `v*` tags cannot be updated or deleted, but new tag creation is not
+restricted. The local CLI is authenticated as repository owner `FiraSenax` with
+administration rights, so the agent technically can create tags using the same
+identity as the maintainer. An owner-only exception cannot distinguish them.
+The source gate is an accident guard, not a hard boundary against tagging an
+older workflow without the gate or changing the workflow/rules. An enforceable
+human/agent separation needs distinct credentials and restricted tag creation;
+the existing automatic-signing setup was not represented as providing that.
+See [tag authority](RELEASING.md#tag-authority-and-the-limit-of-the-source-check).
+
+# After RC8: stable-candidate follow-up — 2026-10-29
+
+The published `v1.8.7-rc.8` remains commit `3ec722f`. The following UI change
+is on the development branch and requires a new build before distribution.
+
+- The live GitHub `Protect main` ruleset initially blocked only deletion and
+  force-push. It now also requires a pull request and the current
+  `test (ubuntu-24.04)` check from GitHub Actions (integration 15368), with the
+  branch up to date and no bypass actors. No second-person approval is required.
+  The effective rules for `main` were read back through the GitHub API.
+- The RC branch still needs to be merged into `main` before stable: the existing
+  `main` workflow does not yet contain the emergency-stop check. Once merged,
+  the required Linux job runs it before subsequent changes can reach `main`.
+  These rules guard against accidents; a repository administrator can still
+  alter the workflow or rules and they do not establish independent signing.
+- Unreachable company sources are explained in the key overview and security
+  details in all eleven languages, including VPN/update-check guidance. The
+  hint updates when source results arrive or recover, escapes source names,
+  and preserves known critical findings. VPN loss itself is not detected.
+- This UI follow-up passed all 42 browser tests, the targeted UI security
+  checks, JavaScript syntax checks and `git diff --check`. Backend policy and
+  assessment rules are unchanged.
+
+RC8's exact commit was built and tested in publication run
+[40857341399](https://github.com/FiraSenax/KeyMelier/actions/runs/40857341399):
+the 457-test Python suite, 41 UI tests, 20 stress tests, all platform builds,
+signing/notarization, packaged start checks, eleven Linux compatibility jobs
+and release validation passed. Public update signatures, all 22 artifact
+metadata checksums, the downloaded Windows installer's hash and RC7-to-RC8
+update detection were verified separately. Platform-specific skips apply;
+these checks do not substitute for a manual Linux hardware test, which remains
+open. Windows 11 including Bio unlock has been confirmed by the maintainer.
+The previously accepted signing limits and deferred minor-release hardening
+items below remain unchanged.
+
+# RC8: RC7 external review follow-up — 2026-10-29
+
+Base: `95247da` (`v1.8.7-rc.7`). Small compatibility and recovery corrections;
+the previously accepted automatic-signing setup and open hardening work remain.
+
+| Review item | Disposition |
+|---|---|
+| N1 — offline managed source | Keep the strict existing rule. ENTERPRISE.md now explicitly describes VPN loss: verified cached warnings survive, but an unreachable configured source cannot authorize `OK`. |
+| N2 — unreadable revocation cache | Specific `update_revocation_state` error through check/download/open and all UI languages. Evidence stays intact; a known current-key marker still reports revocation. Recovery documented; no unsafe automatic reconstruction from incomplete evidence. |
+| N3 — accidental repository stop | CI rejects the active fingerprint unless the document contains a matching explicit emergency acknowledgement and reason. Release signing still refuses the key. Prevention requires checks before merge; neither this guard nor the unsigned list protects against repository takeover. |
+| N4 — three-digit firmware fallback | Regression coverage for 503 → 0.5.3 and known packed-byte vendors. No further decoding change or claim of physical-device validation. |
+| N5 — local history normalization | Preserve local malformed/future timestamps and lost/replacement state across load, unrelated saves and empty sync. Normalize valid instants to UTC; compare strictly validated dates during merge so preserved future values cannot pin decisions. Incoming future timestamps and tombstones remain rejected. |
+
+RC7 evidence was completed after the previous review text: publication run
+[40844729678](https://github.com/FiraSenax/KeyMelier/actions/runs/40844729678)
+passed all platform builds, signing/notarization, packaged smoke tests, Linux
+compatibility checks and release rehearsal. The maintainer reported successful
+Windows 11 use, including Bio-key unlock. This does not establish a manual
+Linux hardware test or exhaustive destructive-device-operation validation.
+
+RC8 local validation: 457 Python tests, no failures and two platform skips;
+41 browser UI tests and 20 UI stress tests passed, including the new localized
+revocation-error path.
+Ruff, UI security/account/website checks, locked dependency exports, license
+inputs and the 14-day advisory-signature gate passed. The UI test driver now
+lets Chromium derive native keyboard codes instead of supplying Windows codes
+as macOS native codes; the latter caused reproducible local Enter-key timeouts.
+
+# RC7: RC4 external review follow-up on RC6 — 2026-10-29
+
+Base: `7b47f14` (`v1.8.7-rc.6`). This follow-up is included in the
+`v1.8.7-rc.7` candidate; the existing RC6 installers do not contain it. Findings were checked
+against the implementation rather than accepted solely from the review.
+
+| Review item | Current disposition |
+|---|---|
+| M1 — managed advisory fail-open | Fixed: all configured sources must be successful, complete and fresh before `OK`. Signed source caches preserve warnings and rollback floors across restart; redirects are rejected. Deferred loading remains asynchronous to avoid blocking startup on UNC/network paths, with `UNKNOWN` until completion. |
+| M2 — poison sync files | Fixed: outer and authenticated inner JSON have byte/depth limits and parse errors become `sync_damaged`. Per-peer merge failures are isolated; a file is marked consumed only after a successful merge. A malformed own file is preserved and gets the existing device-ID recovery treatment. |
+| M3 — future timestamps/removal marks | Fixed: merge times are validated and normalized to UTC, future values beyond one day are ignored, removal marks are bounded and previously stored future marks are cleaned on load/merge. Shared-passphrase authority and recovery are documented in SECURITY.md. |
+| M4 — bundled advisory expiry | Already fixed in RC6: reviewed 29 October, 14-day release gate, 45-day client freshness. |
+| M5 — signer and publishing in GitHub | Accepted deployment constraint: automatic builds/signing remain enabled as requested. Passkey login does not separate the signer from an account/CI compromise. |
+| M6 — key revocation/rotation/backup | Partly addressed in RC6 by the sticky fingerprint emergency stop and manual recovery procedure. No independently authenticated automatic replacement-key protocol; owner-only PEM backup remains unencrypted. |
+| M7 — imported attestation/test events | Fixed for new imports/sync: backend forces origin markers and timeline labels them in the existing UI languages. Local events retain their local presentation; no security verdict is imported. Origin cannot be reconstructed reliably for previously merged unmarked events. |
+| L1 — positive assessment expiry / slow responses | Expiry fixed: polling and token reads also check advisory freshness and policy completeness. A hard total transfer deadline against trickling HTTP bodies remains open; current limits cover body size and per-read timeout. |
+| L2 — four-digit decimal firmware | Fixed: 1203 decodes to 0.12.3, with a regression test. |
+| L3 — obsolete certification wins | Fixed: certification follows effective date, ties prefer the less reassuring status, and compromise/bypass reports retain priority. Unknown/malformed status data cannot authorize `OK`. |
+| L4 — MDS signer pin | Existing pinned GlobalSign R3 path validation, leaf-name check, JWT signature and issuer-signed CRLs verified in code. A separate leaf SPKI pin with its rotation path remains an optional strengthening, not implemented here. |
+| L5 — native confirmations for destructive bridge actions | Open hardening: HTML confirmation/bridge arguments are not an independent native consent boundary against compromised renderer code. |
+| L6 — navigation guard | Open: the current loaded-event guard is too late for a hard navigation boundary and permits data URLs. Needs native pre-navigation handling and tests on each supported backend. |
+| L7 — URL parser ambiguity | Fixed: reject backslashes, control/whitespace characters, userinfo and invalid authorities before the existing host/exact-link allowlist. Valid custom HTTPS ports for managed links remain supported. |
+| L8 — arbitrary JS-selected sync paths | Fixed at the exposed API: sync setup accepts the private native-dialog selection or existing stored configuration only. Deliberately selected NAS/UNC shares still work. |
+| L9 — clipboard secret handling | Open: platform concealed-content markers and conditional auto-clear are not added in this change. |
+| L10 — many distinct sync salts | Open: per-file parse/merge isolation is fixed, but per-round KDF budgets, fair batching and failed-file caching need a separate change. The existing session key cache is not a per-round work limit. |
+| L11 — future advisory cache | Already fixed in RC6. |
+| L12 — VC++ signer CN | Existing Windows Authenticode `Valid` check also validates trust; not merely a CN string comparison. Issuer-name pin remains intentionally absent. |
+| L13 — locked encrypted history | Fixed: startup reports a blocked history, disables persistence/sync for it and preserves the encrypted file; no plaintext fallback. |
+| I1 — broad PIN token permissions | Open hardening: narrower on-demand permissions require separate authenticator/UX compatibility testing. |
+| I2 — minimum PIN length attribute | Fixed: bounded integer capability values and numeric UI construction; invalid device values disable that setting. |
+| I3 — apostrophe escaping | Fixed in the shared HTML escaping helper. |
+| I4 — device names in logs | Removed names from connect/disconnect log lines; the device label remains in the UI. |
+
+The certification interpretation was cross-checked against the primary
+[FIDO MDS 3.1 StatusReport definition](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1-ps-20250521.html#statusreport-dictionary).
+This is not a blanket stable-release approval: the open hardening items above,
+hardware reset/CTAP behavior, native Windows/Linux UI handling and the residual
+shared-account signing risk remain distinct from the tested fixes. Large module
+splits and broad C901 cleanup were deliberately kept outside these corrections.
+
+Validation: the full local suite completed 445 tests with no failures and two
+platform skips, including 20 new review regressions and the existing upgrade
+fixtures. Ruff, UI security/account/website checks, JavaScript syntax checks,
+dependency export verification and `git diff --check` passed. Legacy event
+timestamps are compared by their normalized instant to avoid duplicate events
+after sync. The `v1.8.7-rc.7` tag starts the signed artifact-only candidate build;
+native Windows/Linux validation and the complete rehearsal are required before
+shipping it. A tag build does not publish a GitHub Release.
+
+# Update security follow-up — 2026-10-29
+
+Follow-up review for RC5:
+
+- The bundled review dated 2026-09-26 would cease supporting `OK` on
+  2026-11-10 at 18:09:57 UTC. Reviewed and re-signed on 2026-10-29; release builds
+  and publication now enforce a review younger than 14 days, with a 30-day daily
+  warning gate. Offline copies still expire after 45 days by design.
+- Future-dated documents are rejected before selection/cache writes and cannot
+  act as an anti-rollback high-water mark. Official and managed sources recover
+  from a previously loaded future document while retaining normal rollback checks.
+- Update signing stays automatic in the existing GitHub environment, as requested.
+  A passkey-secured login is not an independent artifact-signing approval. The
+  owner-only private PEM backup remains unencrypted; account compromise and
+  same-user workstation malware remain material limits.
+- A best-effort, deny-only public-key-fingerprint list adds an emergency stop.
+  Observed revocations persist locally, block downloads and installer opening,
+  and cannot be undone by deleting the remote entry. It cannot protect a client
+  before first observation if the repository is compromised, or authorize a new
+  key. See [the recovery procedure](RELEASING.md#repository-emergency-stop).
+- The VC++ helper already requires Authenticode status `Valid` as well as the
+  exact Microsoft publisher name, product and version. The CN check is not its
+  only signature check. No issuer-name pin was added: this remains dependent on
+  Windows Authenticode trust rather than a separately pinned Microsoft CA.
+- Complexity is quality debt, not evidence of an exploitable vulnerability:
+  Ruff C901 identifies 24 core functions and 12 tooling functions above 10 on
+  the RC4 tree. No broad security-sensitive refactor or bulk suppression is
+  included in this release; existing E9/F correctness checks remain required.
+
+Advisory content review: the 34-day NVD/vendor-keyword and signature/CRL-verified
+FIDO MDS scan returned no new findings since 2026-09-25. A separate review of
+[Yubico's advisory index](https://www.yubico.com/support/security-advisories/)
+identified two historical omissions:
+[CVE-2025-29991](https://www.yubico.com/support/security-advisories/ysa-2025-02/)
+(PIN/UV Protocol Two, fixed in 5.7.4) and
+[CVE-2024-35311](https://www.yubico.com/support/security-advisories/ysa-2024-02/)
+(RP enumeration; separate ordinary/FIPS/Bio fixed versions). Added five entries
+with affected model AAGUIDs checked against verified MDS sequence 292,
+`nextUpdate=2026-11-01`, and vendor firmware boundaries; three boundary tests
+cover affected, fixed and unrelated models. The existing
+[EUCLEAK entries](https://www.yubico.com/support/security-advisories/ysa-2024-03/)
+were retained. YSA-2026-01 affects host software, already covered by the locked
+fido2 2.2.1 and yubikey-manager 5.9.2; YSA-2026-02 affects Java server software,
+not authenticator hardware. The watch query alone is not treated as a complete
+historical coverage audit.
+
+RC5 local validation: 425 Python tests completed successfully (two platform
+skips); Ruff, UI security/account/website checks, JavaScript syntax, workflow
+YAML parsing, dependency export and license-input checks passed. Native CI
+builds and installer tests are tracked by the RC5 tag run.
+RC5's Windows run exposed two tests whose broad process mock intercepted the
+real Windows ACL setup (`whoami`/`icacls`). RC6 narrows those mocks to the installer
+launcher; application behavior is unchanged from RC5.
+
+RC4 changes (retained in RC5):
+
+- Advisory freshness previously trusted recent retrieval of any validly signed
+  document, including rejected older copies. Replaying an old signed document
+  could restore `OK` with a stale database. Freshness now depends solely on the
+  signed review date (45 days); tests cover older/equal replays, newer-but-stale
+  data, signature tampering and the scanner verdict. Existing warnings remain
+  available when the database expires. Maintainers must review and re-sign it
+  within 45 days even if entries do not change.
+- A release host compromise could replace both the update binary and its unsigned
+  checksum; download completion also opened the installer automatically. A
+  separate Ed25519 key now authenticates the checksum bytes and exact release
+  tag before binary download. Tests reject altered checksums, foreign keys and
+  cross-release replay. Opening is a separate user action. The protected stable
+  and RC publication jobs sign and verify checked artifacts. See
+  [the key setup and compatibility procedure](RELEASING.md#independent-update-signatures).
+- Linux PySide/Qt moves to 6.11.3 with coupled dependency and source evidence.
+  The upstream HTTP/2 advisory motivated the patch; exploitability through
+  KeyMelier's current network paths has not been established.
+- Windows Setup offers prerequisite installation only when the checked x64
+  runtime files are missing or below the minimum. Its helper requires valid
+  Microsoft Authenticode, the x64 VC++ product and the minimum version, holds
+  the downloaded file against replacement while starting it, and uses Microsoft's
+  interactive installer. Cancellation/failure prevents app-file replacement;
+  reboot requirements are propagated. Silent deployments retain their previous
+  no-download behavior.
+
+Local validation: 407 Python tests passed (two platform-specific skips), UI
+security/account/website checks, PowerShell prerequisite safety tests with mocked
+execution, Ruff, lock exports, license/source checks and strict macOS build
+environment SBOM validation passed. The signing dependency bootstrap was also
+installed in an isolated environment using the locked wheel hashes. The update
+secret is provisioned in the tag-restricted `release-signing` environment; the
+public key is included in this working tree. No release has been published.
+
+These changes do not revoke already released clients or retroactively add
+signature enforcement to them. A compromised signing key, a compromised trusted
+build/review process, local administrator control and release withholding are
+outside the new updater guarantee. Native Windows installation and Linux Qt
+packaging still require their platform checks before release.
+
 # Refactoring and security verification — 2026-10-26
 
 The core package and PyInstaller spec now use the KeyMelier name throughout

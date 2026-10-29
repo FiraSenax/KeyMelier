@@ -1,7 +1,8 @@
 """Use Microsoft's system runtimes; do not redistribute VC/UCRT/API DLLs.
 
-The Windows installer checks for the x64 Visual C++ runtime and directs users
-to Microsoft's own installer when it is missing. Windows 10/11 supply UCRT.
+The Windows installer checks for the x64 Visual C++ runtime and offers to
+download and run Microsoft's verified installer when it is missing, with user
+consent and Microsoft's normal UI. Windows 10/11 supply UCRT.
 This filter applies to every destination, including nested wheel directories.
 """
 import re

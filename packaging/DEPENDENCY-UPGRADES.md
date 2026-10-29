@@ -65,3 +65,22 @@ reviewed policy entry. The parent license expression and individual vendor terms
 remain unchanged; only the reviewed Setuptools version is advanced. Upstream
 changes are documented in the source archive's `NEWS.rst` and
 [release notes](https://github.com/pypa/setuptools/releases/tag/v84.2.1).
+
+## PySide/Qt 6.11.3 review (2026-10-29)
+
+The Linux runtime advances from 6.11.2 to the 6.11.3 patch release. Qt documents
+the QNetworkAccessManager HTTP/2 fix in
+[CVE-2026-95620](https://www.qt.io/blog/security-advisory-cve-2026-95620).
+This is dependency maintenance; no reachable exploit in KeyMelier was established.
+The four PySide/Shiboken pins, wheel hashes, exported requirements, eight Qt
+module source pins and version-specific library replacement probe are updated
+together. No unrelated dependency versions are changed.
+
+Source archive sizes and SHA-256 values come from each official Qt Metalink.
+Both PySide source archives were downloaded and checked against their pinned
+hashes. All 15 LICENSE/COPYING files, including the LGPL/GPL grants and the
+PySide/Shiboken notices, are byte-identical between 6.11.2 and 6.11.3. The
+reviewed license expressions therefore remain unchanged. New PySide source:
+`050819cb05e14d6689f42b56e4fa9c8ff63be2bb339e0c094c45b990b7cabde1`.
+Linux packaging must still download/hash-check the matching module archives
+and run the existing startup/replacement checks on both architectures.

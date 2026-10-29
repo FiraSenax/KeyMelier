@@ -14,7 +14,8 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from itertools import islice
 from pathlib import Path
 from keymelier_core.storage import atomic_write, history_cipher, retry_sharing, set_aside, stateless
 
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 HISTORY_FILE = Path.home() / "keymelier" / "history.json"
 MAX_EVENTS = 200
 FORGET_KEEP_DAYS = 400   # how long "this key was removed" is remembered for sync
+MAX_FORGOTTEN = 5000
+CLOCK_SKEW = timedelta(days=1)
 
 # Fields that describe the physical connection, not the key
 _VOLATILE = {"id", "path", "first_seen"}
@@ -33,7 +36,7 @@ _VOLATILE |= _MDS_FIELDS
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def key_id(record) -> str:
@@ -68,10 +71,10 @@ class History:
                 raw = self._cipher.decrypt(raw)
             data = json.loads(raw)
             self._entries = {e["key_id"]: e for e in data.get("keys", [])}
-            self._forgotten = {k: v for k, v in (data.get("forgotten") or {}).items()
-                               if isinstance(k, str) and isinstance(v, str)}
+            self._forgotten = _clean_forgotten(data.get("forgotten"))
             removed_metadata = False
             for entry in self._entries.values():
+                _normalize_times(entry, local=True)
                 snap = entry.get("snapshot", {})
                 for field in _MDS_FIELDS:
                     if field in snap:
@@ -90,8 +93,12 @@ class History:
             pass
         except Exception as e:
             if self._encrypted:
+                self._entries, self._forgotten = {}, {}
+                self._read_blocked = True
                 self.enabled = False
-                raise RuntimeError("Encrypted history could not be opened; existing file preserved") from e
+                self.load_problem = {"code": "history_locked", "file": self._path.name}
+                logger.warning("Encrypted history not readable (%s); existing file preserved", type(e).__name__)
+                return
             self._entries, self._forgotten = {}, {}
             kept = None
             if not isinstance(e, OSError):
@@ -346,7 +353,7 @@ class History:
     def list(self) -> list[dict]:
         with self._lock:
             items = [self._summary(e) for e in self._entries.values()]
-        return sorted(items, key=lambda e: e["last_seen"], reverse=True)
+        return sorted(items, key=lambda e: _clean_stamp(e.get("last_seen")), reverse=True)
 
     def get(self, kid: str) -> dict | None:
         with self._lock:
@@ -420,18 +427,23 @@ class History:
         newest change (label, lost, replacement, websites, contents); a key
         removed there is removed here unless it was seen here afterwards.
         Security verdicts are never taken over. Returns True if anything changed."""
-        if not isinstance(state, dict):
-            return False
+        if not isinstance(state, dict) or not isinstance(state.get("forgotten", {}), dict) \
+                or not isinstance(state.get("keys", []), list):
+            raise ValueError("invalid sync history")
+        # Validate before changing any local state. Bound tombstones as well as keys.
+        forgotten = _clean_forgotten(state.get("forgotten"))
+        incoming = [entry for raw in state.get("keys", [])[:500]
+                    if (entry := _clean_entry(raw, source="sync")) is not None]
         cutoff = datetime.now(timezone.utc).timestamp() - FORGET_KEEP_DAYS * 86400
         with self._lock:
             before = json.dumps([self._entries, self._forgotten], sort_keys=True)
-            for kid, when in (state.get("forgotten") or {}).items():
-                if isinstance(kid, str) and _ID.match(kid) and isinstance(when, str) and when > self._forgotten.get(kid, ""):
-                    self._forgotten[kid] = when[:40]
-            for raw in (state.get("keys") or [])[:500] if isinstance(state.get("keys"), list) else []:
-                entry = _clean_entry(raw, source="sync")
-                if entry is None:
-                    continue
+            self._forgotten = _clean_forgotten(self._forgotten)
+            for current in self._entries.values():
+                _normalize_times(current, local=True)
+            for kid, when in forgotten.items():
+                if when > self._forgotten.get(kid, ""):
+                    self._forgotten[kid] = when
+            for entry in incoming:
                 if not keep_contents:
                     _clear_contents(entry)
                 current = self._entries.get(entry["key_id"])
@@ -443,12 +455,17 @@ class History:
                     self._entries[entry["key_id"]] = candidate
             for kid, when in list(self._forgotten.items()):
                 entry = self._entries.get(kid)
-                if entry is not None and _last_change(entry) <= when:
+                last_change = _last_change(entry) if entry is not None else ""
+                # An unknown local chronology is not evidence that a remote
+                # deletion happened later. Preserve the user's entry.
+                if entry is not None and last_change and last_change <= when:
                     del self._entries[kid]
                 elif entry is not None:
                     del self._forgotten[kid]   # seen again after it was removed
                 elif _ts(when) < cutoff:
                     del self._forgotten[kid]
+            self._forgotten = dict(sorted(self._forgotten.items(), key=lambda item: (item[1], item[0]),
+                                          reverse=True)[:MAX_FORGOTTEN])
             changed = json.dumps([self._entries, self._forgotten], sort_keys=True) != before
             if changed:
                 self._save()
@@ -460,6 +477,9 @@ class History:
             if removed:
                 if self.track_forgotten:
                     self._forgotten[kid] = _now()
+                    if len(self._forgotten) > MAX_FORGOTTEN:
+                        self._forgotten = dict(sorted(self._forgotten.items(), key=lambda item: (item[1], item[0]),
+                                                      reverse=True)[:MAX_FORGOTTEN])
                 # no trace left: drop replacements that pointed to this key
                 for entry in self._entries.values():
                     if (entry.get("replace") or {}).get("new") == kid:
@@ -471,6 +491,53 @@ class History:
 # ── Import helpers ───────────────────────────────────────────────────────────
 
 _ID = __import__("re").compile(r"^[0-9a-f]{16}$")
+_TIME = __import__("re").compile(r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?")
+
+
+def _clean_stamp(value, *, allow_future: bool = False) -> str:
+    """Legacy naive times mean UTC; incoming times cannot pin state in the future."""
+    if not isinstance(value, str) or len(value) > 40 or not _TIME.fullmatch(value):
+        return ""
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp.astimezone(timezone.utc)
+        if not allow_future and stamp > datetime.now(timezone.utc) + CLOCK_SKEW:
+            return ""
+        return stamp.isoformat(timespec="microseconds")
+    except (ValueError, OverflowError):
+        return ""
+
+
+def _clean_forgotten(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    return {kid: stamp for kid, when in islice(value.items(), MAX_FORGOTTEN)
+            if isinstance(kid, str) and _ID.fullmatch(kid) and (stamp := _clean_stamp(when))}
+
+
+def _normalize_times(entry: dict, *, local: bool = False) -> None:
+    """Keep local clock mistakes as user data; filter untrusted incoming dates.
+
+    Merge ordering still uses _clean_stamp's strict default, so preserved
+    future values cannot prevent a subsequent, valid change from winning.
+    """
+    for field in ("first_seen", "last_seen", "sites_updated", "lost_since", "label_at", "lost_at", "replace_at"):
+        stamp = _clean_stamp(entry.get(field), allow_future=local)
+        if stamp:
+            entry[field] = stamp
+        elif not local:
+            entry.pop(field, None)
+    for field in ("first_seen", "last_seen"):
+        entry.setdefault(field, "1970-01-01T00:00:00.000000+00:00")
+    groups = [(entry.get("replace"), "since")]
+    groups += [(site, "checked") for site in entry.get("sites", [])]
+    groups += [(item, "updated") for item in entry.get("inventory", {}).values()]
+    groups += [(item, "checked") for item in entry.get("probe_rp", {}).values()]
+    for item, field in groups:
+        if isinstance(item, dict):
+            stamp = _clean_stamp(item.get(field), allow_future=local)
+            if stamp or not local:
+                item[field] = stamp
 
 
 # Snapshot fields an import may carry: descriptive only. Security verdicts
@@ -506,7 +573,7 @@ def _last_change(entry: dict) -> str:
     stamps = [entry.get("last_seen", ""), entry.get("label_at", ""), entry.get("lost_at", ""),
               entry.get("replace_at", ""), entry.get("sites_updated", "")]
     stamps += [str(v.get("updated", "")) for v in (entry.get("inventory") or {}).values() if isinstance(v, dict)]
-    return max(s for s in stamps if isinstance(s, str))
+    return max(_clean_stamp(s) for s in stamps)
 
 
 _PROBE_STATUS = ("found", "none", "unsupported", "uv_required", "error")
@@ -534,10 +601,13 @@ def _clean_snapshot(raw) -> dict:
     return snap
 
 
-def _clean_event(e) -> dict | None:
+def _clean_event(e, source: str = "import") -> dict | None:
     if not isinstance(e, dict) or not isinstance(e.get("type"), str) or not isinstance(e.get("ts"), str):
         return None
-    out = {"ts": _text(e["ts"], 40), "type": _text(e["type"], 40)}
+    stamp = _clean_stamp(e["ts"])
+    if not stamp:
+        return None
+    out = {"ts": stamp, "type": _text(e["type"], 40)}
     for k, v in e.items():
         if k in out or not isinstance(k, str) or len(k) > 20 or len(out) > 12:
             continue
@@ -545,6 +615,9 @@ def _clean_event(e) -> dict | None:
             out[k] = v[:200]
         elif isinstance(v, (int, float, bool)) or v is None:
             out[k] = v
+    # A transported historical claim is never a locally performed test.
+    if out["type"] in {"attestation", "attestation_skipped", "function_test"}:
+        out["source"] = source
     return out
 
 
@@ -563,7 +636,7 @@ def _clean_entry(raw, source: str = "import") -> dict | None:
     """Validate an imported entry; keep only known fields of the right type."""
     if not isinstance(raw, dict) or not isinstance(raw.get("key_id"), str) or not _ID.match(raw["key_id"]):
         return None
-    events = [e for e in map(_clean_event, raw.get("events") or [] if isinstance(raw.get("events"), list) else [])
+    events = [e for e in (_clean_event(event, source) for event in (raw.get("events") or [] if isinstance(raw.get("events"), list) else []))
               if e][-MAX_EVENTS:]
     entry = {
         "key_id": raw["key_id"],
@@ -608,12 +681,15 @@ def _clean_entry(raw, source: str = "import") -> dict | None:
                                         **({"partial": True} if v.get("partial") is True else {})}
                              for rp, v in list(raw["probe_rp"].items())[:1000]
                              if isinstance(rp, str) and rp and isinstance(v, dict) and v.get("status") in _PROBE_STATUS}
+    _normalize_times(entry)
     return entry
 
 
 def _merge_entry(current: dict, other: dict) -> None:
-    current["first_seen"] = min(current.get("first_seen", other["first_seen"]), other["first_seen"])
-    if other["last_seen"] > current.get("last_seen", ""):
+    first = _clean_stamp(current.get("first_seen"), allow_future=True)
+    if (first and other["first_seen"] < first) or "first_seen" not in current:
+        current["first_seen"] = other["first_seen"]
+    if other["last_seen"] > _clean_stamp(current.get("last_seen")):
         current["last_seen"] = other["last_seen"]
         if other.get("snapshot"):
             # only fill descriptive gaps; never take verdicts from an import
@@ -623,14 +699,16 @@ def _merge_entry(current: dict, other: dict) -> None:
             current["snapshot"] = {**filled, **current.get("snapshot", {})}
     current["connect_count"] = max(current.get("connect_count", 0), other.get("connect_count", 0))
     if other.get("label_at") or current.get("label_at"):
-        if other.get("label_at", "") > current.get("label_at", ""):
+        if other.get("label_at", "") > _clean_stamp(current.get("label_at")):
             current["label"], current["label_at"] = other.get("label", ""), other["label_at"]
     elif not current.get("label") and other.get("label"):
         current["label"] = other["label"]
-    seen = {(e.get("ts"), e.get("type")) for e in current.get("events", [])}
+    # Older local histories may use date-only or non-UTC spellings of the same
+    # instant. Normalization during import must not duplicate those events.
+    seen = {(_clean_stamp(e.get("ts")) or e.get("ts"), e.get("type")) for e in current.get("events", [])}
     events = current.get("events", []) + [e for e in other["events"] if (e["ts"], e["type"]) not in seen]
     current["events"] = sorted(events, key=lambda e: e.get("ts", ""))[-MAX_EVENTS:]
-    if other.get("sites") is not None and other.get("sites_updated", "") > current.get("sites_updated", ""):
+    if other.get("sites") is not None and other.get("sites_updated", "") > _clean_stamp(current.get("sites_updated")):
         current["sites"], current["sites_updated"] = other["sites"], other["sites_updated"]
         # coverage belongs to the site list it describes
         for field in ("sites_probed", "probe_rp", "probe"):
@@ -642,11 +720,11 @@ def _merge_entry(current: dict, other: dict) -> None:
         mine = current.setdefault("inventory", {}).get(section)
         if not isinstance(mine, dict):
             mine = None
-        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > str(mine.get("updated", ""))):
+        if isinstance(inv, dict) and (not mine or inv.get("updated", "") > _clean_stamp(mine.get("updated"))):
             current["inventory"][section] = inv
     if other.get("lost_at") or current.get("lost_at"):
         # the newest decision wins – also "no longer lost"
-        if other.get("lost_at", "") > current.get("lost_at", ""):
+        if other.get("lost_at", "") > _clean_stamp(current.get("lost_at")):
             for field in ("lost_since", "lost_done"):
                 if field in other:
                     current[field] = other[field]
@@ -659,7 +737,7 @@ def _merge_entry(current: dict, other: dict) -> None:
         if other.get("lost_done"):
             mine = [x for x in current.get("lost_done", []) if isinstance(x, str)]
             current["lost_done"] = sorted(set(mine) | set(other["lost_done"]))
-    if other.get("replace_at", "") > current.get("replace_at", ""):
+    if other.get("replace_at", "") > _clean_stamp(current.get("replace_at")):
         if "replace" in other:
             current["replace"] = other["replace"]
         else:

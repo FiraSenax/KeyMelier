@@ -42,8 +42,8 @@ class WheelEvidenceTests(unittest.TestCase):
             exec(path.read_text(), namespace)
             self.assertEqual(namespace["__keymelier_replacement_probe__"], PROBE)
             self.assertNotEqual(proof["before"], proof["after"])
-            path.write_bytes(b"prefix\0" + b"6.11.2\0" + b"suffix")
+            path.write_bytes(b"prefix\0" + b"6.11.3\0" + b"suffix")
             modify_qt(path)
-            self.assertEqual(path.read_bytes(), b"prefix\0" + b"6.11.3\0" + b"suffix")
+            self.assertEqual(path.read_bytes(), b"prefix\0" + b"6.11.4\0" + b"suffix")
             with self.assertRaisesRegex(ValueError, "Review"):
                 modify_qt(path)

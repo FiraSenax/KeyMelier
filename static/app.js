@@ -61,7 +61,8 @@ function escHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function showToast(message, type = 'info') {
@@ -401,11 +402,19 @@ function tileHtml({ cls, iconName, label, value, sub, tab, view, primary }) {
 
 // ── Security check ──────────────────────────────────────────────────────────
 
+function policySourceWarning(token) {
+  if (token.offline) return '';
+  const names = (dataStatus?.advisories?.policy || [])
+    .filter(source => source.status === 'unreachable').map(source => source.name);
+  return names.length ? t('chk.policyUnreachable', { names: names.join(', ') }) : '';
+}
+
 // Recommendations for a key, most important first. level: crit | warn | info | ok
 function securityChecks(token) {
   const o = token.options || {};
   const checks = [];
   const add = (level, key, vars = {}, tab = null, group = 'device') => checks.push({ level, text: t(key, vars), tab, group });
+  const policyWarning = policySourceWarning(token);
 
   const revoked = ['REVOKED', 'ATTESTATION_KEY_COMPROMISE', 'USER_KEY_REMOTE_COMPROMISE', 'USER_KEY_PHYSICAL_COMPROMISE'];
   if (revoked.includes(token.mds_status)) add('crit', 'chk.mdsRevoked', { s: token.mds_status }, 'security');
@@ -413,7 +422,8 @@ function securityChecks(token) {
 
   if ((token.cve_ids || []).length) add('warn', 'chk.vulnerable', { n: token.cve_ids.length }, 'security');
   else if (token.security_status === 'OK') add('ok', 'chk.noVulns');
-  else add('info', 'status.UNKNOWN', {}, 'security');
+  else if (!policyWarning) add('info', 'status.UNKNOWN', {}, 'security');
+  if (policyWarning) checks.push({ level: 'info', text: policyWarning, tab: 'security', group: 'device' });
 
   const att = token.attestation;
   if (att && !att.inconclusive && !token.force_pin_change) {
@@ -768,7 +778,8 @@ function renderQuantum(token) {
 function renderSecurity(token) {
   renderQuantum(token);
   const advs = token.advisories?.length ? token.advisories : (token.cve_ids || []).map(id => ({ id }));
-  $('sec-advisories').innerHTML = advs.length
+  const policyWarning = policySourceWarning(token);
+  $('sec-advisories').innerHTML = (policyWarning ? `<p class="card-text">${escHtml(policyWarning)}</p>` : '') + (advs.length
     ? advs.map(a => `<div class="advisory">
         <div class="advisory-id">${escHtml(a.id)}${a.severity ? ` · ${escHtml(t(`sev.${a.severity}`))}${a.cvss ? ` (CVSS ${escHtml(a.cvss)})` : ''}` : ''}</div>
         ${a.title ? `<div class="advisory-title">${escHtml(a.title)}</div>` : ''}
@@ -776,7 +787,7 @@ function renderSecurity(token) {
         ${a.origin ? `<div class="advisory-origin">${escHtml(t('sec.advisory.origin', { name: a.origin }))}</div>` : ''}
         ${(a.references || []).map(u => `<button type="button" class="btn-link advisory-link" data-url="${escHtml(u)}">${escHtml(u.replace(/^https:\/\//, ''))}</button>`).join('')}
       </div>`).join('')
-    : `<p class="muted">${escHtml(t('sec.noAdvisories'))}</p>`;
+    : `<p class="muted">${escHtml(t('sec.noAdvisories'))}</p>`);
   $('sec-advisories').querySelectorAll('[data-url]').forEach(b => {
     b.onclick = () => window.pywebview?.api?.open_url(b.dataset.url);
   });
@@ -972,12 +983,16 @@ let updateFlow = null;
 function renderUpdateBanner() {
   const app = dataStatus?.app;
   $('version-text').textContent = app?.current || '';
-  const show = !!(app && !app.managed && app.newer && app.url);
+  const show = !!(app && !app.managed && (app.revoked || app.code === 'update_revocation_state' || (app.newer && app.url)));
   $('update-banner').classList.toggle('hidden', !show);
   if (!show) return;
   const btn = $('update-btn');
   btn.disabled = false;
-  if (updateFlow?.stage === 'downloading') {
+  if (app.revoked || app.code === 'update_revocation_state') {
+    $('update-text').textContent = t(app.revoked ? 'err.update_revoked' : 'err.update_revocation_state');
+    btn.textContent = t('upd.download');
+    btn.disabled = true;
+  } else if (updateFlow?.stage === 'downloading') {
     $('update-text').textContent = t('upd.downloading', { pct: updateFlow.pct || 0 });
     btn.textContent = t('upd.download');
     btn.disabled = true;
@@ -994,6 +1009,8 @@ function renderUpdateBanner() {
 async function onUpdateButton() {
   const app = dataStatus?.app;
   if (app?.managed) return showToast(t('upd.managed'), 'info');
+  if (app?.revoked) return showToast(t('err.update_revoked'), 'error');
+  if (app?.code === 'update_revocation_state') return showToast(t('err.update_revocation_state'), 'error');
   if (updateFlow?.stage === 'ready') {
     return call('update_open').catch(e => showToast(errorMessage(e), 'error'));
   }
@@ -1014,6 +1031,9 @@ async function onUpdateButton() {
 
 function renderDataStatus() {
   renderUpdateBanner();
+  // Source results arrive after token reevaluation; refresh the explanation too.
+  const token = tokens.get(selectedId);
+  if (mainView === 'key' && token) { renderSecurityCheck(token); renderSecurity(token); }
   const el = $('data-status');
   if (!el) return;
   const st = dataStatus;
@@ -1046,7 +1066,9 @@ async function checkForUpdates() {
     dataStatus = await call('check_updates');
     renderDataStatus();
     const app = dataStatus.app || {};
-    if (app.failed) showToast(t('upd.checkFailed'), 'error');
+    if (app.revoked) showToast(t('err.update_revoked'), 'error');
+    else if (app.code === 'update_revocation_state') showToast(t('err.update_revocation_state'), 'error');
+    else if (app.failed) showToast(t('upd.checkFailed'), 'error');
     else if (app.managed) showToast(t('upd.managed'), 'info');
     else if (app.newer) showToast(t('upd.available', { v: app.latest }), 'success');
     else showToast(t('upd.current', { v: app.current }), 'success');
@@ -1089,6 +1111,9 @@ const EVENT_ICONS = {
 };
 
 function eventText(ev) {
+  if (['import', 'sync'].includes(ev.source) && ['attestation', 'attestation_skipped', 'function_test'].includes(ev.type)) {
+    return `${t(`acc.src.${ev.source}`)}: ${eventText({...ev, source: undefined})}`;
+  }
   if (ev.type === 'attestation') return t(ev.passed ? 'ev.attestation.pass' : 'ev.attestation.fail');
   if (ev.type === 'attestation_skipped') return t('ev.attestation.skipped');
   if (ev.type === 'pgp_touch_changed' && ev.slot) {
@@ -1428,10 +1453,14 @@ const EVENT_HANDLERS = {
     }
   },
   update_progress: p => { updateFlow = { stage: 'downloading', pct: p.pct }; renderUpdateBanner(); },
-  update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); call('update_open').catch(() => {}); },
+  update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); },
   update_failed: p => {
     updateFlow = { stage: 'failed' };
-    showToast(t(p.code === 'update_checksum' ? 'err.update_checksum' : 'upd.failed'), 'error');
+    if (p.code === 'update_revoked' && dataStatus?.app) dataStatus.app.revoked = true;
+    if (p.code === 'update_revocation_state' && dataStatus?.app) dataStatus.app.code = p.code;
+    const message = { update_checksum: 'err.update_checksum', update_signature: 'err.update_signature',
+      update_revoked: 'err.update_revoked', update_revocation_state: 'err.update_revocation_state' }[p.code] || 'upd.failed';
+    showToast(t(message), 'error');
     renderUpdateBanner();
   },
 };
@@ -1564,7 +1593,9 @@ function init() {
         renderDataStatus();
         dataStatus = await call('check_updates');
         renderDataStatus();
-        if (dataStatus.app?.failed) showToast(t('upd.checkFailed'), 'error');
+        if (dataStatus.app?.revoked) showToast(t('err.update_revoked'), 'error');
+        else if (dataStatus.app?.code === 'update_revocation_state') showToast(t('err.update_revocation_state'), 'error');
+        else if (dataStatus.app?.failed) showToast(t('upd.checkFailed'), 'error');
       } catch (e) {
         showToast(errorMessage(e), 'error');
       } finally {

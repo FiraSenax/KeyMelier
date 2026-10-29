@@ -41,9 +41,11 @@ def build_html(static_dir: Path = STATIC_DIR) -> str:
     """Inline CSS, JS and the icon into one document (no server, no file URLs)."""
     html = (static_dir / "index.html").read_text(encoding="utf-8")
     css = (static_dir / "style.css").read_text(encoding="utf-8")
-    icon = base64.b64encode((static_dir / "icon.svg").read_bytes()).decode()
+    # WebKit blurs the SVG's filtered artwork at sidebar size. The existing
+    # 512 px render stays sharp at 30 CSS px, including on Retina displays.
+    icon = base64.b64encode((static_dir / "icon.png").read_bytes()).decode()
     html = html.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
-    html = html.replace('src="icon.svg"', f'src="data:image/svg+xml;base64,{icon}"')
+    html = html.replace('src="icon.png"', f'src="data:image/png;base64,{icon}"')
     hashes = []
     for name in SCRIPTS:
         tag = f'<script src="{name}"></script>'

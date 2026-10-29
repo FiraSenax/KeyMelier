@@ -24,12 +24,14 @@ def capabilities(ctap2) -> dict:
 
     info = ctap2.info
     options = info.options or {}
+    minimum = getattr(info, "min_pin_length", 4)
+    minimum_valid = isinstance(minimum, int) and not isinstance(minimum, bool) and 4 <= minimum <= MAX_PIN_LENGTH
     return {
         "supported": Config.is_supported(info),
         "pin_set": options.get("clientPin") is True,
         "uv_unlock": auth.uv_unlock_available(info),
-        "min_pin_length": getattr(info, "min_pin_length", 4) or 4,
-        "can_set_min_pin": options.get("setMinPINLength") is True,
+        "min_pin_length": minimum if minimum_valid else 4,
+        "can_set_min_pin": options.get("setMinPINLength") is True and minimum_valid and minimum < MAX_PIN_LENGTH,
         "force_pin_change": bool(getattr(info, "force_pin_change", False)),
         # None = the key has no alwaysUv option, True/False = current state
         "always_uv": options.get("alwaysUv"),
