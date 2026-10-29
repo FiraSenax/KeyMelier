@@ -1,3 +1,38 @@
+# After RC8: stable-candidate follow-up — 2026-10-29
+
+The published `v1.8.7-rc.8` remains commit `3ec722f`. The following UI change
+is on the development branch and requires a new build before distribution.
+
+- The live GitHub `Protect main` ruleset initially blocked only deletion and
+  force-push. It now also requires a pull request and the current
+  `test (ubuntu-24.04)` check from GitHub Actions (integration 15368), with the
+  branch up to date and no bypass actors. No second-person approval is required.
+  The effective rules for `main` were read back through the GitHub API.
+- The RC branch still needs to be merged into `main` before stable: the existing
+  `main` workflow does not yet contain the emergency-stop check. Once merged,
+  the required Linux job runs it before subsequent changes can reach `main`.
+  These rules guard against accidents; a repository administrator can still
+  alter the workflow or rules and they do not establish independent signing.
+- Unreachable company sources are explained in the key overview and security
+  details in all eleven languages, including VPN/update-check guidance. The
+  hint updates when source results arrive or recover, escapes source names,
+  and preserves known critical findings. VPN loss itself is not detected.
+- This UI follow-up passed all 42 browser tests, the targeted UI security
+  checks, JavaScript syntax checks and `git diff --check`. Backend policy and
+  assessment rules are unchanged.
+
+RC8's exact commit was built and tested in publication run
+[40857341399](https://github.com/FiraSenax/KeyMelier/actions/runs/40857341399):
+the 457-test Python suite, 41 UI tests, 20 stress tests, all platform builds,
+signing/notarization, packaged start checks, eleven Linux compatibility jobs
+and release validation passed. Public update signatures, all 22 artifact
+metadata checksums, the downloaded Windows installer's hash and RC7-to-RC8
+update detection were verified separately. Platform-specific skips apply;
+these checks do not substitute for a manual Linux hardware test, which remains
+open. Windows 11 including Bio unlock has been confirmed by the maintainer.
+The previously accepted signing limits and deferred minor-release hardening
+items below remain unchanged.
+
 # RC8: RC7 external review follow-up — 2026-10-29
 
 Base: `95247da` (`v1.8.7-rc.7`). Small compatibility and recovery corrections;

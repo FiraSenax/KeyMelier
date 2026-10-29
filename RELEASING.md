@@ -322,6 +322,17 @@ accidental publication. A check that runs only after a direct push cannot stop
 clients from observing that push. It does not defend against an attacker who
 can change both the list and the acknowledgement or workflow.
 
+On 2026-10-29, the live `Protect main` ruleset was configured to require a pull
+request and the up-to-date `test (ubuntu-24.04)` check from GitHub Actions
+(integration 15368), without bypass actors. No second-person approval is required.
+Keep the emergency-stop check in that required job and merge this RC branch
+before stable so the rule protects subsequent list changes. Verify the effective
+rules before release; this documented snapshot is not enforcement by itself:
+
+```sh
+gh api repos/FiraSenax/KeyMelier/rules/branches/main
+```
+
 To stop a compromised key, append its fingerprint and publish the reviewed file
 on `main`. Clients fetch that fixed HTTPS URL during update checks, before a
 download, and immediately before opening a downloaded installer. Bundled and

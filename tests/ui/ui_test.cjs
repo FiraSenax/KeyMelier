@@ -192,6 +192,35 @@ async function main() {
     })()`), 'all languages show the specific recovery error and disable the action');
   });
 
+  await test('unreachable company source explains VPN recovery live in every language and preserves warnings', async () => {
+    assert(await js(`(() => {
+      const original = LANG, status = dataStatus, key = tokens.get('demo-yk5');
+      const name = '<img src=x onerror=alert(1)> Intranet';
+      try {
+        tokens.set(key.id, {...key, security_status:'UNKNOWN', cve_ids:[], advisories:[]});
+        const translated = Object.keys(STRINGS).length === 11 && Object.keys(STRINGS).every(code => {
+          LANG = code;
+          window.__kmEvent('data_status', {...status, advisories:{...status.advisories,
+            policy:[{name, status:'unreachable', count:0}]}});
+          const expected = t('chk.policyUnreachable', {names:name});
+          return STRINGS[code]['chk.policyUnreachable']?.includes('VPN') &&
+            $('check').textContent.includes(expected) && $('sec-advisories').textContent.includes(expected) &&
+            !$('check').querySelector('img') && !$('sec-advisories').querySelector('img') &&
+            !securityChecks(tokens.get(key.id)).some(c => c.text === t('chk.noVulns'));
+        });
+        const vulnerable = {...tokens.get(key.id), security_status:'VULNERABLE', mds_status:'REVOKED',
+          cve_ids:['CVE-TEST'], advisories:[{id:'CVE-TEST'}]};
+        renderSecurityCheck(vulnerable); renderSecurity(vulnerable);
+        const retained = $('check').querySelector('.crit') && $('check').querySelector('.warn') &&
+          $('sec-advisories').textContent.includes('CVE-TEST') && $('sec-advisories').textContent.includes(name);
+        window.__kmEvent('data_status', {...status, advisories:{...status.advisories,
+          policy:[{name, status:'ok', count:0}]}});
+        const cleared = !$('check').textContent.includes(name) && !$('sec-advisories').textContent.includes(name);
+        return !!(translated && retained && cleared);
+      } finally { LANG = original; tokens.set(key.id, key); dataStatus = status; renderDataStatus(); render(); }
+    })()`), 'overview and security details update immediately, escape names and preserve critical findings');
+  });
+
   await test('expired or unverified MDS explains recovery in all languages', async () => {
     assert(await js(`(() => {
       const original = LANG;

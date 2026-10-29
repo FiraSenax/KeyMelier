@@ -402,11 +402,19 @@ function tileHtml({ cls, iconName, label, value, sub, tab, view, primary }) {
 
 // ── Security check ──────────────────────────────────────────────────────────
 
+function policySourceWarning(token) {
+  if (token.offline) return '';
+  const names = (dataStatus?.advisories?.policy || [])
+    .filter(source => source.status === 'unreachable').map(source => source.name);
+  return names.length ? t('chk.policyUnreachable', { names: names.join(', ') }) : '';
+}
+
 // Recommendations for a key, most important first. level: crit | warn | info | ok
 function securityChecks(token) {
   const o = token.options || {};
   const checks = [];
   const add = (level, key, vars = {}, tab = null, group = 'device') => checks.push({ level, text: t(key, vars), tab, group });
+  const policyWarning = policySourceWarning(token);
 
   const revoked = ['REVOKED', 'ATTESTATION_KEY_COMPROMISE', 'USER_KEY_REMOTE_COMPROMISE', 'USER_KEY_PHYSICAL_COMPROMISE'];
   if (revoked.includes(token.mds_status)) add('crit', 'chk.mdsRevoked', { s: token.mds_status }, 'security');
@@ -414,7 +422,8 @@ function securityChecks(token) {
 
   if ((token.cve_ids || []).length) add('warn', 'chk.vulnerable', { n: token.cve_ids.length }, 'security');
   else if (token.security_status === 'OK') add('ok', 'chk.noVulns');
-  else add('info', 'status.UNKNOWN', {}, 'security');
+  else if (!policyWarning) add('info', 'status.UNKNOWN', {}, 'security');
+  if (policyWarning) checks.push({ level: 'info', text: policyWarning, tab: 'security', group: 'device' });
 
   const att = token.attestation;
   if (att && !att.inconclusive && !token.force_pin_change) {
@@ -769,7 +778,8 @@ function renderQuantum(token) {
 function renderSecurity(token) {
   renderQuantum(token);
   const advs = token.advisories?.length ? token.advisories : (token.cve_ids || []).map(id => ({ id }));
-  $('sec-advisories').innerHTML = advs.length
+  const policyWarning = policySourceWarning(token);
+  $('sec-advisories').innerHTML = (policyWarning ? `<p class="card-text">${escHtml(policyWarning)}</p>` : '') + (advs.length
     ? advs.map(a => `<div class="advisory">
         <div class="advisory-id">${escHtml(a.id)}${a.severity ? ` · ${escHtml(t(`sev.${a.severity}`))}${a.cvss ? ` (CVSS ${escHtml(a.cvss)})` : ''}` : ''}</div>
         ${a.title ? `<div class="advisory-title">${escHtml(a.title)}</div>` : ''}
@@ -777,7 +787,7 @@ function renderSecurity(token) {
         ${a.origin ? `<div class="advisory-origin">${escHtml(t('sec.advisory.origin', { name: a.origin }))}</div>` : ''}
         ${(a.references || []).map(u => `<button type="button" class="btn-link advisory-link" data-url="${escHtml(u)}">${escHtml(u.replace(/^https:\/\//, ''))}</button>`).join('')}
       </div>`).join('')
-    : `<p class="muted">${escHtml(t('sec.noAdvisories'))}</p>`;
+    : `<p class="muted">${escHtml(t('sec.noAdvisories'))}</p>`);
   $('sec-advisories').querySelectorAll('[data-url]').forEach(b => {
     b.onclick = () => window.pywebview?.api?.open_url(b.dataset.url);
   });
@@ -1021,6 +1031,9 @@ async function onUpdateButton() {
 
 function renderDataStatus() {
   renderUpdateBanner();
+  // Source results arrive after token reevaluation; refresh the explanation too.
+  const token = tokens.get(selectedId);
+  if (mainView === 'key' && token) { renderSecurityCheck(token); renderSecurity(token); }
   const el = $('data-status');
   if (!el) return;
   const st = dataStatus;

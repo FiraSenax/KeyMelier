@@ -4936,6 +4936,21 @@ const I18N_POLICY = {
 };
 for (const [code, strings] of Object.entries(I18N_POLICY)) Object.assign(STRINGS[code], strings);
 
+const I18N_POLICY_UNREACHABLE = {
+  de: 'Firmenquelle nicht erreichbar: {names}. Falls nötig, VPN verbinden und erneut nach Updates suchen. Bis dahin ist die Sicherheitsprüfung unvollständig; der Schlüssel bleibt nutzbar.',
+  en: 'Company source unreachable: {names}. Connect to your VPN if needed, then check for updates again. Until then, the security assessment is incomplete; you can still use the key.',
+  es: 'Fuente de la empresa inaccesible: {names}. Conecta la VPN si es necesario y vuelve a buscar actualizaciones. Hasta entonces, la evaluación de seguridad está incompleta; puedes seguir usando la llave.',
+  fr: 'Source de l’entreprise inaccessible : {names}. Connectez le VPN si nécessaire, puis recherchez à nouveau les mises à jour. En attendant, l’évaluation de sécurité est incomplète ; la clé reste utilisable.',
+  it: 'Fonte aziendale non raggiungibile: {names}. Se necessario, connetti la VPN e cerca di nuovo gli aggiornamenti. Nel frattempo la valutazione della sicurezza è incompleta; la chiave resta utilizzabile.',
+  ja: '組織の情報源に接続できません: {names}。必要に応じて VPN に接続し、更新を再確認してください。それまではセキュリティ評価は不完全ですが、キーは引き続き使用できます。',
+  ko: '조직의 정보 소스에 연결할 수 없습니다: {names}. 필요한 경우 VPN에 연결한 후 업데이트를 다시 확인하세요. 그때까지 보안 평가는 불완전하지만 키는 계속 사용할 수 있습니다.',
+  nl: 'Bedrijfsbron niet bereikbaar: {names}. Verbind zo nodig met de VPN en controleer opnieuw op updates. Tot die tijd is de beveiligingsbeoordeling onvolledig; de sleutel blijft bruikbaar.',
+  pl: 'Źródło firmowe jest niedostępne: {names}. W razie potrzeby połącz się z VPN i ponownie sprawdź aktualizacje. Do tego czasu ocena bezpieczeństwa jest niepełna; nadal możesz używać klucza.',
+  pt: 'Fonte da empresa inacessível: {names}. Liga a VPN se necessário e volta a procurar atualizações. Até lá, a avaliação de segurança está incompleta; podes continuar a usar a chave.',
+  zh: '无法访问组织信息源：{names}。如有需要，请连接 VPN 后重新检查更新。在此之前，安全评估尚不完整，但密钥仍可使用。',
+};
+for (const [code, text] of Object.entries(I18N_POLICY_UNREACHABLE)) STRINGS[code]['chk.policyUnreachable'] = text;
+
 const I18N_LINUX = {
   de: {"upd.ready.linux": "Version {v} ist geladen; Signatur und Prüfsumme sind geprüft. „Öffnen“ zeigt den Ordner. Beende KeyMelier und starte die neue AppImage-Datei.", "ob.linux.title": "Zugriff auf Sicherheitsschlüssel unter Linux", "ob.linux.text": "Aktuelle Distributionen mit systemd erlauben den Zugriff auf FIDO-Schlüssel automatisch. Erscheint dein Schlüssel nicht, fehlen udev-Regeln – die Anleitung steht in der Dokumentation unter „Linux“. Für PIV, OpenPGP und die Codes muss außerdem pcscd laufen.", "ob.linux.keyring": "Das Sync-Passwort wird im Schlüsselbund des Desktops gespeichert (Secret Service, z. B. GNOME Schlüsselbund oder KWallet). Ohne Schlüsselbund funktioniert alles außer dem Sync.", "empty.linux": "Linux: Erscheint dein Schlüssel nicht, fehlen meist udev-Regeln (siehe Dokumentation, Abschnitt Linux).", "sync.err.sync_no_keyring": "Auf diesem Computer gibt es keinen Schlüsselbund, in dem das Passwort sicher gespeichert werden kann (Linux: GNOME Schlüsselbund, KWallet oder KeePassXC mit Secret Service)."},
   en: {"upd.ready.linux": "Version {v} is downloaded; its signature and checksum are verified. Open shows the folder. Quit KeyMelier and start the new AppImage.", "ob.linux.title": "Access to security keys on Linux", "ob.linux.text": "Current distributions with systemd allow access to FIDO keys automatically. If your key does not appear, udev rules are missing – see “Linux” in the documentation. For PIV, OpenPGP and codes, pcscd must be running as well.", "ob.linux.keyring": "The sync password is kept in the desktop keyring (Secret Service, e.g. GNOME Keyring or KWallet). Without a keyring everything works except sync.", "empty.linux": "Linux: if your key does not appear, udev rules are usually missing (see the documentation, section Linux).", "sync.err.sync_no_keyring": "This computer has no keyring to store the passphrase securely (Linux: GNOME Keyring, KWallet or KeePassXC with Secret Service)."},

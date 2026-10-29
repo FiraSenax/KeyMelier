@@ -117,7 +117,9 @@ interpreted.
   preserves known warnings, not an offline positive assessment of current
   company policy. Device operations remain available. Reconnect the VPN and
   run the update check to revalidate the source. Existing warnings and critical
-  findings are not replaced by `UNKNOWN`.
+  findings are not replaced by `UNKNOWN`. The key overview and security details
+  name unreachable company sources and suggest reconnecting the VPN if needed,
+  then checking for updates. This is connection guidance, not VPN detection.
 - **Transport:** HTTPS sources must return the document and signature directly
   with HTTP 200; redirects are rejected, including redirects to HTTP. Configure
   the final HTTPS URL when migrating an existing source.

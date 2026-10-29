@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Explain unreachable company advisory sources directly in the key overview and security details, with VPN/update-check guidance in every supported language; retain all known security findings.
 - Automatically publish reviewed RC tag pushes as public, signed GitHub prereleases after all release checks; retain manual artifact-only rehearsals and the separate stable update channel.
 
 ## v1.8.7-rc.8 — 2026-10-29
