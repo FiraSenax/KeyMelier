@@ -180,6 +180,9 @@ class TestManagedSources(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         self.priv, self.pub = keypair()
+        cache = patch("keymelier_core.advisories.CACHE_DIR", self.dir / "cache")
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def tearDown(self):
         self.tmp.cleanup()

@@ -1,4 +1,3 @@
-import dataclasses
 import json
 import os
 import tempfile
@@ -378,8 +377,12 @@ class ExtendedSecurityTests(unittest.TestCase):
             self.assertNotIn(b'serial',raw)
             self.assertEqual(len(History(path,enabled=True).list()),1)
             path.with_suffix('.encrypted').write_bytes(raw[:-2]+b'xx')
-            with self.assertRaises(RuntimeError):
-                History(path,enabled=True)
+            blocked = History(path, enabled=True)
+            self.assertFalse(blocked.enabled)
+            self.assertEqual(blocked.load_problem['code'], 'history_locked')
+            blocked.update_snapshot(record())
+            self.assertFalse(path.exists())
+            self.assertEqual(path.with_suffix('.encrypted').read_bytes(), raw[:-2]+b'xx')
 
     def test_enable_history_preserves_previous_entries(self):
         with tempfile.TemporaryDirectory() as tmp:

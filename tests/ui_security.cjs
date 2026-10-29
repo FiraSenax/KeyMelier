@@ -14,6 +14,13 @@ assert.equal(ctx.attestationSummary({status:'VERIFIED',passed:true,sig_valid:tru
 assert.equal(ctx.attestationSummary({status:'FAILED',checks:[{passed:false}]},{}).cls,'fail');
 console.log('UI security classification tests passed');
 
+vm.runInContext(source.slice(source.indexOf('function eventText('), source.indexOf('// "What was on this key"')), ctx);
+assert.equal(ctx.eventText({type:'attestation', passed:true, source:'import'}), 'acc.src.import: ev.attestation.pass');
+assert.equal(ctx.eventText({type:'function_test', passed:true, source:'sync'}), 'acc.src.sync: ev.function_test.pass');
+assert.equal(ctx.eventText({type:'attestation', passed:true}), 'ev.attestation.pass');
+vm.runInContext(source.slice(source.indexOf('function escHtml('), source.indexOf('function showToast(')), ctx);
+assert.equal(ctx.escHtml(`'"<&>`), '&#39;&quot;&lt;&amp;&gt;');
+
 // Download completion only exposes an Open button. Starting the installer must
 // be a separate user action, even when the signature and checksum are valid.
 const calls = [];

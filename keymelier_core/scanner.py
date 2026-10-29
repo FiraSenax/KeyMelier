@@ -456,7 +456,7 @@ class TokenScanner:
                     for a in advisories
                 ]
                 from keymelier_core import updates as _updates
-                advisory_ok = _updates.is_fresh(self._advisory.document)
+                advisory_ok = _updates.is_fresh(self._advisory.document) and self._advisory.policy_is_current()
                 if any(a.get("severity") == "CRITICAL" for a in advisories):
                     advisory_level = "CRITICAL"
                 elif advisories:
@@ -500,16 +500,18 @@ class TokenScanner:
 
     def _expire_assessment(self, record: TokenRecord):
         """Positive results must not outlive their metadata/CRL evidence."""
-        if self._mds3 is not None and self._mds3.is_current():
-            return False
+        from keymelier_core import updates
+        metadata_current = self._mds3 is not None and self._mds3.is_current()
+        advisory_current = (self._advisory is not None and updates.is_fresh(self._advisory.document)
+                            and self._advisory.policy_is_current())
         changed = False
         att = record.attestation or {}
-        if att.get("status") == "VERIFIED":
+        if not metadata_current and att.get("status") == "VERIFIED":
             record.attestation = {**att, "status": "UNVERIFIED", "passed": False,
                                   "chain_valid": None,
                                   "error": "Current MDS3 verification evidence is unavailable."}
             changed = True
-        if record.security_status == "OK":
+        if record.security_status == "OK" and not (metadata_current and advisory_current):
             record.security_status = "UNKNOWN"
             changed = True
         return changed

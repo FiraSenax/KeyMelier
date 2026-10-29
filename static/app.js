@@ -61,7 +61,8 @@ function escHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function showToast(message, type = 'info') {
@@ -1095,6 +1096,9 @@ const EVENT_ICONS = {
 };
 
 function eventText(ev) {
+  if (['import', 'sync'].includes(ev.source) && ['attestation', 'attestation_skipped', 'function_test'].includes(ev.type)) {
+    return `${t(`acc.src.${ev.source}`)}: ${eventText({...ev, source: undefined})}`;
+  }
   if (ev.type === 'attestation') return t(ev.passed ? 'ev.attestation.pass' : 'ev.attestation.fail');
   if (ev.type === 'attestation_skipped') return t('ev.attestation.skipped');
   if (ev.type === 'pgp_touch_changed' && ev.slot) {

@@ -1,3 +1,52 @@
+# RC7: RC4 external review follow-up on RC6 — 2026-10-29
+
+Base: `7b47f14` (`v1.8.7-rc.6`). This follow-up is included in the
+`v1.8.7-rc.7` candidate; the existing RC6 installers do not contain it. Findings were checked
+against the implementation rather than accepted solely from the review.
+
+| Review item | Current disposition |
+|---|---|
+| M1 — managed advisory fail-open | Fixed: all configured sources must be successful, complete and fresh before `OK`. Signed source caches preserve warnings and rollback floors across restart; redirects are rejected. Deferred loading remains asynchronous to avoid blocking startup on UNC/network paths, with `UNKNOWN` until completion. |
+| M2 — poison sync files | Fixed: outer and authenticated inner JSON have byte/depth limits and parse errors become `sync_damaged`. Per-peer merge failures are isolated; a file is marked consumed only after a successful merge. A malformed own file is preserved and gets the existing device-ID recovery treatment. |
+| M3 — future timestamps/removal marks | Fixed: merge times are validated and normalized to UTC, future values beyond one day are ignored, removal marks are bounded and previously stored future marks are cleaned on load/merge. Shared-passphrase authority and recovery are documented in SECURITY.md. |
+| M4 — bundled advisory expiry | Already fixed in RC6: reviewed 29 October, 14-day release gate, 45-day client freshness. |
+| M5 — signer and publishing in GitHub | Accepted deployment constraint: automatic builds/signing remain enabled as requested. Passkey login does not separate the signer from an account/CI compromise. |
+| M6 — key revocation/rotation/backup | Partly addressed in RC6 by the sticky fingerprint emergency stop and manual recovery procedure. No independently authenticated automatic replacement-key protocol; owner-only PEM backup remains unencrypted. |
+| M7 — imported attestation/test events | Fixed for new imports/sync: backend forces origin markers and timeline labels them in the existing UI languages. Local events retain their local presentation; no security verdict is imported. Origin cannot be reconstructed reliably for previously merged unmarked events. |
+| L1 — positive assessment expiry / slow responses | Expiry fixed: polling and token reads also check advisory freshness and policy completeness. A hard total transfer deadline against trickling HTTP bodies remains open; current limits cover body size and per-read timeout. |
+| L2 — four-digit decimal firmware | Fixed: 1203 decodes to 0.12.3, with a regression test. |
+| L3 — obsolete certification wins | Fixed: certification follows effective date, ties prefer the less reassuring status, and compromise/bypass reports retain priority. Unknown/malformed status data cannot authorize `OK`. |
+| L4 — MDS signer pin | Existing pinned GlobalSign R3 path validation, leaf-name check, JWT signature and issuer-signed CRLs verified in code. A separate leaf SPKI pin with its rotation path remains an optional strengthening, not implemented here. |
+| L5 — native confirmations for destructive bridge actions | Open hardening: HTML confirmation/bridge arguments are not an independent native consent boundary against compromised renderer code. |
+| L6 — navigation guard | Open: the current loaded-event guard is too late for a hard navigation boundary and permits data URLs. Needs native pre-navigation handling and tests on each supported backend. |
+| L7 — URL parser ambiguity | Fixed: reject backslashes, control/whitespace characters, userinfo and invalid authorities before the existing host/exact-link allowlist. Valid custom HTTPS ports for managed links remain supported. |
+| L8 — arbitrary JS-selected sync paths | Fixed at the exposed API: sync setup accepts the private native-dialog selection or existing stored configuration only. Deliberately selected NAS/UNC shares still work. |
+| L9 — clipboard secret handling | Open: platform concealed-content markers and conditional auto-clear are not added in this change. |
+| L10 — many distinct sync salts | Open: per-file parse/merge isolation is fixed, but per-round KDF budgets, fair batching and failed-file caching need a separate change. The existing session key cache is not a per-round work limit. |
+| L11 — future advisory cache | Already fixed in RC6. |
+| L12 — VC++ signer CN | Existing Windows Authenticode `Valid` check also validates trust; not merely a CN string comparison. Issuer-name pin remains intentionally absent. |
+| L13 — locked encrypted history | Fixed: startup reports a blocked history, disables persistence/sync for it and preserves the encrypted file; no plaintext fallback. |
+| I1 — broad PIN token permissions | Open hardening: narrower on-demand permissions require separate authenticator/UX compatibility testing. |
+| I2 — minimum PIN length attribute | Fixed: bounded integer capability values and numeric UI construction; invalid device values disable that setting. |
+| I3 — apostrophe escaping | Fixed in the shared HTML escaping helper. |
+| I4 — device names in logs | Removed names from connect/disconnect log lines; the device label remains in the UI. |
+
+The certification interpretation was cross-checked against the primary
+[FIDO MDS 3.1 StatusReport definition](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1-ps-20250521.html#statusreport-dictionary).
+This is not a blanket stable-release approval: the open hardening items above,
+hardware reset/CTAP behavior, native Windows/Linux UI handling and the residual
+shared-account signing risk remain distinct from the tested fixes. Large module
+splits and broad C901 cleanup were deliberately kept outside these corrections.
+
+Validation: the full local suite completed 445 tests with no failures and two
+platform skips, including 20 new review regressions and the existing upgrade
+fixtures. Ruff, UI security/account/website checks, JavaScript syntax checks,
+dependency export verification and `git diff --check` passed. Legacy event
+timestamps are compared by their normalized instant to avoid duplicate events
+after sync. The `v1.8.7-rc.7` tag starts the signed artifact-only candidate build;
+native Windows/Linux validation and the complete rehearsal are required before
+shipping it. A tag build does not publish a GitHub Release.
+
 # Update security follow-up — 2026-10-29
 
 Follow-up review for RC5:

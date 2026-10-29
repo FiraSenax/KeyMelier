@@ -168,7 +168,7 @@ class KeyService:
     # ── Scanner callbacks ────────────────────────────────────────────────────
 
     def _on_connect(self, record):
-        logger.info("Token connected: %s", record.product_name)
+        logger.info("Token connected")
         self.history.update_snapshot(record)
         self._log(record, "connected")
         self.emit("token_connected", self._record_dict(record))
@@ -183,7 +183,7 @@ class KeyService:
         self._attestation_logged.discard(record.id)
         self._reader_tokens = {reader: token for reader, token in self._reader_tokens.items()
                                if token != record.id}
-        logger.info("Token disconnected: %s", record.product_name)
+        logger.info("Token disconnected")
         self._log(record, "disconnected")
         self.emit("token_disconnected", {"id": record.id, "product_name": record.product_name})
 

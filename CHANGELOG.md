@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-Prepared for v1.8.7-rc.6 (2026-10-29), a test candidate without a stable release.
+Prepared for v1.8.7-rc.7 (2026-10-29), a test candidate without a stable release.
+
+- Require every managed advisory source to be current and valid before showing `OK`; retain signed warnings and rollback protection across restarts and reject source redirects.
+- Isolate damaged sync files, consume peer files only after successful merging, normalize timestamps to UTC and reject future-dated changes/removal marks. Preserve the existing sync format and prevent duplicate legacy events after normalization.
+- Label imported or synced test events by their origin; correct decimal firmware decoding and use the latest effective certification status while retaining compromise warnings.
+- Check advisory expiry during normal device polling, restrict sync-folder setup to native selections or existing configuration, harden browser links and PIN-length display, and omit device names from connection logs.
+- Keep the app usable when encrypted history cannot be opened, preserving the encrypted file and reporting the blocked history without a plaintext fallback.
 
 - Fix the blurry sidebar logo on macOS by using the existing high-resolution PNG instead of the filtered SVG at small display sizes.
 - Bind advisory freshness to its signed review timestamp; replaying old signed data no longer restores a positive security verdict. Reviewed advisory data must be re-signed within 45 days.
