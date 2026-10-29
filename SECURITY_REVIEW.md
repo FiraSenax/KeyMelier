@@ -1,3 +1,17 @@
+# RC9 preparation — 2026-10-29
+
+The RC9 candidate includes the post-RC8 UI guidance and the main-ancestry gate
+below. Publish it only after this branch has passed the protected PR path into
+`main`; the tag's own workflow must then pass the source gate and the complete
+signed release pipeline. The stable release remains separate.
+
+Development run [40870687807](https://github.com/FiraSenax/KeyMelier/actions/runs/40870687807)
+has passed the 467-test Python suite on Windows, macOS and Linux, all 42 browser
+tests and 20 UI stress tests. These are checks of the unsigned development path,
+not evidence of production signing or a manual Linux hardware test. The public
+RC9 publication run supplies the separate signing and package evidence.
+No open GitHub Code Scanning alerts were returned during RC9 preparation.
+
 # After RC8: automatic RC publication follow-up — 2026-10-29
 
 Review of `fd82d9a` and `6fa3f23` confirmed that automatic publication had no
