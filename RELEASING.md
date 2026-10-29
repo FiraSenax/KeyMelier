@@ -238,6 +238,10 @@ The publication jobs also require `KEYMELIER_UPDATE_SIGNING_KEY`, an Ed25519 PEM
 stored only as a secret of the existing `release-signing` environment. This is
 separate from the advisory key and from the paid Windows/macOS certificates.
 Ed25519 keys have no certificate expiry and need no scheduled renewal.
+Builds and signing remain fully automatic: no per-build hardware interaction or
+required reviewer is introduced. A passkey protects the GitHub account login;
+it does not cryptographically authorize each CI artifact. Account/environment
+compromise remains outside the protection of a secret stored in that account.
 
 One-time setup, from the project environment with `gh` authenticated:
 
@@ -253,6 +257,10 @@ backup of the private file. Review and commit the public file with the updater
 and workflow changes **before building the next release**. Re-running setup
 reuses the backup; it refuses mismatched keys or replacement of an existing
 remote key whose local backup is missing. It publishes nothing.
+The local PEM is unencrypted (owner-only `0600`); that permission is not
+encryption and does not protect against malware running as the same user. Keep
+an encrypted offline backup and protect the workstation. No password is added
+to the unattended GitHub signing job.
 
 After the normal artifact checks, the protected publication job signs the exact
 release tag and `SHA256SUMS.txt`, with a dedicated protocol prefix. The extra
@@ -278,10 +286,58 @@ python tools/update_signing.py verify artifacts --tag v1.8.7-rc.4 --commit COMMI
 
 Do not replace the key on a timer: installed clients trust the key embedded in
 their app. A planned rotation needs an explicitly reviewed transition release
-and support for clients still trusting the old key. A compromised signing key
-requires a separate recovery plan; the download host alone cannot revoke a
-trusted key safely. This implementation does not claim automatic compromise
-recovery or protection against withholding newer releases.
+and support for clients still trusting the old key. The following emergency stop
+does not implement automatic key rotation or independent compromise recovery.
+
+### Repository emergency stop
+
+`data/revoked-update-keys.json` contains SHA-256 hashes of the **raw 32-byte public
+keys**, lower-case hexadecimal, in `{"version":1,"revoked":["FINGERPRINT"]}`.
+Never put a private key, its hash, or a replacement public key in this list.
+Obtain the currently pinned public-key fingerprint without reading its private key:
+
+```sh
+python tools/update_signing.py fingerprint
+```
+
+To stop a compromised key, append its fingerprint and publish the reviewed file
+on `main`. Clients fetch that fixed HTTPS URL during update checks, before a
+download, and immediately before opening a downloaded installer. Bundled and
+previously observed revocations also apply offline. The aggregate cache and a
+separate marker for the installed key make the stop persistent across restarts,
+remote list rollback/removal and concurrent app processes. Stateless sessions
+only remember downloaded notices within the process. A malformed local cache
+blocks the automatic update path. The normal app and device operations remain
+available. The release signer also refuses keys revoked by the checked-out list.
+
+The remote list is an additional, unsigned **deny-only signal**: it can disable
+updates but cannot enable a new key, bypass an update signature or undo a known
+revocation. Missing/offline/invalid remote responses leave existing trust and
+known revocations unchanged. A repository attacker can withhold the first notice
+or cause denial of service. Older clients without this feature cannot apply it.
+The online endpoint becomes available when this file reaches `main`; a test
+branch alone does not activate the remote list.
+
+Incident recovery: stop publication, secure the GitHub account/environment and
+runner access, publish the fingerprint stop, and assess other signing credentials
+exposed to the same environment. Generate a replacement update key in a clean
+environment and build a reviewed recovery installer embedding it. Announce the
+incident and verify the recovery download through a separately authenticated
+channel. Affected installations must install that recovery version manually;
+do not remove the old fingerprint or disable signature checks to resume updates.
+This project does not yet implement a signed multi-key transition for planned
+rotation. Do not overwrite the current key as a routine maintenance step.
+
+### Signed advisory review before releases
+
+Review vendor advisories and verified FIDO MDS evidence before running
+`python tools/advisories_sign.py sign`. Never refresh the date solely to make
+CI green. Release-tag builds and publication require
+`python tools/advisories_sign.py verify --max-age-days 14`; publication repeats
+the check even if earlier CI jobs were completed on a previous day. The daily
+Advisory watch job uses 30 days, leaving time to review before the app's 45-day
+positive-verdict window expires. Dates more than one day in the future are
+rejected, with the same bounded clock tolerance as the client.
 
 ## Website signing status
 

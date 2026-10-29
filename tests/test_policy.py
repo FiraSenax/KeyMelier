@@ -289,6 +289,17 @@ class TestManagedSources(unittest.TestCase):
         self.assertTrue(c.load_policy_sources(network=False))
         self.assertEqual([a["id"] for a in c.check(OTHER_AAGUID, None)], ["CORP-2026-2"])
 
+    def test_future_document_does_not_block_corrected_managed_advisory(self):
+        location = write_source(self.dir, self.priv, [corp()], updated="2999-01-01T00:00:00+00:00")
+        c = self.checker(location)
+        self.assertEqual(c.info()["policy"][0]["status"], "invalid")
+        self.assertEqual(c.check(OTHER_AAGUID, None), [])
+        # Recover a document held in memory by an older client too.
+        c._extra["Contoso IT"]["document"] = {"updated": "2999-01-01", "advisories": []}
+        write_source(self.dir, self.priv, [corp()], updated="2026-09-28T00:00:00+00:00")
+        self.assertTrue(c.load_policy_sources(network=False))
+        self.assertEqual(len(c.check(OTHER_AAGUID, None)), 1)
+
     def test_url_sources_wait_for_network_check(self):
         with patch("keymelier_core.advisories._read_source") as read:
             c = self.checker("https://intra.example/advisories.json")

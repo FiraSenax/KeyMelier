@@ -247,7 +247,8 @@ class KeyService:
                 self._update_path = path
                 self.emit("update_ready", {"name": path.name, "platform": sys.platform})
             except app_update.UpdateError as e:
-                code = {'checksum': 'update_checksum', 'signature': 'update_signature'}.get(str(e), 'update_failed')
+                code = {'checksum': 'update_checksum', 'signature': 'update_signature',
+                        'revoked': 'update_revoked'}.get(str(e), 'update_failed')
                 self.emit("update_failed", {"code": code, "error": "The update could not be downloaded and verified."})
             finally:
                 self._update_running = False
@@ -262,7 +263,11 @@ class KeyService:
         path = getattr(self, "_update_path", None)
         if not path or not path.exists():
             raise PinError("The update file is no longer there.", "no_update")
-        app_update.open_download(path)
+        try:
+            app_update.open_download(path)
+        except app_update.UpdateError as error:
+            code = 'update_revoked' if str(error) == 'revoked' else 'update_failed'
+            raise PinError('The update could not be opened safely.', code) from None
         return {"opened": True}
 
     def check_updates(self) -> dict:

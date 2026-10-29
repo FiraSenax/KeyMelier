@@ -19,6 +19,9 @@ runs:
         python tools/update_signing.py requirements > "$RUNNER_TEMP/update-signing-requirements.txt"
         python -m venv "$RUNNER_TEMP/update-signing-venv"
         "$RUNNER_TEMP/update-signing-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r "$RUNNER_TEMP/update-signing-requirements.txt"
+    - name: Recheck advisory freshness immediately before publication
+      shell: bash
+      run: '"$RUNNER_TEMP/update-signing-venv/bin/python" tools/advisories_sign.py verify --max-age-days 14'
     - name: Sign and independently verify the exact release tag and checksums
       shell: bash
       env:

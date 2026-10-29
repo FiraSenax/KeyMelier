@@ -2,11 +2,14 @@
 
 ## Unreleased
 
-Prepared for v1.8.7-rc.4 (2026-10-29), a test candidate without a stable release.
+Prepared for v1.8.7-rc.5 (2026-10-29), a test candidate without a stable release.
 
 - Fix the blurry sidebar logo on macOS by using the existing high-resolution PNG instead of the filtered SVG at small display sizes.
 - Bind advisory freshness to its signed review timestamp; replaying old signed data no longer restores a positive security verdict. Reviewed advisory data must be re-signed within 45 days.
+- Reject future-dated official and managed advisory files before caching/comparing dates, and recover from such caches. Require a signed review less than 14 days old for release builds and publication; the daily check flags reviews at 30 days.
+- Review and re-sign the advisory database on 2026-10-29; add CVE-2025-29991 and CVE-2024-35311 with vendor-specific firmware boundaries and verified FIDO model identifiers.
 - Authenticate update checksums with a separate, pinned Ed25519 key and the exact release tag. Automate protected release signing and one-time key setup; require an explicit Open action after downloading.
+- Add a repository emergency stop by public-key fingerprint. Once observed, a revocation persists locally and blocks update downloads and installer opening, including offline. This deny-only mechanism cannot establish trust in a replacement key or defeat a repository attacker withholding the initial notice.
 - Update the Linux PySide/Qt runtime to 6.11.3 with matching source/license evidence and the library replacement probe.
 - When the Windows C++ runtime is missing or too old, offer its official Microsoft download, verify its signature, open Microsoft's installer and resume KeyMelier setup after success. Existing runtimes skip this step; silent installations still require prior provisioning.
 

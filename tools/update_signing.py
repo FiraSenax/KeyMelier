@@ -115,6 +115,8 @@ def checked_sums(folder: Path, commit: str) -> bytes:
 
 
 def sign(folder: Path, tag: str, commit: str):
+    from keymelier_core import update_revocation
+    update_revocation.ensure_allowed()
     pem = os.environ.get(SECRET, '').encode('ascii')
     if not pem:
         raise ValueError(f'Missing {SECRET} in the protected release environment.')
@@ -150,6 +152,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('requirements')
+    sub.add_parser('fingerprint')
     create = sub.add_parser('setup')
     create.add_argument('--private-file', type=Path, default=DEFAULT_PRIVATE)
     for name in ('sign', 'verify'):
@@ -161,6 +164,9 @@ def main():
     try:
         if args.command == 'requirements':
             requirements()
+        elif args.command == 'fingerprint':
+            from keymelier_core.update_revocation import fingerprint
+            print(fingerprint())
         elif args.command == 'setup':
             setup(args.private_file)
         else:

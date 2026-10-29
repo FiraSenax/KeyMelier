@@ -138,14 +138,14 @@ class AdvisoryChecker:
                 state["status"] = "invalid"
                 continue
             doc = updates.parse(data)
-            if doc is None:
-                logger.warning("Advisory source %s ignored: malformed", src["name"])
+            if doc is None or not updates.has_usable_date(doc):
+                logger.warning("Advisory source %s ignored: malformed or future review date", src["name"])
                 state["status"] = "invalid"
                 continue
             old = state["document"]
             state["status"] = "ok"
             try:
-                if old is not None and updates._updated(doc) <= updates._updated(old):
+                if updates.has_usable_date(old) and updates._updated(doc) <= updates._updated(old):
                     continue
             except (TypeError, ValueError) as e:
                 logger.warning("Advisory source %s: dates not comparable (%s); keeping the loaded one", src["name"], type(e).__name__)

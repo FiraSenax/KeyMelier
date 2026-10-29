@@ -972,12 +972,16 @@ let updateFlow = null;
 function renderUpdateBanner() {
   const app = dataStatus?.app;
   $('version-text').textContent = app?.current || '';
-  const show = !!(app && !app.managed && app.newer && app.url);
+  const show = !!(app && !app.managed && (app.revoked || (app.newer && app.url)));
   $('update-banner').classList.toggle('hidden', !show);
   if (!show) return;
   const btn = $('update-btn');
   btn.disabled = false;
-  if (updateFlow?.stage === 'downloading') {
+  if (app.revoked) {
+    $('update-text').textContent = t('err.update_revoked');
+    btn.textContent = t('upd.download');
+    btn.disabled = true;
+  } else if (updateFlow?.stage === 'downloading') {
     $('update-text').textContent = t('upd.downloading', { pct: updateFlow.pct || 0 });
     btn.textContent = t('upd.download');
     btn.disabled = true;
@@ -994,6 +998,7 @@ function renderUpdateBanner() {
 async function onUpdateButton() {
   const app = dataStatus?.app;
   if (app?.managed) return showToast(t('upd.managed'), 'info');
+  if (app?.revoked) return showToast(t('err.update_revoked'), 'error');
   if (updateFlow?.stage === 'ready') {
     return call('update_open').catch(e => showToast(errorMessage(e), 'error'));
   }
@@ -1046,7 +1051,8 @@ async function checkForUpdates() {
     dataStatus = await call('check_updates');
     renderDataStatus();
     const app = dataStatus.app || {};
-    if (app.failed) showToast(t('upd.checkFailed'), 'error');
+    if (app.revoked) showToast(t('err.update_revoked'), 'error');
+    else if (app.failed) showToast(t('upd.checkFailed'), 'error');
     else if (app.managed) showToast(t('upd.managed'), 'info');
     else if (app.newer) showToast(t('upd.available', { v: app.latest }), 'success');
     else showToast(t('upd.current', { v: app.current }), 'success');
@@ -1431,7 +1437,9 @@ const EVENT_HANDLERS = {
   update_ready: p => { updateFlow = { stage: 'ready', platform: p.platform }; renderUpdateBanner(); },
   update_failed: p => {
     updateFlow = { stage: 'failed' };
-    const message = { update_checksum: 'err.update_checksum', update_signature: 'err.update_signature' }[p.code] || 'upd.failed';
+    if (p.code === 'update_revoked' && dataStatus?.app) dataStatus.app.revoked = true;
+    const message = { update_checksum: 'err.update_checksum', update_signature: 'err.update_signature',
+      update_revoked: 'err.update_revoked' }[p.code] || 'upd.failed';
     showToast(t(message), 'error');
     renderUpdateBanner();
   },
@@ -1565,7 +1573,8 @@ function init() {
         renderDataStatus();
         dataStatus = await call('check_updates');
         renderDataStatus();
-        if (dataStatus.app?.failed) showToast(t('upd.checkFailed'), 'error');
+        if (dataStatus.app?.revoked) showToast(t('err.update_revoked'), 'error');
+        else if (dataStatus.app?.failed) showToast(t('upd.checkFailed'), 'error');
       } catch (e) {
         showToast(errorMessage(e), 'error');
       } finally {

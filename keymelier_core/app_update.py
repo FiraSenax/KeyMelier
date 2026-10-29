@@ -18,7 +18,7 @@ from pathlib import Path
 from keymelier_core.network import read_limited
 from keymelier_core.distribution import is_msix
 from keymelier_core.version import __version__
-from keymelier_core import build_info, update_auth
+from keymelier_core import build_info, update_auth, update_revocation
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ def check(include_rc: bool = False) -> dict:
         if is_msix():
             result["managed"] = True
             return result
+        update_revocation.ensure_allowed(refresh=True)
         releases = []
         # Always include /latest, even if many newer prereleases fill the list.
         for url in ([RELEASES_API, RC_RELEASES_API] if include_rc else [RELEASES_API]):
@@ -89,6 +90,9 @@ def check(include_rc: bool = False) -> dict:
                 releases.extend(data)
             else:
                 raise ValueError("Unexpected release response")
+    except update_revocation.RevokedKeyError:
+        result.update(failed=True, revoked=True)
+        return result
     except Exception as e:
         logger.info("App update check failed: %s", type(e).__name__)
         result["failed"] = True   # offline or GitHub unreachable – say so when asked
@@ -131,6 +135,15 @@ class UpdateError(Exception):
     pass
 
 
+def _require_allowed_key(*, refresh=False):
+    try:
+        update_revocation.ensure_allowed(refresh=refresh)
+    except update_revocation.RevokedKeyError:
+        raise UpdateError('revoked') from None
+    except (OSError, ValueError):
+        raise UpdateError('Could not verify the local update revocation state.') from None
+
+
 def _download_dir() -> Path:
     downloads = Path.home() / "Downloads"
     return downloads if downloads.is_dir() else Path.home()
@@ -163,6 +176,7 @@ def download(asset: dict, progress=None) -> Path:
             or asset.get('signature') != DOWNLOAD_PREFIX + match[1] + '/' + update_auth.SIGNATURE_FILE):
         raise UpdateError("Unexpected download location.")
     try:
+        _require_allowed_key(refresh=True)
         with requests.get(sums_url, timeout=30, stream=True) as response:
             raw_sums = read_limited(response, update_auth.MAX_CHECKSUM_BYTES)
         with requests.get(asset['signature'], timeout=30, stream=True) as response:
@@ -209,6 +223,7 @@ def download(asset: dict, progress=None) -> Path:
             os.fsync(f.fileno())
         if digest.hexdigest() != matches[0]:
             raise UpdateError("checksum")
+        _require_allowed_key()
         target = _publish_download(partial, directory, name)
     except UpdateError:
         raise
@@ -253,6 +268,7 @@ def open_download(path: Path) -> None:
     import subprocess
     if is_msix():
         raise UpdateError("This installation is updated through its MSIX package.")
+    _require_allowed_key(refresh=True)
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(path)])
     elif sys.platform == "win32":

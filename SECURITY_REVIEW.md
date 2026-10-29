@@ -1,5 +1,56 @@
 # Update security follow-up — 2026-10-29
 
+Follow-up review for RC5:
+
+- The bundled review dated 2026-09-26 would cease supporting `OK` on
+  2026-11-10 at 18:09:57 UTC. Reviewed and re-signed on 2026-10-29; release builds
+  and publication now enforce a review younger than 14 days, with a 30-day daily
+  warning gate. Offline copies still expire after 45 days by design.
+- Future-dated documents are rejected before selection/cache writes and cannot
+  act as an anti-rollback high-water mark. Official and managed sources recover
+  from a previously loaded future document while retaining normal rollback checks.
+- Update signing stays automatic in the existing GitHub environment, as requested.
+  A passkey-secured login is not an independent artifact-signing approval. The
+  owner-only private PEM backup remains unencrypted; account compromise and
+  same-user workstation malware remain material limits.
+- A best-effort, deny-only public-key-fingerprint list adds an emergency stop.
+  Observed revocations persist locally, block downloads and installer opening,
+  and cannot be undone by deleting the remote entry. It cannot protect a client
+  before first observation if the repository is compromised, or authorize a new
+  key. See [the recovery procedure](RELEASING.md#repository-emergency-stop).
+- The VC++ helper already requires Authenticode status `Valid` as well as the
+  exact Microsoft publisher name, product and version. The CN check is not its
+  only signature check. No issuer-name pin was added: this remains dependent on
+  Windows Authenticode trust rather than a separately pinned Microsoft CA.
+- Complexity is quality debt, not evidence of an exploitable vulnerability:
+  Ruff C901 identifies 24 core functions and 12 tooling functions above 10 on
+  the RC4 tree. No broad security-sensitive refactor or bulk suppression is
+  included in this release; existing E9/F correctness checks remain required.
+
+Advisory content review: the 34-day NVD/vendor-keyword and signature/CRL-verified
+FIDO MDS scan returned no new findings since 2026-09-25. A separate review of
+[Yubico's advisory index](https://www.yubico.com/support/security-advisories/)
+identified two historical omissions:
+[CVE-2025-29991](https://www.yubico.com/support/security-advisories/ysa-2025-02/)
+(PIN/UV Protocol Two, fixed in 5.7.4) and
+[CVE-2024-35311](https://www.yubico.com/support/security-advisories/ysa-2024-02/)
+(RP enumeration; separate ordinary/FIPS/Bio fixed versions). Added five entries
+with affected model AAGUIDs checked against verified MDS sequence 292,
+`nextUpdate=2026-11-01`, and vendor firmware boundaries; three boundary tests
+cover affected, fixed and unrelated models. The existing
+[EUCLEAK entries](https://www.yubico.com/support/security-advisories/ysa-2024-03/)
+were retained. YSA-2026-01 affects host software, already covered by the locked
+fido2 2.2.1 and yubikey-manager 5.9.2; YSA-2026-02 affects Java server software,
+not authenticator hardware. The watch query alone is not treated as a complete
+historical coverage audit.
+
+RC5 local validation: 425 Python tests completed successfully (two platform
+skips); Ruff, UI security/account/website checks, JavaScript syntax, workflow
+YAML parsing, dependency export and license-input checks passed. Native CI
+builds and installer tests are tracked by the RC5 tag run.
+
+RC4 changes (retained in RC5):
+
 - Advisory freshness previously trusted recent retrieval of any validly signed
   document, including rejected older copies. Replaying an old signed document
   could restore `OK` with a stale database. Freshness now depends solely on the

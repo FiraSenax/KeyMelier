@@ -5217,3 +5217,18 @@ const I18N_MDS_STATE = {
   "zh": "制造商数据（FIDO MDS）已过期或未经验证，请连接互联网。"
 };
 for (const [code, text] of Object.entries(I18N_MDS_STATE)) STRINGS[code]["sec.mds.unverified"] = text;
+
+const I18N_UPDATE_REVOKED = {
+  "de": "Der Update-Schlüssel wurde widerrufen. Updates sind gesperrt. Installiere eine Wiederherstellungsversion erst nach Bestätigung durch den Herausgeber.",
+  "en": "The update signing key was revoked. Updates are blocked. Install a recovery version only after confirmation from the publisher.",
+  "es": "La clave de firma de actualizaciones fue revocada. Las actualizaciones están bloqueadas. Instala una versión de recuperación solo tras la confirmación del editor.",
+  "fr": "La clé de signature des mises à jour a été révoquée. Les mises à jour sont bloquées. Installez une version de récupération uniquement après confirmation de l’éditeur.",
+  "it": "La chiave di firma degli aggiornamenti è stata revocata. Gli aggiornamenti sono bloccati. Installa una versione di ripristino solo dopo la conferma dell’editore.",
+  "nl": "De ondertekeningssleutel voor updates is ingetrokken. Updates zijn geblokkeerd. Installeer een herstelversie pas na bevestiging door de uitgever.",
+  "pl": "Klucz podpisywania aktualizacji został unieważniony. Aktualizacje są zablokowane. Zainstaluj wersję odzyskiwania dopiero po potwierdzeniu przez wydawcę.",
+  "pt": "A chave de assinatura das atualizações foi revogada. As atualizações estão bloqueadas. Instale uma versão de recuperação apenas após confirmação do editor.",
+  "ja": "アップデートの署名鍵が失効しました。更新をブロックしています。発行元に確認してから復旧版をインストールしてください。",
+  "ko": "업데이트 서명 키가 폐기되어 업데이트가 차단되었습니다. 게시자의 확인을 받은 후에만 복구 버전을 설치하세요.",
+  "zh": "更新签名密钥已被撤销，更新已阻止。请先向发布者确认，再安装恢复版本。"
+};
+for (const [code, text] of Object.entries(I18N_UPDATE_REVOKED)) STRINGS[code]["err.update_revoked"] = text;
