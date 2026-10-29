@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require version tags to match the workflow checkout and a commit already contained in main before production signing or publication; unsigned branch builds remain available. This workflow guard does not separate a human from an agent sharing owner credentials.
 - Explain unreachable company advisory sources directly in the key overview and security details, with VPN/update-check guidance in every supported language; retain all known security findings.
 - Automatically publish reviewed RC tag pushes as public, signed GitHub prereleases after all release checks; retain manual artifact-only rehearsals and the separate stable update channel.
 

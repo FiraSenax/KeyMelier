@@ -97,6 +97,43 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertFalse(any('action-gh-release' in s.get('uses', '') for s in rc['steps']))
         self.assertTrue(any(s.get('name') == 'Verify signed RC result' for s in rc['steps']))
 
+    def test_production_jobs_wait_for_the_main_source_gate_before_secrets(self):
+        from types import SimpleNamespace
+
+        jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
+        gate = jobs['release-source']
+        self.assertNotIn('environment', gate)
+        self.assertEqual(gate['permissions'], {'contents': 'read'})
+        self.assertNotIn('secrets.', str(gate))
+        checkout = gate['steps'][0]['with']
+        self.assertEqual(checkout['fetch-depth'], 0)
+        self.assertFalse(checkout['persist-credentials'])
+        step = gate['steps'][1]
+        self.assertIn('git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main', step['run'])
+        self.assertLess(step['run'].index('git fetch'), step['run'].index('tools/check_release_source.py'))
+        self.assertNotIn('continue-on-error', step)
+        self.assertEqual(step['env'], {'RELEASE_REF': '${{ github.ref }}', 'RELEASE_SHA': '${{ github.sha }}'})
+        for name, job in jobs.items():
+            if 'release-signing' in str(job.get('environment', '')):
+                with self.subTest(job=name):
+                    self.assertIn('release-source', job['needs'])
+                    self.assertNotIn('always()', job.get('if', ''))
+        expression = step['if'].replace('&&', ' and ').replace('||', ' or ')
+        for event, ref, signed, required in (
+            ('push', 'refs/tags/v1.2.3-rc.1', False, True),
+            ('push', 'refs/tags/v1.2.3', False, True),
+            ('workflow_dispatch', 'refs/tags/v1.2.3-rc.1', False, True),
+            ('workflow_dispatch', 'refs/heads/codex/test', True, True),
+            ('workflow_dispatch', 'refs/heads/codex/test', False, False),
+            ('push', 'refs/heads/main', False, False),
+            ('pull_request', 'refs/pull/1/merge', False, False),
+        ):
+            with self.subTest(event=event, ref=ref, signed=signed):
+                context = {'__builtins__': {}, 'startsWith': str.startswith,
+                           'github': SimpleNamespace(event_name=event, ref=ref),
+                           'inputs': SimpleNamespace(signed_rc=signed)}
+                self.assertEqual(eval(expression, context), required)
+
     def test_rc_publication_trigger_preserves_manual_rehearsals_and_stable_channel(self):
         from types import SimpleNamespace
 

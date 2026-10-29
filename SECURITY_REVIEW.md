@@ -1,3 +1,33 @@
+# After RC8: automatic RC publication follow-up — 2026-10-29
+
+Review of `fd82d9a` and `6fa3f23` confirmed that automatic publication had no
+main-ancestry gate. Builds still ran their tests, but a new tag on a development
+branch could reach signing and the public RC channel without the main PR path.
+
+A new `release-source` job has only read access and no production environment
+or secrets. It fetches main, checks the exact tag/checkout/workflow commit match,
+and requires that commit to be an ancestor of main. All builds and production
+signing/publication jobs depend on it. Version tags and manually dispatched
+signed builds require the gate; unsigned development builds remain available.
+Missing refs/history, mismatched commits and off-main candidates fail closed.
+Automatic public RCs remain enabled after this gate and the existing checks.
+
+Local validation: 46 release/source/signing/artifact tests passed, including real
+Git histories with annotated and lightweight tags, stale/mismatched refs and a
+branch commit rejected before merge and accepted after merge. Ruff and workflow
+YAML checks passed. No new tag or release was created for this follow-up.
+
+**Authority remains a separate open issue.** The live tag ruleset was read via
+GitHub API: `v*` tags cannot be updated or deleted, but new tag creation is not
+restricted. The local CLI is authenticated as repository owner `FiraSenax` with
+administration rights, so the agent technically can create tags using the same
+identity as the maintainer. An owner-only exception cannot distinguish them.
+The source gate is an accident guard, not a hard boundary against tagging an
+older workflow without the gate or changing the workflow/rules. An enforceable
+human/agent separation needs distinct credentials and restricted tag creation;
+the existing automatic-signing setup was not represented as providing that.
+See [tag authority](RELEASING.md#tag-authority-and-the-limit-of-the-source-check).
+
 # After RC8: stable-candidate follow-up — 2026-10-29
 
 The published `v1.8.7-rc.8` remains commit `3ec722f`. The following UI change

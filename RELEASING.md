@@ -132,16 +132,24 @@ both app and DMG, stapling, Gatekeeper checks, smoke tests and final package
 verification as a release. A signed RC fails if the Apple credentials are missing;
 it never silently falls back to an unsigned macOS candidate.
 
-After reviewing and committing a candidate (including this workflow):
+After reviewing and merging a candidate (including this workflow) into protected
+`main`, tag the exact merged commit, for example:
 
 ```bash
-git tag v1.8.3-rc.1
+git fetch origin main
+git tag v1.8.3-rc.1 origin/main
 git push origin v1.8.3-rc.1
 ```
 
-A tag push starts the workflow even when the candidate commit is on a review
-branch and automatically publishes a public GitHub prerelease after all checks
-pass. No second manual build is required. Do not move an existing RC tag; use
+A version tag starts a source check without production secrets. It requires the
+tag, workflow SHA and checkout to identify the same commit, already reachable
+from freshly fetched `origin/main`. Missing history or a failed fetch stops the
+run. The builds and signing jobs wait for this check; off-main tags cannot pass
+this workflow, including manually dispatched signed rehearsals. Ordinary PR and
+unsigned branch builds remain available.
+
+An eligible RC tag automatically publishes a public GitHub prerelease after
+all checks pass. No second manual build is required. Do not move an existing RC tag; use
 `rc.2`, `rc.3`, etc. for fixes.
 The native package version remains numeric, for example `1.8.7`. New builds also
 record the verified RC tag in `data/build.json`, so the app can compare
@@ -164,7 +172,7 @@ discover Actions artifacts. **Artifact-only does not mean confidential:** tags
 and workflow metadata in this public repository remain visible, and artifact
 access follows GitHub's repository permissions.
 
-Select a tag permitted by `release-signing`; arbitrary
+Select a tag already contained in `main` and permitted by `release-signing`; arbitrary
 branches are intentionally blocked by the environment. The default manual branch run
 remains the unsigned rehearsal. Existing environment protection rules
 still apply. Windows signing runs when explicitly enabled; Linux
@@ -175,11 +183,13 @@ condition explicitly excludes RCs from that publishing job.
 
 ## Public release candidates for the optional update channel
 
-Pushing a reviewed new `vX.Y.Z-rc.N` tag automatically builds and publishes the
+Pushing a reviewed new `vX.Y.Z-rc.N` tag on a commit in `main` automatically builds and publishes the
 RC in the same run. Do not start a second manual publication run for that tag.
 The manual fallback remains available for an older, unpublished candidate:
 select its tag in **Actions → Build → Run workflow** and enable both
-**`signed_rc`** and **`publish_rc`**. It rebuilds and verifies all packages.
+**`signed_rc`** and **`publish_rc`**. It requires the same main-ancestry gate,
+rebuilds and verifies all packages. Older tagged workflow versions do not gain
+new safeguards retroactively; use a new reviewed tag after merging this workflow.
 
 The separate `release-candidate` job requires a successful complete rehearsal,
 matching RC tag and verified macOS/Windows signing. It downloads only that run's
@@ -194,6 +204,27 @@ version follows its RCs even if the option is switched off; older stable version
 are never offered as a downgrade. MSIX installations retain package-managed
 updates. Neither the website's latest stable download nor stable-only users are
 switched to RCs.
+
+### Tag authority and the limit of the source check
+
+On 2026-10-29, the active `Protect release tags` ruleset for `v*` prohibited
+updates, force-push and deletion, with no bypass actors. It did **not** restrict
+new tag creation. The local GitHub CLI used the repository owner's `FiraSenax`
+identity, including administration rights. GitHub cannot distinguish a person
+from an agent using the same credentials; an owner-only tag rule would therefore
+not remove that agent's tag authority.
+
+The source check prevents mistakes when using this workflow. It is not an
+independent security boundary: a writer can tag an older workflow without this
+check, and an administrator can change rules or workflow code. To enforce
+separate release authority, use a distinct agent identity without release-tag
+creation or repository-administration rights and a separately controlled release
+identity. Restrict creation in a separate tag ruleset so an allowed creator does
+not also gain a bypass of the existing immutable-tag rules. GitHub's creation
+restriction allows only its configured bypass actors; adding it with no allowed
+actor blocks everyone. Do not claim human-only tagging while both use the owner
+credentials. No credentials, tag rules or signing-environment approvals were
+changed by this follow-up.
 
 ## Clean build environments
 
@@ -225,7 +256,9 @@ suppress the check or manually alter the packaged scripts. Always run
    `python3 tools/fetch_rc.py RUN_ID` puts exactly the checked packages of that run into
    `dist/rc-<version>-<commit>/` with `RC-MANIFEST.json` (version, commit, run link, SHA-256 of every
    file) – verified, never overwriting an existing candidate.
-4. Commit and push the reviewed version tag (`vX.Y.Z`) on that commit.
+4. Merge the reviewed candidate through the protected `main` PR path, then
+   push the version tag (`vX.Y.Z`) on that exact commit. The source gate also
+   applies to stable signing and publication.
 5. Verify successful signing/notarization and the attached source/dependency evidence.
 
 Before Windows signing is enabled, Windows RC and development builds remain

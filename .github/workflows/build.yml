@@ -20,6 +20,25 @@ on:
 permissions:
   contents: read
 jobs:
+  release-source:
+    # No production environment or secrets: reject an off-main version tag
+    # before any dependent signing/build/publication job can start.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a release commit already merged into main
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          python3 tools/check_release_source.py --ref "$RELEASE_REF" --sha "$RELEASE_SHA"
   test:
     strategy:
       matrix:
@@ -106,7 +125,7 @@ jobs:
   # Signing is used when the credentials are configured as secrets; without
   # them the builds are published unsigned and clearly labelled as such.
   build-macos:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     runs-on: macos-14
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     env:
@@ -237,7 +256,7 @@ jobs:
             dist/KeyMelier-Sources-macOS.tar
           retention-days: 14
   build-windows:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     runs-on: windows-2022
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     timeout-minutes: 35
@@ -348,7 +367,7 @@ jobs:
   # script as locally (build-linux.sh); the start test runs the AppImage itself
   # under Xvfb with a D-Bus session and an unlocked Secret Service.
   build-linux:
-    needs: [test, ui]
+    needs: [release-source, test, ui]
     strategy:
       fail-fast: false
       matrix:
@@ -455,7 +474,7 @@ jobs:
   # The real release (version tags only) and the rehearsal (manual runs) share
   # every step up to publishing: .github/actions/prepare-release
   release:
-    needs: [test, ui, build-macos, build-windows, build-linux, linux-compat]
+    needs: [release-source, test, ui, build-macos, build-windows, build-linux, linux-compat]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-rc.')
     runs-on: ubuntu-24.04
     environment: release-signing
@@ -538,7 +557,7 @@ jobs:
   # Reviewed RC tag pushes publish automatically; manual rehearsals require opt-in.
   # Reuse exactly the checked files from this run; never replace an existing release.
   release-candidate:
-    needs: [release-rehearsal, build-macos, build-windows]
+    needs: [release-source, release-rehearsal, build-macos, build-windows]
     if: >-
       startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.') &&
       (github.event_name == 'push' ||
