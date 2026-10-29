@@ -48,6 +48,9 @@ RC5 local validation: 425 Python tests completed successfully (two platform
 skips); Ruff, UI security/account/website checks, JavaScript syntax, workflow
 YAML parsing, dependency export and license-input checks passed. Native CI
 builds and installer tests are tracked by the RC5 tag run.
+RC5's Windows run exposed two tests whose broad process mock intercepted the
+real Windows ACL setup (`whoami`/`icacls`). RC6 narrows those mocks to the installer
+launcher; application behavior is unchanged from RC5.
 
 RC4 changes (retained in RC5):
 

@@ -89,7 +89,10 @@ class UpdateRevocationTests(unittest.TestCase):
     def test_revocation_blocks_check_download_and_open_before_network_or_execution(self):
         from test_app_update import ASSET
         self.cache.write_bytes(self.document([self.key]))
-        with patch('requests.get') as get, patch('subprocess.Popen') as execute:
+        # Windows launches via startfile. Mocking Popen there also intercepts
+        # whoami/icacls used to protect persisted state.
+        launcher = 'os.startfile' if app_update.sys.platform == 'win32' else 'subprocess.Popen'
+        with patch('requests.get') as get, patch(launcher) as execute:
             result = app_update.check()
             self.assertTrue(result['revoked'])
             self.assertTrue(result['failed'])
@@ -102,7 +105,8 @@ class UpdateRevocationTests(unittest.TestCase):
             execute.assert_not_called()
 
     def test_revocation_arriving_at_open_time_blocks_installer(self):
-        with patch('requests.get', return_value=self.response([self.key])), patch('subprocess.Popen') as execute:
+        launcher = 'os.startfile' if app_update.sys.platform == 'win32' else 'subprocess.Popen'
+        with patch('requests.get', return_value=self.response([self.key])), patch(launcher) as execute:
             with self.assertRaisesRegex(app_update.UpdateError, '^revoked$'):
                 app_update.open_download(self.root / 'installer.exe')
             execute.assert_not_called()

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Prepared for v1.8.7-rc.5 (2026-10-29), a test candidate without a stable release.
+Prepared for v1.8.7-rc.6 (2026-10-29), a test candidate without a stable release.
 
 - Fix the blurry sidebar logo on macOS by using the existing high-resolution PNG instead of the filtered SVG at small display sizes.
 - Bind advisory freshness to its signed review timestamp; replaying old signed data no longer restores a positive security verdict. Reviewed advisory data must be re-signed within 45 days.
