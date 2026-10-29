@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 1.8.7 — 2026-10-29
+
+Stable release of the reviewed RC9 application code, including the security and compatibility fixes below.
+License distribution, metadata freshness, macOS menu responsiveness and build dependency maintenance.
+
+- Authenticate updates with a separate Ed25519 signature bound to the exact release tag, retain observed signing-key revocations locally and require an explicit action to open a downloaded installer. Production tags must identify a commit already merged into main before signing and publication.
+- Bind advisory freshness to a signed review date, reject future-dated data and require every managed source to be valid and reachable before showing `OK`. Explain unavailable company sources and VPN requirements in the app while preserving known warnings.
+- Isolate damaged sync files, validate incoming timestamps and deletion marks, preserve local history when the computer clock was wrong, and distinguish imported test events from local tests. Unreadable encrypted history remains intact without a plaintext fallback.
+- Correct firmware decoding and effective certification selection, tighten link and sync-folder handling, and clarify that an authenticity-test touch does not unlock key management.
+- Update the Linux Qt runtime to 6.11.3. Windows Setup now offers Microsoft's verified runtime installer when its prerequisite is missing or too old and resumes after successful installation.
+- Fix a macOS UI deadlock when using the native About, Check for Updates or key-selection menu actions. Run their JavaScript calls off the AppKit thread and exercise all three actions in a native regression test.
+- Add an optional release-candidate update channel in Settings, with numeric RC ordering, final-release upgrades and no automatic downgrade. Record the RC tag in build metadata and allow explicit publication of a verified signed RC as a GitHub prerelease.
+- Show the AAGUID in a compact header line with a copy button instead of a separate overview card; keep saved-value and all-zero explanations in Technical Details.
+- Update the build dependency setuptools to 84.2.1, including the archive and legacy wheel path traversal fixes from 84.1.0; refresh its reviewed licenses and source evidence together.
+- Reduce service logos to individually reviewed assets for licensing reasons; other services use a letter avatar.
+- Include complete third-party notices, source archives and build provenance. Check reviewed dependency versions, licenses and embedded sources on upgrades; retain KeyMelier’s MIT license.
+- Use the separately installed Microsoft Visual C++ runtime on Windows; the installer checks the prerequisite and portable downloads explain how to install it.
+- Keep the existing CSV header and column order. The deprecated `mds_description` and `mds_status` columns now contain empty values and are planned for removal in a future format change.
+- Explain expired or unverified FIDO MDS data separately from an AAGUID absent from current metadata, in all supported languages. A still-valid cache works offline; otherwise model text, icon and certification status are withheld until verification succeeds. Device operations remain available.
+- Remove detached MDS fields from saved history and sync; existing history snapshots are migrated. Manufacturer inference uses device information, without copying MDS descriptions into persistent identity fields.
+- Add an offline, searchable license reader under About, with complete document export, including the macOS About entry.
+- Document public security reporting and the existing diagnostic report export in SECURITY.md.
+
 ## v1.8.7-rc.9 — 2026-10-29
 
 - Require version tags to match the workflow checkout and a commit already contained in main before production signing or publication; unsigned branch builds remain available. This workflow guard does not separate a human from an agent sharing owner credentials.
@@ -18,8 +41,6 @@
 
 ## v1.8.7-rc.7 — 2026-10-29
 
-Test candidate; the stable release has not been published.
-
 - Require every managed advisory source to be current and valid before showing `OK`; retain signed warnings and rollback protection across restarts and reject source redirects.
 - Isolate damaged sync files, consume peer files only after successful merging, normalize timestamps to UTC and reject future-dated changes/removal marks. Preserve the existing sync format and prevent duplicate legacy events after normalization.
 - Label imported or synced test events by their origin; correct decimal firmware decoding and use the latest effective certification status while retaining compromise warnings.
@@ -34,24 +55,6 @@ Test candidate; the stable release has not been published.
 - Add a repository emergency stop by public-key fingerprint. Once observed, a revocation persists locally and blocks update downloads and installer opening, including offline. This deny-only mechanism cannot establish trust in a replacement key or defeat a repository attacker withholding the initial notice.
 - Update the Linux PySide/Qt runtime to 6.11.3 with matching source/license evidence and the library replacement probe.
 - When the Windows C++ runtime is missing or too old, offer its official Microsoft download, verify its signature, open Microsoft's installer and resume KeyMelier setup after success. Existing runtimes skip this step; silent installations still require prior provisioning.
-
-## 1.8.7 — 2026-10-27
-
-Release candidate under test; the stable release has not been published.
-License distribution, metadata freshness, macOS menu responsiveness and build dependency maintenance.
-
-- Fix a macOS UI deadlock when using the native About, Check for Updates or key-selection menu actions. Run their JavaScript calls off the AppKit thread and exercise all three actions in a native regression test.
-- Add an optional release-candidate update channel in Settings, with numeric RC ordering, final-release upgrades and no automatic downgrade. Record the RC tag in build metadata and allow explicit publication of a verified signed RC as a GitHub prerelease.
-- Show the AAGUID in a compact header line with a copy button instead of a separate overview card; keep saved-value and all-zero explanations in Technical Details.
-- Update the build dependency setuptools to 84.2.1, including the archive and legacy wheel path traversal fixes from 84.1.0; refresh its reviewed licenses and source evidence together.
-- Reduce service logos to individually reviewed assets for licensing reasons; other services use a letter avatar.
-- Include complete third-party notices, source archives and build provenance. Check reviewed dependency versions, licenses and embedded sources on upgrades; retain KeyMelier’s MIT license.
-- Use the separately installed Microsoft Visual C++ runtime on Windows; the installer checks the prerequisite and portable downloads explain how to install it.
-- Keep the existing CSV header and column order. The deprecated `mds_description` and `mds_status` columns now contain empty values and are planned for removal in a future format change.
-- Explain expired or unverified FIDO MDS data separately from an AAGUID absent from current metadata, in all supported languages. A still-valid cache works offline; otherwise model text, icon and certification status are withheld until verification succeeds. Device operations remain available.
-- Remove detached MDS fields from saved history and sync; existing history snapshots are migrated. Manufacturer inference uses device information, without copying MDS descriptions into persistent identity fields.
-- Add an offline, searchable license reader under About, with complete document export, including the macOS About entry.
-- Document public security reporting and the existing diagnostic report export in SECURITY.md.
 
 ## 1.8.6 — 2026-10-26
 
