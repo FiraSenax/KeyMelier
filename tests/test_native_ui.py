@@ -1,5 +1,6 @@
 """Native adapters cancel before load; mocks exercise the backend callback contracts."""
 import unittest
+import base64
 import subprocess
 import sys
 from pathlib import Path
@@ -34,6 +35,21 @@ class NativeNavigationTests(unittest.TestCase):
         self.assertFalse(policy.allow('file://remote/run/user/1000/keymelier-a%20b/keymelier.html'))
         self.assertTrue(policy.allow('file:///run/user/1000/keymelier-a b/keymelier.html'))
         self.assertFalse(policy.allow('file:///run/user/1000/keymelier-a b/keymelier.html'))
+
+    def test_webview2_data_url_is_bound_to_exact_backend_html_and_single_use(self):
+        html = '<html><body>Trusted app ä</body></html>'
+        own = 'data:text/html;charset=utf-8;base64,' + base64.b64encode(html.encode()).decode()
+        policy = native_ui.NavigationPolicy(html=html)
+        self.assertFalse(policy.allow('data:text/html;charset=utf-8;base64,Zm9yZWlnbg=='))
+        self.assertFalse(policy.allow(own + '#extra'))
+        self.assertFalse(policy.allow(own, main=False))
+        self.assertTrue(policy.allow(own))
+        self.assertFalse(policy.allow(own))
+        self.assertFalse(policy.allow('about:blank'))
+        self.assertFalse(native_ui.NavigationPolicy().allow(own))
+        older_runtime = native_ui.NavigationPolicy(html=html)
+        self.assertTrue(older_runtime.allow('about:blank'))
+        self.assertFalse(older_runtime.allow(own))
 
     def test_edge_cancels_navigation_and_handles_popups(self):
         original, completed = Mock(), Mock()

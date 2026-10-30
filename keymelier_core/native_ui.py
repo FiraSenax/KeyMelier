@@ -3,6 +3,7 @@
 Install during `initialized`, before backend widgets load the first document.
 Never use a loaded-event redirect as an authorization boundary.
 """
+import base64
 import logging
 import threading
 from urllib.parse import unquote, urlsplit
@@ -13,8 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class NavigationPolicy:
-    def __init__(self, page_url=None):
+    def __init__(self, page_url=None, *, html=None):
         self.expected = self._canonical(page_url or "about:blank")
+        # NavigateToString has an about:blank origin, but current WebView2
+        # reports its exact UTF-8 data URL in NavigationStarting. Permit only
+        # our backend-built document, once; never permit the data scheme itself.
+        self._html_url = ("data:text/html;charset=utf-8;base64," + base64.b64encode(html.encode('utf-8')).decode('ascii')
+                          if isinstance(html, str) else None)
         self._initial = True
         self._lock = threading.Lock()
 
@@ -36,14 +42,17 @@ class NavigationPolicy:
 
     def allow(self, url, main=True):
         with self._lock:
-            if main and self._initial and self.expected is not None and self._canonical(url) == self.expected:
+            matches = ((self._html_url is not None and url == self._html_url)
+                       or (self.expected is not None and self._canonical(url) == self.expected))
+            if main and self._initial and matches:
                 self._initial = False
+                self._html_url = None
                 return True
             return False
 
 
 def install(window, page_url=None):
-    policy = NavigationPolicy(page_url)
+    policy = NavigationPolicy(page_url, html=getattr(window, 'html', None) if page_url is None else None)
 
     def initialized(renderer):
         try:
