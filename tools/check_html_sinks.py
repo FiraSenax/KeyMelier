@@ -19,7 +19,7 @@ def inventory(root=ROOT):
     for file in sorted((root / "static").glob("*.js")):
         for line in file.read_text(encoding="utf-8").splitlines():
             if PATTERN.search(line):
-                ident = str(file.relative_to(root)) + ":" + hashlib.sha256(line.strip().encode()).hexdigest()
+                ident = file.relative_to(root).as_posix() + ":" + hashlib.sha256(line.strip().encode()).hexdigest()
                 found[ident] = found.get(ident, 0) + 1
     return found
 
