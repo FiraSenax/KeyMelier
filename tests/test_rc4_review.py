@@ -173,8 +173,8 @@ class SyncInputTests(unittest.TestCase):
     def test_poison_peer_does_not_prevent_good_merge_or_local_write(self):
         cloud = self.root / 'cloud'
         cloud.mkdir()
-        local = history.History(self.root / 'local.json', enabled=True)
-        peer = history.History(enabled=False)
+        local = history.History(self.root / 'local.json', enabled=True, encrypted=False)
+        peer = history.History(enabled=False, encrypted=False)
         peer.update_snapshot(record())
         runner = sync.Syncer(local, lambda *_: None, lambda: True)
         runner._folder = sync.SyncFolder(cloud, 'f' * 16, 'passphrase')
@@ -193,7 +193,7 @@ class SyncInputTests(unittest.TestCase):
         self.assertIn(bad.name, runner._folder._seen)
 
     def test_future_tombstone_cannot_remove_or_pin_a_key(self):
-        local = history.History(enabled=False)
+        local = history.History(enabled=False, encrypted=False)
         kid = local.update_snapshot(record())['key_id']
         local.merge_sync({'forgotten': {kid: '9999-01-01T00:00:00+00:00'}})
         self.assertIsNotNone(local.get(kid))
@@ -204,7 +204,7 @@ class SyncInputTests(unittest.TestCase):
         self.assertEqual(local.sync_state()['forgotten'], {})
 
     def test_timestamp_offsets_compare_by_instant_and_future_fields_do_not_win(self):
-        local = history.History(enabled=False)
+        local = history.History(enabled=False, encrypted=False)
         kid = local.update_snapshot(record())['key_id']
         local.rename(kid, 'local')
         local._entries[kid]['label_at'] = '2020-01-01T10:00:00+00:00'
@@ -217,7 +217,7 @@ class SyncInputTests(unittest.TestCase):
         self.assertEqual(history._clean_stamp('2020-01-01T11:00:00+02:00'), '2020-01-01T09:00:00.000000+00:00')
 
     def test_tombstones_are_bounded_and_bad_structure_has_no_partial_effect(self):
-        local = history.History(enabled=False)
+        local = history.History(enabled=False, encrypted=False)
         before = local.sync_state()
         with self.assertRaises(ValueError):
             local.merge_sync({'forgotten': [], 'keys': [{'key_id': 'a' * 16}]})
@@ -235,7 +235,7 @@ class SyncInputTests(unittest.TestCase):
             self.assertEqual(entry['snapshot']['security_status'], 'UNKNOWN')
 
     def test_timestamp_normalization_does_not_duplicate_existing_local_events(self):
-        local = history.History(enabled=False)
+        local = history.History(enabled=False, encrypted=False)
         kid = local.add_event(record(), 'attestation', passed=True)['key_id']
         local._entries[kid]['events'][0]['ts'] = '2020-01-01T01:00:00+01:00'
         peer = local.sync_state()

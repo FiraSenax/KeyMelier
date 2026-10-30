@@ -121,7 +121,7 @@ class MergeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.h = History(Path(self.tmp.name) / 'h.json', enabled=True)
+        self.h = History(Path(self.tmp.name) / 'h.json', enabled=True, encrypted=False)
         self.h.merge_probe(record(), [
             {'rp_id': 'a.com', 'status': 'found', 'count': 1, 'users': [{'name': 'alice'}]},
             {'rp_id': 'b.com', 'status': 'found', 'count': 1, 'users': []},
@@ -160,7 +160,7 @@ class CoverageTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.h = History(Path(self.tmp.name) / 'h.json', enabled=True)
+        self.h = History(Path(self.tmp.name) / 'h.json', enabled=True, encrypted=False)
 
     def per_rp(self):
         return {rp: v['status'] for rp, v in self.h.list()[0]['probe_rp'].items()}

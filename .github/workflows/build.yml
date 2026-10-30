@@ -83,6 +83,8 @@ jobs:
         shell: bash
         run: for f in static/*.js; do node --check "$f"; done
       - run: node tests/ui_security.cjs
+      - run: python tools/check_html_sinks.py
+      - run: node tools/export_native_text.cjs --check
       - run: node tests/accounts_model.cjs
       - run: node tests/website_release.cjs
   # UI tests on the demo page (no backend, no keys) with real keyboard and
@@ -110,6 +112,10 @@ jobs:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           UI_ARTIFACTS: build/ui-test-artifacts
         run: node tests/ui/ui_test.cjs
+      - name: Production content security policy
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: node tests/ui/csp_test.cjs
       - name: UI under load (300+ accounts, minimum window size, light/dark)
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}

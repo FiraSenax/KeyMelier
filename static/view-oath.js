@@ -37,39 +37,37 @@ function formatCode(code) {
   return code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code.length === 8 ? `${code.slice(0, 4)} ${code.slice(4)}` : code;
 }
 
-function oathAccountHtml(a, st) {
-  const label = a.issuer || a.name;
+function oathAccountNode(a, st) {
+  const button = (act, label, cls = 'btn btn-secondary', attrs = {}) => uiElement('button',
+    {type: 'button', class: cls, 'data-act': act, 'data-id': a.id, ...attrs}, label);
   if (oathEdit === a.id) {
-    return `<li class="pk-item"><form class="oath-rename-form pk-rename-form" data-id="${escHtml(a.id)}">
-      <input type="text" class="oath-rename-issuer" value="${escHtml(a.issuer)}" placeholder="${escHtml(t('oath.issuer'))}" maxlength="60">
-      <input type="text" class="oath-rename-name" value="${escHtml(a.name)}" placeholder="${escHtml(t('oath.account'))}" maxlength="60">
-      <div class="pk-rename-actions">
-        <button type="button" class="btn btn-secondary" data-act="edit-cancel">${escHtml(t('pk.delete.cancel'))}</button>
-        <button type="submit" class="btn btn-primary">${escHtml(t('fp.save'))}</button>
-      </div></form></li>`;
+    return uiElement('li', {class: 'pk-item'}, uiElement('form', {class: 'oath-rename-form pk-rename-form', 'data-id': a.id},
+      uiElement('input', {type: 'text', class: 'oath-rename-issuer', value: a.issuer, placeholder: t('oath.issuer'), maxlength: 60}),
+      uiElement('input', {type: 'text', class: 'oath-rename-name', value: a.name, placeholder: t('oath.account'), maxlength: 60}),
+      uiElement('div', {class: 'pk-rename-actions'}, button('edit-cancel', t('pk.delete.cancel')),
+        uiElement('button', {type: 'submit', class: 'btn btn-primary'}, t('fp.save')))));
   }
-  let codeHtml;
+  const code = uiElement('div', {class: 'oath-code-wrap'});
   if (a.code) {
-    codeHtml = `<button type="button" class="oath-code" data-act="copy" data-code="${escHtml(a.code)}" title="${escHtml(t('oath.copy'))}">${escHtml(formatCode(a.code))}</button>
-      ${a.valid_to ? `<div class="oath-bar"><div data-valid-to="${a.valid_to}" data-period="${a.period || 30}"></div></div>` : ''}`;
+    code.append(button('copy', formatCode(a.code), 'oath-code', {'data-code': a.code, title: t('oath.copy')}));
+    if (a.valid_to) code.append(uiElement('div', {class: 'oath-bar'},
+      uiElement('div', {'data-valid-to': a.valid_to, 'data-period': a.period || 30})));
   } else if (oathBusy === a.id) {
-    codeHtml = `<span class="oath-wait"><span class="spinner"></span>${escHtml(t('oath.touch'))}</span>`;
+    code.append(uiElement('span', {class: 'oath-wait'}, uiElement('span', {class: 'spinner'}), t('oath.touch')));
   } else {
-    codeHtml = `<button type="button" class="btn btn-secondary oath-get" data-act="code" data-id="${escHtml(a.id)}">${icon(a.touch ? 'key' : 'lock', 14)} ${escHtml(t(a.touch ? 'oath.touchForCode' : 'oath.generate'))}</button>`;
+    code.append(button('code', [iconNode(a.touch ? 'key' : 'lock', 14), ' ', t(a.touch ? 'oath.touchForCode' : 'oath.generate')], 'btn btn-secondary oath-get'));
   }
-  const actions = oathConfirm === a.id
-    ? `<div class="pk-confirm"><span>${escHtml(t('pk.delete.confirm'))}</span>
-        <button type="button" class="btn btn-secondary" data-act="cancel">${escHtml(t('pk.delete.cancel'))}</button>
-        <button type="button" class="btn btn-danger" data-act="delete" data-id="${escHtml(a.id)}">${escHtml(t('pk.delete.do'))}</button></div>`
-    : `${st.can_rename ? `<button type="button" class="btn-icon" data-act="edit" data-id="${escHtml(a.id)}" title="${escHtml(t('fp.rename'))}">${icon('pencil', 16)}</button>` : ''}
-       <button type="button" class="btn-icon danger" data-act="ask-delete" data-id="${escHtml(a.id)}" title="${escHtml(t('pk.delete.do'))}">${icon('trash', 16)}</button>`;
-  return `<li class="pk-item oath-item">
-    ${serviceAvatar(a.issuer, label)}
-    <div class="pk-user"><div class="pk-user-name">${escHtml(label)}</div>
-      ${a.issuer ? `<div class="pk-user-sub">${escHtml(a.name)}</div>` : ''}</div>
-    <div class="oath-code-wrap">${codeHtml}</div>
-    ${actions}
-  </li>`;
+  const name = uiElement('div', {class: 'pk-user'}, uiElement('div', {class: 'pk-user-name'}, a.issuer || a.name));
+  if (a.issuer) name.append(uiElement('div', {class: 'pk-user-sub'}, a.name));
+  const row = uiElement('li', {class: 'pk-item oath-item'}, serviceAvatarNode(a.issuer, a.issuer || a.name), name, code);
+  if (oathConfirm === a.id) {
+    row.append(uiElement('div', {class: 'pk-confirm'}, uiElement('span', {}, t('pk.delete.confirm')),
+      button('cancel', t('pk.delete.cancel')), button('delete', t('pk.delete.do'), 'btn btn-danger')));
+  } else {
+    if (st.can_rename) row.append(button('edit', iconNode('pencil', 16), 'btn-icon', {title: t('fp.rename')}));
+    row.append(button('ask-delete', iconNode('trash', 16), 'btn-icon danger', {title: t('pk.delete.do')}));
+  }
+  return row;
 }
 
 function renderOath() {
@@ -126,7 +124,7 @@ function renderOath() {
       </div></form>`);
   }
   if (accounts.length) {
-    parts.push(`<section class="card"><ul class="pk-list">${accounts.map(a => oathAccountHtml(a, st)).join('')}</ul></section>`);
+    parts.push('<section class="card"><ul class="pk-list" data-oath-accounts></ul></section>');
   } else if (oathForm !== 'add') {
     parts.push(`<div class="callout"><div class="callout-title">${escHtml(t('oath.empty.title'))}</div>
       <div class="callout-text">${escHtml(t('oath.empty.text'))}</div></div>`);
@@ -155,6 +153,7 @@ function renderOath() {
       : `<button type="button" class="btn btn-secondary" data-act="ask-reset">${escHtml(t('oath.reset.do'))}</button>`}</div>
   </section>`);
   el.innerHTML = parts.join('');
+  el.querySelector('[data-oath-accounts]')?.replaceChildren(...accounts.map(a => oathAccountNode(a, st)));
 }
 
 async function loadOath(token, quiet = false) {

@@ -62,7 +62,7 @@ class KeyRemovedWhileReadingTests(unittest.TestCase):
         self.settings.start()
         self.addCleanup(self.settings.stop)
         self.scanner = FakeScanner(record("42"))
-        self.history = History(Path(self.tmp.name) / "history.json", enabled=True)
+        self.history = History(Path(self.tmp.name) / "history.json", enabled=True, encrypted=False)
         self.svc = service_mod.KeyService(self.scanner, None, history=self.history)
         self.svc.card_apps = lambda token_id: {"apps": {}}
         for p in (patch.object(service_mod.passkeys_mod, "capabilities", return_value={"supported": True}),
@@ -105,7 +105,7 @@ class SearchAfterCancelTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         with patch.object(service_mod, "SETTINGS_FILE", Path(tmp.name) / "settings.json"):
-            svc = service_mod.KeyService(FakeScanner(record("7")), None, history=History(Path(tmp.name) / "h.json", enabled=True))
+            svc = service_mod.KeyService(FakeScanner(record("7")), None, history=History(Path(tmp.name) / "h.json", enabled=True, encrypted=False))
             seen = []
 
             def probe(ctap2, rp_ids, pin=None, progress=None, cancelled=None):
@@ -124,7 +124,7 @@ class SyncFolderOfflineTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         folder = tmp / "cloud"
         folder.mkdir()
-        h = History(tmp / "h.json", enabled=True)
+        h = History(tmp / "h.json", enabled=True, encrypted=False)
         h.set_sites(record("1"), [])
         s = sync.Syncer(h, lambda n, p: None, lambda: True)
         s._folder = sync.SyncFolder(folder, sync.new_device_id(), "correct horse battery", "machine-a")
@@ -139,7 +139,7 @@ class SyncFolderOfflineTests(unittest.TestCase):
         status = s.run_once()
         self.assertEqual(status["errors"], [], "recovers by itself")
         self.assertNotEqual(s._folder.own_path.read_bytes(), own, "the offline change is written")
-        other = History(tmp / "other.json", enabled=True)
+        other = History(tmp / "other.json", enabled=True, encrypted=False)
         other.merge_sync(sync.unseal(s._folder.own_path.read_bytes(), "correct horse battery")[1]["history"])
         self.assertEqual(other.list()[0]["label"], "changed while offline")
 
@@ -150,10 +150,10 @@ class InterruptedSaveTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.dir, True)
 
     def test_leftover_temporary_file_does_not_matter(self):
-        h = History(self.dir / "history.json", enabled=True)
+        h = History(self.dir / "history.json", enabled=True, encrypted=False)
         h.set_sites(record("1"), [{"rp_id": "a.com", "name": "", "count": 1, "users": []}])
         (self.dir / ".keymelier-abc123").write_text('{"version": 1, "keys": [')   # crash before rename
-        again = History(self.dir / "history.json", enabled=True)
+        again = History(self.dir / "history.json", enabled=True, encrypted=False)
         self.assertEqual(len(again.list()), 1)
         self.assertIsNone(again.load_problem)
 
@@ -161,7 +161,7 @@ class InterruptedSaveTests(unittest.TestCase):
         path = self.dir / "history.json"
         path.write_text('{"version": 1, "keys": [{"key_id": "abc", "label": "important"')   # cut off
         broken = path.read_bytes()
-        h = History(path, enabled=True)
+        h = History(path, enabled=True, encrypted=False)
         self.assertEqual(h.list(), [])
         kept = self.dir / h.load_problem["file"]
         self.assertEqual(h.load_problem["code"], "history_unreadable")
@@ -169,14 +169,14 @@ class InterruptedSaveTests(unittest.TestCase):
         h.set_sites(record("1"), [])                          # the app keeps working …
         self.assertEqual(kept.read_bytes(), broken, "… without touching the kept file")
         self.assertTrue(path.exists())
-        self.assertIsNone(History(path, enabled=True).load_problem, "next start is clean")
+        self.assertIsNone(History(path, enabled=True, encrypted=False).load_problem, "next start is clean")
 
     def test_unreadable_settings_are_kept_and_reported(self):
         settings = self.dir / "settings.json"
         settings.write_text('{"lang": "de", "personal_mode": fal')
         with patch.object(service_mod, "SETTINGS_FILE", settings):
             svc = service_mod.KeyService(FakeScanner(record("1")), None,
-                                         history=History(self.dir / "h.json", enabled=True))
+                                         history=History(self.dir / "h.json", enabled=True, encrypted=False))
             st = svc.get_settings()
             self.assertEqual([p["code"] for p in st["problems"]], ["settings_unreadable"])
             kept = self.dir / st["problems"][0]["file"]
@@ -206,7 +206,7 @@ class InterruptedSaveTests(unittest.TestCase):
         blocked, _ = self.locked(settings)
         with patch.object(service_mod, "SETTINGS_FILE", settings), blocked, patch("time.sleep"):
             svc = service_mod.KeyService(FakeScanner(record("1")), None,
-                                         history=History(self.dir / "h.json", enabled=True))
+                                         history=History(self.dir / "h.json", enabled=True, encrypted=False))
             st = svc.get_settings()
             self.assertEqual([p["code"] for p in st["problems"]], ["settings_locked"])
             svc.set_settings({"lang": "fr"})               # would lose sync_folder: not written
@@ -221,18 +221,18 @@ class InterruptedSaveTests(unittest.TestCase):
                 patch("keymelier_core.storage.SHARING_VIOLATIONS", True), \
                 patch("time.sleep"):
             svc = service_mod.KeyService(FakeScanner(record("1")), None,
-                                         history=History(self.dir / "h.json", enabled=True))
+                                         history=History(self.dir / "h.json", enabled=True, encrypted=False))
             self.assertEqual(svc.get_settings()["lang"], "de")
         self.assertEqual(len(calls), 2)
 
     def test_locked_history_is_neither_moved_nor_overwritten(self):
         path = self.dir / "history.json"
-        h = History(path, enabled=True)
+        h = History(path, enabled=True, encrypted=False)
         h.update_snapshot(record("1"))
         before = path.read_bytes()
         blocked, _ = self.locked(path)
         with blocked, patch("time.sleep"):
-            h2 = History(path, enabled=True)
+            h2 = History(path, enabled=True, encrypted=False)
         self.assertEqual(h2.load_problem["code"], "history_locked")
         h2.update_snapshot(record("2"))                     # the app keeps working …
         self.assertEqual(path.read_bytes(), before, "… without overwriting the locked history")
@@ -244,7 +244,7 @@ class InterruptedSaveTests(unittest.TestCase):
         with patch.object(service_mod, "SETTINGS_FILE", settings), \
                 patch.object(service_mod, "set_aside", side_effect=PermissionError(13, "locked")):
             svc = service_mod.KeyService(FakeScanner(record("1")), None,
-                                         history=History(self.dir / "h.json", enabled=True))
+                                         history=History(self.dir / "h.json", enabled=True, encrypted=False))
             self.assertEqual([p["code"] for p in svc.get_settings()["problems"]], ["settings_locked"])
         self.assertEqual(settings.read_text(), '{"broken')
 
@@ -263,7 +263,7 @@ class FingerprintUnlockCancelTests(unittest.TestCase):
         p = patch.object(service_mod, "SETTINGS_FILE", Path(tmp.name) / "settings.json")
         p.start()
         self.addCleanup(p.stop)
-        self.svc = service_mod.KeyService(FakeScanner(record("9")), None, history=History(Path(tmp.name) / "h.json", enabled=True))
+        self.svc = service_mod.KeyService(FakeScanner(record("9")), None, history=History(Path(tmp.name) / "h.json", enabled=True, encrypted=False))
 
     def test_cancel_stops_a_waiting_fingerprint_unlock(self):
         import threading
@@ -382,7 +382,7 @@ class YubiKeyInterfacesTests(unittest.TestCase):
         rec = record("5")
         rec.product_name, rec.vendor_id = product, 0x1050
         with patch.object(service_mod, "SETTINGS_FILE", Path(tmp.name) / "settings.json"):
-            svc = service_mod.KeyService(FakeScanner(rec), None, history=History(Path(tmp.name) / "h.json", enabled=True))
+            svc = service_mod.KeyService(FakeScanner(rec), None, history=History(Path(tmp.name) / "h.json", enabled=True, encrypted=False))
         svc._card = lambda token_id: (_ for _ in ()).throw(service_mod.CardError("no reader", "no_card"))
         return svc.card_apps("tok")
 

@@ -54,7 +54,7 @@ class UpgradeCompatTests(unittest.TestCase):
     def service(self, d, history=None):
         with patch.object(service_mod, "SETTINGS_FILE", d / "settings.json"), \
                 patch.object(service_mod, "secret_get", return_value=None):
-            svc = service_mod.KeyService(Scanner(), None, history=history or History(d / "history.json", enabled=True))
+            svc = service_mod.KeyService(Scanner(), None, history=history or History(d / "history.json", enabled=True, encrypted=False))
         return svc
 
     def test_fixtures_exist_for_published_releases(self):
@@ -65,7 +65,7 @@ class UpgradeCompatTests(unittest.TestCase):
         for tag in TAGS:
             with self.subTest(tag):
                 d, k = self.copy(tag)
-                h = History(d / "history.json", enabled=True)
+                h = History(d / "history.json", enabled=True, encrypted=False)
                 a, b, c = h.get(k["A"]), h.get(k["B"]), h.get(k["C"])
                 self.assertEqual((a["label"], b["label"], c["label"]), ("Everyday key", "Backup key", "Old office key"))
                 # lost key and the service already handled
@@ -111,12 +111,12 @@ class UpgradeCompatTests(unittest.TestCase):
         for tag in TAGS:
             with self.subTest(tag):
                 d, k = self.copy(tag)
-                first = History(d / "history.json", enabled=True)
+                first = History(d / "history.json", enabled=True, encrypted=False)
                 before = {e["key_id"]: {f: e.get(f) for f in ("label", "lost_since", "lost_done", "replace", "sites", "inventory")}
                           for e in first.list()}
                 first.rename(k["A"], "Everyday key")          # forces a save in the new format
                 for _ in range(2):                              # repeated loads change nothing
-                    again = History(d / "history.json", enabled=True)
+                    again = History(d / "history.json", enabled=True, encrypted=False)
                     after = {e["key_id"]: {f: e.get(f) for f in ("label", "lost_since", "lost_done", "replace", "sites", "inventory")}
                              for e in again.list()}
                     self.assertEqual(after, before)
@@ -127,10 +127,10 @@ class UpgradeCompatTests(unittest.TestCase):
             with self.subTest(tag):
                 d, _k = self.copy(tag)
                 path = d / "history.json"
-                History(path, enabled=True)._save()
+                History(path, enabled=True, encrypted=False)._save()
                 first = path.read_bytes()
                 for _ in range(3):
-                    History(path, enabled=True)._save()
+                    History(path, enabled=True, encrypted=False)._save()
                 self.assertEqual(path.read_bytes(), first)
 
     def test_stateless_mode_does_not_touch_old_data(self):
@@ -139,7 +139,7 @@ class UpgradeCompatTests(unittest.TestCase):
                 d, k = self.copy(tag)
                 digest = sha(d / "history.json")
                 with patch.dict(os.environ, {"KEYMELIER_STATELESS": "1"}):
-                    h = History(d / "history.json", enabled=True)
+                    h = History(d / "history.json", enabled=True, encrypted=False)
                     self.assertFalse(h.enabled)
                     self.assertEqual(h.list(), [], "nothing is read in stateless mode")
                     h.rename(k["A"], "x")
@@ -154,7 +154,7 @@ class UpgradeCompatTests(unittest.TestCase):
                 (d / "settings.json").write_text(json.dumps(settings))
                 digest = sha(d / "history.json")
                 with patch.object(service_mod, "SETTINGS_FILE", d / "settings.json"):
-                    svc = service_mod.KeyService(Scanner(), None, history=History(d / "history.json", enabled=False))
+                    svc = service_mod.KeyService(Scanner(), None, history=History(d / "history.json", enabled=False, encrypted=False))
                     self.assertFalse(svc.history.enabled)
                 self.assertEqual(sha(d / "history.json"), digest, "switched-off history is left as it is")
 
@@ -166,7 +166,7 @@ class UpgradeCompatTests(unittest.TestCase):
         for tag in TAGS:
             with self.subTest(tag):
                 d, k = self.copy(tag)
-                h = History(d / "history.json", enabled=True)
+                h = History(d / "history.json", enabled=True, encrypted=False)
                 entries = json.dumps(h.list())
                 script = f"""
 const {{ buildAccountModel, cellState, buildReplacePlan, replacePlanItems }} = require({json.dumps(str(Path(__file__).parent.parent / 'static' / 'accounts.js'))});

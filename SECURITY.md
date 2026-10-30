@@ -48,6 +48,22 @@ such a vulnerability is affected.
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md) records implementation reviews and known
 limitations; it is not an independent security certification.
 
+## Desktop consent and local history
+
+Sensitive key changes, resets and deletions require native confirmation for each
+request, with Cancel as the default. The backend supplies the action and device
+identity and rechecks the connection after confirmation. A renderer-provided
+approval flag cannot replace this decision. The WebView blocks foreign navigation
+before loading. These controls limit renderer attacks; they do not isolate the
+application from a compromised OS account or a user who approves a malicious request.
+
+Saved history uses the native OS credential store by default. A locked or missing
+key blocks persistence and sync without overwriting the encrypted file or falling
+back to plaintext. Restore the matching key or unlock the store, then restart.
+Legacy plaintext history is copied and verified automatically; its unchanged
+original remains a plaintext backup. Existing backups and explicit JSON/CSV exports
+are outside this encryption boundary. See the [storage and downgrade notes](README.md#privacy-and-security).
+
 ## Sync trust and recovery
 
 Everyone who knows a sync passphrase has equal authority over the shared history,

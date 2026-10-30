@@ -16,6 +16,7 @@ import time
 from contextlib import contextmanager, nullcontext
 
 from keymelier_core.pin import PinError
+from keymelier_core.safe_errors import log_failure
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,12 @@ def _reader_devices():
 
 
 def map_card_error(e) -> CardError:
+    from yubikit.core import CommandError, NotSupportedError
+    from smartcard.Exceptions import SmartcardException
+    if isinstance(e, CardError):
+        return e
+    if not isinstance(e, (CommandError, NotSupportedError, SmartcardException, OSError)):
+        log_failure(logger, "Smart card operation", e)
     text = str(e)
     lowered = text.lower()
     if "sharing violation" in lowered or "exclusive" in lowered or "in use" in lowered:

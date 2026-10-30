@@ -42,8 +42,8 @@ class MergeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.a = History(Path(self.tmp.name) / 'a.json', enabled=True)
-        self.b = History(Path(self.tmp.name) / 'b.json', enabled=True)
+        self.a = History(Path(self.tmp.name) / 'a.json', enabled=True, encrypted=False)
+        self.b = History(Path(self.tmp.name) / 'b.json', enabled=True, encrypted=False)
         self.a.track_forgotten = self.b.track_forgotten = True
         self.kid = self.a.set_sites(record('1'), [{'rp_id': 'x.com', 'name': 'X', 'count': 1, 'users': [{'name': 'erika'}]}])['key_id']
 
@@ -89,7 +89,7 @@ class MergeTests(unittest.TestCase):
         self.assertNotIn("sites", self.b.get(self.kid))
 
     def test_removal_marks_only_while_syncing(self):
-        h = History(Path(self.tmp.name) / 'c.json', enabled=True)
+        h = History(Path(self.tmp.name) / 'c.json', enabled=True, encrypted=False)
         kid = h.update_snapshot(record('9'))['key_id']
         h.forget(kid)
         self.assertNotIn(kid, (Path(self.tmp.name) / 'c.json').read_text())
@@ -107,7 +107,7 @@ class FolderTests(unittest.TestCase):
 
     def computer(self, name, passphrase=PW, device=None, machine=None):
         """One simulated computer: its own history file and machine id."""
-        h = History(Path(self.tmp.name) / f'{name}.json', enabled=True)
+        h = History(Path(self.tmp.name) / f'{name}.json', enabled=True, encrypted=False)
         events = []
         s = sync.Syncer(h, lambda n, p: events.append(n), lambda: True)
         s.new_ids = []
@@ -118,7 +118,7 @@ class FolderTests(unittest.TestCase):
 
     def restart(self, name, h, device, machine=None, passphrase=PW):
         """Same computer, KeyMelier started again (history file kept)."""
-        h2 = History(Path(self.tmp.name) / f'{name}.json', enabled=True)
+        h2 = History(Path(self.tmp.name) / f'{name}.json', enabled=True, encrypted=False)
         s = sync.Syncer(h2, lambda n, p: None, lambda: True)
         s.new_ids = []
         s._on_new_device = s.new_ids.append
@@ -333,7 +333,7 @@ class OverlapAndAccessTests(unittest.TestCase):
         self.dir.mkdir()
 
     def computer(self, name):
-        h = History(Path(self.tmp.name) / f"{name}.json", enabled=True)
+        h = History(Path(self.tmp.name) / f"{name}.json", enabled=True, encrypted=False)
         s = sync.Syncer(h, lambda n, p: None, lambda: True)
         s._folder = sync.SyncFolder(self.dir, sync.new_device_id(), PW, f"machine-{name}")
         h.track_forgotten = True

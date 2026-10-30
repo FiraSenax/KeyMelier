@@ -57,7 +57,8 @@ def build_html(static_dir: Path = STATIC_DIR) -> str:
         html = html.replace(tag, f"<script>{body}</script>")
     # Only our scripts may run: no inline handlers, no javascript: URLs,
     # no network, no framing. 'unsafe-eval' is needed by pywebview's bridge
-    # stubs (new Function). Injected markup therefore cannot execute.
+    # stubs (new Function) and evaluate_js. Inline handlers stay blocked;
+    # DOM construction/escaping is still required at every untrusted input.
     csp = ("default-src 'none'; script-src " + " ".join(hashes) + " 'unsafe-eval'; "
            "style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; "
            "form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'")

@@ -27,7 +27,7 @@ class SettingsTests(unittest.TestCase):
         self.settings = patch.object(service_mod, "SETTINGS_FILE", self.tmp / "settings.json")
         self.settings.start()
         self.addCleanup(self.settings.stop)
-        self.svc = service_mod.KeyService(Scanner(), None, history=History(self.tmp / "h.json", enabled=True))
+        self.svc = service_mod.KeyService(Scanner(), None, history=History(self.tmp / "h.json", enabled=True, encrypted=False))
 
     def test_introduction_flag_is_stored(self):
         self.assertFalse(self.svc.get_settings().get("onboarding_done", False), "shown on a first start")

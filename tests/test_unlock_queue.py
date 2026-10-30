@@ -29,7 +29,7 @@ class UnlockQueueTests(unittest.TestCase):
                 scanner = Mock()
                 scanner.session = Mock(side_effect=session)
                 with patch.object(service, 'SETTINGS_FILE', Path(folder) / 'settings.json'):
-                    svc = service.KeyService(scanner, None, history=History(Path(folder) / 'history.json'))
+                    svc = service.KeyService(scanner, None, history=History(Path(folder) / 'history.json', encrypted=False))
                 original_wait = svc._unlock_waits._released.wait
 
                 def observed_wait(timeout=None):
@@ -85,7 +85,7 @@ class UnlockQueueTests(unittest.TestCase):
 
                 scanner.session = session
                 with patch.object(service, 'SETTINGS_FILE', Path(folder) / 'settings.json'):
-                    svc = service.KeyService(scanner, None, history=History(Path(folder) / 'history.json'))
+                    svc = service.KeyService(scanner, None, history=History(Path(folder) / 'history.json', encrypted=False))
                 outcome = []
 
                 def run():

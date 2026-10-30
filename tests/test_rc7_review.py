@@ -42,18 +42,18 @@ class LocalHistoryClockTests(unittest.TestCase):
         for stamp in (self.future, 'invalid date'):
             with self.subTest(stamp=stamp):
                 self.write(stamp)
-                local = history.History(self.path, enabled=True)
+                local = history.History(self.path, enabled=True, encrypted=False)
                 self.assertEqual(len(local.list()), 1)
                 local.merge_sync({})
                 local.rename(self.kid, 'Renamed')  # an ordinary save must not erase unrelated state
-                restored = history.History(self.path, enabled=True).get(self.kid)
+                restored = history.History(self.path, enabled=True, encrypted=False).get(self.kid)
                 for field, value in self.entry.items():
                     if field not in ('snapshot', 'label', 'label_at'):
                         self.assertEqual(restored[field], value, field)
 
     def test_valid_local_offset_normalizes_without_changing_the_instant(self):
         self.write('2020-01-01T12:00:00+02:00')
-        loaded = history.History(self.path, enabled=True).get(self.kid)
+        loaded = history.History(self.path, enabled=True, encrypted=False).get(self.kid)
         self.assertEqual(loaded['lost_since'], '2020-01-01T10:00:00.000000+00:00')
         self.assertEqual(loaded['lost_done'], ['example.com'])
 
@@ -61,7 +61,7 @@ class LocalHistoryClockTests(unittest.TestCase):
         for method in ('import', 'sync'):
             with self.subTest(method=method):
                 self.write(self.future)
-                local = history.History(self.path, enabled=True)
+                local = history.History(self.path, enabled=True, encrypted=False)
                 now = history._now()
                 incoming = {'key_id': self.kid, 'label': 'Current name', 'label_at': now,
                             'lost_at': now, 'replace_at': now}
@@ -83,7 +83,7 @@ class LocalHistoryClockTests(unittest.TestCase):
 
     def test_unknown_local_chronology_does_not_authorize_remote_deletion(self):
         self.write(self.future)
-        local = history.History(self.path, enabled=True)
+        local = history.History(self.path, enabled=True, encrypted=False)
         local.merge_sync({'forgotten': {self.kid: '2020-01-01T00:00:00Z'}})
         self.assertEqual(local.get(self.kid)['lost_since'], self.future)
 

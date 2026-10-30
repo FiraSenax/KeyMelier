@@ -1,3 +1,134 @@
+# Selected security changes — 2026-10-29
+
+The maintainer selected five work areas from the triage below. They are prepared
+for 1.8.8 RC1; publication and CI build results are tracked separately:
+
+1. **Native consent:** sensitive device writes, resets, deletions and sync-file
+   removal require a native default-cancel dialog. Backend-owned labels and device
+   identity describe a copied request; concurrent requests are rejected, each call
+   needs its own decision, and disconnect/reconnect invalidates that decision.
+   Existing device locks, PIN/touch, overwrite and reset guards remain in place.
+2. **Renderer boundary:** native WKWebView, WebView2 and Qt callbacks reject foreign
+   navigation before loading and prevent new WebView windows. Sidebar, passkey and
+   OATH account values use DOM text/attributes. Existing HTML sites remain reviewed
+   debt: the sink baseline detects new/changed sink lines, not arbitrary unsafe
+   data flow. A separate test uses the production CSP; `unsafe-eval` remains for
+   the pinned bridge and is not described as permitting inline event handlers.
+3. **GnuPG/import:** known absolute executable locations precede absolute PATH
+   entries; current/relative directories are excluded. Imports are bounded regular
+   UTF-8 files (BOM accepted); errors return an explicit result before merging.
+4. **Errors:** optional OpenPGP reads suppress only known unsupported/absent results;
+   authentication/transport errors propagate. PIV certificate-deletion failure
+   stops private-key deletion. Unexpected mapped errors record exception type and
+   source-frame locations, never exception messages, source lines or arguments.
+5. **History:** saved history is encrypted by default using the native credential
+   store. The small migration verifies an encrypted copy and preserves the plaintext
+   source unchanged. An existing encrypted file is authoritative; unavailable/wrong
+   keys block persistence and sync. Explicit legacy opt-out, stateless behavior,
+   export and sync formats remain available. Retained backups stay plaintext and
+   can be stale; downgrade and recovery steps are documented in the README.
+
+Local validation: the full Python suite passed (**497 tests, 2 platform skips**),
+including real macOS navigation/default-cancel behavior. The final shared packaged
+navigation probe and GnuPG path checks also passed targeted reruns. **44 browser UI
+tests and 20 stress tests passed**, as did the production-CSP test, UI security and
+account-model checks, Ruff, script syntax, native translation consistency, the HTML
+sink baseline and `git diff --check`. Device operations and credential stores used
+synthetic fixtures; no real key was changed. Actual Windows/Linux native execution,
+physical keys and a signed release build remain release checks. No claim of a full
+independent audit or complete renderer isolation is made.
+
+# External 1.8.7 feedback triage
+
+Reviewed on 2026-10-29 against `2237689` (1.8.7), the exact commit named in the
+supplied feedback. This historical baseline records all thirteen criticism points
+and the initial proposed follow-ups. The selected implementation is described above;
+the observations in the following tables describe the original `2237689` code.
+The numerical scores and comparison with other projects are subjective and are
+not adopted as security evidence. No end-to-end exploit was demonstrated by the
+feedback or this scoped review; that does not establish absence of vulnerabilities.
+
+## Security findings
+
+| ID / feedback | Verified behavior and assessment | Proposed disposition |
+|---|---|---|
+| S1 — CSP and 86 `innerHTML` assignments | Confirmed: [page.py](keymelier_core/page.py) includes `unsafe-eval`; there are 86 direct `.innerHTML =` assignments in `static/*.js`, including static icons and emptying containers. Installed, pinned pywebview 6.2.1 uses `new Function` in `webview/js/api.js`. This weakens protection against string evaluation, but does **not** itself authorize arbitrary inline scripts or event handlers. Escaping tests cover selected inputs, not every sink. | High priority: migrate renderers handling device/imported strings to DOM properties/`textContent` in small steps. Add a reviewed baseline/rule against new unsafe HTML sinks, covering alternatives such as `outerHTML` and `insertAdjacentHTML` too. Do not simply remove `unsafe-eval` until the real bridge works without it on every supported backend. |
+| S2 — plaintext history by default | Confirmed in the actual application: [KeyService.__init__](keymelier_core/service.py) enables history unless settings explicitly disable it, although `History` alone defaults to disabled. [History.__init__](keymelier_core/history.py) selects encryption only with `KEYMELIER_ENCRYPT_HISTORY=1`. Account/site recording is also on by default. Native-keyring-only encryption and refusal to overwrite locked encrypted history already exist. | High priority design: encrypted history as the normal path, with an explicit migration and recovery policy. Flipping the environment-variable default alone selects a different filename and would make old entries appear missing. Preserve existing data, settings and stateless behavior. Protection is at rest; it does not isolate data from a compromised running user session. |
+| S3 — flat bridge allowlist / destructive consent | The [allowlist](keymelier_core/bridge.py) is an exposure boundary, not a consent boundary. The feedback understates existing controls: OATH/OpenPGP/PIV resets and PIV deletion require literal `confirm=True`; PIV/OpenPGP generation and OTP writes have occupancy/replace guards, and FIDO reset requires arming/replug/touch. These JS-supplied flags still do not independently establish human consent. PIV import authenticates but can replace an existing certificate; it does not import a private key. | High priority: native confirmation for an inventoried set of destructive/security-changing operations, enforced before side effects. Show the backend-resolved operation, key and slot. Cover resets, deletion, replacement/import and changes to PIN/protection/interfaces as appropriate. Splitting `ALLOWED` into several lists alone would not close this gap. |
+| S4 — sync passphrase retained in memory | Confirmed for an active session in [sync._SessionKeys](keymelier_core/sync.py). The cache already holds at most 32 derived keys and clears its references on close/reconfiguration. Each new session/file salt can require a fresh derivation, including after peer restart or cache eviction. Keeping only the keys known at setup would break existing v1 sync. | Design separately: fetch the passphrase from the native credential store only on a cache miss, or require explicit unlock, with short-lived references and a lock/expiry policy. Preserve the v1 KDF/header and mixed-version peers. Combine with the already-open KDF work budget; repeated unknown salts must not cause unbounded derivation/keyring prompts. No Python/JS zeroization guarantee. |
+| S5 — GnuPG PATH precedence | Confirmed: [app._gpg](app.py) tries `shutil.which` before known installation paths. This is a local executable-selection risk requiring influence over PATH or a selected binary, not evidence of a remote exploit. The subprocess uses an argument array, without a shell. | Candidate for a small fix: prefer suitable known installations, validate the selected executable and define a safe fallback for custom installs. Preserve Homebrew, Gpg4win, Linux and Finder startup. Absolute paths alone do not make user-writable installations trustworthy. |
+| S6 — lossy import decoding | Confirmed: [Api.open_text](app.py) uses UTF-8 with `errors="replace"`; invalid bytes inside a JSON string can silently change an account/label while leaving valid JSON. The file comes from a native picker, not an arbitrary JS path, and has a pre-read size check. | Candidate for a small fix: reject invalid encoding with a useful, redacted error before history merge; preserve valid UTF-8 exports and cancellation behavior. Bound the actual read as well as checking file size. Decide BOM/legacy-encoding behavior explicitly rather than guessing. |
+
+The distinction between string evaluation and inline script permission follows
+the [W3C CSP3 script-src definition](https://www.w3.org/TR/2026/WD-CSP3-20261027/#script-src).
+The broad comment in `page.py` that injected markup cannot execute is not a proof
+that every DOM data flow is safe. Native navigation remains a separate open
+boundary: `app._lock_navigation` acts after loading and accepts data URLs on the
+inline-page path, as already recorded under RC7 L6. Include that existing item
+when selecting renderer/bridge work; do not count it as solved by CSP.
+
+## Maintainability findings
+
+| ID / feedback | Verified behavior and assessment | Proposed disposition |
+|---|---|---|
+| Q1 — oversized service and frontend | The line counts match: `service.py` 1,270; `app.js` 1,815. `KeyService` has 113 direct methods (124 function definitions in the whole file, including nested functions). Applet backend modules and `view-oath.js`, `view-piv.js`, `view-openpgp.js`, etc. already exist. Coordination/shared state remains concentrated. | Incremental extraction when touching a behavior, preserving public bridge names/envelopes, locks and device identity checks. A broad rewrite is not a prerequisite for the next security release. |
+| Q2 — translations stored as JavaScript | `i18n.js` is 5,264 lines, about 958 KB, and contains dictionaries, helpers and later additions/overrides. JSON per language can improve editing but is not inherently a security fix. | Optional maintenance work: separate source data and generate the same offline, hashed bundle. Preserve final translation values, fallback/interpolation, all eleven languages and package inputs. Runtime fetching would conflict with the current `connect-src 'none'` design. |
+| Q3 — broad exceptions hide bugs | Confirmed: 20 `except Exception` handlers in `piv_app.py`, 21 in `openpgp_app.py`. Some deliberately accommodate optional device capabilities; others map unexpected failures to a domain error or silently omit fields. The bridge already logs sanitized traceback locations for unexpected exceptions that reach it, but mapped errors can lose that context. | Narrow expected exceptions first around authentication, writes and occupancy detection. Keep redacted boundary envelopes; log unexpected failures with safe frame metadata. Do not add raw `logger.exception` everywhere: exception messages, source lines or locals may contain secrets/private paths. Unsupported capability and failed access must remain distinguishable. |
+| Q4 — nested/repeated templates | Confirmed in `app.js:renderSidebar`, including duplicated subtitle expressions and nested conditionals. This makes escaping and event behavior harder to review; it is not itself an established exploit. | Address together with S1: compute plain values once and construct text/attributes through DOM APIs. Preserve selection, focus, keyboard behavior, scrolling and long translated labels. |
+| Q5 — lazy imports and runtime import-path changes | Present, but not all equivalent. Optional smart-card/platform imports also support startup and GUI-free tests. `app.open_licenses` mutates `sys.path` in its source-run fallback; the newer [licenses._documents](keymelier_core/licenses.py) already uses `from tools import third_party_licenses` without that mutation. | Target the remaining source fallback when touched. Preserve the exposed callback, stateless behavior and frozen/source startup. Do not indiscriminately move platform/optional imports to module scope. No dependency upgrade is needed for this cleanup. |
+| Q6 — large documentation and review-named tests | Sizes match approximately: changelog 41.7 KB, security review 42.9 KB before this entry, releasing guide 25.7 KB. Review-named test files exist, but their test methods mostly name concrete behavior. File length does not establish AI authorship or a vulnerability. | Keep one disposition record here and a roadmap link. Consolidate duplicates or split historical sections only with links and release evidence preserved. New tests should use behavior names; renaming working regressions is low priority. |
+| Q7 — no typing/type-checker | Partly incorrect: 98 of the 113 direct `KeyService` methods have return annotations, with many annotated arguments and core dataclasses as well. Correct: [pyproject.toml](pyproject.toml) and the [build workflow](.github/workflows/build.yml) configure Ruff/tests, not mypy/pyright. Generic `dict` annotations do not express bridge payload contracts. | Extend the existing roadmap item: pinned type checking for a bounded module set and explicit request/response types, then expand. Do not manufacture a green result through blanket `Any` or ignore rules. |
+
+## Proposed selection and acceptance gates
+
+These were the initial recommendations. The five selected work areas and remaining
+limits are recorded above; the remaining proposals are not release promises.
+
+1. **Renderer and destructive operations (S1/S3, existing native-navigation item):**
+   highest priority because a compromised renderer can invoke powerful methods.
+   Native consent must be bound to the operation/target, default to cancel, be
+   single-use and resist concurrent calls, replay and disconnect/reconnect races.
+   Dialog failure must leave the device unchanged. Test real WKWebView, WebView2
+   and Qt behavior; retain PIN, touch, overwrite and identity checks. DOM work
+   needs malicious device/account/certificate strings in text and attributes,
+   plus a CSP-enabled harness; the existing demo deliberately removes CSP.
+2. **History encryption (S2):** decide new-install and upgrade behavior separately.
+   Require a verified encrypted write/readback before switching storage; handle
+   both filenames already present, keyring denial/unavailability, interrupted
+   migration and restart. Document recovery and downgrade/export behavior;
+   never silently delete plaintext originals or imply that retained copies and
+   JSON/CSV exports became encrypted. Test old histories, lost/replacement state,
+   account opt-outs and sync. A missing key must never trigger plaintext fallback.
+3. **Small, bounded fixes (S5/S6/Q3):** candidates for an early patch once selected.
+   Test executable precedence and custom installs without launching a fake binary;
+   invalid UTF-8/cancel/oversized input without partial import; expected device
+   failures versus injected programming errors without secrets in logs or UI.
+4. **Sync lifetime (S4):** keep legacy v1 fixtures; test new peer/session salts,
+   eviction, concurrent reads, wrong passphrases, unavailable keyring and disable
+   during derivation. Evaluate memory exposure and denial-of-service together.
+5. **Structural maintenance (Q1/Q2/Q4/Q5/Q6/Q7):** scope separately or accompany
+   small changes where it lowers review complexity. Do not combine wholesale
+   module, translation, packaging and type-system migrations into a security patch.
+
+## Validation and limits
+
+Local macOS validation for this review: **107 backend tests passed** across
+`test_security`, `test_audit_regressions`, `test_overwrite_guards`, `test_sync`,
+`test_sync_key_lifecycle`, `test_upgrade_compat`, `test_rc4_review` and
+`test_diagnostics`; `node tests/ui_security.cjs` passed; **42/42 browser UI tests
+passed**. The first sandboxed browser launch failed; the same suite passed with
+an isolated headless browser outside the sandbox. Tests used simulated devices
+and temporary data. The installed Python runtime dependencies matched the pinned
+pywebview, cryptography, fido2 and yubikey-manager versions.
+
+The positive feedback about allowlisting, authenticated sync, private storage
+and regression coverage is supported by the inspected code and these checks.
+The navigation guard needs the qualification above. Release signing, SBOM and
+CI assertions remain the prior release evidence below; this review did not rerun
+publication/signing, all platform builds, hardware resets or a full security audit.
+The browser suite uses a demo bridge with CSP removed, so its successful escaping
+checks do not certify native bridge isolation or production CSP enforcement.
+
 # Stable 1.8.7 release preparation — 2026-10-29
 
 The stable preparation changes only release documentation. Application code,

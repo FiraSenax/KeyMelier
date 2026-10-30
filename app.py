@@ -43,6 +43,11 @@ from keymelier_core.page import build_html
 from keymelier_core.scanner import TokenScanner
 from keymelier_core.service import KeyService
 from keymelier_core.storage import stateless
+from keymelier_core.history import History
+from keymelier_core.desktop_io import gpg_path, read_import
+from keymelier_core.safe_errors import log_failure
+from keymelier_core import native_ui
+from keymelier_core.consent import NativeConsent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,16 +69,7 @@ ALLOWED_LINK_HOSTS = {"github.com", "firasenax.github.io", "www.yubico.com", "nv
 
 
 def _gpg():
-    """Path of a GnuPG binary (PATH is minimal when started from Finder)."""
-    import shutil
-    found = shutil.which("gpg") or shutil.which("gpg2")
-    if found:
-        return found
-    for candidate in ("/opt/homebrew/bin/gpg", "/usr/local/bin/gpg", "/usr/local/MacGPG2/bin/gpg2",
-                      r"C:\Program Files (x86)\GnuPG\bin\gpg.exe", r"C:\Program Files\GnuPG\bin\gpg.exe"):
-        if Path(candidate).exists():
-            return candidate
-    return None
+    return gpg_path()
 
 
 # Functions the page may call. pywebview resolves js_api names as dotted
@@ -84,28 +80,7 @@ BRIDGE = ("call", "open_url", "copy_text", "save_text", "open_text", "read_oath_
 
 
 def _lock_navigation(window, page_url=None):
-    """The window only ever shows our own document (inline, or on Linux the
-    private page file). If anything navigates it elsewhere (drop, link), put
-    the app back before that page can act."""
-    from urllib.parse import unquote
-
-    def on_loaded(*_):
-        try:
-            url = window.get_current_url() or ""
-        except Exception:
-            url = ""
-        if page_url:
-            # Linux: only the page file itself (about:blank only before it has loaded)
-            if not url or url == "about:blank" or unquote(url.split("#")[0]) == unquote(page_url):   # Qt reports it decoded
-                return
-            logger.warning("Navigation to %s blocked", url[:80])
-            window.load_url(page_url)
-            return
-        if url and url not in ("about:blank",) and not url.startswith("data:"):
-            logger.warning("Navigation to %s blocked", url[:80])
-            window.load_html(build_html())
-
-    window.events.loaded += on_loaded
+    return native_ui.install(window, page_url)
 
 
 def _expose_bridge(window, api, extra=()):
@@ -119,7 +94,7 @@ def _expose_bridge(window, api, extra=()):
                 # Direct desktop callbacks (file dialogs, clipboard, etc.) do
                 # not pass through dispatch. Never let pywebview serialize a
                 # raw exception, its private file path or traceback to the UI.
-                logger.error("Desktop callback %s failed (%s)", name, type(e).__name__)
+                log_failure(logger, "Desktop callback " + name, e)
                 if name in {"call", "gpg_import", "read_oath_qr"}:
                     return {"ok": False, "error": "The operation could not be completed.",
                             "code": "error", "status": 500}
@@ -146,6 +121,8 @@ class Api:
         self._window = None
         self._selftest = None  # set by --self-test
         self._selected_sync_folder = None
+        self._consent = NativeConsent(service, lambda title, message: native_ui.confirm(self._window, title, message),
+                                      DATA_DIR / "native-ui.json")
 
     def set_ui_language(self, lang, texts=None):
         """The page tells the menu bar which language and texts it shows."""
@@ -187,9 +164,7 @@ class Api:
         if not chosen:
             return None
         path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
-        if path.stat().st_size > 20_000_000:
-            return None
-        return path.read_text(encoding="utf-8", errors="replace")
+        return read_import(path)
 
     def choose_folder(self):
         """Let the user pick the sync folder; returns its path (or None)."""
@@ -339,7 +314,7 @@ class Api:
             if not isinstance(folder, str) or not folder or folder not in (self._selected_sync_folder, configured):
                 return {"ok": False, "error": "Choose the sync folder in the folder dialog.",
                         "code": "invalid_input", "status": 400}
-        return dispatch(self._service, method, kwargs)
+        return dispatch(self._service, method, kwargs, authorize=self._consent.authorize)
 
 
 class EventPump:
@@ -444,7 +419,10 @@ def main():
         mds3_client=mds3,
         advisory_checker=advisories,
     )
-    service = KeyService(scanner, CSVExporter(), mds3_client=mds3, advisories=advisories)
+    # A temporary HOME does not isolate the OS credential store. Startup tests
+    # must not create real credentials or wait for a Keychain permission dialog.
+    service = KeyService(scanner, CSVExporter(), mds3_client=mds3, advisories=advisories,
+                         history=History(enabled=False) if selftest else None)
     pump = EventPump()
     menubar = None
 
@@ -477,6 +455,8 @@ def main():
     service.error_log = diagnostics.ErrorLog(ALLOWED)
     service.gui_backend = lambda: getattr(webview, "renderer", None)   # set by pywebview once the window runs
     api = Api(service)
+    webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
+    webview.settings['ALLOW_DOWNLOADS'] = False
     # Linux (Qt): the page is too large for setHtml, so it is loaded from a private file
     page_url, remove_page = None, None
     if sys.platform.startswith("linux"):

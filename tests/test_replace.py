@@ -16,7 +16,7 @@ class ReplaceProgressTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name) / 'h.json'
-        self.h = History(self.path, enabled=True)
+        self.h = History(self.path, enabled=True, encrypted=False)
         self.old = self.h.set_sites(record('1'), [{'rp_id': 'a.com', 'name': 'A', 'count': 1, 'users': []}])['key_id']
         self.new = self.h.update_snapshot(record('2'))['key_id']
 
@@ -60,7 +60,7 @@ class ReplaceProgressTests(unittest.TestCase):
 
     def test_without_storage_nothing_is_written(self):
         path = Path(self.tmp.name) / 'off.json'
-        h = History(path, enabled=False)
+        h = History(path, enabled=False, encrypted=False)
         old = h.set_sites(record('1'), [])['key_id']
         new = h.update_snapshot(record('2'))['key_id']
         h.set_replace(old, new)

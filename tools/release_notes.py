@@ -10,13 +10,25 @@ tools/check_artifacts.py (check_notes); keep both in step.
 import os
 import sys
 import json
+import tomllib
+from pathlib import Path
+
+
+def current_changes() -> str:
+    root = Path(__file__).resolve().parents[1]
+    version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    for section in (root / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## "):
+        heading, _, body = section.partition("\n")
+        if heading.startswith(version + " — "):
+            return f"**Changes in {version}**\n\n{body.strip()}"
+    raise ValueError(f"Missing changelog for {version}")
 
 
 def notes(mac_signed: bool, win_signed: bool) -> str:
     # Read by docs/latest.js only from GitHub's latest stable release. These
     # booleans are the build jobs' verified outputs, never a configured intention.
     status = json.dumps({"schema": 1, "macos": mac_signed, "windows": win_signed}, separators=(",", ":"))
-    lines = [f"<!-- keymelier-signing: {status} -->", "", "**Downloads**"]
+    lines = [f"<!-- keymelier-signing: {status} -->", "", current_changes(), "", "**Downloads**"]
     if mac_signed:
         lines.append("- `KeyMelier-macOS.dmg` – **macOS** (recommended): open it and drag KeyMelier to Applications "
                      "(replaces an older version). Developer ID signed and notarized.")

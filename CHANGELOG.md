@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.8.8 — 2026-10-29
+
+Security release candidate; hardware validation is ongoing.
+
+- Require a native, default-cancel confirmation for sensitive key changes, resets, deletions and sync-file removal, bound to the selected device and one request. Existing PIN, touch and overwrite checks remain in force.
+- Block foreign WebView navigation before loading, including local files and data URLs. Render sidebar, passkey and OATH account values through DOM text/attribute APIs; add an HTML-sink review guard and a production-CSP browser test.
+- Prefer known GnuPG installations and exclude relative/current-directory executable lookup. Reject invalid UTF-8 and oversized history imports without merging partial data.
+- Distinguish unsupported smart-card features from access failures, stop PIV deletion if certificate deletion fails, and retain sanitized error locations without logging secrets.
+- Encrypt saved history by default using the OS credential store. Automatically verify an encrypted copy of legacy history and preserve its plaintext original as a backup; no plaintext fallback when the store is locked or unavailable. Export and sync formats remain unchanged.
+
 ## 1.8.7 — 2026-10-29
 
 Stable release of the reviewed RC9 application code, including the security and compatibility fixes below.

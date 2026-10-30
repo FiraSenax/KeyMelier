@@ -5262,3 +5262,107 @@ const I18N_UPDATE_REVOCATION_STATE = {
   zh: '更新已阻止：无法读取本地撤销列表。请备份主目录中的 .keymelier/revoked-update-keys.json，并按照 RELEASING.md 中的恢复说明操作。请勿删除撤销文件。'
 };
 for (const [code, text] of Object.entries(I18N_UPDATE_REVOCATION_STATE)) STRINGS[code]['err.update_revocation_state'] = text;
+
+// Trusted native-dialog text is exported at development time, never supplied by the renderer.
+const I18N_NATIVE_SECURITY = {
+  "de": {
+    "native.confirm": "Aktion bestätigen",
+    "native.target": "Betroffen",
+    "native.warning": "Prüfe Aktion und Ziel. Diese Änderung kann Daten löschen oder den Zugriff auf Konten verändern. Fahre nur fort, wenn du sie selbst angefordert hast.",
+    "err.history_encoding": "Die Datei enthält ungültiges UTF-8. Es wurde nichts importiert.",
+    "err.history_too_large": "Die Datei ist zu groß (maximal 20 MB).",
+    "ob.linux.keyring": "Verschlüsselte History und Sync benötigen den Schlüsselspeicher des Desktops (Secret Service, z. B. GNOME Keyring oder KWallet). Ist er nicht verfügbar, bleiben diese Funktionen gesperrt.",
+    "problem.history_locked": "Der Verlauf konnte nicht geöffnet werden. Entsperre den System-Schlüsselspeicher oder stelle den passenden Verschlüsselungsschlüssel wieder her und starte KeyMelier neu. Vorhandene Dateien bleiben unverändert; in dieser Sitzung wird kein Verlauf gespeichert."
+  },
+  "en": {
+    "native.confirm": "Confirm action",
+    "native.target": "Target",
+    "native.warning": "Check the action and target. This change may delete data or affect access to accounts. Continue only if you requested it.",
+    "err.history_encoding": "The file contains invalid UTF-8. Nothing was imported.",
+    "err.history_too_large": "The file is too large (maximum 20 MB).",
+    "ob.linux.keyring": "Encrypted history and sync need the desktop credential store (Secret Service, such as GNOME Keyring or KWallet). These features are blocked while it is unavailable.",
+    "problem.history_locked": "History could not be opened. Unlock the system credential store or restore the matching encryption key and restart KeyMelier. Existing files remain unchanged; history is not saved in this session."
+  },
+  "es": {
+    "native.confirm": "Confirmar acción",
+    "native.target": "Destino",
+    "native.warning": "Comprueba la acción y el destino. Este cambio puede borrar datos o afectar al acceso a cuentas. Continúa solo si lo has solicitado.",
+    "err.history_encoding": "El archivo contiene UTF-8 no válido. No se ha importado nada.",
+    "err.history_too_large": "El archivo es demasiado grande (máximo 20 MB).",
+    "ob.linux.keyring": "El historial cifrado y la sincronización necesitan el almacén de credenciales del escritorio (Secret Service, como GNOME Keyring o KWallet). Estas funciones se bloquean si no está disponible.",
+    "problem.history_locked": "No se pudo abrir el historial. Desbloquea el almacén de credenciales del sistema o restaura la clave de cifrado correspondiente y reinicia KeyMelier. Los archivos existentes no se modifican; el historial no se guarda en esta sesión."
+  },
+  "fr": {
+    "native.confirm": "Confirmer l’action",
+    "native.target": "Cible",
+    "native.warning": "Vérifiez l’action et la cible. Cette modification peut supprimer des données ou modifier l’accès aux comptes. Continuez uniquement si vous l’avez demandée.",
+    "err.history_encoding": "Le fichier contient du texte UTF-8 invalide. Rien n’a été importé.",
+    "err.history_too_large": "Le fichier est trop volumineux (20 Mo maximum).",
+    "ob.linux.keyring": "L’historique chiffré et la synchronisation nécessitent le trousseau du bureau (Secret Service, comme GNOME Keyring ou KWallet). Ces fonctions sont bloquées lorsqu’il est indisponible.",
+    "problem.history_locked": "Impossible d’ouvrir l’historique. Déverrouillez le trousseau du système ou restaurez la clé de chiffrement correspondante, puis redémarrez KeyMelier. Les fichiers existants restent inchangés ; l’historique n’est pas enregistré pendant cette session."
+  },
+  "it": {
+    "native.confirm": "Conferma azione",
+    "native.target": "Destinazione",
+    "native.warning": "Controlla l’azione e la destinazione. Questa modifica può eliminare dati o modificare l’accesso agli account. Continua solo se l’hai richiesta.",
+    "err.history_encoding": "Il file contiene UTF-8 non valido. Non è stato importato nulla.",
+    "err.history_too_large": "Il file è troppo grande (massimo 20 MB).",
+    "ob.linux.keyring": "La cronologia cifrata e la sincronizzazione richiedono il portachiavi del desktop (Secret Service, come GNOME Keyring o KWallet). Queste funzioni sono bloccate quando non è disponibile.",
+    "problem.history_locked": "Impossibile aprire la cronologia. Sblocca il portachiavi del sistema o ripristina la chiave di cifratura corrispondente e riavvia KeyMelier. I file esistenti restano invariati; la cronologia non viene salvata in questa sessione."
+  },
+  "nl": {
+    "native.confirm": "Actie bevestigen",
+    "native.target": "Doel",
+    "native.warning": "Controleer de actie en het doel. Deze wijziging kan gegevens verwijderen of toegang tot accounts veranderen. Ga alleen verder als je dit zelf hebt aangevraagd.",
+    "err.history_encoding": "Het bestand bevat ongeldige UTF-8. Er is niets geïmporteerd.",
+    "err.history_too_large": "Het bestand is te groot (maximaal 20 MB).",
+    "ob.linux.keyring": "Versleutelde geschiedenis en synchronisatie vereisen de sleutelbos van de desktop (Secret Service, zoals GNOME Keyring of KWallet). Deze functies zijn geblokkeerd zolang deze niet beschikbaar is.",
+    "problem.history_locked": "De geschiedenis kon niet worden geopend. Ontgrendel de systeemsleutelbos of herstel de bijbehorende versleutelingssleutel en herstart KeyMelier. Bestaande bestanden blijven ongewijzigd; deze sessie slaat geen geschiedenis op."
+  },
+  "pl": {
+    "native.confirm": "Potwierdź działanie",
+    "native.target": "Cel",
+    "native.warning": "Sprawdź działanie i cel. Ta zmiana może usunąć dane lub zmienić dostęp do kont. Kontynuuj tylko wtedy, gdy samodzielnie ją zlecono.",
+    "err.history_encoding": "Plik zawiera nieprawidłowy tekst UTF-8. Niczego nie zaimportowano.",
+    "err.history_too_large": "Plik jest za duży (maksymalnie 20 MB).",
+    "ob.linux.keyring": "Szyfrowana historia i synchronizacja wymagają magazynu poświadczeń pulpitu (Secret Service, np. GNOME Keyring lub KWallet). Funkcje te są blokowane, gdy jest niedostępny.",
+    "problem.history_locked": "Nie można otworzyć historii. Odblokuj systemowy magazyn poświadczeń lub przywróć odpowiedni klucz szyfrowania i uruchom ponownie KeyMelier. Istniejące pliki pozostają bez zmian; historia nie jest zapisywana w tej sesji."
+  },
+  "pt": {
+    "native.confirm": "Confirmar ação",
+    "native.target": "Destino",
+    "native.warning": "Verifique a ação e o destino. Esta alteração pode eliminar dados ou afetar o acesso às contas. Continue apenas se a tiver solicitado.",
+    "err.history_encoding": "O ficheiro contém UTF-8 inválido. Nada foi importado.",
+    "err.history_too_large": "O ficheiro é demasiado grande (máximo de 20 MB).",
+    "ob.linux.keyring": "O histórico cifrado e a sincronização precisam do porta-chaves do ambiente de trabalho (Secret Service, como GNOME Keyring ou KWallet). Estas funções ficam bloqueadas quando está indisponível.",
+    "problem.history_locked": "Não foi possível abrir o histórico. Desbloqueie o porta-chaves do sistema ou restaure a chave de cifragem correspondente e reinicie o KeyMelier. Os ficheiros existentes permanecem inalterados; o histórico não é guardado nesta sessão."
+  },
+  "ja": {
+    "native.confirm": "操作を確認",
+    "native.target": "対象",
+    "native.warning": "操作と対象を確認してください。この変更によりデータが削除されたり、アカウントへのアクセスが変わる場合があります。自分で依頼した操作の場合のみ続行してください。",
+    "err.history_encoding": "ファイルに無効な UTF-8 が含まれています。何もインポートされませんでした。",
+    "err.history_too_large": "ファイルが大きすぎます（最大 20 MB）。",
+    "ob.linux.keyring": "暗号化された履歴と同期にはデスクトップの資格情報ストア（GNOME Keyring や KWallet などの Secret Service）が必要です。利用できない間、これらの機能はブロックされます。",
+    "problem.history_locked": "履歴を開けませんでした。システムの資格情報ストアをロック解除するか、対応する暗号化キーを復元して KeyMelier を再起動してください。既存のファイルは変更されず、このセッションの履歴は保存されません。"
+  },
+  "ko": {
+    "native.confirm": "작업 확인",
+    "native.target": "대상",
+    "native.warning": "작업과 대상을 확인하세요. 이 변경으로 데이터가 삭제되거나 계정 접근이 바뀔 수 있습니다. 직접 요청한 작업인 경우에만 계속하세요.",
+    "err.history_encoding": "파일에 잘못된 UTF-8이 포함되어 있습니다. 아무것도 가져오지 않았습니다.",
+    "err.history_too_large": "파일이 너무 큽니다(최대 20 MB).",
+    "ob.linux.keyring": "암호화된 기록과 동기화에는 데스크톱 자격 증명 저장소(GNOME Keyring 또는 KWallet 같은 Secret Service)가 필요합니다. 사용할 수 없는 동안 해당 기능은 차단됩니다.",
+    "problem.history_locked": "기록을 열 수 없습니다. 시스템 자격 증명 저장소를 잠금 해제하거나 일치하는 암호화 키를 복원한 후 KeyMelier를 다시 시작하세요. 기존 파일은 변경되지 않으며 이 세션의 기록은 저장되지 않습니다."
+  },
+  "zh": {
+    "native.confirm": "确认操作",
+    "native.target": "目标",
+    "native.warning": "请检查操作和目标。此更改可能删除数据或影响账户访问。仅在您主动请求此操作时继续。",
+    "err.history_encoding": "文件包含无效的 UTF-8。未导入任何内容。",
+    "err.history_too_large": "文件过大（最大 20 MB）。",
+    "ob.linux.keyring": "加密历史记录和同步需要桌面凭据存储（如 GNOME Keyring 或 KWallet 的 Secret Service）。凭据存储不可用时，这些功能将被阻止。",
+    "problem.history_locked": "无法打开历史记录。请解锁系统凭据存储或恢复匹配的加密密钥，然后重启 KeyMelier。现有文件保持不变，本次会话不保存历史记录。"
+  }
+};
+for (const [code, strings] of Object.entries(I18N_NATIVE_SECURITY)) Object.assign(STRINGS[code], strings);

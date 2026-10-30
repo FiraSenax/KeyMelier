@@ -1,6 +1,6 @@
 """Persistent history of keys seen by KeyMelier and what happened to them.
 
-Stored as JSON in ~/keymelier/history.json. FIDO keys expose no unique serial
+Stored encrypted in ~/keymelier/history.encrypted by default. FIDO keys expose no unique serial
 over the FIDO interface, so a key is identified by AAGUID (model/firmware
 batch) plus the USB serial when one is reported. Two keys of the same model
 without a serial therefore share one history entry.
@@ -45,9 +45,11 @@ def key_id(record) -> str:
 
 
 class History:
-    def __init__(self, path: Path = HISTORY_FILE, enabled: bool = False):
+    def __init__(self, path: Path = HISTORY_FILE, enabled: bool = False, *, encrypted: bool | None = None):
         self.enabled = enabled and not stateless()
-        self._encrypted = os.environ.get("KEYMELIER_ENCRYPT_HISTORY") == "1"
+        self._encrypted = (os.environ.get("KEYMELIER_ENCRYPT_HISTORY") != "0"
+                           if encrypted is None else encrypted)
+        self._legacy_path = path.with_suffix(".json") if path.suffix == ".encrypted" else path
         self._path = path.with_suffix(".encrypted") if self._encrypted else path
         self._cipher = None
         self._lock = threading.Lock()
@@ -61,14 +63,43 @@ class History:
         self._read_blocked = False   # file exists but could not be read: never overwrite it
         self._load()
 
+    def _read_storage(self):
+        if not self._encrypted:
+            try:
+                return retry_sharing(self._path.read_bytes)
+            except FileNotFoundError:
+                return None
+        try:
+            encrypted = retry_sharing(self._path.read_bytes)
+        except FileNotFoundError:
+            encrypted = None
+        # Check the credential store even for a new history, before recording
+        # starts. An unavailable store must be visible, never a plaintext fallback.
+        self._cipher = history_cipher(create=encrypted is None)
+        if encrypted is not None:
+            return self._cipher.decrypt(encrypted)
+        try:
+            raw = retry_sharing(self._legacy_path.read_bytes)
+        except FileNotFoundError:
+            return None
+        data = json.loads(raw)
+        if not isinstance(data, dict) or not isinstance(data.get("keys"), list):
+            raise ValueError("Invalid legacy history")
+        # Keep the source byte-for-byte. Both files present means the encrypted
+        # file wins on every subsequent launch; never re-import a stale original.
+        atomic_write(self._path, self._cipher.encrypt(raw))
+        if self._cipher.decrypt(retry_sharing(self._path.read_bytes)) != raw:
+            raise ValueError("History migration could not be verified")
+        return raw
+
     def _load(self):
         if not self.enabled:
             return
         try:
-            raw = retry_sharing(self._path.read_bytes)
-            if self._encrypted:
-                self._cipher = history_cipher(create=False)
-                raw = self._cipher.decrypt(raw)
+            raw = self._read_storage()
+            if raw is None:
+                self._read_blocked, self.load_problem = False, None
+                return
             data = json.loads(raw)
             self._entries = {e["key_id"]: e for e in data.get("keys", [])}
             self._forgotten = _clean_forgotten(data.get("forgotten"))
@@ -87,10 +118,9 @@ class History:
                 for ev in entry.get("events", []):
                     if ev.get("type") == "attestation" and "status" not in ev:
                         ev["type"] = "attestation_skipped"
+            self._read_blocked, self.load_problem = False, None
             if removed_metadata:
                 self._save()
-        except FileNotFoundError:
-            pass
         except Exception as e:
             if self._encrypted:
                 self._entries, self._forgotten = {}, {}
@@ -141,7 +171,7 @@ class History:
             was_enabled = self.enabled
             self.enabled = bool(enabled) and not stateless()
             # Turning persistence off does not delete existing user files.
-            if self.enabled and not was_enabled and self._path.exists():
+            if self.enabled and not was_enabled:
                 session_entries = self._entries
                 self._load()
                 for kid, current in session_entries.items():
@@ -287,9 +317,13 @@ class History:
     def clear_sites(self) -> None:
         # Turning history off preserves its file. An explicit privacy change
         # must also scrub that saved copy, without enabling future persistence.
-        if not self.enabled and not stateless() and self._path.exists():
-            saved = History(self._path, enabled=True)
-            saved.clear_sites()
+        if (not self.enabled and not stateless() and not self._read_blocked
+                and (self._path.exists() or (self._encrypted and self._legacy_path.exists()))):
+            saved = History(self._path, enabled=True, encrypted=self._encrypted)
+            if saved._read_blocked:
+                self._read_blocked, self.load_problem = True, saved.load_problem
+            else:
+                saved.clear_sites()
         with self._lock:
             for entry in self._entries.values():
                 _clear_contents(entry)

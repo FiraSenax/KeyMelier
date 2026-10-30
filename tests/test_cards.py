@@ -73,7 +73,7 @@ class CardTests(unittest.TestCase):
 
     def test_inventory_is_kept_and_cleared_with_sites(self):
         with tempfile.TemporaryDirectory() as tmp:
-            h = History(Path(tmp) / 'history.json', enabled=True)
+            h = History(Path(tmp) / 'history.json', enabled=True, encrypted=False)
             summary = h.set_inventory(record(), 'oath', [{'issuer': 'GitHub', 'name': 'me'}])
             self.assertEqual(summary['inventory']['oath']['items'][0]['issuer'], 'GitHub')
             h.clear_sites()
@@ -132,13 +132,13 @@ class CardTests(unittest.TestCase):
 
     def test_history_export_import_roundtrip_and_merge(self):
         with tempfile.TemporaryDirectory() as tmp:
-            a = History(Path(tmp) / 'a.json', enabled=True)
+            a = History(Path(tmp) / 'a.json', enabled=True, encrypted=False)
             a.add_event(record(), 'connected')
             a.set_inventory(record(), 'oath', [{'issuer': 'GitHub', 'name': 'me'}])
             exported = a.export()
             kid = exported['keys'][0]['key_id']
 
-            b = History(Path(tmp) / 'b.json', enabled=True)
+            b = History(Path(tmp) / 'b.json', enabled=True, encrypted=False)
             b.add_event(record(), 'pin_changed')
             self.assertEqual(b.import_(exported), {'added': 0, 'merged': 1})
             entry = b.get(kid)
@@ -147,7 +147,7 @@ class CardTests(unittest.TestCase):
             self.assertEqual(b.import_(exported), {'added': 0, 'merged': 1})
             self.assertEqual(len(b.get(kid)['events']), 2)  # no duplicates
 
-            c = History(Path(tmp) / 'c.json', enabled=True)
+            c = History(Path(tmp) / 'c.json', enabled=True, encrypted=False)
             evil = dict(exported)
             evil['keys'] = exported['keys'] + [{'key_id': '../etc'}, {'key_id': 'ab' * 8, 'events': 'x', 'label': 5,
                                                                        'unknown': 'dropped'}]
@@ -160,7 +160,7 @@ class CardTests(unittest.TestCase):
 
     def test_history_import_cannot_forge_verdicts_or_break_types(self):
         with tempfile.TemporaryDirectory() as tmp:
-            h = History(Path(tmp) / 'h.json', enabled=True)
+            h = History(Path(tmp) / 'h.json', enabled=True, encrypted=False)
             kid = 'cd' * 8
             forged = {'format': 'keymelier-history', 'keys': [{
                 'key_id': kid,
