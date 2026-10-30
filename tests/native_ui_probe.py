@@ -11,14 +11,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import webview
 from keymelier_core import native_ui
 from keymelier_core.selftest import native_navigation_checks
+from keymelier_core.page import build_html
 
 results = {}
 temporary = tempfile.TemporaryDirectory()
 page = Path(temporary.name) / 'initial.html'
-page.write_text('<html><body id="initial">KeyMelier native security test</body></html>')
+page.write_text(build_html(), encoding='utf-8')
 page_url = page.as_uri() if sys.platform.startswith('linux') else None
 window = webview.create_window('KeyMelier security test', url=page_url,
-                              html=None if page_url else page.read_text(), width=400, height=250)
+                              html=None if page_url else page.read_text(encoding='utf-8'), width=400, height=250)
 native_ui.install(window, page_url)
 webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
 webview.settings['ALLOW_DOWNLOADS'] = False
@@ -40,6 +41,7 @@ def check():
                 break
             time.sleep(0.1)
         results['bridge'] = window.evaluate_js('document.body.dataset.ping') == 'synthetic'
+        results['scripts'] = window.evaluate_js('typeof STRINGS === "object" && typeof render === "function"') is True
         for check in native_navigation_checks(window):
             results[check['name'].split()[1] + '_blocked'] = check['ok']
         if sys.platform == 'darwin':
@@ -74,7 +76,7 @@ def check():
 webview.start(check, gui='qt' if sys.platform.startswith('linux') else None)
 faulthandler.cancel_dump_traceback_later()
 temporary.cleanup()
-expected = {'bridge', 'file_blocked', 'data_blocked'}
+expected = {'bridge', 'scripts', 'file_blocked', 'data_blocked'}
 if sys.platform == 'darwin':
     expected |= {'default_cancel', 'cancelled'}
 raise SystemExit(0 if set(results) == expected and all(value is True for value in results.values()) else 1)

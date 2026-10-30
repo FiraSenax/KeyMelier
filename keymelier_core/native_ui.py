@@ -86,18 +86,31 @@ def _cocoa(policy):
 def _edge(policy):
     from webview.platforms import edgechromium
     original = edgechromium.EdgeChrome.on_navigation_start
+    completed = edgechromium.EdgeChrome.on_navigation_completed
 
     def navigate(self, sender, args):
         args.Cancel = True
+        # WebView2 can navigate its empty bootstrap document before loading our
+        # HTML. Only the backend's actual HTML request may consume the one permit.
+        if not self.ishtml:
+            return
         if not policy.allow(str(args.Uri)):
             return
+        self._keymelier_navigation_id = args.NavigationId
         original(self, sender, args)
         args.Cancel = False
+
+    def finish(self, sender, args):
+        # pywebview otherwise injects its bridge and emits loaded even for a
+        # cancelled navigation, replacing callbacks in the surviving document.
+        if args.IsSuccess and args.NavigationId == getattr(self, '_keymelier_navigation_id', None):
+            completed(self, sender, args)
 
     def popup(self, sender, args):
         args.Handled = True
 
     edgechromium.EdgeChrome.on_navigation_start = navigate
+    edgechromium.EdgeChrome.on_navigation_completed = finish
     edgechromium.EdgeChrome.on_new_window_request = popup
 
 

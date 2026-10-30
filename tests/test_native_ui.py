@@ -10,12 +10,14 @@ from keymelier_core import native_ui
 
 
 class NativeNavigationTests(unittest.TestCase):
-    @unittest.skipUnless(sys.platform == 'darwin', 'native WKWebView requires macOS')
-    def test_native_wkwebview_and_default_cancel(self):
+    @unittest.skipUnless(sys.platform in ('darwin', 'win32'), 'native desktop session required')
+    def test_native_desktop_startup_and_navigation(self):
         probe = Path(__file__).with_name('native_ui_probe.py')
         result = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, timeout=25)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('"default_cancel": true', result.stdout)
+        self.assertIn('"scripts": true', result.stdout)
+        if sys.platform == 'darwin':
+            self.assertIn('"default_cancel": true', result.stdout)
 
     def test_only_the_first_exact_main_document_can_load(self):
         policy = native_ui.NavigationPolicy()
@@ -34,20 +36,34 @@ class NativeNavigationTests(unittest.TestCase):
         self.assertFalse(policy.allow('file:///run/user/1000/keymelier-a b/keymelier.html'))
 
     def test_edge_cancels_navigation_and_handles_popups(self):
-        original = Mock()
-        edge = SimpleNamespace(EdgeChrome=type('Edge', (), {'on_navigation_start': original}))
+        original, completed = Mock(), Mock()
+        edge = SimpleNamespace(EdgeChrome=type('Edge', (), {'on_navigation_start': original,
+                                                          'on_navigation_completed': completed}))
         with patch.dict('sys.modules', {'webview.platforms.edgechromium': edge}), \
              patch('webview.platforms.edgechromium', edge, create=True):
             native_ui._edge(native_ui.NavigationPolicy())
         view = edge.EdgeChrome()
-        event = SimpleNamespace(Uri='about:blank', Cancel=False)
+        view.ishtml = False
+        bootstrap = SimpleNamespace(Uri='about:blank', Cancel=False, NavigationId=1)
+        view.on_navigation_start(None, bootstrap)
+        self.assertTrue(bootstrap.Cancel)
+        view.on_navigation_completed(None, SimpleNamespace(IsSuccess=False, NavigationId=1))
+        completed.assert_not_called()
+        view.ishtml = True
+        event = SimpleNamespace(Uri='about:blank', Cancel=False, NavigationId=2)
         view.on_navigation_start(None, event)
         self.assertFalse(event.Cancel)
         original.assert_called_once()
+        view.on_navigation_completed(None, SimpleNamespace(IsSuccess=True, NavigationId=2))
+        completed.assert_called_once()
+        completed.reset_mock()
         for url in ('about:blank', 'https://example.invalid/', 'data:text/html,foreign'):
             event = SimpleNamespace(Uri=url, Cancel=False)
             view.on_navigation_start(None, event)
             self.assertTrue(event.Cancel)
+        view.on_navigation_completed(None, SimpleNamespace(IsSuccess=False, NavigationId=3))
+        view.on_navigation_completed(None, SimpleNamespace(IsSuccess=True, NavigationId=3))
+        completed.assert_not_called()
         popup = SimpleNamespace(Handled=False)
         view.on_new_window_request(None, popup)
         self.assertTrue(popup.Handled)

@@ -43,6 +43,7 @@ from keymelier_core.page import build_html
 from keymelier_core.scanner import TokenScanner
 from keymelier_core.service import KeyService
 from keymelier_core.storage import stateless
+from keymelier_core.history import History
 from keymelier_core.desktop_io import gpg_path, read_import
 from keymelier_core.safe_errors import log_failure
 from keymelier_core import native_ui
@@ -418,7 +419,10 @@ def main():
         mds3_client=mds3,
         advisory_checker=advisories,
     )
-    service = KeyService(scanner, CSVExporter(), mds3_client=mds3, advisories=advisories)
+    # A temporary HOME does not isolate the OS credential store. Startup tests
+    # must not create real credentials or wait for a Keychain permission dialog.
+    service = KeyService(scanner, CSVExporter(), mds3_client=mds3, advisories=advisories,
+                         history=History(enabled=False) if selftest else None)
     pump = EventPump()
     menubar = None
 
