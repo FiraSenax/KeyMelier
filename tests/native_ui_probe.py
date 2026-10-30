@@ -21,6 +21,30 @@ page_url = page.as_uri() if sys.platform.startswith('linux') else None
 window = webview.create_window('KeyMelier security test', url=page_url,
                               html=None if page_url else page.read_text(encoding='utf-8'), width=400, height=250)
 native_ui.install(window, page_url)
+
+
+def trace_windows_navigation(renderer):
+    """Synthetic probe diagnostics: distinguish startup from cancelled loads."""
+    if renderer != 'edgechromium':
+        return
+    from webview.platforms import edgechromium
+    start = edgechromium.EdgeChrome.on_navigation_start
+    finish = edgechromium.EdgeChrome.on_navigation_completed
+
+    def starting(self, sender, args):
+        print('navigation starting', str(args.Uri)[:160], self.ishtml, args.NavigationId, flush=True)
+        start(self, sender, args)
+        print('navigation cancelled', args.Cancel, flush=True)
+
+    def completed(self, sender, args):
+        print('navigation completed', args.NavigationId, args.IsSuccess, str(args.WebErrorStatus), flush=True)
+        finish(self, sender, args)
+
+    edgechromium.EdgeChrome.on_navigation_start = starting
+    edgechromium.EdgeChrome.on_navigation_completed = completed
+
+
+window.events.initialized += trace_windows_navigation
 webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
 webview.settings['ALLOW_DOWNLOADS'] = False
 
