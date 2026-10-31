@@ -433,3 +433,13 @@ Windows signed state. RCs, certificate purchase/issuance, a missing marker and
 network failures never do. The static fallback refers readers to the release
 notes. Merge/deploy these website changes with the signed release preparation;
 no separate hand-edited "signed" claim is required at certificate issuance.
+
+### macOS runner migration (RC2)
+
+GitHub's [macOS 14 runner retirement](https://github.com/actions/runner-images/issues/13518)
+blocked the RC2 PR on 2026-10-31 during a scheduled brownout; removal follows on
+November 2. Build/test/signing-probe jobs now use `macos-15`. The application build
+keeps Xcode 16.2 and explicitly targets macOS 11 for source-built ARM64 extensions,
+matching the existing zxing build target. Dependency locks and supported app OS
+versions are unchanged. Native/package/signing checks must pass on the new runner;
+those tests do not replace execution on the oldest supported user OS.
