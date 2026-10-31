@@ -41,6 +41,7 @@ jobs:
           python3 tools/check_release_source.py --ref "$RELEASE_REF" --sha "$RELEASE_SHA"
   test:
     strategy:
+      fail-fast: false   # retain native-platform diagnostics when one backend fails
       matrix:
         os: [macos-15, windows-2022, ubuntu-24.04]
     runs-on: ${{ matrix.os }}

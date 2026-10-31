@@ -258,7 +258,7 @@ class Api:
 
     def copy_text(self, text, sensitive=False):
         """Sensitive copies expire after 30 seconds if we still own them."""
-        return self._clipboard.copy(text, sensitive)
+        return self._clipboard.copy(str(text)[:16384], sensitive)
 
     def client_log(self, message):
         logger.info("UI event received")

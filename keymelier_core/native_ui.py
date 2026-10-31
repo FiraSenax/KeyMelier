@@ -11,6 +11,30 @@ from urllib.parse import unquote, urlsplit
 from keymelier_core.safe_errors import log_failure
 
 logger = logging.getLogger(__name__)
+_QT_DISPATCH_LOCK = threading.Lock()
+
+
+def _queue_qt(qt, native, action):
+    # Python worker threads may have no Qt event dispatcher. A singleShot
+    # functor created there can be lost even with a GUI context. Route through
+    # a QObject slot whose affinity is explicitly the window's thread.
+    with _QT_DISPATCH_LOCK:
+        dispatcher = getattr(native, '_keymelier_dispatcher', None)
+        if dispatcher is None:
+            class Dispatcher(qt.QtCore.QObject):
+                invoke = qt.QtCore.Signal(object)
+
+                def __init__(self):
+                    super().__init__()
+                    self.moveToThread(native.thread())
+                    self.invoke.connect(self.run, qt.QtCore.Qt.QueuedConnection)
+
+                @qt.QtCore.Slot(object)
+                def run(self, callback):
+                    callback()
+
+            dispatcher = native._keymelier_dispatcher = Dispatcher()
+    dispatcher.invoke.emit(action)
 
 
 def on_ui(window, action):
@@ -45,7 +69,7 @@ def on_ui(window, action):
         native = qt.BrowserView.instances[window.uid]
         if qt.QtCore.QThread.currentThread() == native.thread():
             return action()
-        qt.QtCore.QTimer.singleShot(0, native, run)
+        _queue_qt(qt, native, run)
     else:
         raise RuntimeError('Native UI unavailable')
     if not done.wait(5):

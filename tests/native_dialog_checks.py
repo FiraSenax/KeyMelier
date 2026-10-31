@@ -114,7 +114,7 @@ def _qt_press(window, action, results):
         else:
             QTest.keyClick(modal, qt.QtCore.Qt.Key_Return if action == 'enter' else qt.QtCore.Qt.Key_Escape)
 
-    qt.QtCore.QTimer.singleShot(100, native, press)
+    native_ui.on_ui(window, lambda: qt.QtCore.QTimer.singleShot(100, native, press))
 
 
 def clipboard_checks(window):
