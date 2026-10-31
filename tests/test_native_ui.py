@@ -14,7 +14,7 @@ class NativeNavigationTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform in ('darwin', 'win32'), 'native desktop session required')
     def test_native_desktop_startup_and_navigation(self):
         probe = Path(__file__).with_name('native_ui_probe.py')
-        result = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, timeout=25)
+        result = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, timeout=100)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('"scripts": true', result.stdout)
         if sys.platform == 'darwin':

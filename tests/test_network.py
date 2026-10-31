@@ -1,6 +1,12 @@
 import unittest
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import Mock
-from keymelier_core.network import read_limited
+from unittest.mock import patch
+from keymelier_core import network
+from keymelier_core.network import bounded_get, read_limited
+import requests
 
 
 class TrustBundleTests(unittest.TestCase):
@@ -45,3 +51,67 @@ class NetworkLimitsTests(unittest.TestCase):
         with self.assertRaises(OSError):
             read_limited(response, 100)
         response.iter_content.assert_not_called()
+
+
+class NetworkDeadlineTests(unittest.TestCase):
+    def test_trickling_headers_and_body_cannot_extend_total_deadline(self):
+        stop = threading.Event()
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                try:
+                    if self.path == '/headers':
+                        self.wfile.write(b'HTTP/1.1 200 OK\r\nX-Slow: ')
+                    else:
+                        self.send_response(200)
+                        self.send_header('Content-Length', '10000')
+                        self.end_headers()
+                    while not stop.wait(0.01):
+                        self.wfile.write(b'x')
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for path in ('headers', 'body'):
+                started = time.monotonic()
+                with self.subTest(path=path), self.assertRaises(requests.Timeout):
+                    with bounded_get(f'http://127.0.0.1:{server.server_port}/{path}',
+                                     stream=True, timeout=0.1, total_timeout=0.2) as response:
+                        read_limited(response, 20000)
+                self.assertLess(time.monotonic() - started, 1.5)
+        finally:
+            stop.set()
+            server.shutdown()
+            server.server_close()
+            thread.join(2)
+
+    def test_stuck_header_workers_are_bounded_and_late_results_discarded(self):
+        entered, release = threading.Event(), threading.Event()
+        slots = threading.BoundedSemaphore(1)
+
+        def stalled(*args, **kwargs):
+            entered.set()
+            release.wait(2)
+            return Mock()
+
+        with patch.object(network, '_SLOTS', slots), patch('requests.get', side_effect=stalled) as get:
+            try:
+                with self.assertRaises(requests.Timeout):
+                    with bounded_get('https://synthetic.invalid', total_timeout=0.1):
+                        self.fail('late headers must not be delivered')
+                self.assertTrue(entered.is_set())
+                with self.assertRaisesRegex(requests.Timeout, 'concurrency'):
+                    with bounded_get('https://synthetic.invalid'):
+                        self.fail('no second worker may be created')
+                get.assert_called_once()
+            finally:
+                release.set()
+                self.assertTrue(slots.acquire(timeout=2))
+                slots.release()

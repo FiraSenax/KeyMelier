@@ -202,8 +202,8 @@ async function oathAction(act, id, el) {
   if (act === 'ask-reset') { oathConfirm = 'reset'; return renderOath(); }
   if (act === 'cancel') { oathConfirm = null; return renderOath(); }
   if (act === 'copy') {
-    const ok = await window.pywebview?.api?.copy_text(el.dataset.code);
-    return showToast(t(ok ? 'oath.copied' : 'oath.copyFailed'), ok ? 'success' : 'error');
+    const ok = await window.pywebview?.api?.copy_text(el.dataset.code, true);
+    return showToast(t(ok ? 'oath.copiedSensitive' : 'oath.copyFailed'), ok ? 'success' : 'error');
   }
   if (act === 'code') {
     oathBusy = id; renderOath();

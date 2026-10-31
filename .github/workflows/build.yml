@@ -41,8 +41,9 @@ jobs:
           python3 tools/check_release_source.py --ref "$RELEASE_REF" --sha "$RELEASE_SHA"
   test:
     strategy:
+      fail-fast: false   # retain native-platform diagnostics when one backend fails
       matrix:
-        os: [macos-14, windows-2022, ubuntu-24.04]
+        os: [macos-15, windows-2022, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15   # a hanging test fails the run instead of blocking a runner for hours
     steps:
@@ -54,7 +55,12 @@ jobs:
           python-version: '3.12'
       - name: PC/SC headers for pyscard (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev swig
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpcsclite-dev swig \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libegl1 libgl1 libopengl0 \
+            libnss3 libasound2t64 xvfb xauth
       - run: python -m pip install --require-hashes -r requirements.txt
       - name: Install isolated test and lint dependencies (hash-pinned wheels)
         run: |
@@ -71,6 +77,9 @@ jobs:
       - name: Reject an accidental update-key emergency stop
         run: python tools/check_update_revocation.py
       - run: python -m unittest discover -s tests -v
+      - name: Linux native navigation, confirmation and clipboard tests
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1280x800x24" python tests/native_ui_probe.py
       - name: Windows runtime prerequisite safety tests
         if: runner.os == 'Windows'
         shell: powershell
@@ -132,12 +141,12 @@ jobs:
   # them the builds are published unsigned and clearly labelled as such.
   build-macos:
     needs: [release-source, test, ui]
-    runs-on: macos-14
+    runs-on: macos-15
     environment: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && 'release-signing' || 'test-build' }}
     env:
-      # zxing 3.1 uses C++20 aggregate initialization missing in the runner's
-      # default Xcode 15.4; select the installed C++20-capable toolchain.
+      # Keep the reviewed C++20 toolchain when moving off retired macos-14.
       DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
       SIGN_MAC: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.signed_rc)) && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
     outputs:
       signed: ${{ steps.build.outputs.signed }}

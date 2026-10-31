@@ -43,6 +43,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
+from collections import OrderedDict
+from bisect import bisect_right
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,6 +62,25 @@ SCRYPT = {"n": 2 ** 17, "r": 8, "p": 1}
 INTERVAL = 30          # seconds between checks of the folder
 ERROR_AFTER = 2        # report an unreadable file only after this many checks in a row
 KEYRING_NAME = "sync-passphrase-v1"
+ROUND_FILES = 32
+ROUND_KDFS = 4
+ROUND_BYTES = 2 * MAX_FILE
+FAILED_FILES = 128
+FAILED_RETRY = 60
+
+
+class _Deferred(Exception):
+    """This peer stays pending for the next bounded batch, never consumed."""
+
+
+class _WorkBudget:
+    def __init__(self):
+        self.remaining = ROUND_KDFS
+
+    def take(self):
+        if not self.remaining:
+            raise _Deferred()
+        self.remaining -= 1
 
 
 class SyncError(Exception):
@@ -124,11 +146,13 @@ class _SessionKeys:
         self._keys: dict[bytes, bytes] = {}
         self._lock = threading.Lock()
 
-    def derive(self, salt: bytes) -> bytes:
+    def derive(self, salt: bytes, budget=None) -> bytes:
         with self._lock:
             if self._passphrase is None:
                 raise SyncError("Sync is no longer configured.", "sync_disabled")
             if salt not in self._keys:
+                if budget is not None:
+                    budget.take()
                 key = _derive(self._passphrase, salt)
                 if len(self._keys) >= 32:
                     del self._keys[next(iter(self._keys))]
@@ -250,9 +274,13 @@ class SyncFolder:
         self._own_stamp = None             # (mtime, size) of our file when we last wrote or read it
         self._last_written = ""
         self._seen: dict[str, tuple] = {}  # file name -> (mtime, size) already merged
+        self._failed = OrderedDict()     # bounded, session-local retry cache; no plaintext
+        self._cursor = ''                 # round-robin batches, including on full/manual sync
+        self.pending = False             # a bounded round left peers unexamined
 
     def close(self):
         self._keys.close()
+        self._failed.clear()
 
     @property
     def own_path(self) -> Path:
@@ -322,45 +350,91 @@ class SyncFolder:
     def read_others(self, only_new=True) -> tuple[list[dict], list[dict]]:
         """Files of the other computers: ([{device, name, written, history}], [{file, code}])."""
         self.check()
-        found, errors = [], []
-        for path in sorted(self.folder.iterdir()):
-            m = FILE_RE.match(path.name)
-            if not m or m.group(1) == self.device:
-                continue
+        found, errors = [], {}
+        names = sorted(p.name for p in self.folder.iterdir()
+                       if FILE_RE.match(p.name) and p.name != self.own_path.name)
+        present = set(names)
+        for name in list(self._failed):
+            if name not in present:
+                del self._failed[name]
+        # Retain errors of deferred peers so batching does not reset ERROR_AFTER.
+        errors.update((name, entry[1]) for name, entry in self._failed.items())
+        start = bisect_right(names, self._cursor)
+        names = names[start:] + names[:start]
+        self.pending = len(names) > ROUND_FILES
+        budget, byte_count = _WorkBudget(), 0
+        for name in names[:ROUND_FILES]:
+            path = self.folder / name
+            m = FILE_RE.match(name)
+            previous_cursor, self._cursor = self._cursor, name
             try:
                 st = os.lstat(path)
             except OSError:
                 continue
             stamp = (st.st_mtime_ns, st.st_size)
+            failure_stamp = (st.st_mtime_ns, st.st_ctime_ns, st.st_size, st.st_ino)
+            failed = self._failed.get(name)
+            if only_new and failed and failed[0] == failure_stamp and time.monotonic() < failed[2]:
+                continue
             if only_new and self._seen.get(path.name) == stamp:
                 continue
+            if st.st_size <= MAX_FILE and byte_count + st.st_size > ROUND_BYTES:
+                self.pending = True
+                self._cursor = previous_cursor
+                break
             try:
                 data = _read_regular(path)
             except FileInTransit:
                 continue   # not marked as seen: read again next round
             except OSError:
                 # still locked after the retries: report this file, read the others
-                errors.append({"file": path.name, "code": "sync_locked"})
+                errors[name] = "sync_locked"
                 continue
             if data is None:
-                errors.append({"file": path.name, "code": "sync_damaged"})
+                errors[name] = "sync_damaged"
+                self._remember_failure(name, failure_stamp, "sync_damaged")
                 continue
+            byte_count += len(data)
+            if byte_count > ROUND_BYTES:
+                self.pending = True
+                self._cursor = previous_cursor
+                break
             try:
-                device, payload = _unseal(data, self._keys.derive)
+                device, payload = _unseal(data, lambda salt: self._keys.derive(salt, budget))
+            except _Deferred:
+                self.pending = True
+                self._cursor = previous_cursor
+                break
             except SyncError as e:
-                errors.append({"file": path.name, "code": e.code})
+                errors[name] = e.code
+                self._remember_failure(name, failure_stamp, e.code)
                 continue
             if device != m.group(1):
-                errors.append({"file": path.name, "code": "sync_damaged"})  # renamed/copied file
+                errors[name] = "sync_damaged"  # renamed/copied file
+                self._remember_failure(name, failure_stamp, "sync_damaged")
                 continue
+            self._failed.pop(name, None)
+            errors.pop(name, None)
             found.append({"device": device, "name": str(payload.get("device_name") or "")[:80],
                           "written": str(payload.get("written") or "")[:40],
-                          "history": payload.get("history"), "file": path.name, "stamp": stamp})
-        return found, errors
+                          "history": payload.get("history"), "file": path.name, "stamp": stamp,
+                          "failure_stamp": failure_stamp})
+        return found, [{"file": name, "code": code} for name, code in errors.items()]
+
+    def _remember_failure(self, name, stamp, code):
+        self._failed[name] = (stamp, code, time.monotonic() + FAILED_RETRY)
+        self._failed.move_to_end(name)
+        while len(self._failed) > FAILED_FILES:
+            self._failed.popitem(last=False)
+
+    def reject(self, other, code):
+        """A failed merge is retryable after change/expiry, never acknowledged."""
+        self._remember_failure(other['file'], other['failure_stamp'], code)
 
     def acknowledge(self, other: dict) -> None:
         """Only a successful merge consumes a file; failed peers remain retryable."""
         self._seen[other["file"]] = other["stamp"]
+        self._failed.pop(other['file'], None)
 
 
 # ── Background syncing ───────────────────────────────────────────────────────
@@ -449,6 +523,7 @@ class Syncer:
                         changed |= self._history.merge_sync(other["history"], keep_contents=self._keep_contents())
                     except (ValueError, TypeError, RecursionError):
                         problems.append({"file": other["file"], "code": "sync_damaged"})
+                        folder.reject(other, 'sync_damaged')
                         continue
                     folder.acknowledge(other)
                     self.devices[other["device"]] = {"device": other["device"], "name": other["name"],
@@ -505,6 +580,11 @@ def probe_folder(folder: Path, passphrase: str, device: str) -> dict:
     probe = SyncFolder(folder, device, passphrase)
     try:
         others, errors = probe.read_others(only_new=False)
+        if probe.pending and not others:
+            # An incomplete probe cannot establish a new empty folder or a
+            # wrong passphrase. Do not enable sync before checking a peer.
+            raise SyncError("Folder validation exceeded its work limit before a peer could be opened.",
+                            "sync_probe_limit")
     finally:
         probe.close()
     if errors and not others and any(e["code"] == "sync_passphrase" for e in errors):

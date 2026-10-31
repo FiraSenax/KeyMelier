@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-from keymelier_core.network import read_limited
+from keymelier_core.network import DOWNLOAD_TIMEOUT, bounded_get, read_limited
 from keymelier_core.distribution import is_msix
 from keymelier_core.version import __version__
 from keymelier_core import build_info, update_auth, update_revocation
@@ -66,7 +66,6 @@ def _asset(release: dict) -> dict | None:
 
 def check(include_rc: bool = False) -> dict:
     """Return {current, latest, newer, url, published_at} (latest may be None)."""
-    import requests
 
     running = current_version()
     result = {"current": running, "latest": None, "newer": False, "url": None, "published_at": None,
@@ -79,7 +78,7 @@ def check(include_rc: bool = False) -> dict:
         releases = []
         # Always include /latest, even if many newer prereleases fill the list.
         for url in ([RELEASES_API, RC_RELEASES_API] if include_rc else [RELEASES_API]):
-            with requests.get(url, timeout=15, stream=True,
+            with bounded_get(url, timeout=15, stream=True,
                               headers={"Accept": "application/vnd.github+json"}) as resp:
                 if resp.status_code == 404:
                     continue  # no release published yet
@@ -158,7 +157,6 @@ def download(asset: dict, progress=None) -> Path:
     Return the local path only after the file matches the signed checksum.
     Missing/invalid signatures never fall back to unsigned checksums.
     """
-    import requests
     from keymelier_core.storage import stateless
 
     if is_msix():
@@ -180,9 +178,9 @@ def download(asset: dict, progress=None) -> Path:
         raise UpdateError("Unexpected download location.")
     try:
         _require_allowed_key(refresh=True)
-        with requests.get(sums_url, timeout=30, stream=True) as response:
+        with bounded_get(sums_url, timeout=30, stream=True) as response:
             raw_sums = read_limited(response, update_auth.MAX_CHECKSUM_BYTES)
-        with requests.get(asset['signature'], timeout=30, stream=True) as response:
+        with bounded_get(asset['signature'], timeout=30, stream=True) as response:
             signature = read_limited(response, 256)
         update_auth.verify(match[1], raw_sums, signature)
         sums = raw_sums.decode('utf-8')
@@ -208,7 +206,7 @@ def download(asset: dict, progress=None) -> Path:
         # predictable .part symlink or truncate somebody else's download.
         with tempfile.NamedTemporaryFile(prefix=".keymelier-", suffix=".part", dir=directory, delete=False) as f:
             partial = Path(f.name)
-            with requests.get(url, stream=True, timeout=60) as resp:
+            with bounded_get(url, stream=True, timeout=60, total_timeout=DOWNLOAD_TIMEOUT) as resp:
                 resp.raise_for_status()
                 total = int(resp.headers.get("Content-Length") or 0)
                 if total < 0 or total > MAX_SIZE:

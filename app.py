@@ -119,6 +119,8 @@ class Api:
         self._service = service
         self._menubar = None  # private: pywebview only exposes public members
         self._window = None
+        from keymelier_core.clipboard import Clipboard
+        self._clipboard = Clipboard(lambda: self._window)
         self._selftest = None  # set by --self-test
         self._selected_sync_folder = None
         self._consent = NativeConsent(service, lambda title, message: native_ui.confirm(self._window, title, message),
@@ -254,9 +256,16 @@ class Api:
         name, text = document(ROOT_DIR, document_id, bundled=bool(getattr(sys, "frozen", False)))
         return self._save_document(name, text)
 
-    def copy_text(self, text):
-        """Put a code or certificate on the system clipboard (the web view's clipboard API is unreliable)."""
+    def copy_text(self, text, sensitive=False):
+        """Sensitive copies expire after 30 seconds if we still own them."""
         text = str(text)[:16384]
+        if type(sensitive) is not bool:
+            return False
+        if sensitive:
+            return self._clipboard.copy(text, True)
+        # Preserve ordinary-copy ownership/lifetime, especially Linux helper
+        # processes that can keep public text available after the app exits.
+        # A pending secret timer observes the changed native owner and skips it.
         try:
             if sys.platform == "darwin":
                 subprocess.run(["pbcopy"], input=text.encode(), check=True)

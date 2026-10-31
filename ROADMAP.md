@@ -2,25 +2,35 @@
 
 Work planned after 1.8.0; implementation status is noted where applicable.
 
-## Next security release: selected feedback implemented (29 October 2026)
+## 1.8.8 — stabilize the security release (31 October 2026)
 
-All thirteen points from the external 1.8.7 feedback have been checked against
-`2237689`: [findings, proposed priorities and acceptance gates](SECURITY_REVIEW.md#external-187-feedback-triage).
-The selected five work areas are implemented in the working tree: native consent,
-pre-navigation blocking and targeted DOM rendering, GnuPG/import handling, selective
-smart-card exceptions with safe diagnostics, and default history encryption with a
-verified legacy copy. See [implementation and limits](SECURITY_REVIEW.md#selected-security-changes--2026-10-29).
-Publication and platform/hardware release checks remain outstanding. Broader
-refactors, sync-secret lifetime and the open security items below remain separate.
+The five selected 1.8.7 feedback areas shipped in
+[1.8.8 RC1](https://github.com/FiraSenax/KeyMelier/releases/tag/v1.8.8-rc.1):
+native consent, navigation/DOM boundaries, GnuPG/import validation, error handling
+and default history encryption. [Review and limits](SECURITY_REVIEW.md).
+
+RC2 adds DOM construction for PIV/OpenPGP/OTP, bounded sync work and retry caching,
+total HTTP deadlines, native dialog regressions and expiring sensitive clipboard
+copies. Keep the v1 sync/export formats and update paths compatible. Complete CI,
+package/signing checks and the [security hardware checklist](HARDWARE_TESTS.md#188-security-release-checklist)
+before stable; automated probes do not replace real-key validation.
+
+**After 1.8.8:** take independently reviewable secret-lifetime and bridge-contract
+improvements in maintenance releases. Key identity remains the larger 1.9 feature.
+**Windows privilege separation is planned for 1.9 or later**, with its own design
+and RC cycle; it is not part of 1.8.8/1.8.9 stabilization. No fixed delivery date.
 
 ## Security review follow-ups (27 October 2026)
 
-- **Windows privilege separation:** design a small, authenticated helper for raw
+- **Windows privilege separation (1.9+):** design a small, authenticated helper for raw
   HID management so the web UI need not run elevated. The installed python-fido2
   2.2.1 `WindowsClient` wraps WebAuthn registration/assertion; it does not expose
   arbitrary CTAP2 getInfo, PIN management, credential management or vendor
   commands. It is not a drop-in replacement for the scanner. Preserve selection
   of the actual connected key and test standard/elevated users on Windows.
+  Include authenticated IPC, restricted helper operations, cancellation/disconnect,
+  helper lifecycle, installation/update/signing and failure recovery. Do not remove
+  elevation before equivalent device access has passed hardware tests.
   [Yubico API](https://developers.yubico.com/python-fido2/API_Documentation/autoapi/fido2/client/windows/index.html)
 - **Secret lifetime:** shorten DOM, request and task references; where native
   libraries support mutable buffers, wipe those owned buffers after use. Audit

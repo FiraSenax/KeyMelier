@@ -1,7 +1,67 @@
+# RC2 hardening — 2026-10-31
+
+RC1 was published at `a43b12c52d6c174a56a673c3607810edff92d32a` as
+[v1.8.8-rc.1](https://github.com/FiraSenax/KeyMelier/releases/tag/v1.8.8-rc.1).
+[Build 41016736648](https://github.com/FiraSenax/KeyMelier/actions/runs/41016736648)
+passed after one Windows native-probe startup timeout and a rerun. Its packages
+passed macOS signing/notarization, Windows signing and the signed-checksum gate.
+Those results apply to RC1, not to subsequent source changes.
+
+The five selected RC2 changes are:
+
+1. **DOM rendering:** PIV, OpenPGP and OTP views, forms and generated-key results
+   now insert device/imported strings through text nodes and attributes. The shared
+   builders accept a restricted set of elements/attributes; no dynamic markup is
+   parsed. Bundled SVG icons remain a reviewed parsing site. Production-CSP browser
+   checks cover hostile attributes/text and all form variants/defaults.
+2. **Sync work:** each peer round visits at most 32 files, derives at most four new
+   salt keys and budgets 40 MB of peer data (each individual read remains capped at
+   20 MB plus one size-check byte). Round-robin scheduling also applies to manual
+   sync. Up to 128 unchanged failed files are retried after 60 seconds, immediately
+   on a changed filesystem stamp or a manual check; failed merges are never
+   acknowledged. Directory enumeration and filesystem latency are not time-bounded.
+   The own-file read/write is additional constant work. Setup cannot validate a
+   passphrase/empty folder from an incomplete batch: it fails before configuration
+   if no peer could be opened. Back up and inspect damaged/unrelated files before
+   retrying setup; nothing is automatically removed. Wire format/KDF parameters
+   and mixed-version peers remain unchanged.
+3. **HTTP deadlines:** a monotonic deadline covers headers and the streamed body
+   (45 seconds per metadata request, 15 minutes per installer transfer), in addition
+   to existing inactivity/size limits. A two-chunk queue and four-worker cap bound
+   background work. Status/size/redirect checks precede body reads. Timed-out
+   workers cannot write caches/installers. Socket shutdown wakes body reads;
+   third-party DNS/header calls can outlive cancellation and occupy a slot until
+   they return. Exhausted slots fail closed. This is not a promise to forcibly
+   terminate OS DNS calls or a deadline for an entire multi-request refresh.
+4. **Native regressions:** source probes cover all supported renderers; Windows
+   and Qt tests exercise Enter, Escape and close on owned synthetic dialogs.
+   macOS verifies the native Cancel default. Startup has a separate 60-second
+   deadline and diagnostics, followed by a 30-second functional watchdog. No
+   automatic retries hide failures; the earlier intermittent Windows startup
+   failure has not been proven to have one specific cause.
+5. **Clipboard:** OATH codes/OTP secrets expire after 30 seconds while the app runs.
+   Native ownership generation plus a random marker prevent stale timers from
+   clearing later copies, including identical text copied again. Windows checks
+   and clears under the clipboard lock; macOS/Qt offer no atomic compare-and-clear,
+   so an external replacement can race the final native check. Concealed/transient
+   or history/cloud-suppression markers are hints, not a guarantee that clipboard
+   managers comply. Already-read copies cannot be recalled. Exit, suspension or
+   a busy clipboard can prevent best-effort expiry. Timers retain ownership tokens,
+   not the secret text. Normal text/public-key/certificate copies do not expire and retain the existing
+   OS-helper path, including Linux clipboard persistence after app exit.
+
+Local validation: **511 Python tests passed (two platform skips), 44 browser UI
+tests, 20 stress tests and 62 production-DOM checks passed**. Native macOS
+navigation/default-cancel/private-clipboard probes and the static checks passed.
+Windows/Linux execution and signed RC2 packages still require CI evidence; real hardware is still tracked
+separately in [HARDWARE_TESTS.md](HARDWARE_TESTS.md). Windows UI/helper separation
+is deferred to **1.9+**, including authenticated IPC and installer/update testing.
+No broader renderer-isolation or secret-zeroization claim is made.
+
 # Selected security changes — 2026-10-29
 
-The maintainer selected five work areas from the triage below. They are prepared
-for 1.8.8 RC1; publication and CI build results are tracked separately:
+The maintainer selected five work areas from the triage below. They were implemented
+for 1.8.8 RC1; publication evidence is recorded above:
 
 1. **Native consent:** sensitive device writes, resets, deletions and sync-file
    removal require a native default-cancel dialog. Backend-owned labels and device
@@ -28,7 +88,7 @@ for 1.8.8 RC1; publication and CI build results are tracked separately:
    export and sync formats remain available. Retained backups stay plaintext and
    can be stale; downgrade and recovery steps are documented in the README.
 
-Local validation: the full Python suite passed (**497 tests, 2 platform skips**),
+RC1 local validation at the time: the full Python suite passed (**497 tests, 2 platform skips**),
 including real macOS navigation/default-cancel behavior. The final shared packaged
 navigation probe and GnuPG path checks also passed targeted reruns. **44 browser UI
 tests and 20 stress tests passed**, as did the production-CSP test, UI security and
