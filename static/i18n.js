@@ -5366,3 +5366,21 @@ const I18N_NATIVE_SECURITY = {
   }
 };
 for (const [code, strings] of Object.entries(I18N_NATIVE_SECURITY)) Object.assign(STRINGS[code], strings);
+
+// RC2: explain bounded setup and the lifetime of copied secrets.
+const I18N_RC2 = {
+  de: ['Der Ordner konnte noch nicht geprüft werden. Sichere vorhandene Dateien und prüfe beschädigte oder fremde Sync-Dateien vor der Einrichtung.', 'Kopiert – wird nach 30 Sekunden entfernt, solange KeyMelier läuft und nichts Neues kopiert wurde.'],
+  en: ['The folder could not be fully checked. Back up existing files and inspect damaged or unrelated sync files before setup.', 'Copied – clears after 30 seconds while KeyMelier is running, unless something else is copied.'],
+  es: ['No se pudo comprobar toda la carpeta. Haz una copia de los archivos existentes y revisa los archivos de sincronización dañados o ajenos antes de configurar.', 'Copiado: se borra tras 30 segundos mientras KeyMelier esté abierto, salvo que copies otra cosa.'],
+  fr: ['Le dossier n’a pas pu être entièrement vérifié. Sauvegardez les fichiers existants et examinez les fichiers de synchronisation endommagés ou étrangers avant la configuration.', 'Copié : effacement après 30 secondes si KeyMelier reste ouvert et si rien d’autre n’est copié.'],
+  it: ['Non è stato possibile verificare tutta la cartella. Salva una copia dei file esistenti e controlla i file di sincronizzazione danneggiati o estranei prima della configurazione.', 'Copiato: si cancella dopo 30 secondi se KeyMelier resta aperto e non viene copiato altro.'],
+  pt: ['Não foi possível verificar toda a pasta. Faça uma cópia dos arquivos existentes e examine os arquivos de sincronização danificados ou alheios antes de configurar.', 'Copiado: será apagado após 30 segundos enquanto o KeyMelier estiver aberto, se nada mais for copiado.'],
+  nl: ['De map kon niet volledig worden gecontroleerd. Maak een back-up van bestaande bestanden en controleer beschadigde of vreemde synchronisatiebestanden vóór het instellen.', 'Gekopieerd: wordt na 30 seconden gewist zolang KeyMelier actief is en niets anders is gekopieerd.'],
+  pl: ['Nie udało się sprawdzić całego folderu. Utwórz kopię istniejących plików i sprawdź uszkodzone lub obce pliki synchronizacji przed konfiguracją.', 'Skopiowano: zostanie usunięte po 30 sekundach, jeśli KeyMelier działa i nic innego nie zostało skopiowane.'],
+  ja: ['フォルダー全体を確認できませんでした。既存のファイルをバックアップし、破損した同期ファイルや無関係な同期ファイルを確認してから設定してください。', 'コピーしました。KeyMelier が起動中で他の内容をコピーしなければ、30 秒後に消去されます。'],
+  ko: ['폴더 전체를 확인하지 못했습니다. 기존 파일을 백업하고 손상되거나 관련 없는 동기화 파일을 확인한 후 설정하세요.', '복사했습니다. KeyMelier가 실행 중이고 다른 내용을 복사하지 않으면 30초 후 지워집니다.'],
+  zh: ['无法完成文件夹检查。请备份现有文件，并在设置前检查损坏或无关的同步文件。', '已复制：KeyMelier 运行期间，若未复制其他内容，将在 30 秒后清除。'],
+};
+for (const [code, [probe, copied]] of Object.entries(I18N_RC2)) Object.assign(STRINGS[code], {
+  'sync.err.sync_probe_limit': probe, 'oath.copiedSensitive': copied,
+});

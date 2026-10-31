@@ -12,52 +12,52 @@ function renderOtp() {
   const el = $('otp-content');
   if (!el) return;
   const st = otpState;
-  if (!st) {
-    el.innerHTML = `<div class="callout"><div class="loading"><span class="spinner"></span>${escHtml(t('mg.loading'))}</div></div>`;
-    return;
-  }
+  if (!st) return el.replaceChildren(loadingNode());
   if (st.error) {
-    el.innerHTML = `<div class="callout ${st.code === 'otp_permission' ? 'warn' : 'crit'}">
-      <div class="callout-title">${escHtml(t(st.code === 'otp_permission' ? 'otp.perm.title' : 'otp.error'))}</div>
-      <div class="callout-text">${escHtml(st.code === 'otp_permission' ? t('otp.perm.text') : st.error)}</div>
-      <div class="form-actions att-actions">
-        ${st.code === 'otp_permission' ? `<button type="button" class="btn btn-secondary" data-act="privacy">${escHtml(t('otp.perm.open'))}</button>` : ''}
-        <button type="button" class="btn-link" data-act="reload">${escHtml(t('pin.retry'))}</button></div></div>`;
+    const permission = st.code === 'otp_permission';
+    el.replaceChildren(uiElement('div', {class: `callout ${permission ? 'warn' : 'crit'}`},
+      uiElement('div', {class: 'callout-title'}, t(permission ? 'otp.perm.title' : 'otp.error')),
+      uiElement('div', {class: 'callout-text'}, permission ? t('otp.perm.text') : st.error),
+      uiElement('div', {class: 'form-actions att-actions'},
+        permission ? actionButton('privacy', t('otp.perm.open')) : null,
+        actionButton('reload', t('pin.retry'), 'btn-link'))));
     return;
   }
-  const access = `<details class="otp-access"><summary>${escHtml(t('otp.access'))}</summary>${fieldHtml('otp-acc', t('otp.accessCode'), 'password', '', 'placeholder="000000000000"')}</details>`;
+  const access = uiElement('details', {class: 'otp-access'}, uiElement('summary', {}, t('otp.access')),
+    fieldNode('otp-acc', t('otp.accessCode'), 'password', '', {placeholder: '000000000000'}));
   const parts = [];
   if (otpSecret) {
-    parts.push(`<div class="callout warn"><div class="callout-title">${escHtml(t('otp.secret.title'))}</div>
-      <div class="callout-text">${escHtml(t('otp.secret.text'))}</div>
-      <div class="pgp-fp">${escHtml(otpSecret.match(/.{1,4}/g).join(' '))}</div>
-      <div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="copy-secret">${escHtml(t('otp.secret.copy'))}</button>
-        <button type="button" class="btn btn-primary" data-act="secret-done">${escHtml(t('otp.secret.done'))}</button></div></div>`);
+    parts.push(uiElement('div', {class: 'callout warn'}, uiElement('div', {class: 'callout-title'}, t('otp.secret.title')),
+      uiElement('div', {class: 'callout-text'}, t('otp.secret.text')),
+      uiElement('div', {class: 'pgp-fp'}, (otpSecret.match(/.{1,4}/g) || []).join(' ')),
+      uiElement('div', {class: 'form-actions att-actions'}, actionButton('copy-secret', t('otp.secret.copy')),
+        actionButton('secret-done', t('otp.secret.done'), 'btn btn-primary'))));
   }
   const [kind, n] = (otpForm || '').split(':');
   const used = st.slots.some(s => String(s.slot) === n && s.configured);
-  const replace = used ? (n === '1' ? `<p class="field-hint">${escHtml(t('otp.delete.text1'))}</p>` : '') + replaceCheck() : '';
-  if (kind === 'static') parts.push(formCardHtml(otpForm, t('otp.static.title', { slot: t(`otp.slot${n}`) }), t('otp.static.text'),
-    fieldHtml('otp-pw', t('otp.static.password'), 'password', '', 'maxlength="38"') + replace + access, otpError));
-  if (kind === 'hmac') parts.push(formCardHtml(otpForm, t('otp.hmac.title', { slot: t(`otp.slot${n}`) }), t('otp.hmac.text'),
-    fieldHtml('otp-secret', t('otp.hmac.secret'), 'text', '', `placeholder="${escHtml(t('otp.hmac.random'))}"`) +
-    `<label class="check"><input type="checkbox" class="otp-touch" checked><span>${escHtml(t('oath.requireTouch'))}</span></label>` + replace + access, otpError));
-  if (kind === 'delete') parts.push(formCardHtml(otpForm, t('otp.delete.title', { slot: t(`otp.slot${n}`) }),
+  const replace = used ? [n === '1' ? uiElement('p', {class: 'field-hint'}, t('otp.delete.text1')) : null, replaceCheck()] : null;
+  if (kind === 'static') parts.push(formCardNode(otpForm, t('otp.static.title', {slot: t(`otp.slot${n}`)}), t('otp.static.text'), [
+    fieldNode('otp-pw', t('otp.static.password'), 'password', '', {maxlength: 38}), replace, access], otpError));
+  if (kind === 'hmac') parts.push(formCardNode(otpForm, t('otp.hmac.title', {slot: t(`otp.slot${n}`)}), t('otp.hmac.text'), [
+    fieldNode('otp-secret', t('otp.hmac.secret'), 'text', '', {placeholder: t('otp.hmac.random')}),
+    checkFieldNode('otp-touch', t('oath.requireTouch'), true), replace, access], otpError));
+  if (kind === 'delete') parts.push(formCardNode(otpForm, t('otp.delete.title', {slot: t(`otp.slot${n}`)}),
     t(n === '1' ? 'otp.delete.text1' : 'otp.delete.text'), access, otpError, 'pk.delete.do'));
-  if (!otpForm && otpError) parts.push(`<p class="field-error">${escHtml(otpError)}</p>`);
-  parts.push(`<section class="card"><h2>${escHtml(t('otp.slots'))}</h2><p class="card-text">${escHtml(t('otp.intro'))}</p>
-    <ul class="pgp-keys">${st.slots.map(s => `<li class="pgp-key${s.configured ? '' : ' empty'}">
-      <div class="pgp-key-head"><span class="pgp-slot">${escHtml(t(`otp.slot${s.slot}`))}</span>
-        ${s.configured ? `<span class="pill on">${escHtml(t('otp.configured'))}</span>${s.touch === false ? `<span class="muted">${escHtml(t('otp.noTouch'))}</span>` : ''}`
-          : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}</div>
-      <div class="piv-actions">
-        <button type="button" class="btn-link" data-act="form" data-form="static:${s.slot}">${escHtml(t('otp.static.short'))}</button>
-        <button type="button" class="btn-link" data-act="form" data-form="hmac:${s.slot}">${escHtml(t('otp.hmac.short'))}</button>
-        ${s.configured ? `<button type="button" class="btn-link danger-link" data-act="form" data-form="delete:${s.slot}">${escHtml(t('pk.delete.do'))}</button>` : ''}
-      </div></li>`).join('')}</ul>
-    <div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="swap">${escHtml(t('otp.swap'))}</button></div>
-    <p class="field-hint">${escHtml(t('otp.hint'))}</p></section>`);
-  el.innerHTML = parts.join('');
+  if (!otpForm && otpError) parts.push(uiElement('p', {class: 'field-error'}, otpError));
+  parts.push(uiElement('section', {class: 'card'}, uiElement('h2', {}, t('otp.slots')),
+    uiElement('p', {class: 'card-text'}, t('otp.intro')),
+    uiElement('ul', {class: 'pgp-keys'}, st.slots.map(s => uiElement('li', {class: `pgp-key${s.configured ? '' : ' empty'}`},
+      uiElement('div', {class: 'pgp-key-head'}, uiElement('span', {class: 'pgp-slot'}, t(`otp.slot${s.slot}`)),
+        s.configured ? [uiElement('span', {class: 'pill on'}, t('otp.configured')),
+          s.touch === false ? uiElement('span', {class: 'muted'}, t('otp.noTouch')) : null]
+          : uiElement('span', {class: 'muted'}, t('pgp.empty'))),
+      uiElement('div', {class: 'piv-actions'},
+        actionButton('form', t('otp.static.short'), 'btn-link', {'data-form': `static:${s.slot}`}),
+        actionButton('form', t('otp.hmac.short'), 'btn-link', {'data-form': `hmac:${s.slot}`}),
+        s.configured ? actionButton('form', t('pk.delete.do'), 'btn-link danger-link', {'data-form': `delete:${s.slot}`}) : null)))),
+    uiElement('div', {class: 'form-actions att-actions'}, actionButton('swap', t('otp.swap'))),
+    uiElement('p', {class: 'field-hint'}, t('otp.hint'))));
+  el.replaceChildren(...parts);
   el.querySelector('.app-form input')?.focus();
 }
 
@@ -102,7 +102,7 @@ function initOtpPane() {
     if (act === 'form') { otpForm = b.dataset.form; otpError = null; return renderOtp(); }
     if (act === 'hide-form') { otpForm = null; otpError = null; return renderOtp(); }
     if (act === 'swap') return otpCall('otp_swap', {}, 'otp.swapped');
-    if (act === 'copy-secret') return copyText(otpSecret);
+    if (act === 'copy-secret') return copyText(otpSecret, 'oath.copied', true);
     if (act === 'secret-done') { otpSecret = null; return renderOtp(); }
   });
   el.addEventListener('submit', ev => {

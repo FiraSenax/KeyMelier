@@ -76,6 +76,7 @@ def _drop_cached(url):
 
 
 def _fetch_crl(url, allow_cache=True):
+    from keymelier_core.network import bounded_get
     import requests
     from cryptography import x509
 
@@ -95,7 +96,7 @@ def _fetch_crl(url, allow_cache=True):
             return disk  # still validated by the caller like a fresh download
     # HTTP CRLs are authenticated by the issuer signature, not the transport.
     try:
-        with requests.get(url, timeout=15, stream=True, allow_redirects=False) as response:
+        with bounded_get(url, timeout=15, stream=True, allow_redirects=False) as response:
             if response.status_code != 200:
                 raise ValueError("MDS CRL download failed")
             chunks, size = [], 0

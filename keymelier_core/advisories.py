@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from keymelier_core.firmware import firmware_from_raw as _firmware_from_raw, parse_firmware_str as _parse_firmware
-from keymelier_core.network import read_limited
+from keymelier_core.network import bounded_get, read_limited
 from keymelier_core.storage import atomic_write, stateless
 
 logger = logging.getLogger(__name__)
@@ -22,10 +22,8 @@ SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 def _read_source(location: str) -> tuple[bytes, str]:
     """Document and signature of a managed source (https URL or local file)."""
     if location.startswith("https://"):
-        import requests
-
         def get(url):
-            with requests.get(url, timeout=15, stream=True, allow_redirects=False) as response:
+            with bounded_get(url, timeout=15, stream=True, allow_redirects=False) as response:
                 if response.status_code != 200:
                     raise ValueError("source must return HTTP 200 without redirects")
                 return read_limited(response, MAX_SOURCE_BYTES)

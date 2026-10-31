@@ -36,6 +36,29 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
       far stay, sites not asked stay unknown.
 4. Enter the **result** and anything unusual, with the date.
 
+## 1.8.8 security release checklist
+
+Record the exact RC/commit, OS, key model/firmware, result and date for each check.
+All new manual checks below are **Not tested** until observed. Use a temporary
+profile and expendable test keys/accounts; preserve history backups. CI navigation,
+dialog and clipboard probes use synthetic data and are not hardware sign-off.
+
+| Check | Acceptance | macOS | Windows | Linux |
+|---|---|---|---|---|
+| Native consent | Reset, deletion, replacement and sync-file removal show the correct operation/target. Enter defaults to Cancel; Escape/window close cancel where offered. Cancellation changes no key/file. One acceptance authorizes only that request. | Not tested | Not tested | Not tested |
+| Disconnect/reconnect | Disconnect while confirmation is open, reconnect the same or another key and accept: the old decision cannot authorize a write. Start a fresh request successfully afterward. | Not tested | Not tested | Not tested |
+| Encrypted history upgrade | In a temporary profile with legacy plaintext history, verify equivalent encrypted history and unchanged backup. Restart successfully; with credential store locked/unavailable, block persistence/sync without plaintext fallback or file loss. | Not tested | Not tested | Not tested |
+| Rendering/navigation | PIV/OpenPGP/OATH/OTP names and certificate values containing quotes/markup display literally. Forms, selection and focus still work. Foreign file/data/web navigation does not replace the app. | Not tested | Not tested | Not tested |
+| GnuPG/import | Known/custom supported GnuPG installations work. A relative/current-directory executable is not chosen. Valid UTF-8/BOM imports work; malformed/oversized files do not partially merge. | Not tested | Not tested | Not tested |
+| Clipboard | Copied test OATH code/OTP secret disappears after 30 seconds with app open. Copy different text (and the same text) in another app first: it remains. Certificate/public-key copies remain. Check desktop clipboard-manager behavior separately. | Not tested | Not tested | Not tested |
+| Sync compatibility | Old/new app versions exchange v1 files; damaged peers do not block later healthy peers across rounds. Manual sync retries; repaired files merge. No file is deleted or acknowledged after a failed merge. | Not tested | Not tested | Not tested |
+
+**Stable gate:** all automated checks and signing checks pass for the exact
+candidate; supported real-key workflows above have no critical regressions, and
+remaining unsupported/untested combinations are explicitly recorded. Verify
+macOS notarization and Windows app/installer/uninstaller signing for the actual
+RC assets. These checks alone do not turn untested hardware rows into Passed.
+
 ## Matrix
 
 | Operating system + version | KeyMelier (version/commit) | Key model | Firmware | Detection | Read functions | Cancel + reconnect | Result | Date, notes |

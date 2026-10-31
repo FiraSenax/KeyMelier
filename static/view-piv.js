@@ -13,36 +13,38 @@ function pivNeedsMgmtKey(st) {
 }
 
 function pivAuthFields(st, withPin = true) {
-  return (withPin || st.management_key.protected ? fieldHtml('piv-pin', t('piv.pin')) : '') +
-    (pivNeedsMgmtKey(st) ? fieldHtml('piv-mgmt', t('piv.mgmt.key'), 'password', '', 'placeholder="010203…"') : '');
+  return [withPin || st.management_key.protected ? fieldNode('piv-pin', t('piv.pin')) : null,
+    pivNeedsMgmtKey(st) ? fieldNode('piv-mgmt', t('piv.mgmt.key'), 'password', '', {placeholder: '010203…'}) : null];
 }
 
-function pivFormHtml(st) {
+function pivFormNode(st) {
   const [kind, slot] = (pivForm || '').split(':');
-  if (kind === 'pin') return formCardHtml(pivForm, t('piv.pin.change'), t('piv.pin.hint'),
-    fieldHtml('piv-current', t('pgp.pin.current')) + fieldHtml('piv-new', t('pin.form.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
-  if (kind === 'puk') return formCardHtml(pivForm, t('piv.puk.change'), t('piv.puk.hint'),
-    fieldHtml('piv-current', t('piv.puk.current')) + fieldHtml('piv-new', t('piv.puk.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
-  if (kind === 'unblock') return formCardHtml(pivForm, t('pgp.unblock'), t('piv.unblock.text'),
-    fieldHtml('piv-puk', t('piv.puk')) + fieldHtml('piv-new', t('pin.form.new')) + fieldHtml('piv-confirm', t('pin.form.confirm')), pivError);
-  if (kind === 'protect') return formCardHtml(pivForm, t('piv.mgmt.protect'), t('piv.mgmt.protectText'), pivAuthFields(st), pivError);
-  if (kind === 'gen') return formCardHtml(pivForm, t('piv.gen.title', { slot: slotName(slot) }), t('piv.gen.text'),
-    fieldHtml('piv-subject', t('piv.gen.subject'), 'text', '', 'placeholder="Erika Mustermann"') +
-    `<div class="oath-grid">
-      <label class="field"><span>${escHtml(t('piv.gen.type'))}</span><select class="piv-type bk-select">${st.key_types.map(k => `<option>${k}</option>`).join('')}</select></label>
-      <label class="field"><span>${escHtml(t('piv.gen.days'))}</span><input type="number" class="piv-days" value="365" min="1" max="3650"></label>
-      <label class="field"><span>${escHtml(t('piv.gen.pinPolicy'))}</span><select class="piv-pinpol bk-select">
-        ${['default', 'once', 'always', 'never'].map(p => `<option value="${p}">${escHtml(t(`piv.policy.${p}`))}</option>`).join('')}</select></label>
-      <label class="field"><span>${escHtml(t('piv.gen.touchPolicy'))}</span><select class="piv-touchpol bk-select">
-        ${['default', 'never', 'always', 'cached'].map(p => `<option value="${p}">${escHtml(t(`piv.touch.${p}`))}</option>`).join('')}</select></label>
-    </div>` + (pivSlotUsed(st, slot) ? replaceCheck() : '') + pivAuthFields(st), pivError, 'piv.gen.do');
-  if (kind === 'import') return formCardHtml(pivForm, t('piv.import.title', { slot: slotName(slot) }), t('piv.import.text'),
-    `<label class="field"><span>PEM</span><textarea class="piv-pem" rows="6" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>` +
-    pivAuthFields(st, false), pivError, 'piv.import.do');
-  if (kind === 'delete') return formCardHtml(pivForm, t('piv.delete.title', { slot: slotName(slot) }), t('piv.delete.text'),
-    (st.can_delete_key ? `<label class="check"><input type="checkbox" class="piv-delkey"><span>${escHtml(t('piv.delete.key'))}</span></label>` : '') +
-    pivAuthFields(st, false), pivError, 'pk.delete.do');
-  return '';
+  const confirm = () => fieldNode('piv-confirm', t('pin.form.confirm'));
+  if (kind === 'pin') return formCardNode(pivForm, t('piv.pin.change'), t('piv.pin.hint'), [
+    fieldNode('piv-current', t('pgp.pin.current')), fieldNode('piv-new', t('pin.form.new')), confirm()], pivError);
+  if (kind === 'puk') return formCardNode(pivForm, t('piv.puk.change'), t('piv.puk.hint'), [
+    fieldNode('piv-current', t('piv.puk.current')), fieldNode('piv-new', t('piv.puk.new')), confirm()], pivError);
+  if (kind === 'unblock') return formCardNode(pivForm, t('pgp.unblock'), t('piv.unblock.text'), [
+    fieldNode('piv-puk', t('piv.puk')), fieldNode('piv-new', t('pin.form.new')), confirm()], pivError);
+  if (kind === 'protect') return formCardNode(pivForm, t('piv.mgmt.protect'), t('piv.mgmt.protectText'), pivAuthFields(st), pivError);
+  if (kind === 'gen') return formCardNode(pivForm, t('piv.gen.title', {slot: slotName(slot)}), t('piv.gen.text'), [
+    fieldNode('piv-subject', t('piv.gen.subject'), 'text', '', {placeholder: 'Erika Mustermann'}),
+    uiElement('div', {class: 'oath-grid'},
+      selectFieldNode('piv-type bk-select', t('piv.gen.type'), st.key_types.map(k => [k, k])),
+      fieldNode('piv-days', t('piv.gen.days'), 'number', '365', {min: 1, max: 3650}),
+      selectFieldNode('piv-pinpol bk-select', t('piv.gen.pinPolicy'),
+        ['default', 'once', 'always', 'never'].map(p => [p, t(`piv.policy.${p}`)])),
+      selectFieldNode('piv-touchpol bk-select', t('piv.gen.touchPolicy'),
+        ['default', 'never', 'always', 'cached'].map(p => [p, t(`piv.touch.${p}`)]))),
+    pivSlotUsed(st, slot) ? replaceCheck() : null, pivAuthFields(st)], pivError, 'piv.gen.do');
+  if (kind === 'import') return formCardNode(pivForm, t('piv.import.title', {slot: slotName(slot)}), t('piv.import.text'), [
+    uiElement('label', {class: 'field'}, uiElement('span', {}, 'PEM'),
+      uiElement('textarea', {class: 'piv-pem', rows: 6, spellcheck: 'false', placeholder: '-----BEGIN CERTIFICATE-----'})),
+    pivAuthFields(st, false)], pivError, 'piv.import.do');
+  if (kind === 'delete') return formCardNode(pivForm, t('piv.delete.title', {slot: slotName(slot)}), t('piv.delete.text'), [
+    st.can_delete_key ? checkFieldNode('piv-delkey', t('piv.delete.key')) : null,
+    pivAuthFields(st, false)], pivError, 'pk.delete.do');
+  return null;
 }
 
 function pivSlotUsed(st, slot) {
@@ -50,85 +52,74 @@ function pivSlotUsed(st, slot) {
 }
 
 function replaceCheck() {
-  return `<label class="check"><input type="checkbox" class="app-replace"><span>${escHtml(t('confirm.replace'))}</span></label>`;
+  return checkFieldNode('app-replace', t('confirm.replace'));
 }
 
 function slotName(slot) {
   const key = `piv.slot.${slot}`;
   const name = STRINGS[LANG][key] || STRINGS.en[key];
-  return name ? `${name} (${slot.toUpperCase()})` : t('piv.slot.retired', { slot: slot.toUpperCase() });
+  return name ? `${name} (${slot.toUpperCase()})` : t('piv.slot.retired', {slot: slot.toUpperCase()});
 }
 
 function renderPiv() {
   const el = $('piv-content');
   if (!el) return;
   const st = pivState;
-  if (!st) {
-    el.innerHTML = `<div class="callout"><div class="loading"><span class="spinner"></span>${escHtml(t('mg.loading'))}</div></div>`;
-    return;
-  }
-  if (st.error) {
-    el.innerHTML = `<div class="callout crit"><div class="callout-text">${escHtml(st.error)}</div>
-      <button type="button" class="btn-link" data-act="reload">${escHtml(t('pin.retry'))}</button></div>`;
-    return;
-  }
+  if (!st) return el.replaceChildren(loadingNode());
+  if (st.error) return el.replaceChildren(retryErrorNode(st.error));
   const parts = [];
-  if (pivForm) parts.push(pivFormHtml(st));
-  else if (pivError) parts.push(`<p class="field-error">${escHtml(pivError)}</p>`);
+  if (pivForm) parts.push(pivFormNode(st));
+  else if (pivError) parts.push(uiElement('p', {class: 'field-error'}, pivError));
   const warn = [];
   if (st.pin.default) warn.push(t('piv.warn.pin'));
   if (st.pin.puk_default) warn.push(t('piv.warn.puk'));
   if (st.management_key.default) warn.push(t('piv.warn.mgmt'));
-  if (warn.length) parts.push(`<div class="callout warn"><div class="callout-title">${escHtml(t('piv.warn.title'))}</div>
-    <ul class="callout-list">${warn.map(w => `<li>${escHtml(w)}</li>`).join('')}</ul></div>`);
-  parts.push(`<section class="card"><h2>${escHtml(t('piv.slots'))}</h2>
-    <ul class="pgp-keys">${st.slots.map(s => {
-      const c = s.cert;
-      const k = s.key;
-      const status = c ? (c.expired ? `<span class="pill bad">${escHtml(t('piv.expired'))}</span>` : c.expires_soon ? `<span class="pill warn">${escHtml(t('piv.expiresSoon'))}</span>` : '') : '';
-      return `<li class="pgp-key${c || k ? '' : ' empty'}">
-        <div class="pgp-key-head"><span class="pgp-slot">${escHtml(slotName(s.slot))}</span>
-          ${c?.unreadable ? `<span class="pill warn">${escHtml(t('piv.unreadable'))}</span>` : c ? `<span class="pill">${escHtml(c.algorithm)}</span>` : k ? `<span class="pill">${escHtml(k.type)}</span>` : `<span class="muted">${escHtml(t('pgp.empty'))}</span>`}
-          ${status}</div>
-        ${c?.unreadable ? `<div class="muted pgp-meta">${escHtml(t('piv.unreadableHint'))}</div>` : ''}
-        ${c && !c.unreadable ? `<div class="piv-subject">${escHtml(c.subject)}</div>
-          <div class="muted pgp-meta">${escHtml([c.self_signed ? t('piv.selfSigned') : t('piv.issuer', { name: c.issuer }),
-            t('piv.validUntil', { date: new Date(c.not_after).toLocaleDateString(LANG) })].join(' · '))}</div>` : ''}
-        ${k ? `<div class="muted pgp-meta">${escHtml([t(k.generated ? 'pgp.origin.generated' : 'pgp.origin.imported'),
-            `${t('piv.gen.pinPolicy')}: ${t(`piv.policy.${k.pin_policy}`) || k.pin_policy}`,
-            `${t('piv.gen.touchPolicy')}: ${t(`piv.touch.${k.touch_policy}`) || k.touch_policy}`].join(' · '))}</div>` : ''}
-        <div class="piv-actions">
-          <button type="button" class="btn-link" data-act="form" data-form="gen:${s.slot}">${escHtml(t('piv.gen.short'))}</button>
-          <button type="button" class="btn-link" data-act="form" data-form="import:${s.slot}">${escHtml(t('piv.import.short'))}</button>
-          ${c && !c.unreadable ? `<button type="button" class="btn-link" data-act="export" data-slot="${s.slot}">${escHtml(t('piv.export'))}</button>` : ''}
-          ${c || k ? `<button type="button" class="btn-link danger-link" data-act="form" data-form="delete:${s.slot}">${escHtml(t('pk.delete.do'))}</button>` : ''}
-        </div>
-      </li>`;
-    }).join('')}</ul>
-    <p class="field-hint">${escHtml(t('piv.hint'))}</p></section>`);
-  const tries = n => n == null ? '–' : `<span class="${n === 0 ? 'bad-text' : n < 3 ? 'warn-text' : ''}">${escHtml(t('pgp.tries', { n }))}</span>`;
-  parts.push(`<section class="card"><h2>${escHtml(t('pgp.pins'))}</h2>
-    <dl class="kv"><dt>${escHtml(t('piv.pin'))}</dt><dd>${tries(st.pin.attempts)}</dd>
-      ${st.pin.puk_attempts != null ? `<dt>${escHtml(t('piv.puk'))}</dt><dd>${tries(st.pin.puk_attempts)}</dd>` : ''}</dl>
-    <p class="field-hint">${escHtml(t('piv.defaults'))}</p>
-    <div class="form-actions att-actions">
-      <button type="button" class="btn btn-secondary" data-act="form" data-form="pin">${escHtml(t('piv.pin.change'))}</button>
-      <button type="button" class="btn btn-secondary" data-act="form" data-form="puk">${escHtml(t('piv.puk.change'))}</button>
-      <button type="button" class="btn btn-secondary" data-act="form" data-form="unblock">${escHtml(t('pgp.unblock'))}</button>
-    </div></section>`);
+  if (warn.length) parts.push(uiElement('div', {class: 'callout warn'},
+    uiElement('div', {class: 'callout-title'}, t('piv.warn.title')),
+    uiElement('ul', {class: 'callout-list'}, warn.map(w => uiElement('li', {}, w)))));
+  parts.push(uiElement('section', {class: 'card'}, uiElement('h2', {}, t('piv.slots')),
+    uiElement('ul', {class: 'pgp-keys'}, st.slots.map(s => {
+      const c = s.cert, k = s.key;
+      return uiElement('li', {class: `pgp-key${c || k ? '' : ' empty'}`},
+        uiElement('div', {class: 'pgp-key-head'}, uiElement('span', {class: 'pgp-slot'}, slotName(s.slot)),
+          c?.unreadable ? uiElement('span', {class: 'pill warn'}, t('piv.unreadable'))
+            : c || k ? uiElement('span', {class: 'pill'}, c ? c.algorithm : k.type)
+              : uiElement('span', {class: 'muted'}, t('pgp.empty')),
+          c?.expired ? uiElement('span', {class: 'pill bad'}, t('piv.expired'))
+            : c?.expires_soon ? uiElement('span', {class: 'pill warn'}, t('piv.expiresSoon')) : null),
+        c?.unreadable ? uiElement('div', {class: 'muted pgp-meta'}, t('piv.unreadableHint')) : null,
+        c && !c.unreadable ? [uiElement('div', {class: 'piv-subject'}, c.subject),
+          uiElement('div', {class: 'muted pgp-meta'}, [c.self_signed ? t('piv.selfSigned') : t('piv.issuer', {name: c.issuer}),
+            t('piv.validUntil', {date: new Date(c.not_after).toLocaleDateString(LANG)})].join(' · '))] : null,
+        k ? uiElement('div', {class: 'muted pgp-meta'}, [t(k.generated ? 'pgp.origin.generated' : 'pgp.origin.imported'),
+          `${t('piv.gen.pinPolicy')}: ${t(`piv.policy.${k.pin_policy}`) || k.pin_policy}`,
+          `${t('piv.gen.touchPolicy')}: ${t(`piv.touch.${k.touch_policy}`) || k.touch_policy}`].join(' · ')) : null,
+        uiElement('div', {class: 'piv-actions'},
+          actionButton('form', t('piv.gen.short'), 'btn-link', {'data-form': `gen:${s.slot}`}),
+          actionButton('form', t('piv.import.short'), 'btn-link', {'data-form': `import:${s.slot}`}),
+          c && !c.unreadable ? actionButton('export', t('piv.export'), 'btn-link', {'data-slot': s.slot}) : null,
+          c || k ? actionButton('form', t('pk.delete.do'), 'btn-link danger-link', {'data-form': `delete:${s.slot}`}) : null));
+    })), uiElement('p', {class: 'field-hint'}, t('piv.hint'))));
+  const tries = n => n == null ? '–' : uiElement('span', {class: n === 0 ? 'bad-text' : n < 3 ? 'warn-text' : ''}, t('pgp.tries', {n}));
+  parts.push(uiElement('section', {class: 'card'}, uiElement('h2', {}, t('pgp.pins')),
+    uiElement('dl', {class: 'kv'}, uiElement('dt', {}, t('piv.pin')), uiElement('dd', {}, tries(st.pin.attempts)),
+      st.pin.puk_attempts != null ? [uiElement('dt', {}, t('piv.puk')), uiElement('dd', {}, tries(st.pin.puk_attempts))] : null),
+    uiElement('p', {class: 'field-hint'}, t('piv.defaults')),
+    uiElement('div', {class: 'form-actions att-actions'},
+      actionButton('form', t('piv.pin.change'), undefined, {'data-form': 'pin'}),
+      actionButton('form', t('piv.puk.change'), undefined, {'data-form': 'puk'}),
+      actionButton('form', t('pgp.unblock'), undefined, {'data-form': 'unblock'}))));
   const m = st.management_key;
-  parts.push(`<section class="card"><h2>${escHtml(t('piv.mgmt.title'))}</h2>
-    <p class="card-text">${escHtml(t(m.protected ? 'piv.mgmt.protected' : m.default ? 'piv.mgmt.default' : m.default === false ? 'piv.mgmt.custom' : 'piv.mgmt.unknown'))}</p>
-    ${m.protected ? '' : `<div class="form-actions att-actions"><button type="button" class="btn btn-secondary" data-act="form" data-form="protect">${escHtml(t('piv.mgmt.protect'))}</button></div>`}
-  </section>`);
-  parts.push(`<section class="card danger-card"><h2>${escHtml(t('piv.reset.title'))}</h2>
-    <p class="card-text">${escHtml(t('piv.reset.text'))}</p>
-    <div class="form-actions att-actions">${pivConfirmReset
-      ? `<button type="button" class="btn btn-secondary" data-act="reset-cancel">${escHtml(t('pk.delete.cancel'))}</button>
-         <button type="button" class="btn btn-danger" data-act="reset">${escHtml(t('piv.reset.do'))}</button>`
-      : `<button type="button" class="btn btn-secondary" data-act="reset-ask">${escHtml(t('piv.reset.do'))}</button>`}</div>
-  </section>`);
-  el.innerHTML = parts.join('');
+  parts.push(uiElement('section', {class: 'card'}, uiElement('h2', {}, t('piv.mgmt.title')),
+    uiElement('p', {class: 'card-text'}, t(m.protected ? 'piv.mgmt.protected' : m.default ? 'piv.mgmt.default' : m.default === false ? 'piv.mgmt.custom' : 'piv.mgmt.unknown')),
+    m.protected ? null : uiElement('div', {class: 'form-actions att-actions'},
+      actionButton('form', t('piv.mgmt.protect'), undefined, {'data-form': 'protect'}))));
+  parts.push(uiElement('section', {class: 'card danger-card'}, uiElement('h2', {}, t('piv.reset.title')),
+    uiElement('p', {class: 'card-text'}, t('piv.reset.text')),
+    uiElement('div', {class: 'form-actions att-actions'}, pivConfirmReset
+      ? [actionButton('reset-cancel', t('pk.delete.cancel')), actionButton('reset', t('piv.reset.do'), 'btn btn-danger')]
+      : actionButton('reset-ask', t('piv.reset.do')))));
+  el.replaceChildren(...parts.filter(Boolean));
   el.querySelector('.app-form input, .app-form textarea')?.focus();
 }
 
@@ -151,7 +142,7 @@ async function pivCall(method, args, doneKey) {
   if (!token) return;
   pivError = null;
   const busy = $('piv-content').querySelector('.app-form button[type=submit]');
-  if (busy) { busy.disabled = true; busy.innerHTML = `<span class="spinner"></span>${escHtml(t('piv.working'))}`; }
+  if (busy) { busy.disabled = true; busy.replaceChildren(uiElement('span', {class: 'spinner'}), t('piv.working')); }
   try {
     pivState = await call(method, { token_id: token.id, ...args });
     pivForm = null; pivConfirmReset = false;

@@ -6,6 +6,16 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC2 additions (2026-10-31):
+
+- Build PIV, OpenPGP and OTP views/forms through DOM text and attribute APIs, including certificate values, algorithm options and slot identifiers.
+- Limit sync work per round, rotate through peers and avoid repeatedly decrypting unchanged bad files. Keep v1 encryption and merge formats; incomplete setup validation fails with an explicit message before enabling sync.
+- Apply total HTTP time limits to metadata, revocation checks and downloads, including trickling headers/bodies, with bounded background workers and no late state updates.
+- Exercise native default-cancel dialogs and clipboard ownership on CI; add Windows/Linux Enter, Escape and close checks, and separate startup diagnostics from functional timeouts.
+- Clear copied OATH codes and OTP secrets after 30 seconds while the app is running, only if clipboard ownership still matches. Add supported clipboard-history/cloud hints; public text and certificates keep normal copy behavior.
+
+RC1 changes:
+
 - Require a native, default-cancel confirmation for sensitive key changes, resets, deletions and sync-file removal, bound to the selected device and one request. Existing PIN, touch and overwrite checks remain in force.
 - Block foreign WebView navigation before loading, including local files and data URLs. Render sidebar, passkey and OATH account values through DOM text/attribute APIs; add an HTML-sink review guard and a production-CSP browser test.
 - Prefer known GnuPG installations and exclude relative/current-directory executable lookup. Reject invalid UTF-8 and oversized history imports without merging partial data.

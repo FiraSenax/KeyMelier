@@ -8,10 +8,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote_to_bytes
-from keymelier_core.network import read_limited
+from keymelier_core.network import bounded_get, read_limited
 from keymelier_core.storage import atomic_write, stateless
-
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +140,7 @@ class MDS3Client:
         from keymelier_core.mds_verify import verify_jwt
 
         logger.info("Fetching MDS3 from %s", MDS3_URL)
-        with requests.get(MDS3_URL, timeout=20, stream=True) as resp:
+        with bounded_get(MDS3_URL, timeout=20, stream=True) as resp:
             jwt = read_limited(resp, 16 * 1024 * 1024).decode("utf-8")
         payload = verify_jwt(jwt, require_revocation=True)  # raises MdsVerificationError
         cached = self._read_cache()

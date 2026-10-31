@@ -13,6 +13,50 @@ from keymelier_core.safe_errors import log_failure
 logger = logging.getLogger(__name__)
 
 
+def on_ui(window, action):
+    """Run a small native operation on its owning GUI thread, with bounded wait."""
+    renderer = getattr(getattr(window, 'gui', None), 'renderer', None)
+    done, cancelled, result = threading.Event(), threading.Event(), []
+
+    def run():
+        if cancelled.is_set():
+            return
+        try:
+            result.append((True, action()))
+        except Exception as error:
+            result.append((False, error))
+        finally:
+            done.set()
+
+    if renderer == 'wkwebview':
+        from webview.platforms import cocoa
+        if cocoa.Foundation.NSThread.isMainThread():
+            return action()
+        cocoa.AppHelper.callAfter(run)
+    elif renderer == 'edgechromium':
+        from webview.platforms import winforms
+        from System import Action
+        native = winforms.BrowserView.instances[window.uid]
+        if not native.InvokeRequired:
+            return action()
+        native.BeginInvoke(Action(run))
+    elif renderer == 'qtwebengine':
+        from webview.platforms import qt
+        native = qt.BrowserView.instances[window.uid]
+        if qt.QtCore.QThread.currentThread() == native.thread():
+            return action()
+        qt.QtCore.QTimer.singleShot(0, native, run)
+    else:
+        raise RuntimeError('Native UI unavailable')
+    if not done.wait(5):
+        cancelled.set()
+        raise TimeoutError('Native UI did not respond')
+    ok, value = result[0]
+    if not ok:
+        raise value
+    return value
+
+
 class NavigationPolicy:
     def __init__(self, page_url=None, *, html=None):
         self.expected = self._canonical(page_url or "about:blank")

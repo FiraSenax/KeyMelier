@@ -13,7 +13,12 @@ from keymelier_core import native_ui
 from keymelier_core.selftest import native_navigation_checks
 from keymelier_core.page import build_html
 
+from native_dialog_checks import dialog_checks, clipboard_checks
+
 results = {}
+started = time.monotonic()
+loaded = threading.Event()
+faulthandler.dump_traceback_later(70, exit=True)
 temporary = tempfile.TemporaryDirectory()
 page = Path(temporary.name) / 'initial.html'
 page.write_text(build_html(), encoding='utf-8')
@@ -45,6 +50,14 @@ def trace_windows_navigation(renderer):
 
 
 window.events.initialized += trace_windows_navigation
+
+
+def page_loaded():
+    print(f'page loaded after {time.monotonic() - started:.2f}s', flush=True)
+    loaded.set()
+
+
+window.events.loaded += page_loaded
 webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
 webview.settings['ALLOW_DOWNLOADS'] = False
 
@@ -57,8 +70,10 @@ window.expose(ping)
 
 
 def check():
-    faulthandler.dump_traceback_later(15, exit=True)
     try:
+        if not loaded.wait(60):
+            raise TimeoutError('Native page startup exceeded 60 seconds')
+        faulthandler.dump_traceback_later(30, exit=True)
         window.evaluate_js('window.pywebview.api.ping().then(value => { document.body.dataset.ping = value; }); undefined')
         for _ in range(30):
             if window.evaluate_js('document.body.dataset.ping') == 'synthetic':
@@ -68,30 +83,12 @@ def check():
         results['scripts'] = window.evaluate_js('typeof STRINGS === "object" && typeof render === "function"') is True
         for check in native_navigation_checks(window):
             results[check['name'].split()[1] + '_blocked'] = check['ok']
-        if sys.platform == 'darwin':
-            from webview.platforms import cocoa
-
-            def press_default(attempt=0):
-                modal = cocoa.AppKit.NSApp.modalWindow()
-                if modal is None:
-                    if attempt < 20:
-                        schedule_default(attempt + 1)
-                    return
-                cell = modal.defaultButtonCell()
-                results['default_cancel'] = str(cell.title()) == window.localization['global.cancel']
-                cell.performClick_(None)
-
-            def schedule_default(attempt=0):
-                def enqueue():
-                    cocoa.Foundation.NSRunLoop.mainRunLoop().performInModes_block_(
-                        [cocoa.AppKit.NSModalPanelRunLoopMode, cocoa.Foundation.NSDefaultRunLoopMode],
-                        lambda: press_default(attempt))
-                threading.Timer(0.3, enqueue).start()
-
-            schedule_default()
-            results['cancelled'] = native_ui.confirm(window, 'KeyMelier test', 'Synthetic test. No device operation.') is False
+        results.update(dialog_checks(window))
+        results.update(clipboard_checks(window))
     except Exception as error:
         results['error'] = type(error).__name__
+        import traceback
+        traceback.print_exc()
     finally:
         print(json.dumps(results), flush=True)
         window.destroy()
@@ -100,7 +97,9 @@ def check():
 webview.start(check, gui='qt' if sys.platform.startswith('linux') else None)
 faulthandler.cancel_dump_traceback_later()
 temporary.cleanup()
-expected = {'bridge', 'scripts', 'file_blocked', 'data_blocked'}
+expected = {'bridge', 'scripts', 'file_blocked', 'data_blocked', 'enter_cancelled'}
 if sys.platform == 'darwin':
-    expected |= {'default_cancel', 'cancelled'}
-raise SystemExit(0 if set(results) == expected and all(value is True for value in results.values()) else 1)
+    expected.add('default_cancel')
+else:
+    expected |= {'escape_cancelled', 'close_cancelled'}
+raise SystemExit(0 if expected <= set(results) and all(value is True for value in results.values()) else 1)
