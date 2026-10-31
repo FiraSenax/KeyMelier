@@ -36,7 +36,7 @@ import webview
 from keymelier_core.bridge import ALLOWED, dispatch
 from keymelier_core import diagnostics
 from keymelier_core.advisories import AdvisoryChecker
-from keymelier_core.desktop import host_env, open_with_system, private_page_file
+from keymelier_core.desktop import host_env, linux_copy, open_with_system, private_page_file
 from keymelier_core.exporter import CSVExporter
 from keymelier_core.mds3 import MDS3Client
 from keymelier_core.page import build_html
@@ -258,7 +258,26 @@ class Api:
 
     def copy_text(self, text, sensitive=False):
         """Sensitive copies expire after 30 seconds if we still own them."""
-        return self._clipboard.copy(str(text)[:16384], sensitive)
+        text = str(text)[:16384]
+        if type(sensitive) is not bool:
+            return False
+        if sensitive:
+            return self._clipboard.copy(text, True)
+        # Preserve ordinary-copy ownership/lifetime, especially Linux helper
+        # processes that can keep public text available after the app exits.
+        # A pending secret timer observes the changed native owner and skips it.
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["pbcopy"], input=text.encode(), check=True)
+            elif sys.platform == "win32":
+                subprocess.run(["clip"], input=text.encode("utf-16-le"), check=True,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                return linux_copy(text)
+            return True
+        except Exception as e:
+            logger.debug("Clipboard failed: %s", type(e).__name__)
+            return False
 
     def client_log(self, message):
         logger.info("UI event received")

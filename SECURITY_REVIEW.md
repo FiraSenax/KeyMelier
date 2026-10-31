@@ -47,7 +47,8 @@ The five selected RC2 changes are:
    or history/cloud-suppression markers are hints, not a guarantee that clipboard
    managers comply. Already-read copies cannot be recalled. Exit, suspension or
    a busy clipboard can prevent best-effort expiry. Timers retain ownership tokens,
-   not the secret text. Normal text/public-key/certificate copies do not expire.
+   not the secret text. Normal text/public-key/certificate copies do not expire and retain the existing
+   OS-helper path, including Linux clipboard persistence after app exit.
 
 Local validation: **511 Python tests passed (two platform skips), 44 browser UI
 tests, 20 stress tests and 62 production-DOM checks passed**. Native macOS
