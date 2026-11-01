@@ -1,0 +1,27 @@
+name: OSV dependency security scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+  pull_request:
+    paths:
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/osv-security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  osv-scan:
+    name: Scan locked Python dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Scan uv.lock against OSV
+        uses: google/osv-scanner-action/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --lockfile=uv.lock
