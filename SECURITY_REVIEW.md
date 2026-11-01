@@ -1,3 +1,26 @@
+# RC3 release-path corrections — 2026-11-01
+
+RC2 tag `v1.8.8-rc.2` remains at `55fefa11da927f8d672b1589931c8f0e28dfe16f`.
+[Build 41244160802](https://github.com/FiraSenax/KeyMelier/actions/runs/41244160802)
+passed platform tests, all 11 Linux compatibility combinations, macOS/Windows
+signing and 835 release checks on attempt 4. Three macOS attempts had failed on
+Apple ticket-service connection loss. Publication then failed before checksum
+signing because the minimal signer imported the HTTP dependency `requests`.
+No public RC2 release was created.
+
+The publication log also showed that download by artifact name selected an older,
+incomplete rehearsal from a failed attempt. RC3 uses the successful rehearsal's
+explicit artifact ID and rechecks its passed report, complete file set, commit and
+all report/checksum hashes before signing. Missing IDs and incomplete/failed
+rehearsals fail closed. Offline advisory and revocation checks load HTTP code only
+when a network refresh is requested; CI exercises the signer with only its three
+declared cryptographic dependencies and synthetic keys. Apple's observed error
+68 with `NSURLErrorDomain Code=-1005` gets at most three ticket-operation attempts;
+all other failures and exhausted retries still fail the signing checks.
+
+The corrected source requires a new RC tag and its own successful build evidence.
+Real-key validation remains separate in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
+
 # RC2 hardening — 2026-10-31
 
 RC1 was published at `a43b12c52d6c174a56a673c3607810edff92d32a` as

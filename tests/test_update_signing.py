@@ -67,6 +67,27 @@ class UpdateSigningTests(unittest.TestCase):
             update_signing.sign(self.folder, 'v1.8.7', self.commit)
         self.assertFalse((self.folder / update_auth.SIGNATURE_FILE).exists())
 
+    def test_offline_signing_and_advisory_verification_without_requests(self):
+        # A fresh interpreter reproduces the minimal production signing venv;
+        # the ordinary application test environment already has requests loaded.
+        script = '''
+import sys
+from pathlib import Path
+sys.modules['requests'] = None
+sys.path.insert(0, 'tools')
+import advisories_sign
+import update_signing
+from keymelier_core import update_auth
+update_auth.PUBLIC_KEY_FILE = Path(sys.argv[2])
+advisories_sign.verify_file(advisories_sign.ADVISORIES)
+update_signing.sign(Path(sys.argv[1]), 'v1.8.8-rc.3', sys.argv[3])
+update_signing.verify(Path(sys.argv[1]), 'v1.8.8-rc.3', sys.argv[3])
+'''
+        result = subprocess.run([sys.executable, '-c', script, str(self.folder), str(self.public), self.commit],
+                                cwd=update_signing.ROOT, capture_output=True, text=True,
+                                env={**os.environ, 'KEYMELIER_STATELESS': '1'}, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_emergency_acknowledgement_never_permits_signing_with_the_revoked_key(self):
         from keymelier_core import update_revocation
         key = update_revocation.fingerprint()

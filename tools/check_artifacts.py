@@ -50,6 +50,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 import sbom  # noqa: E402
+import macos_stapler  # noqa: E402
 
 MAC_FILES = ("KeyMelier-macOS.dmg", "KeyMelier-macOS.zip", "KeyMelier-macOS.cdx.json", "THIRD_PARTY_LICENSES-macOS.txt")
 WIN_FILES = ("KeyMelier-Windows-Setup.exe", "KeyMelier-Windows.zip", "KeyMelier-Windows.cdx.json",
@@ -288,7 +289,7 @@ def check_mac_signing(r: Report, app: Path, signed: bool) -> None:
     out = subprocess.run(["codesign", "-dv", "--verbose=2", str(app)], capture_output=True, text=True).stderr
     if signed:
         r.check("Authority=Developer ID Application" in out, "app is Developer ID signed", out[-200:])
-        staple = subprocess.run(["xcrun", "stapler", "validate", str(app)], capture_output=True, text=True)
+        staple = macos_stapler.run('validate', app)
         r.check(staple.returncode == 0, "notarization ticket is stapled", staple.stdout[-200:])
     else:
         r.check("Signature=adhoc" in out, "app is ad-hoc signed only (reported as not notarized)", out[-200:])

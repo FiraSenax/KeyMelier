@@ -77,6 +77,14 @@ jobs:
       - name: Reject an accidental update-key emergency stop
         run: python tools/check_update_revocation.py
       - run: python -m unittest discover -s tests -v
+      - name: Offline signing with only the declared signing dependencies
+        if: runner.os == 'Linux'
+        run: |
+          python tools/update_signing.py requirements > "$RUNNER_TEMP/signing-test-requirements.txt"
+          python -m venv "$RUNNER_TEMP/signing-test-venv"
+          "$RUNNER_TEMP/signing-test-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r "$RUNNER_TEMP/signing-test-requirements.txt"
+          "$RUNNER_TEMP/signing-test-venv/bin/python" tools/advisories_sign.py verify
+          "$RUNNER_TEMP/signing-test-venv/bin/python" -m unittest discover -s tests -p test_update_signing.py -v
       - name: Linux native navigation, confirmation and clipboard tests
         if: runner.os == 'Linux'
         run: xvfb-run -a -s "-screen 0 1280x800x24" python tests/native_ui_probe.py
@@ -245,7 +253,7 @@ jobs:
         run: |
           xcrun notarytool submit dist/KeyMelier-macOS.dmg --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
-          xcrun stapler staple dist/KeyMelier-macOS.dmg
+          python tools/macos_stapler.py staple dist/KeyMelier-macOS.dmg
           spctl --assess --type open --context context:primary-signature --verbose=2 dist/KeyMelier-macOS.dmg
       # Only after the last use of the identity (the disk image is signed too)
       - name: Remove temporary signing keychain
@@ -533,6 +541,8 @@ jobs:
   # packages and the report are kept as the artifact "release-rehearsal".
   release-rehearsal:
     needs: [test, ui, build-macos, build-windows, build-linux, linux-compat]
+    outputs:
+      artifact-id: ${{ steps.checked-rc.outputs.artifact-id }}
     # also after a failed job: the report then shows which one (and fails)
     if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-rc.'))))
     runs-on: ubuntu-24.04
@@ -560,6 +570,7 @@ jobs:
         run: |
           if [ -f release-check.md ]; then cat release-check.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report – the preparation failed before the checks (see the step log)." >> "$GITHUB_STEP_SUMMARY"; fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: checked-rc
         if: always()
         with:
           name: release-rehearsal   # does not match KeyMelier-*: never picked up by a release
@@ -589,14 +600,28 @@ jobs:
         env:
           MAC_SIGNED: ${{ needs.build-macos.outputs.signed }}
           WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
+          RC_ARTIFACT_ID: ${{ needs.release-rehearsal.outputs.artifact-id }}
         run: |
           python3 tools/check_rc_ref.py "$GITHUB_REF_NAME"
           test "$MAC_SIGNED" = true
           test "$WIN_SIGNED" = true
+          test "$RC_ARTIFACT_ID" -gt 0
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: release-rehearsal
+          artifact-ids: ${{ needs.release-rehearsal.outputs.artifact-id }}
+          merge-multiple: true
           path: rc-release
+      - name: Verify the exact successful rehearsal before signing
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'tools')
+          from fetch_rc import verify
+          verify(Path('rc-release'), os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_SHA'])
+          print('All release files match the successful rehearsal report.')
+          PY
       - uses: ./.github/actions/sign-update
         with:
           directory: rc-release/artifacts

@@ -6,6 +6,13 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC3 release corrections (2026-11-01):
+
+- Keep offline advisory verification and update signing independent of HTTP dependencies; exercise the exact minimal signing environment in CI.
+- Select RC artifacts by the successful rehearsal's explicit artifact ID after reruns and recheck its passed report, complete file set and hashes before signing.
+- Retry Apple's observed ticket connection-loss error at most three times; invalid tickets and exhausted retries still block publication.
+- RC2's tag is retained for traceability; its publication failed before any public release was created.
+
 RC2 additions (2026-10-31):
 
 - Build PIV, OpenPGP and OTP views/forms through DOM text and attribute APIs, including certificate values, algorithm options and slot identifiers.

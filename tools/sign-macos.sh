@@ -6,7 +6,7 @@ codesign --verify --deep --strict --verbose=2 dist/KeyMelier.app
 ditto -c -k --keepParent dist/KeyMelier.app dist/notarization.zip
 xcrun notarytool submit dist/notarization.zip --apple-id "$APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
-xcrun stapler staple dist/KeyMelier.app
-xcrun stapler validate dist/KeyMelier.app
+python tools/macos_stapler.py staple dist/KeyMelier.app
+python tools/macos_stapler.py validate dist/KeyMelier.app
 spctl --assess --type execute --verbose=2 dist/KeyMelier.app
 rm dist/notarization.zip
