@@ -165,7 +165,8 @@ class HistoryEncryptionTests(unittest.TestCase):
     def test_unreadable_legacy_backup_is_preserved_and_cleanup_failure_is_reported(self):
         self.legacy_with_contents()
         history = History(self.path, enabled=True)
-        for damaged in (b'{broken', b'{"keys": [null]}', b'{"keys": [{"events": null}]}'):
+        for damaged in (b'{broken', b'{"keys": [null]}', b'{"keys": [{"events": null}]}',
+                        b'{"keys":' + b'[' * 2000 + b'0' + b']' * 2000 + b'}'):
             with self.subTest(damaged=damaged):
                 self.path.write_bytes(damaged)
                 history.clear_sites()

@@ -362,7 +362,7 @@ class History:
                 _clear_contents(entry)
             if json.dumps(data) != before:
                 atomic_write(self._legacy_path, json.dumps(data, indent=1).encode())
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, RecursionError):
             self.privacy_problem = {"code": "history_privacy_cleanup", "file": self._legacy_path.name}
             logger.warning("Legacy history privacy cleanup incomplete; source preserved")
 
