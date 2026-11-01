@@ -60,6 +60,7 @@ class History:
         self.track_forgotten = False
         self.revision = 0   # bumped on every change (sync writes only when it moved)
         self.load_problem: dict | None = None   # history file could not be read (kept aside)
+        self.privacy_problem: dict | None = None
         self._read_blocked = False   # file exists but could not be read: never overwrite it
         self._load()
 
@@ -85,7 +86,8 @@ class History:
         data = json.loads(raw)
         if not isinstance(data, dict) or not isinstance(data.get("keys"), list):
             raise ValueError("Invalid legacy history")
-        # Keep the source byte-for-byte. Both files present means the encrypted
+        # Migration keeps the source byte-for-byte; a later explicit privacy
+        # opt-out also scrubs its content details. Both files present means the encrypted
         # file wins on every subsequent launch; never re-import a stale original.
         atomic_write(self._path, self._cipher.encrypt(raw))
         if self._cipher.decrypt(retry_sharing(self._path.read_bytes)) != raw:
@@ -328,6 +330,41 @@ class History:
             for entry in self._entries.values():
                 _clear_contents(entry)
             self._save()
+            self._clear_legacy_contents()
+
+    def _clear_legacy_contents(self) -> None:
+        """Apply an explicit contents opt-out to the retained migration source.
+
+        Preserve key identity, labels, event types and unknown metadata. Never
+        create another plaintext backup while scrubbing this one, and never
+        reset an unreadable source to an empty history.
+        """
+        self.privacy_problem = None
+        if not self._encrypted or stateless():
+            return
+        try:
+            if self._legacy_path.is_symlink():
+                raise ValueError("Legacy history is a symlink")
+            try:
+                raw = retry_sharing(self._legacy_path.read_bytes)
+            except FileNotFoundError:
+                return
+            data = json.loads(raw)
+            if not isinstance(data, dict) or not isinstance(data.get("keys"), list):
+                raise ValueError("Invalid legacy history")
+            before = json.dumps(data)
+            for entry in data["keys"]:
+                if not isinstance(entry, dict):
+                    raise ValueError("Invalid legacy history entry")
+                events = entry.get("events", [])
+                if not isinstance(events, list) or not all(isinstance(e, dict) for e in events):
+                    raise ValueError("Invalid legacy history events")
+                _clear_contents(entry)
+            if json.dumps(data) != before:
+                atomic_write(self._legacy_path, json.dumps(data, indent=1).encode())
+        except (OSError, ValueError, TypeError, RecursionError):
+            self.privacy_problem = {"code": "history_privacy_cleanup", "file": self._legacy_path.name}
+            logger.warning("Legacy history privacy cleanup incomplete; source preserved")
 
     def set_lost(self, kid: str, lost: bool) -> dict | None:
         with self._lock:

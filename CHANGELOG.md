@@ -6,6 +6,12 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC4 dependency and privacy updates (2026-11-01):
+
+- Update the release runtime to Python 3.14.10 on all platforms, including its current SSL fixes; update the certificate bundle, PyObjC, smart-card bindings, date/time dependencies and build tools to their latest compatible stable releases. Keep Qt 6.11.3 until a PySide release fixes Qt 6.12.0's CVE-2026-105924; this also holds Python below 3.15.
+- Rebuild the AppImage runtime with current FUSE, squashfuse, zstd, mimalloc and Alpine 3.24.3, retaining the existing CPU baseline and checked source/license evidence. Update CI runtimes and pinned Actions.
+- Turning off “Remember websites/accounts” also removes content details from the plaintext history source retained during encryption migration. Key identity, labels and unrelated metadata remain. Locked or damaged copies are preserved with a visible cleanup warning; the operation can be retried. This also applies when history is disabled or remembering was already off at startup.
+
 RC3 release corrections (2026-11-01):
 
 - Keep offline advisory verification and update signing independent of HTTP dependencies; exercise the exact minimal signing environment in CI.

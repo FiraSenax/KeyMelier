@@ -144,7 +144,7 @@ WebView2 Runtime is a separate system prerequisite.
 ./build-linux.sh             # produces dist/KeyMelier-Linux-<arch>.AppImage
 ```
 
-Needs Python 3.11–3.13 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` is downloaded at a fixed version and checked against its pinned SHA-256. Building the AppImage runtime requires Docker: its pinned Alpine container compiles the checked source archives with networking disabled and records every static linker input. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
+Needs Python 3.11–3.14 with `venv`, the PC/SC headers for pyscard (`libpcsclite-dev`, `swig`) and, so that PyInstaller can bundle them, the libraries Qt WebEngine links to (`libminizip1t64 libopus0 libsnappy1v5` on Ubuntu 24.04); the CI job `build-linux` lists every package. The web view is Qt (PySide6, LGPL-3.0), bundled in the AppImage. `appimagetool` is downloaded at a fixed version and checked against its pinned SHA-256. Building the AppImage runtime requires Docker: its pinned Alpine container compiles the checked source archives with networking disabled and records every static linker input. The udev rules are in [`packaging/linux/70-keymelier.rules`](packaging/linux/70-keymelier.rules).
 
 ## Privacy and security
 
@@ -201,7 +201,7 @@ When adding entries, derive the AAGUIDs from MDS3 rather than by hand and includ
 
 ## Dependencies and releases
 
-Python 3.11–3.13 is supported. `uv.lock` pins runtime, build and quality-tool
+Python 3.11–3.14 is supported. `uv.lock` pins runtime, build and quality-tool
 dependencies across platforms. The three `requirements*.txt` files are generated
 exports with hashes; scripts and CI install them with `--require-hashes`.
 Quality tools remain separate from application and package-build environments.

@@ -25,6 +25,10 @@ class TrustBundleTests(unittest.TestCase):
         # SHA-256 of emSign ECC Root CA - G3, removed by the upstream security fix.
         self.assertNotIn("86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
                          fingerprints, "certifi still trusts the compromised emSign chain")
+        # The follow-up upstream cleanup also removes the C1/C3 trust anchors.
+        for fingerprint in ("125609aa301da0a249b97a8239cb6a34216f44dcac9f3954b14292f2e8c8608f",
+                            "bc4d809b15189d78db3e1d8cf4f9726a795da1643ca5f1358e1ddb0edc0d7eb3"):
+            self.assertNotIn(fingerprint, fingerprints, "certifi retains a removed emSign C1/C3 root")
 
 
 class NetworkLimitsTests(unittest.TestCase):

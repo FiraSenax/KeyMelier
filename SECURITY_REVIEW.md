@@ -1,3 +1,40 @@
+# RC4 dependencies and migration privacy — 2026-11-01
+
+Q1 (plaintext migration backup) was confirmed: an explicit contents opt-out
+scrubbed only the active encrypted history. It now also scrubs the original
+`history.json`, using the same content-field/event-detail rules, including when
+history persistence is off and when the saved privacy setting is applied at
+startup. Migration alone still preserves the original bytes. Key identity,
+labels, event types and unknown metadata are retained; no additional plaintext
+backup is created. Invalid, locked or symlinked sources are preserved and produce
+a visible cleanup warning. A retry can complete the operation. The encrypted
+file is never replaced by plaintext when the keyring is unavailable. Stateless
+mode leaves persistent files untouched. External exports, OS backups and deleted
+storage blocks remain outside this cleanup guarantee.
+
+The dependency refresh uses Python 3.14.10, the latest compatible stable runtime
+for all supported renderers, plus the latest stable Python dependencies except
+Qt. Qt 6.12.0 is affected by CVE-2026-105924, fixed in 6.11.3 and the not-yet-published
+PySide 6.12.1. Keeping 6.11.3 also keeps Python below 3.15. Qt's separate
+CVE-2026-15037 concerns QDom/QtXml; the application does not use those APIs and
+the AppImage does not retain QtXml. This is an assessed exposure boundary, not
+a claim that 6.11.3 has no advisories. Revisit both when fixed PySide wheels ship.
+Sources: [Qt advisories](https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products),
+[Python 3.14.10](https://www.python.org/downloads/release/python-31410/).
+
+On 2026-11-01, OSV returned no advisories for the 66 external Python packages
+in the upgraded lock. This does not cover all embedded native libraries.
+The AppImage runtime also advances its pinned sources and Alpine toolchain;
+source hashes, original notices, link inventory and CPU compatibility remain
+release gates. See [the upgrade review](packaging/DEPENDENCY-UPGRADES.md).
+
+I1 (broad FIDO PIN-token permissions) remains a separate hardware/UX follow-up.
+The accepted release-trust limitations remain: update signing key in GitHub,
+no automatic authenticated key rotation, and tag creation through the owner's
+identity. Dependency updates and the Q1 fix do not resolve those limitations.
+The advisory freshness deadline and real Windows/Linux consent/clipboard
+acceptance checks are recorded in [HARDWARE_TESTS.md](HARDWARE_TESTS.md).
+
 # RC3 release-path corrections — 2026-11-01
 
 RC2 tag `v1.8.8-rc.2` remains at `55fefa11da927f8d672b1589931c8f0e28dfe16f`.

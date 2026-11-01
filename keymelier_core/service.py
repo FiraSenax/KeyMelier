@@ -412,7 +412,8 @@ class KeyService:
                 **settings, "include_rc_updates": settings.get("include_rc_updates") is True,
                 "update_managed": managed,
                 "stateless": stateless(), "system_languages": system_languages(),
-                "problems": [p for p in (self._settings_problem, self.history.load_problem) if p],
+                "problems": [p for p in (self._settings_problem, self.history.load_problem,
+                                        self.history.privacy_problem) if p],
                 "platform": sys.platform, "build": build_info.load()}
 
     def set_settings(self, values: dict) -> dict:
