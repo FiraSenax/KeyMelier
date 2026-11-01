@@ -51,6 +51,7 @@ dialog and clipboard probes use synthetic data and are not hardware sign-off.
 | Rendering/navigation | PIV/OpenPGP/OATH/OTP names and certificate values containing quotes/markup display literally. Forms, selection and focus still work. Foreign file/data/web navigation does not replace the app. | Not tested | Not tested | Not tested |
 | GnuPG/import | Known/custom supported GnuPG installations work. A relative/current-directory executable is not chosen. Valid UTF-8/BOM imports work; malformed/oversized files do not partially merge. | Not tested | Not tested | Not tested |
 | Clipboard | Copied test OATH code/OTP secret disappears after 30 seconds with app open. Copy different text (and the same text) in another app first: it remains. Certificate/public-key copies remain. Check desktop clipboard-manager behavior separately. | Not tested | Not tested | Not tested |
+| Migration privacy | With a disposable old plaintext history, migrate, then disable “Remember websites/accounts”. Both history files lose site/account details, including with history disabled; key labels remain. A locked source produces a warning and can be retried. | Not tested | Not tested | Not tested |
 | Sync compatibility | Old/new app versions exchange v1 files; damaged peers do not block later healthy peers across rounds. Manual sync retries; repaired files merge. No file is deleted or acknowledged after a failed merge. | Not tested | Not tested | Not tested |
 
 **Stable gate:** all automated checks and signing checks pass for the exact
@@ -58,6 +59,13 @@ candidate; supported real-key workflows above have no critical regressions, and
 remaining unsupported/untested combinations are explicitly recorded. Verify
 macOS notarization and Windows app/installer/uninstaller signing for the actual
 RC assets. These checks alone do not turn untested hardware rows into Passed.
+
+For 1.8.8 stable, prioritize native consent (Enter/Escape/close, disconnect and
+single-use authorization) and conditional clipboard expiry on real Windows and
+Linux desktops. The signed advisory database currently records review at
+2026-10-29 06:50:57 UTC: the 14-day release gate expires on 2026-11-12 at that
+time. Review new advisories and re-sign before a later release; do not only
+advance the timestamp or relax the gate.
 
 ## Matrix
 

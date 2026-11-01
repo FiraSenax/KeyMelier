@@ -12,8 +12,10 @@
     "sha256": "41fe7d01e6145b3df6e0652b23d0ea1cba050eab48209a99a1ecf3c70afd9e5f"
   },
   "appimage-runtime-LICENSE.txt": {
-    "url": "https://raw.githubusercontent.com/AppImage/type2-runtime/20251108/LICENSE",
-    "sha256": "aa154fc9070614bbe7921f89db11efd1dba7a1f3a41685958110e2230f9c0ca1"
+    "sha256": "aa154fc9070614bbe7921f89db11efd1dba7a1f3a41685958110e2230f9c0ca1",
+    "source_archive": "https://codeload.github.com/AppImage/type2-runtime/tar.gz/fedfad51acc2860b2916a1eef32ba4a500ff31ef",
+    "archive_sha256": "e27ea3c837e9c660e1a9a2993b673ae93bbb53077330efba8654031e302d4e8e",
+    "member": "LICENSE"
   },
   "webview2-1.0.3856.49-LICENSE.txt": {
     "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55",
@@ -49,20 +51,28 @@
     }
   },
   "musl-COPYRIGHT.txt": {
-    "source": "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT",
-    "sha256": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b"
+    "sha256": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b",
+    "source_archive": "https://musl.libc.org/releases/musl-1.2.6.tar.gz",
+    "archive_sha256": "d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a",
+    "member": "COPYRIGHT"
   },
   "zstd-LICENSE.txt": {
-    "source": "https://raw.githubusercontent.com/facebook/zstd/v1.5.6/LICENSE",
-    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+    "source_archive": "https://codeload.github.com/facebook/zstd/tar.gz/refs/tags/v1.5.7",
+    "archive_sha256": "37d7284556b20954e56e1ca85b80226768902e2edabd3b649e9e72c0c9012ee3",
+    "member": "LICENSE"
   },
   "zlib-LICENSE.txt": {
-    "source": "https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE",
-    "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+    "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2",
+    "source_archive": "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz",
+    "archive_sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+    "member": "LICENSE"
   },
   "mimalloc-LICENSE.txt": {
-    "source": "https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE",
-    "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+    "sha256": "82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9",
+    "source_archive": "https://github.com/microsoft/mimalloc/releases/download/v3.6.1/mimalloc-v3.6.1-source.tar.gz",
+    "archive_sha256": "7321fbe8e3d2bb447cba127603c44450db0d8ef35e8240bb4a56a7455eba0a68",
+    "member": "LICENSE"
   },
   "microsoft-vc-runtime-2015-2022.txt": {
     "source": "https://visualstudio.microsoft.com/wp-content/uploads/2021/09/Visual-C-Runtime-2015-2022-License-1.docx",
@@ -76,6 +86,24 @@
   },
   "gcc-14.2.0-RUNTIME-EXCEPTION.txt": {
     "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-14.2.0/COPYING.RUNTIME",
+    "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+  },
+  "pyobjc-13.0-LICENSE.txt": {
+    "sha256": "0ca04b07928d4872b9d9bb22187ca0426dd8bfab08f26eada0999a71dc81aaff",
+    "archive": {
+      "url": "https://files.pythonhosted.org/packages/83/58/7bab095330b8893e1ac58f3cf9710462c3242b600f8fa5db0d5dda795775/pyobjc_core-13.0.tar.gz",
+      "hash": "sha256:ffe154462d14aa4852f424e9116f17b5f8d44f78fc0f6c4727e721a5fa7177da",
+      "size": 1083172,
+      "upload-time": "2026-10-30T10:45:39.835Z"
+    },
+    "member": "pyobjc_core-13.0/License.txt"
+  },
+  "gcc-15.2.0-COPYING3.txt": {
+    "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-15.2.0/COPYING3",
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+  },
+  "gcc-15.2.0-RUNTIME-EXCEPTION.txt": {
+    "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-15.2.0/COPYING.RUNTIME",
     "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
   }
 }

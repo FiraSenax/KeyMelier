@@ -5384,3 +5384,18 @@ const I18N_RC2 = {
 for (const [code, [probe, copied]] of Object.entries(I18N_RC2)) Object.assign(STRINGS[code], {
   'sync.err.sync_probe_limit': probe, 'oath.copiedSensitive': copied,
 });
+
+// Privacy opt-out also covers the plaintext source kept by history migration.
+for (const [lang, message] of Object.entries({
+  de: 'Die alte Klartext-Verlaufskopie ({file}) konnte nicht bereinigt werden. Sie kann weiterhin Websites und Konten enthalten. Prüfe den Dateizugriff und schalte das Merken erneut aus, oder prüfe und entferne die Kopie selbst.',
+  en: 'The old plaintext history copy ({file}) could not be cleaned. It may still contain websites and accounts. Check file access and turn remembering off again, or review and remove the copy yourself.',
+  es: 'No se pudo limpiar la copia antigua del historial en texto plano ({file}). Puede seguir conteniendo sitios web y cuentas. Comprueba el acceso al archivo y vuelve a desactivar el registro, o revisa y elimina la copia manualmente.',
+  fr: 'La copie ancienne de l’historique en clair ({file}) n’a pas pu être nettoyée. Elle peut encore contenir des sites et des comptes. Vérifiez l’accès au fichier et désactivez à nouveau la mémorisation, ou examinez et supprimez vous-même la copie.',
+  it: 'Impossibile ripulire la vecchia copia in chiaro della cronologia ({file}). Potrebbe ancora contenere siti e account. Verifica l’accesso al file e disattiva di nuovo la memorizzazione, oppure controlla ed elimina la copia manualmente.',
+  pt: 'Não foi possível limpar a cópia antiga do histórico em texto simples ({file}). Ela pode ainda conter sites e contas. Verifique o acesso ao arquivo e desative novamente a memorização, ou examine e remova a cópia manualmente.',
+  nl: 'De oude onversleutelde geschiedeniskopie ({file}) kon niet worden opgeschoond. Deze kan nog websites en accounts bevatten. Controleer de bestandstoegang en schakel onthouden opnieuw uit, of controleer en verwijder de kopie zelf.',
+  pl: 'Nie udało się wyczyścić starej niezaszyfrowanej kopii historii ({file}). Może nadal zawierać witryny i konta. Sprawdź dostęp do pliku i ponownie wyłącz zapamiętywanie lub sprawdź i usuń kopię ręcznie.',
+  ja: '古い平文の履歴コピー（{file}）を消去できませんでした。サイトやアカウントの情報が残っている可能性があります。ファイルへのアクセスを確認して記憶を再度オフにするか、コピーを確認して手動で削除してください。',
+  ko: '이전 일반 텍스트 기록 사본({file})을 정리하지 못했습니다. 웹사이트와 계정 정보가 남아 있을 수 있습니다. 파일 접근 권한을 확인하고 기억 기능을 다시 끄거나, 사본을 확인한 후 직접 삭제하세요.',
+  zh: '无法清理旧的明文历史记录副本（{file}）。其中可能仍含有网站和账户信息。请检查文件访问权限并再次关闭记忆功能，或检查后自行删除该副本。',
+})) Object.assign(STRINGS[lang], { 'problem.history_privacy_cleanup': message });

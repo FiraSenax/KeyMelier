@@ -23,7 +23,8 @@ def digest(path):
 
 def recipe_hash():
     return hashlib.sha256(Path(__file__).read_bytes() +
-        (ROOT / 'packaging/linux/runtime-build.sh').read_bytes()).hexdigest()
+        (ROOT / 'packaging/linux/runtime-build.sh').read_bytes() +
+        (ROOT / 'packaging/linux/libfuse-appimage.patch').read_bytes()).hexdigest()
 
 
 def normalized_hash(raw):
@@ -111,6 +112,7 @@ def main():
         '-e', 'RUNTIME_COMMIT=' + lock['runtime_commit'],
         '-v', str(sources) + ':/sources:ro', '-v', str(output) + ':/out',
         '-v', str(ROOT / 'packaging/linux/runtime-build.sh') + ':/build-runtime.sh:ro',
+        '-v', str(ROOT / 'packaging/linux/libfuse-appimage.patch') + ':/libfuse-appimage.patch:ro',
         tag, 'sh', '/build-runtime.sh'], check=True)
     if 'NEEDED' in (output / 'elf-dynamic.txt').read_text():
         raise ValueError('AppImage runtime unexpectedly links a shared library')

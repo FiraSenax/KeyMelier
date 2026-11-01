@@ -1,7 +1,7 @@
 [project]
 name = "keymelier"
 version = "1.8.8"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 dependencies = [
   "fido2==2.2.1",
   "pywebview==6.2.1",
@@ -14,6 +14,8 @@ dependencies = [
   "pillow==13.0.0",
   # One upstream pin keeps Essentials, Addons and Shiboken at the same version.
   # Linux: Qt web view (LGPL, self-contained in the AppImage)
+  # 6.12.0 is affected by CVE-2026-105924; wait for a fixed PySide release.
+  # 6.11.3 supports Python <3.15, so all release builds use Python 3.14.10.
   "PySide6==6.11.3 ; sys_platform == 'linux'",
   "qtpy==2.4.3 ; sys_platform == 'linux'",
 ]
@@ -23,16 +25,16 @@ build = [
     "dmgbuild==1.6.7 ; sys_platform == 'darwin'",
     "pyinstaller==6.22.3",
     # zxing-cpp is rebuilt with these exact inputs; no opaque nanobind wheel copy.
-    "nanobind==2.11.0",
+    "nanobind==3.1.0",
     "scikit-build-core==1.1.1",
     "cmake==4.4.4",
     "ninja==1.13.2",
-    "wheel==0.46.3",
+    "wheel==0.48.0",
 ]
 quality = [
-    "ruff==0.17.1",
+    "ruff==0.17.3",
     "PyYAML==6.0.3",
-    "uv==0.13.4",
+    "uv==0.13.6",
 ]
 
 # Correctness checks, without imposing a bulk formatting rewrite.

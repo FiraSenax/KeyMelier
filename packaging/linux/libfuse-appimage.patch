@@ -1,0 +1,31 @@
+--- a/lib/mount.c
++++ b/lib/mount.c
+@@ -130,7 +130,14 @@
+ static int fusermount_posix_spawn(posix_spawn_file_actions_t *action,
+ 				  char const * const argv[], pid_t *out_pid)
+ {
+-	const char *full_path = FUSERMOUNT_DIR "/" FUSERMOUNT_PROG;
++	/* KeyMelier: preserve type2-runtime's selected FUSE 2/3 helper with
++	 * libfuse's new posix_spawn implementation. This library is linked only
++	 * into the non-setuid AppImage runtime, never into fusermount itself. */
++	const char *full_path = getenv("FUSERMOUNT_PROG");
++	if (!full_path || !*full_path) {
++		fuse_log(FUSE_LOG_ERR, "AppImage: FUSERMOUNT_PROG is not set\n");
++		return -EINVAL;
++	}
+ 	pid_t pid;
+ 
+ 	/* See man 7 environ for the global environ pointer */
+@@ -138,11 +145,7 @@
+ 	/* first try the install path */
+ 	int status = posix_spawn(&pid, full_path,  action, NULL,
+ 				 (char * const *) argv, environ);
+-	if (status != 0) {
+-		/* if that fails, try a system install */
+-		status = posix_spawnp(&pid, FUSERMOUNT_PROG, action, NULL,
+-				      (char * const *) argv, environ);
+-	}
++
+ 
+ 	if (status != 0) {
+ 		fuse_log(FUSE_LOG_ERR, "Failed to call '%s': %s\n",

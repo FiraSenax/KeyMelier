@@ -123,6 +123,27 @@ class AuditRegressions(unittest.TestCase):
         self.assertNotIn("internal.example", text)
         self.assertNotIn("private-account", text)
 
+    def test_migrated_backup_cleanup_is_applied_on_setting_change_and_startup(self):
+        from cryptography.fernet import Fernet
+        cipher = Fernet(Fernet.generate_key())
+        self.history.add_event(self.key, "passkey_deleted", site="private.example", user="private-user")
+        legacy = self.history._path
+        original = legacy.read_bytes()
+        with patch('keymelier_core.history.history_cipher', return_value=cipher):
+            encrypted = History(legacy, enabled=True, encrypted=True)
+            self.service.history = encrypted
+            self.service.set_settings({'remember_sites': False})
+            self.assertNotIn(b'private-user', legacy.read_bytes())
+            # A source copy retained by an older RC must also be scrubbed when
+            # remembering was already disabled before this version starts.
+            legacy.write_bytes(original)
+            service.KeyService(self.scanner, Mock(), history=History(legacy, enabled=False, encrypted=True))
+            self.assertNotIn(b'private-user', legacy.read_bytes())
+            legacy.write_bytes(b'{broken')
+            result = self.service.set_settings({'remember_sites': False})
+            self.assertFalse(result['remember_sites'])
+            self.assertIn({'code': 'history_privacy_cleanup', 'file': 'history.json'}, result['problems'])
+
     def test_attestation_errors_never_echo_pin_or_paths(self):
         with patch("fido2.ctap2.Ctap2", side_effect=RuntimeError(SECRET)), \
              self.assertLogs("keymelier_core.attestation", level="WARNING") as logs:

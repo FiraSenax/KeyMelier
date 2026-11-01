@@ -127,3 +127,88 @@ class HistoryEncryptionTests(unittest.TestCase):
         self.assertFalse(history._read_blocked)
         self.assertIsNone(history.load_problem)
         self.assertTrue(self.path.with_suffix('.encrypted').exists())
+
+    def legacy_with_contents(self):
+        data = {"version": 1, "future_metadata": {"keep": True}, "keys": [{
+            "key_id": "legacy-key", "label": "My key", "snapshot": {"serial_number": "123"},
+            "sites": [{"rp_id": "private.example", "users": [{"name": "private-user"}]}],
+            "inventory": {"oath": {"items": [{"name": "private-user"}]}},
+            "lost_done": ["private.example"], "replace": {"done": ["private-user"]},
+            "events": [{"type": "passkey_deleted", "site": "private.example", "user": "private-user"}],
+        }]}
+        self.path.write_text(json.dumps(data))
+        return data
+
+    def test_contents_opt_out_scrubs_both_migrated_files_even_when_history_disabled(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                self.path.with_suffix('.encrypted').unlink(missing_ok=True)
+                original = self.legacy_with_contents()
+                History(self.path, enabled=True)  # migrate as an earlier RC did
+                history = History(self.path.with_suffix('.encrypted'), enabled=enabled)
+                history.clear_sites()
+                self.assertEqual(history.enabled, enabled)
+                self.assertIsNone(history.privacy_problem)
+                for raw in (self.path.read_bytes(), self.cipher.decrypt(self.path.with_suffix('.encrypted').read_bytes())):
+                    self.assertNotIn(b'private.example', raw)
+                    self.assertNotIn(b'private-user', raw)
+                    entry = json.loads(raw)['keys'][0]
+                    self.assertEqual(entry['label'], 'My key')
+                    self.assertEqual(entry['snapshot']['serial_number'], '123')
+                    self.assertEqual(entry['events'], [{'type': 'passkey_deleted'}])
+                self.assertEqual(json.loads(self.path.read_bytes())['future_metadata'], original['future_metadata'])
+                self.assertEqual({p.name for p in self.path.parent.iterdir()}, {'history.json', 'history.encrypted'})
+                cleaned = self.path.read_bytes()
+                history.clear_sites()
+                self.assertEqual(self.path.read_bytes(), cleaned)
+
+    def test_unreadable_legacy_backup_is_preserved_and_cleanup_failure_is_reported(self):
+        self.legacy_with_contents()
+        history = History(self.path, enabled=True)
+        for damaged in (b'{broken', b'{"keys": [null]}', b'{"keys": [{"events": null}]}'):
+            with self.subTest(damaged=damaged):
+                self.path.write_bytes(damaged)
+                history.clear_sites()
+                self.assertEqual(self.path.read_bytes(), damaged)
+                self.assertEqual(history.privacy_problem, {'code': 'history_privacy_cleanup', 'file': 'history.json'})
+                self.assertNotIn(b'private-user', self.cipher.decrypt(self.path.with_suffix('.encrypted').read_bytes()))
+        self.legacy_with_contents()
+        history.clear_sites()
+        self.assertIsNone(history.privacy_problem)
+
+    def test_locked_legacy_backup_is_retried_without_losing_unrelated_data(self):
+        self.legacy_with_contents()
+        history = History(self.path, enabled=True)
+        original = self.path.read_bytes()
+        from keymelier_core.history import atomic_write
+
+        def write(path, data):
+            if path == self.path:
+                raise PermissionError('locked')
+            return atomic_write(path, data)
+
+        with patch('keymelier_core.history.atomic_write', side_effect=write):
+            history.clear_sites()
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertIsNotNone(history.privacy_problem)
+        history.clear_sites()
+        self.assertIsNone(history.privacy_problem)
+        self.assertNotIn(b'private-user', self.path.read_bytes())
+
+    def test_locked_encrypted_history_does_not_prevent_plaintext_privacy_cleanup(self):
+        self.legacy_with_contents()
+        encrypted = Fernet(Fernet.generate_key()).encrypt(b'{"keys": []}')
+        self.path.with_suffix('.encrypted').write_bytes(encrypted)
+        history = History(self.path, enabled=True)
+        history.clear_sites()
+        self.assertTrue(history._read_blocked)
+        self.assertEqual(self.path.with_suffix('.encrypted').read_bytes(), encrypted)
+        self.assertNotIn(b'private-user', self.path.read_bytes())
+
+    def test_stateless_cleanup_leaves_both_persistent_files_untouched(self):
+        self.legacy_with_contents()
+        History(self.path, enabled=True)
+        before = {p: p.read_bytes() for p in self.path.parent.iterdir()}
+        with patch.dict(os.environ, KEYMELIER_STATELESS='1'):
+            History(self.path, enabled=True).clear_sites()
+        self.assertEqual({p: p.read_bytes() for p in self.path.parent.iterdir()}, before)

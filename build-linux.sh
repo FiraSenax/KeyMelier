@@ -1,7 +1,7 @@
 #!/bin/bash
 # KeyMelier — Linux build script
 # Produces: dist/KeyMelier/ (PyInstaller bundle) and dist/KeyMelier-Linux-<arch>.AppImage
-# Requires: Python 3.11–3.13 with venv, curl, squashfs-tools; the packages of
+# Requires: Python 3.11–3.14 with venv, curl, squashfs-tools; the packages of
 # the CI job build-linux (PC/SC headers, libraries Qt WebEngine links to).
 #
 # appimagetool is hash-pinned. The runtime is built from recorded sources in

@@ -20,7 +20,7 @@
   "certifi": {
     "expression": "MPL-2.0",
     "versions": [
-      "2026.10.19"
+      "2026.10.23"
     ]
   },
   "cffi": {
@@ -81,7 +81,7 @@
     "expression": "Apache-2.0",
     "versions": [
       "8.7.1",
-      "9.0.1"
+      "10.1.0"
     ]
   },
   "jaraco-classes": {
@@ -135,7 +135,7 @@
   "more-itertools": {
     "expression": "MIT",
     "versions": [
-      "11.1.0"
+      "11.2.1"
     ]
   },
   "ninja": {
@@ -178,7 +178,7 @@
   "pycparser": {
     "expression": "BSD-3-Clause",
     "versions": [
-      "3.11"
+      "3.12"
     ]
   },
   "pyinstaller": {
@@ -190,37 +190,37 @@
   "pyobjc-core": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyobjc-framework-cocoa": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyobjc-framework-quartz": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyobjc-framework-security": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyobjc-framework-uniformtypeidentifiers": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyobjc-framework-webkit": {
     "expression": "MIT",
     "versions": [
-      "12.2.2"
+      "13.0"
     ]
   },
   "pyopenssl": {
@@ -232,7 +232,7 @@
   "pyscard": {
     "expression": "LGPL-2.1-or-later",
     "versions": [
-      "2.3.1"
+      "2.3.2"
     ]
   },
   "pyside6": {
@@ -256,7 +256,7 @@
   "python-dateutil": {
     "expression": "Apache-2.0 AND BSD-3-Clause",
     "versions": [
-      "2.9.0.post0"
+      "4.0.0"
     ]
   },
   "python-pskc": {
@@ -310,7 +310,7 @@
   "ruff": {
     "expression": "MIT",
     "versions": [
-      "0.17.1"
+      "0.17.3"
     ]
   },
   "scikit-build-core": {
@@ -355,6 +355,12 @@
       "4.16.0"
     ]
   },
+  "tzdata": {
+    "expression": "Apache-2.0",
+    "versions": [
+      "2026.6"
+    ]
+  },
   "urllib3": {
     "expression": "MIT",
     "versions": [
@@ -364,13 +370,13 @@
   "uv": {
     "expression": "MIT OR Apache-2.0",
     "versions": [
-      "0.13.4"
+      "0.13.6"
     ]
   },
   "wheel": {
     "expression": "MIT",
     "versions": [
-      "0.46.3"
+      "0.48.0"
     ]
   },
   "yubikey-manager": {
@@ -383,7 +389,7 @@
     "expression": "MIT",
     "versions": [
       "3.23.0",
-      "4.1.0"
+      "4.1.2"
     ]
   },
   "zxing-cpp": {

@@ -54,9 +54,9 @@ def license_texts(dist) -> list[tuple[str, str]]:
     name = dist.metadata["Name"].lower().replace("_", "-")
     extras = EXTRA_TEXTS.get(name, [])
     if name.startswith("pyobjc-") and not texts:
-        if dist.version != "12.2.2":
+        if dist.version != "13.0":
             raise ValueError(f"Review the upstream PyObjC license for {dist.version}")
-        extras = ["pyobjc-12.2.2-LICENSE.txt"]
+        extras = ["pyobjc-13.0-LICENSE.txt"]
     if name == "proxy-tools" and dist.version != "0.1.0":
         raise ValueError("Review the proxy-tools source license for this version")
     for filename in extras:
@@ -162,8 +162,8 @@ def build(names=None, native_notices=()) -> str:
             out += [rule, "Microsoft WebView2 SDK 1.0.3856.49 – " + filename, rule,
                     (ROOT / "packaging" / "licenses" / filename).read_text(), ""]
     if sys.platform.startswith("linux"):
-        for filename in ("appimage-runtime-LICENSE.txt", "gcc-14.2.0-COPYING3.txt",
-                         "gcc-14.2.0-RUNTIME-EXCEPTION.txt"):
+        for filename in ("appimage-runtime-LICENSE.txt", "gcc-15.2.0-COPYING3.txt",
+                         "gcc-15.2.0-RUNTIME-EXCEPTION.txt"):
             out += [rule, "AppImage runtime / static dependency — " + filename, rule,
                     (ROOT / "packaging/licenses" / filename).read_text(), ""]
     for name, text in native_notices:

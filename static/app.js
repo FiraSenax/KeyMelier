@@ -1609,6 +1609,7 @@ function init() {
     if (el.id === 'rp-open-only') { replaceOpenOnly = el.checked; return renderPanel(); }
     if (el.id === 'history-enabled') {
       appSettings = await call('set_settings', { values: { history_enabled: el.checked } }).catch(() => appSettings);
+      for (const p of appSettings.problems || []) showToast(t(`problem.${p.code}`, { file: p.file }), 'error');
       renderPanel();
     }
     if (el.id === 'personal-mode') {
@@ -1618,6 +1619,7 @@ function init() {
     }
     if (el.id === 'bk-remember') {
       appSettings = await call('set_settings', { values: { remember_sites: el.checked } }).catch(() => appSettings);
+      for (const p of appSettings.problems || []) showToast(t(`problem.${p.code}`, { file: p.file }), 'error');
       if (!el.checked) await loadHistory();
       render();
     } else if (el.id === 'rp-old') {

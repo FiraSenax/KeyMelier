@@ -15,13 +15,14 @@ cd ../zstd-*
 make -C lib -j4 libzstd.a
 make -C lib PREFIX=/usr/local install-static install-includes install-pc
 cd ../mimalloc-*
-cmake -S . -B out -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_BUILD_STATIC=ON
+# Keep the original x86-64 / ARMv8.0 CPU baseline (mimalloc 3 defaults to ARMv8.1).
+cmake -S . -B out -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_BUILD_STATIC=ON -DMI_OPT_ARCH=OFF
 cmake --build out -j4
 cmake --install out
 cp out/libmimalloc.a /usr/local/lib/libmimalloc.a
 cd ../fuse-*
-patch -p1 -i ../type2-runtime-*/patches/libfuse/mount.c.diff
-meson setup out --prefix=/usr --default-library=static -Dexamples=false -Dtests=false
+patch --fuzz=0 -p1 -i /libfuse-appimage.patch
+meson setup out --prefix=/usr --default-library=static -Dexamples=false -Dtests=false -Dutils=false -Duseroot=false -Denable-io-uring=false
 meson compile -C out -j4
 meson install -C out
 cd ../squashfuse-*
@@ -59,6 +60,7 @@ versions={name:subprocess.check_output(['pkg-config','--modversion',package],tex
 Path('/tmp/mi-version.c').write_text('#include <stdio.h>\nextern int mi_version(void);\nint main(void) { printf("%d", mi_version()); return 0; }\n')
 subprocess.run(['cc','/tmp/mi-version.c','/usr/local/lib/libmimalloc.a','-pthread','-o','/tmp/mi-version'],check=True)
 number=int(subprocess.check_output(['/tmp/mi-version'],text=True))
-versions['mimalloc']=f'{number//100}.{number//10%10}.{number%10}'
+# mimalloc 3 uses two digits each for minor and patch (e.g. 30601).
+versions['mimalloc']=f'{number//10000}.{number//100%100}.{number%100}'
 Path('/out/component-versions.json').write_text(json.dumps(versions,indent=2)+'\n')
 PY

@@ -84,3 +84,56 @@ reviewed license expressions therefore remain unchanged. New PySide source:
 `050819cb05e14d6689f42b56e4fa9c8ff63be2bb339e0c094c45b990b7cabde1`.
 Linux packaging must still download/hash-check the matching module archives
 and run the existing startup/replacement checks on both architectures.
+
+## Latest compatible stable review (2026-11-01)
+
+The maintainer requested major as well as patch updates. `uv lock --upgrade`
+refreshes every transitive dependency; direct build/quality pins advance to
+nanobind 3.1.0, wheel 0.48.0, Ruff 0.17.3 and uv 0.13.6. Runtime changes include
+certifi 2026.10.23, PyObjC 13.0, pyscard 2.3.2 and python-dateutil 4.0.0.
+The new tzdata 2026.6 dependency replaces dateutil's embedded timezone database;
+six is no longer required by dateutil. Python 3.11 source support remains.
+Dateutil now rejects malformed numeric ISO fields and removes pre-3.11 helpers;
+KeyMelier does not call these helpers or the removed mutable timezone path API.
+
+All changed Python source archives were downloaded and checked against the old
+and new lock hashes. Their LICENSE/COPYING/NOTICE texts are byte-identical;
+new tzdata carries Apache-2.0 grants. Dateutil's complete original license still
+contains both Apache-2.0 and BSD-3-Clause terms despite its new narrower metadata;
+the reviewed combined expression is retained. PyObjC's missing wheel notice is
+supplied from the checked 13.0 source. Nanobind's vendored robin-map remains 1.4.0;
+its file hash and the controlled build input are checked. No independent upgrade
+is made to code embedded by cryptography/Pillow: their current upstream wheels
+and embedded SBOMs remain the authority for those builds.
+
+Release Python is pinned to 3.14.10 across macOS, Windows and Linux, including
+the Oct 25 SSL/security fixes. Qt stays at 6.11.3: the latest PySide 6.12.0 is
+affected by CVE-2026-105924, while 6.11.3 contains the fix. PySide 6.11.3 requires
+Python below 3.15. Reassess when fixed PySide 6.12.1 wheels become available.
+
+The AppImage runtime uses immutable type2-runtime commit
+`fedfad51acc2860b2916a1eef32ba4a500ff31ef`, FUSE 3.18.3, squashfuse 0.6.5,
+zstd 1.5.7, zlib 1.3.2 and mimalloc 3.6.1. Alpine 3.24.3 is pinned by its
+multiarch digest. Both architectures' package indexes agree on musl 1.2.6-r3
+and GCC 15.2.0-r5 and their source commits. The musl recipe includes upstream
+security backports through CVE-2026-107891. Aports recipes/patches accompany
+the source evidence. Native license terms are unchanged; zlib and mimalloc
+copyright years are refreshed from their exact sources, as are GCC notices.
+The versioned appimagetool 1.9.1 remains latest stable; its moving continuous
+build is deliberately not selected.
+
+`libfuse-appimage.patch` ports the existing AppImage helper selection to
+libfuse's posix_spawn implementation. Only the non-setuid runtime library is
+built; FUSE utilities, custom I/O and io_uring are not enabled. The selected
+helper must exist in the environment; failure does not choose a different one.
+The patch is included in the recipe hash and corresponding source bundle.
+Mimalloc's new ARMv8.1 default is disabled to retain ARMv8.0 compatibility; its
+new five-digit runtime version encoding is read correctly. Unknown static link
+inputs and mismatched compiled versions still fail the build.
+
+CI uses Node 26.13.0 stable and setup-python 7.1.0 by immutable SHA; all artifact
+downloads use the verified 8.0.2 SHA. Already-current Actions remain pinned.
+Local validation includes Python 3.14.10 tests, the controlled QR decoder build,
+strict SBOM validation and the source/license/export checks. Platform packaging,
+Linux compatibility and signed release evidence must be checked for the final
+commit; local tests do not constitute hardware approval.
