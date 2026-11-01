@@ -87,6 +87,12 @@ class FetchRCTests(unittest.TestCase):
     def test_failed_run_is_not_a_candidate(self):
         self.assertEqual(self.fetch({"headSha": COMMIT, "status": "completed", "conclusion": "failure"}), 1)
 
+    def test_failed_rehearsal_report_is_rejected_even_with_valid_files(self):
+        report = self.rehearsal / 'release-check.md'
+        report.write_text(report.read_text().replace('**passed**', '**FAILED**'))
+        with self.assertRaisesRegex(fetch_rc.RCError, 'did not pass'):
+            fetch_rc.verify(self.rehearsal, RUN, COMMIT)
+
     def test_a_second_run_changes_nothing(self):
         self.assertEqual(self.fetch(), 0)
         before = {p.name: p.stat().st_mtime_ns for p in self.target().iterdir()}

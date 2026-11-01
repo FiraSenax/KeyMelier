@@ -15,7 +15,6 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from keymelier_core.network import bounded_get, read_limited
 from keymelier_core.storage import atomic_write, stateless
 
 logger = logging.getLogger(__name__)
@@ -122,6 +121,7 @@ def is_fresh(document: dict | None, *, max_age_days: int = FRESH_FOR) -> bool:
 
 def fetch(current: dict | None) -> dict | None:
     """Download, verify and cache a newer advisory file. Returns it, or None."""
+    from keymelier_core.network import bounded_get, read_limited
 
     try:
         with bounded_get(ADVISORY_URL, timeout=15, stream=True) as response:

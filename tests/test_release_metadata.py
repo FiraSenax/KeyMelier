@@ -177,21 +177,38 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertEqual(job['environment'], 'release-signing')
         gate = next(s for s in job['steps'] if s.get('name') == 'Require an RC tag and both verified signatures')
         bash = str(Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Git/bin/bash.exe') if sys.platform == 'win32' else 'bash'
-        for ref, mac, win, allowed in ((f'v{app_version()}-rc.3', 'true', 'true', True),
-                                       (f'v{app_version()}', 'true', 'true', False),
-                                       ('main', 'true', 'true', False),
-                                       ('v0.0.0-rc.1', 'true', 'true', False),
-                                       (f'v{app_version()}-rc.3', 'false', 'true', False),
-                                       (f'v{app_version()}-rc.3', 'true', 'false', False)):
-            with self.subTest(ref=ref, mac=mac, win=win):
+        for ref, mac, win, artifact, allowed in ((f'v{app_version()}-rc.3', 'true', 'true', '42', True),
+                                       (f'v{app_version()}', 'true', 'true', '42', False),
+                                       ('main', 'true', 'true', '42', False),
+                                       ('v0.0.0-rc.1', 'true', 'true', '42', False),
+                                       (f'v{app_version()}-rc.3', 'false', 'true', '42', False),
+                                       (f'v{app_version()}-rc.3', 'true', 'false', '42', False),
+                                       (f'v{app_version()}-rc.3', 'true', 'true', '', False),
+                                       (f'v{app_version()}-rc.3', 'true', 'true', 'invalid', False)):
+            with self.subTest(ref=ref, mac=mac, win=win, artifact=artifact):
                 script = gate['run'].replace('python3', '"' + sys.executable.replace('\\', '/') + '"')
                 result = subprocess.run([bash, '-e', '-c', script], cwd=ROOT, capture_output=True, text=True,
-                                        env={**os.environ, 'GITHUB_REF_NAME':ref, 'MAC_SIGNED':mac, 'WIN_SIGNED':win})
+                                        env={**os.environ, 'GITHUB_REF_NAME':ref, 'MAC_SIGNED':mac,
+                                             'WIN_SIGNED':win, 'RC_ARTIFACT_ID':artifact})
                 self.assertEqual(result.returncode == 0, allowed, result.stderr)
         publish = job['steps'][-1]['run']
         self.assertLess(publish.index('sha256sum --check'), publish.index('gh release create'))
         self.assertIn('--verify-tag --draft --prerelease --latest=false', publish)
         self.assertIn('--draft=false --prerelease --latest=false', publish)
+
+    def test_rc_download_uses_the_successful_rehearsal_id_after_reruns(self):
+        jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
+        rehearsal = jobs['release-rehearsal']
+        upload = next(s for s in rehearsal['steps'] if 'upload-artifact@' in s.get('uses', ''))
+        self.assertEqual(rehearsal['outputs']['artifact-id'], '${{ steps.' + upload['id'] + '.outputs.artifact-id }}')
+        steps = jobs['release-candidate']['steps']
+        download = next(s for s in steps if 'download-artifact@' in s.get('uses', ''))
+        self.assertNotIn('name', download['with'])  # older failed attempts have the same name
+        self.assertEqual(download['with']['artifact-ids'], '${{ needs.release-rehearsal.outputs.artifact-id }}')
+        verify = next(s for s in steps if s.get('name') == 'Verify the exact successful rehearsal before signing')
+        signer = next(s for s in steps if s.get('uses') == './.github/actions/sign-update')
+        self.assertLess(steps.index(download), steps.index(verify))
+        self.assertLess(steps.index(verify), steps.index(signer))
 
     def test_shipped_files_have_the_same_bytes_on_every_platform(self):
         """Git must not convert line endings on Windows: the SBOM hashes the shipped files."""

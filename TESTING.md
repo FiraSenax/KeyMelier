@@ -31,6 +31,9 @@ devices.
 | Dependency review (`.github/workflows/dependency-review.yml`) | A pull request adds or updates no dependency with a known vulnerability (moderate or higher) | on pull requests |
 | CodeQL (GitHub default setup) | Static security analysis of Python, JavaScript and the workflows | on pushes and pull requests, weekly |
 | `python tools/advisories_sign.py verify` | The bundled vulnerability database is validly signed | CI job `test`, daily *Advisory watch* |
+| Offline signing in a fresh venv | Advisory verification and the signing tests run with only the three hash-pinned signing dependencies; synthetic keys, no HTTP or production secrets | CI job `test` on Linux |
+| RC publication after a rerun | Download uses the successful rehearsal's explicit artifact ID; missing IDs, failed reports, missing files or mismatched report/checksum hashes stop signing | CI job `release-candidate`; `test_release_metadata`, `test_fetch_rc` |
+| Apple ticket connection loss | Only error 68 with the observed network error -1005 gets up to three attempts; invalid tickets and exhausted retries still fail | `test_macos_stapler`; signed macOS build |
 
 A failure in any of these stops the release: the builds need `test` and
 `ui`, the release needs both builds.

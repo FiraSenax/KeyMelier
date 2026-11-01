@@ -14,7 +14,6 @@ import re
 import threading
 
 from keymelier_core.build_info import ROOT_DIR
-from keymelier_core.network import bounded_get, read_limited
 from keymelier_core.storage import atomic_write, stateless
 
 BUNDLED = ROOT_DIR / 'data' / 'revoked-update-keys.json'
@@ -97,6 +96,7 @@ def ensure_allowed(*, refresh=False) -> None:
     if not refresh:
         return
     try:
+        from keymelier_core.network import bounded_get, read_limited
         with bounded_get(URL, timeout=10, stream=True) as response:
             remote = parse(read_limited(response, MAX_BYTES))
     except Exception as error:

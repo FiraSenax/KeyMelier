@@ -193,7 +193,9 @@ new safeguards retroactively; use a new reviewed tag after merging this workflow
 
 The separate `release-candidate` job requires a successful complete rehearsal,
 matching RC tag and verified macOS/Windows signing. It downloads only that run's
-checked artifact, verifies the source commit and checksums again, creates a draft
+checked artifact by the successful rehearsal's explicit artifact ID (names can
+refer to older failed attempts after reruns). Before signing, it verifies the
+passed report, source commit, complete file set and all report/checksum hashes again, creates a draft
 with all files and then publishes it with `prerelease=true` and latest disabled.
 It never replaces an existing release. If an upload fails, inspect the draft
 before retrying; it remains invisible to the app's updater.
