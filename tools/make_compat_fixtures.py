@@ -122,7 +122,9 @@ def main() -> int:
         target.mkdir(parents=True)
         for name in ("history.json", "settings.json"):
             shutil.copy(home / "keymelier" / name, target / name)
-        (target / "keys.json").write_text(json.dumps({"tag": tag, **json.loads(ids)}, indent=1) + "\n")
+        commit = subprocess.run(["git", "rev-parse", f"{tag}^{{commit}}"], cwd=ROOT,
+                                capture_output=True, text=True, check=True).stdout.strip()
+        (target / "keys.json").write_text(json.dumps({"tag": tag, "source_commit": commit, **json.loads(ids)}, indent=1) + "\n")
         shutil.rmtree(work, ignore_errors=True)
         print(f"{tag}: {target.relative_to(ROOT)}")
     return 0

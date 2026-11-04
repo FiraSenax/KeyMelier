@@ -48,6 +48,7 @@ async function loadFunctionTest(token) {
 async function runFunctionTest(pin) {
   const token = tokens.get(selectedId);
   if (!token || ftState?.running) return;
+  clearSecretInputs($('ft-card'));
   const run = ftRun = {};
   ftState = { ...ftState, running: true, result: null };
   renderFunctionTest();

@@ -3,6 +3,40 @@
 // Classic-script view module; loaded before app.js, invoked after app initialization.
 // ── Shared form helpers (PIV, OTP) ──────────────────────────────────────────
 
+const pendingSecretSubmissions = new Set(); // operation + device only; never secrets
+const SECRET_INPUTS = 'input[type="password"], #pin-current, #pin-new, #pin-confirm, .oath-uri, .otp-secret';
+
+function secretSubmissionPending(operation, tokenId) {
+  return pendingSecretSubmissions.has(JSON.stringify([operation, tokenId]));
+}
+
+function clearSecretInputs(root) {
+  root?.querySelectorAll(SECRET_INPUTS).forEach(input => {
+    input.value = '';
+    input.defaultValue = ''; // form.reset() must not restore a secret (including imported QR data)
+  });
+}
+
+async function secretSubmission(operation, tokenId, root, start) {
+  const key = JSON.stringify([operation, tokenId]);
+  if (pendingSecretSubmissions.has(key)) return;
+  pendingSecretSubmissions.add(key);
+  const controls = [...(root?.querySelectorAll('input, textarea, select, button[type="submit"], #att-uv, #att-rerun') || [])]
+    .map(input => [input, input.disabled]);
+  controls.forEach(([input]) => { input.disabled = true; });
+  try {
+    // The callback captures/validates the values and starts its request synchronously.
+    // Clear even detached fields before awaiting the device, including on failure.
+    let request;
+    try { request = start(); }
+    finally { clearSecretInputs(root); }
+    return await request;
+  } finally {
+    controls.forEach(([input, disabled]) => { input.disabled = disabled; });
+    pendingSecretSubmissions.delete(key);
+  }
+}
+
 function fieldNode(cls, label, type = 'password', value = '', extra = {}) {
   return uiElement('label', {class: 'field'}, uiElement('span', {}, label),
     uiElement('input', {type, class: cls, value: value ?? '', autocomplete: 'off', spellcheck: 'false', ...extra}));

@@ -204,6 +204,11 @@ def backend_checks(root: Path, data_dir: Path, static_dir: Path, advisories) -> 
     check("runtime: yubikey-manager", ykman)
     check("runtime: requests + CA bundle", tls)
     check("runtime: keyring backend", keychain)
+    from keymelier_core.upgrade_probe import verify_upgrade
+    fixture = root / 'selftest' / 'upgrade-v1.8.7'
+    if not fixture.is_dir():
+        fixture = root / 'tests' / 'fixtures' / 'compat' / 'v1.8.7'
+    check("upgrade: 1.8.7 migration, restart, locked store and privacy cleanup", lambda: verify_upgrade(fixture))
     check("runtime: pywebview", webview)
     check("data: signed advisory database loaded", lambda: advisories.info().get("count", 0) > 0 and advisories.info())
 

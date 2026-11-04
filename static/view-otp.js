@@ -81,10 +81,12 @@ async function otpCall(method, args, doneKey) {
   otpError = null;
   try {
     const st = await call(method, { token_id: token.id, ...args });
+    if (selectedId !== token.id || !tokens.has(token.id)) return;
     if (st.secret) otpSecret = st.secret;
     otpState = st; otpForm = null;
     showToast(t(doneKey), 'success');
   } catch (e) {
+    if (selectedId !== token.id || !tokens.has(token.id)) return;
     otpError = errorMessage(e);
   }
   renderOtp();
@@ -100,7 +102,7 @@ function initOtpPane() {
     if (act === 'reload' && token) return loadOtp(token);
     if (act === 'privacy') return call('open_privacy_settings', {}).catch(() => {});
     if (act === 'form') { otpForm = b.dataset.form; otpError = null; return renderOtp(); }
-    if (act === 'hide-form') { otpForm = null; otpError = null; return renderOtp(); }
+    if (act === 'hide-form') { clearSecretInputs(el); otpForm = null; otpError = null; return renderOtp(); }
     if (act === 'swap') return otpCall('otp_swap', {}, 'otp.swapped');
     if (act === 'copy-secret') return copyText(otpSecret, 'oath.copied', true);
     if (act === 'secret-done') { otpSecret = null; return renderOtp(); }
@@ -108,13 +110,16 @@ function initOtpPane() {
   el.addEventListener('submit', ev => {
     ev.preventDefault();
     const f = ev.target;
-    const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
-    const [kind, n] = (f.dataset.form || '').split(':');
-    const access_code = val('otp-acc').trim() || null;
-    const replace = !!f.querySelector('.app-replace')?.checked;
-    const slot = Number(n);
-    if (kind === 'static') return otpCall('otp_static', { slot, password: val('otp-pw'), access_code, replace }, 'otp.programmed');
-    if (kind === 'hmac') return otpCall('otp_hmac', { slot, secret: val('otp-secret').trim() || null, touch: f.querySelector('.otp-touch').checked, access_code, replace }, 'otp.programmed');
-    if (kind === 'delete') return otpCall('otp_delete', { slot, access_code }, 'otp.deleted');
+    if (!tokens.has(selectedId)) return;
+    return secretSubmission('otp', selectedId, f, () => {
+      const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+      const [kind, n] = (f.dataset.form || '').split(':');
+      const access_code = val('otp-acc').trim() || null;
+      const replace = !!f.querySelector('.app-replace')?.checked;
+      const slot = Number(n);
+      if (kind === 'static') return otpCall('otp_static', { slot, password: val('otp-pw'), access_code, replace }, 'otp.programmed');
+      if (kind === 'hmac') return otpCall('otp_hmac', { slot, secret: val('otp-secret').trim() || null, touch: f.querySelector('.otp-touch').checked, access_code, replace }, 'otp.programmed');
+      if (kind === 'delete') return otpCall('otp_delete', { slot, access_code }, 'otp.deleted');
+    });
   });
 }

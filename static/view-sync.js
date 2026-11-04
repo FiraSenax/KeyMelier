@@ -123,6 +123,7 @@ async function syncAction(act) {
 }
 
 async function syncSubmit() {
+  if (syncForm.busy) return;
   const pass = $('sync-pass'), pass2 = $('sync-pass2');
   const folder = syncForm.folder || syncState?.configured_folder;
   if (pass.value !== pass2.value) { syncForm.error = t('sync.mismatch'); return renderPanel(); }
@@ -133,7 +134,7 @@ async function syncSubmit() {
   syncForm.busy = true;
   syncForm.error = null;
   const passphrase = pass.value;
-  pass.value = pass2.value = '';
+  clearSecretInputs(pass.closest('form'));
   renderPanel();
   try {
     syncState = await call('sync_enable', { folder, passphrase });

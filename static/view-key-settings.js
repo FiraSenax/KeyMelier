@@ -347,6 +347,7 @@ function setPinVisible(visible) {
 
 async function submitPinForm(ev) {
   ev.preventDefault();
+  if (secretSubmissionPending('pin', selectedId)) return;
   hidePinError();
   const token = tokens.get(selectedId);
   if (!token || !pinState) return;
@@ -360,23 +361,25 @@ async function submitPinForm(ev) {
   if (new TextEncoder().encode(next).length > 63) return showPinError(t('pin.v.tooLong'));
   if (next !== confirm) return showPinError(t('pin.v.mismatch'));
 
-  const btn = $('pin-submit');
-  btn.disabled = true;
-  try {
-    const body = { new_pin: next };
-    if (pinState.is_set) body.current_pin = current;
-    const res = await call('pin_update', { token_id: token.id, ...body });
-    clearPinInputs();
-    showToast(res.result === 'set' ? t('pin.done.set') : t('pin.done.changed'), 'success');
-    loadPinStatus(token);
-  } catch (e) {
-    $('pin-current').value = '';
-    showPinError(errorMessage(e));
-    if (['pin_invalid', 'pin_blocked', 'pin_auth_blocked'].includes(e.data?.code)) {
-      // Refresh the retry counter without wiping the error message
-      call('pin_status', { token_id: token.id }).then(st => { pinState = st; renderPinStatus(st); }).catch(() => {});
+  return secretSubmission('pin', token.id, ev.target, async () => {
+    const btn = $('pin-submit');
+    btn.disabled = true;
+    try {
+      const body = { new_pin: next };
+      if (pinState.is_set) body.current_pin = current;
+      const res = await call('pin_update', { token_id: token.id, ...body });
+      clearPinInputs();
+      showToast(res.result === 'set' ? t('pin.done.set') : t('pin.done.changed'), 'success');
+      loadPinStatus(token);
+    } catch (e) {
+      $('pin-current').value = '';
+      showPinError(errorMessage(e));
+      if (['pin_invalid', 'pin_blocked', 'pin_auth_blocked'].includes(e.data?.code)) {
+        // Refresh the retry counter without wiping the error message
+        call('pin_status', { token_id: token.id }).then(st => { pinState = st; renderPinStatus(st); }).catch(() => {});
+      }
+    } finally {
+      btn.disabled = false;
     }
-  } finally {
-    btn.disabled = false;
-  }
+  });
 }

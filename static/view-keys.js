@@ -193,10 +193,11 @@ function finishPin(stopped) {
 
 async function keysPinSubmit(form) {
   const p = keysPin;
+  if (!p || p.busy) return;
   if (form === 'pin') {
     const a = $('kpin-new').value, b = $('kpin-new2').value;
     const min = Math.max(4, ...p.selected.map(id => tokens.get(id)?.min_pin_length || 4));
-    $('kpin-new').value = $('kpin-new2').value = '';
+    clearSecretInputs($('kpin'));
     if (a !== b) { p.error = t('pin.v.mismatch'); return renderPanel(); }
     if ([...a].length < min) { p.error = t('kpin.minHint', { n: min }); return renderPanel(); }
     Object.assign(p, { newPin: a, step: 'run', index: 0, error: null });
@@ -206,7 +207,7 @@ async function keysPinSubmit(form) {
   // one key, on the user's click; the PIN is sent once – never retried
   const id = p.selected[p.index];
   const current = $('kpin-current')?.value || null;
-  if ($('kpin-current')) $('kpin-current').value = '';
+  clearSecretInputs($('kpin'));
   p.busy = true;
   renderPanel();
   try {
@@ -231,6 +232,7 @@ function keysAction(act, el) {
   if (act === 'keys-readall') return readAllKeys();
   // While a PIN change runs on a key, the assistant's buttons wait for it
   if (act.startsWith('kpin-') && keysPin?.busy) return el;
+  if (['kpin-cancel', 'kpin-close', 'kpin-back', 'kpin-stop', 'kpin-skip'].includes(act)) clearSecretInputs($('kpin'));
   if (act === 'kpin-start') keysPin = { step: 'choose', selected: [], newPin: '', index: 0, results: {}, error: null };
   if (act === 'kpin-cancel' || act === 'kpin-close') keysPin = null;
   if (act === 'kpin-next') keysPin.step = 'pin';

@@ -163,7 +163,7 @@ function initPivPane() {
     const token = tokens.get(selectedId);
     if (act === 'reload' && token) return loadPiv(token);
     if (act === 'form') { pivForm = b.dataset.form; pivError = null; return renderPiv(); }
-    if (act === 'hide-form') { pivForm = null; pivError = null; return renderPiv(); }
+    if (act === 'hide-form') { clearSecretInputs(el); pivForm = null; pivError = null; return renderPiv(); }
     if (act === 'reset-ask') { pivConfirmReset = true; return renderPiv(); }
     if (act === 'reset-cancel') { pivConfirmReset = false; return renderPiv(); }
     if (act === 'reset') return pivCall('piv_reset', { confirm: true }, 'piv.reset.done');
@@ -175,21 +175,24 @@ function initPivPane() {
   el.addEventListener('submit', ev => {
     ev.preventDefault();
     const f = ev.target;
-    const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
-    const [kind, slot] = (f.dataset.form || '').split(':');
-    const auth = { pin: val('piv-pin') || null, management_key: val('piv-mgmt') || null };
-    if (['pin', 'puk', 'unblock'].includes(kind) && val('piv-new') !== val('piv-confirm')) {
-      pivError = t('pin.v.mismatch'); return renderPiv();
-    }
-    if (kind === 'pin' || kind === 'puk') return pivCall('piv_change_pin', { which: kind, current: val('piv-current'), new: val('piv-new') }, 'pgp.saved');
-    if (kind === 'unblock') return pivCall('piv_unblock_pin', { puk: val('piv-puk'), new_pin: val('piv-new') }, 'pgp.saved');
-    if (kind === 'protect') return pivCall('piv_protect_management_key', { pin: val('piv-pin'), management_key: auth.management_key }, 'pgp.saved');
-    if (kind === 'gen') {
-      return pivCall('piv_generate', { slot, key_type: val('piv-type'), subject: val('piv-subject'), days: Number(val('piv-days')) || 365,
-        pin: val('piv-pin'), management_key: auth.management_key, pin_policy: val('piv-pinpol'), touch_policy: val('piv-touchpol'),
-        replace: !!f.querySelector('.app-replace')?.checked }, 'piv.gen.done');
-    }
-    if (kind === 'import') return pivCall('piv_import', { slot, pem: val('piv-pem'), ...auth }, 'piv.import.done');
-    if (kind === 'delete') return pivCall('piv_delete', { slot, key: !!f.querySelector('.piv-delkey')?.checked, confirm: true, ...auth }, 'piv.deleted');
+    if (!tokens.has(selectedId)) return;
+    return secretSubmission('piv', selectedId, f, () => {
+      const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+      const [kind, slot] = (f.dataset.form || '').split(':');
+      const auth = { pin: val('piv-pin') || null, management_key: val('piv-mgmt') || null };
+      if (['pin', 'puk', 'unblock'].includes(kind) && val('piv-new') !== val('piv-confirm')) {
+        pivError = t('pin.v.mismatch'); return renderPiv();
+      }
+      if (kind === 'pin' || kind === 'puk') return pivCall('piv_change_pin', { which: kind, current: val('piv-current'), new: val('piv-new') }, 'pgp.saved');
+      if (kind === 'unblock') return pivCall('piv_unblock_pin', { puk: val('piv-puk'), new_pin: val('piv-new') }, 'pgp.saved');
+      if (kind === 'protect') return pivCall('piv_protect_management_key', { pin: val('piv-pin'), management_key: auth.management_key }, 'pgp.saved');
+      if (kind === 'gen') {
+        return pivCall('piv_generate', { slot, key_type: val('piv-type'), subject: val('piv-subject'), days: Number(val('piv-days')) || 365,
+          pin: val('piv-pin'), management_key: auth.management_key, pin_policy: val('piv-pinpol'), touch_policy: val('piv-touchpol'),
+          replace: !!f.querySelector('.app-replace')?.checked }, 'piv.gen.done');
+      }
+      if (kind === 'import') return pivCall('piv_import', { slot, pem: val('piv-pem'), ...auth }, 'piv.import.done');
+      if (kind === 'delete') return pivCall('piv_delete', { slot, key: !!f.querySelector('.piv-delkey')?.checked, confirm: true, ...auth }, 'piv.deleted');
+    });
   });
 }

@@ -1,0 +1,135 @@
+// Real production forms/CSP, synthetic device replies, including delayed errors.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const {pathToFileURL} = require('node:url');
+const {execFileSync} = require('node:child_process');
+const {launch, sleep, callPage, killAll} = require('./cdp.cjs');
+const root = path.resolve(__dirname, '../..');
+
+async function main() {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'km-secret-forms-'));
+  let browser;
+  try {
+    const html = execFileSync(process.env.PYTHON || 'python3', ['-c',
+      'from keymelier_core.page import build_html; print(build_html())'], {cwd: root, encoding: 'utf8', maxBuffer: 8 << 20});
+    const file = path.join(folder, 'page.html');
+    fs.writeFileSync(file, html);
+    browser = await launch();
+    await browser.send('Page.enable');
+    await browser.send('Runtime.enable');
+    await browser.send('Page.navigate', {url: pathToFileURL(file).href});
+    let ready = false;
+    for (let i = 0; i < 100; i++) {
+      ready = await callPage(browser.send, () => document.readyState === 'complete' && typeof secretSubmission === 'function');
+      if (ready) break;
+      await sleep(50);
+    }
+    assert(ready, 'production scripts loaded');
+    const results = await callPage(browser.send, async () => {
+      const results = [];
+      const check = (name, ok) => results.push({name, ok: !!ok});
+      const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
+      const token = {id: 'fixture-key', product_name: 'Fixture key', options: {clientPin: true, uv: true},
+        attestation: {inconclusive: 'pin_invalid'}, versions: ['FIDO_2_1'], security_status: 'UNKNOWN'};
+      tokens.set(token.id, token); selectedId = token.id;
+      const calls = [];
+      let pending, wanted;
+      const states = {
+        piv: {pin: {attempts: 3, puk_attempts: 3}, management_key: {default: true}, slots: [], key_types: []},
+        openpgp: {pin: {user: 3, admin: 3}, keys: [], algorithms: [], signature_counter: 0},
+        oath: {unlocked: true, accounts: [], password: true},
+        otp: {slots: [{slot: 1, configured: false}, {slot: 2, configured: false}]},
+        pin_status: {is_set: true, min_length: 4, retries: 7},
+      };
+      call = (method, args = {}) => {
+        calls.push({method, args: structuredClone(args)});
+        if (method === wanted) return new Promise((resolve, reject) => { pending = {resolve, reject}; });
+        return Promise.resolve(states[method] || {});
+      };
+      const arm = method => { calls.length = 0; wanted = method; pending = null; };
+      const fill = (form, fields) => {
+        for (const [selector, value] of Object.entries(fields)) {
+          const input = form.querySelector(selector);
+          input.defaultValue = value; input.value = value;
+        }
+      };
+      const submit = form => form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+      const cleared = form => [...form.querySelectorAll(SECRET_INPUTS)].every(input => input.value === '' && input.defaultValue === '');
+      const fail = () => pending.reject(Object.assign(new Error('Synthetic cancellation'), {data: {code: 'cancelled'}}));
+
+      renderSecurity(token);
+      let form = document.querySelector('.att-pin-form');
+      fill(form, {'.att-pin': 'synthetic-pin'}); arm('attestation_rerun'); submit(form);
+      check('attestation PIN cleared before reply', cleared(form));
+      check('attestation receives captured PIN once', calls.length === 1 && calls[0].args.pin === 'synthetic-pin');
+      check('PIN and UV submit disabled while waiting', form.querySelector('button[type=submit]').disabled && $('att-uv').disabled);
+      // A poll may replace the form while its original request is still running.
+      renderSecurity(token); form = document.querySelector('.att-pin-form');
+      fill(form, {'.att-pin': 'second-pin'}); submit(form);
+      check('rerender does not bypass duplicate guard', calls.length === 1);
+      fail(); await flush(); submit(form);
+      check('error permits a deliberate retry', calls.length === 2 && calls[1].args.pin === 'second-pin');
+      pending.resolve({}); await flush();
+
+      const cases = [
+        ['OATH unlock', 'oath_unlock', () => { oathState = {unlocked: false}; renderOath(); }, '#oath-content form', {'.oath-password': 'synthetic-password'}, 'password'],
+        ['OATH URI', 'oath_add', () => { oathState = states.oath; oathForm = 'add'; renderOath(); }, '.oath-add-form', {'.oath-uri': 'otpauth://totp/Test?secret=JBSWY3DPEHPK3PXP'}, 'uri'],
+        ['OATH password', 'oath_password', () => { oathState = states.oath; oathForm = 'password'; renderOath(); }, '.oath-password-form', {'.oath-pw-new': 'synthetic-password', '.oath-pw-confirm': 'synthetic-password'}, 'password'],
+        ['PIV PIN', 'piv_change_pin', () => { pivState = states.piv; pivForm = 'pin'; renderPiv(); }, '#piv-content form', {'.piv-current': 'old-pin', '.piv-new': 'new-pin', '.piv-confirm': 'new-pin'}, 'current'],
+        ['OpenPGP PIN', 'openpgp_change_pin', () => { pgpState = states.openpgp; pgpForm = 'pin'; renderPgp(); }, '#pgp-content form', {'.pgp-current': 'old-pin', '.pgp-new': 'new-pin', '.pgp-confirm': 'new-pin'}, 'current'],
+        ['OTP HMAC', 'otp_hmac', () => { otpState = states.otp; otpForm = 'hmac:2'; renderOtp(); }, '#otp-content form', {'.otp-secret': '00112233445566778899', '.otp-acc': '001122334455'}, 'secret'],
+      ];
+      for (const [name, method, renderForm, selector, fields, arg] of cases) {
+        renderForm(); form = document.querySelector(selector); fill(form, fields); arm(method);
+        submit(form); submit(form);
+        check(name + ': captured once', calls.filter(c => c.method === method).length === 1 && !!calls[0].args[arg]);
+        check(name + ': fields cleared while pending', cleared(form));
+        check(name + ': submit disabled while pending', form.querySelector('button[type=submit]').disabled);
+        form.reset(); check(name + ': reset cannot restore secret', cleared(form));
+        fail(); await flush();
+        check(name + ': operation guard released after error', pendingSecretSubmissions.size === 0);
+      }
+
+      // FIDO PIN form also covers its "show PIN" text-input state.
+      pinState = states.pin_status; form = $('pin-form'); setPinVisible(true);
+      fill(form, {'#pin-current': 'old-pin', '#pin-new': 'new-pin', '#pin-confirm': 'new-pin'});
+      arm('pin_update'); submit(form); submit(form);
+      check('FIDO PIN captured once and visible fields cleared', calls.length === 1 && cleared(form));
+      fail(); await flush();
+      check('FIDO PIN retry remains available', !$('pin-submit').disabled && pendingSecretSubmissions.size === 0);
+
+      // Closing a form clears its old DOM nodes too, not just the replacement page.
+      oathState = states.oath; oathForm = 'add'; renderOath(); form = document.querySelector('.oath-add-form');
+      fill(form, {'.oath-secret': 'synthetic-secret'});
+      form.querySelector('[data-act=hide-form]').click();
+      check('cancel clears detached secret inputs', cleared(form) && !form.isConnected);
+
+      otpState = states.otp; otpForm = 'hmac:2'; renderOtp(); form = document.querySelector('#otp-content form');
+      arm('otp_hmac'); submit(form); selectedId = 'another-key';
+      pending.resolve({...states.otp, secret: 'late-generated-secret'}); await flush();
+      check('late OTP secret never enters another key view', otpSecret === null);
+      selectedId = token.id; otpSecret = 'one-time-secret';
+      resetViewState(); check('leaving a key drops one-time OTP secret', otpSecret === null);
+
+      // Synchronous errors must release the form as well; public fields survive.
+      form = uiElement('form', {}, fieldNode('private', 'PIN'), fieldNode('public', 'Name', 'text', 'Keep name'),
+        uiElement('button', {type: 'submit', disabled: true}, 'Submit'));
+      fill(form, {'.private': 'synthetic-secret'});
+      try { await secretSubmission('throwing', token.id, form, () => { throw new Error('Synthetic failure'); }); } catch { /* expected */ }
+      check('synchronous failure clears secret and preserves existing control state', cleared(form)
+        && form.querySelector('button').disabled && !form.querySelector('.private').disabled
+        && form.querySelector('.public').value === 'Keep name' && pendingSecretSubmissions.size === 0);
+      stopOathTimer();
+      return results;
+    });
+    assert(results.every(r => r.ok), JSON.stringify(results.filter(r => !r.ok)));
+    console.log(`Secret forms: ${results.length} production DOM checks passed`);
+  } finally {
+    if (browser) await browser.close();
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+}
+const timer = setTimeout(() => { killAll(); process.exit(1); }, 60000);
+main().then(() => clearTimeout(timer)).catch(error => { clearTimeout(timer); killAll(); console.error(error); process.exitCode = 1; });

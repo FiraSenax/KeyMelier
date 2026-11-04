@@ -15,8 +15,16 @@ copies. Keep the v1 sync/export formats and update paths compatible. Complete CI
 package/signing checks and the [security hardware checklist](HARDWARE_TESTS.md#188-security-release-checklist)
 before stable; automated probes do not replace real-key validation.
 
-**After 1.8.8:** take independently reviewable secret-lifetime and bridge-contract
+RC4 updates compatible dependencies and fixes privacy cleanup of the retained
+plaintext migration source. RC5 tightens sensitive form lifetimes and duplicate
+submission handling, and adds the 1.8.7 upgrade probe to packaged self-tests.
+Complete the native credential-store/installer and real-key acceptance pass
+before stable; keep the remaining scope limited to demonstrated regressions.
+
+**After 1.8.8:** take independently reviewable remaining secret-lifetime and bridge-contract
 improvements in maintenance releases. Key identity remains the larger 1.9 feature.
+Narrow on-demand PIN-token permissions (I1) are a 1.8.9 follow-up with separate
+PIN/fingerprint/authenticator compatibility testing.
 **Windows privilege separation is planned for 1.9 or later**, with its own design
 and RC cycle; it is not part of 1.8.8/1.8.9 stabilization. No fixed delivery date.
 

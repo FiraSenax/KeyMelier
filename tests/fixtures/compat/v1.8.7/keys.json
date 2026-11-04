@@ -1,0 +1,16 @@
+{
+ "tag": "v1.8.7",
+ "keys": {
+  "A": "f39fddf49252f89d",
+  "B": "9b1d764dbb8bdfcc",
+  "C": "925172ec8291477d",
+  "D": "e5b964c5866d5193"
+ },
+ "features": {
+  "probe": true,
+  "replace": true,
+  "sync": true,
+  "onboarding": true
+ },
+ "source_commit": "2237689db9f3bbfb33309e6075d819bd9b1d689e"
+}

@@ -16,6 +16,7 @@ devices.
 | `node --check static/*.js` | Every UI script parses | CI job `test` |
 | `node tests/ui/ui_test.cjs` | The real UI page on demo data in headless Chrome, driven with **real keyboard and mouse input** (DevTools protocol): navigation, filters, search, menus, dialogs and focus, guided replacement, error message when a key is pulled out while reading, no page errors | CI job `ui` (Ubuntu) – required for the builds |
 | `node tests/ui/csp_test.cjs` | The production CSP loads the hashed application scripts, blocks injected script elements and event handlers, permits evaluation required by the pinned bridge, and keeps hostile PIV/OpenPGP/OTP values literal across all form variants | CI job `ui` (Ubuntu) |
+| `node tests/ui/secret_forms.cjs` | Production forms clear submitted secrets before delayed replies, block duplicate requests across rerenders, permit retries, clear cancelled fields and discard an OTP secret returned for a different/removed key; synthetic backend replies | CI job `ui` (Ubuntu) |
 | `python -m unittest tests.test_native_ui tests.test_native_consent` | Native callback contracts and request/device binding; real WebViews reject file/data navigation. macOS checks the Cancel default; Windows/Qt exercise Enter, Escape and close. Clipboard probes use synthetic data (a private pasteboard locally on macOS, the disposable CI clipboard elsewhere) | CI job `test`; Linux additionally runs `xvfb-run -a python tests/native_ui_probe.py` |
 | `node tests/ui/ui_stress.cjs` | The UI under load and in tight layouts: demo page `#stress` (12 keys in every state, 300+ accounts, several per service, very long German and Japanese names – `tools/demo_stress.js`, fixed seed) at 1280×800 and the minimum window size 820×560, in English, German and Japanese, light and dark: search and category filters show exactly the rows of the account model, focus and caret stay while typing, header row and account column stay sticky and aligned while the matrix scrolls, no page-wide horizontal overflow (scrolling inside the matrix is intended), buttons not cut off or covered, dialogs inside the window, text contrast ≥ 4.5:1, search/filter response under 400 ms (median of 7; about 20–70 ms locally), no page errors. Screenshot per failed scenario + browser log | CI job `ui` (Ubuntu) |
 | `python tools/smoke_packaged.py` | The **built app** from `dist/` starts its real window in a temporary home (no key access, no network) and checks runtime libraries, bundled data, translations, icons, CSS, the page ↔ backend bridge and blocked file/data navigation; on Linux the AppImage itself under Xvfb with a D-Bus session and an unlocked Secret Service | CI jobs `build-macos`, `build-windows`, `build-linux` (x86_64, aarch64) after building/signing |
@@ -89,15 +90,32 @@ Useful switches: `UI_TIMEOUT_MS`, `UI_ARTIFACTS`, `SMOKE_TIMEOUT`,
 ## Upgrade compatibility
 
 `tests/fixtures/compat/<tag>/` holds `history.json` and `settings.json`
-written **by the code of that release** (v1.4.0, v1.5.0, v1.6.0, v1.6.1, v1.7.0) with
+written **by the code of that release** (v1.4.0, v1.5.0, v1.6.0, v1.6.1, v1.7.0,
+v1.8.0 and v1.8.7) with
 fictional keys: labels, listed and searched passkeys, authenticator
 accounts, a lost key with a ticked service, a running key replacement with
 progress, settings and (1.6+) a sync id. `tests/test_upgrade_compat.py`
 checks that the current code keeps their meaning, that load/save/load is
-stable, and that stateless mode and a switched-off history leave the files
-untouched. No data migration is needed today.
+stable, and that stateless mode and disabled history do not rewrite old data
+merely by opening it. An explicit account-tracking opt-out also scrubs saved
+contents when history is disabled.
 
-After a release, add its data: `venv/bin/python tools/make_compat_fixtures.py v1.8.0`
+1.8.8 migrates an enabled plaintext history into `history.encrypted`, retaining
+the original until an account-tracking opt-out also scrubs its content details.
+The 1.8.7 fixture records its source commit, `2237689db9f3bbfb33309e6075d819bd9b1d689e`.
+`keymelier_core.upgrade_probe.verify_upgrade` checks migration, restart, a locked
+credential store, recovery, disabled-history privacy cleanup, re-enabling history
+and retry after a backup write failure. Labels, key IDs and unrelated settings
+must survive, including the sync identity. It uses the real storage/service code
+with a synthetic credential store in a disposable directory, without accessing
+the host keyring or configured sync folder.
+
+The same fixture/probe is bundled and run by `--self-test` inside the actual
+macOS, Windows and both Linux packages (also in the Linux compatibility matrix).
+This verifies packaged migration code; it does not install over an existing app
+or test native credential-store permissions, lock dialogs or recovery prompts.
+
+After a release, add its data: `venv/bin/python tools/make_compat_fixtures.py <tag>`
 (or without arguments for the default list) and commit the new folder.
 
 This covers the **data**. Installing a new version over an old one is a

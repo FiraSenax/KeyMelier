@@ -133,6 +133,10 @@ jobs:
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: node tests/ui/csp_test.cjs
+      - name: Sensitive forms and duplicate-submission protection
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: node tests/ui/secret_forms.cjs
       - name: UI under load (300+ accounts, minimum window size, light/dark)
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}

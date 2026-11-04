@@ -6,6 +6,12 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC5 input hardening and upgrade validation (2026-11-04):
+
+- Clear submitted PIN/password fields and OATH/OTP secret inputs before waiting for the device, including their form-reset defaults. Block duplicate submissions for the same form operation and key while a request is pending; permit a deliberate retry after it finishes. A failed operation requires re-entering the secret.
+- Clear sensitive form inputs on cancellation/key changes, drop the one-time OTP secret when leaving its key and discard an OTP result arriving after selection changes or disconnection. These are reference-lifetime improvements, not guaranteed memory zeroization.
+- Add an upgrade fixture produced by the published 1.8.7 code and run migration, restart, locked-store recovery, privacy opt-out and failed-cleanup retry checks inside every packaged app's self-test. The credential store is simulated; real desktop/keyring and hardware acceptance remain separate.
+
 RC4 dependency and privacy updates (2026-11-01):
 
 - Update the release runtime to Python 3.14.10 on all platforms, including its current SSL fixes; update the certificate bundle, PyObjC, smart-card bindings, date/time dependencies and build tools to their latest compatible stable releases. Keep Qt 6.11.3 until a PySide release fixes Qt 6.12.0's CVE-2026-105924; this also holds Python below 3.15.
