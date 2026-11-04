@@ -60,6 +60,11 @@ class UpgradeCompatTests(unittest.TestCase):
     def test_fixtures_exist_for_published_releases(self):
         self.assertGreaterEqual(len(TAGS), 5, TAGS)
         self.assertIn("v1.4.0", TAGS, "last release before the account model")
+        self.assertIn("v1.8.7", TAGS, "last stable release before default encryption")
+
+    def test_last_stable_upgrade_using_packaged_probe(self):
+        from keymelier_core.upgrade_probe import verify_upgrade
+        self.assertTrue(verify_upgrade(FIXTURES / 'v1.8.7'))
 
     def test_history_keeps_its_meaning(self):
         for tag in TAGS:

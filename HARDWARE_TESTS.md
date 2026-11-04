@@ -52,6 +52,7 @@ dialog and clipboard probes use synthetic data and are not hardware sign-off.
 | GnuPG/import | Known/custom supported GnuPG installations work. A relative/current-directory executable is not chosen. Valid UTF-8/BOM imports work; malformed/oversized files do not partially merge. | Not tested | Not tested | Not tested |
 | Clipboard | Copied test OATH code/OTP secret disappears after 30 seconds with app open. Copy different text (and the same text) in another app first: it remains. Certificate/public-key copies remain. Check desktop clipboard-manager behavior separately. | Not tested | Not tested | Not tested |
 | Migration privacy | With a disposable old plaintext history, migrate, then disable “Remember websites/accounts”. Both history files lose site/account details, including with history disabled; key labels remain. A locked source produces a warning and can be retried. | Not tested | Not tested | Not tested |
+| Sensitive forms (RC5) | During delayed PIN/password/OATH/OTP requests, submitted secret fields are empty and a second submit starts no additional request. After failure, explicitly re-enter and retry. Cancel/key change clears fields. A late generated OTP secret does not appear on another key. | Not tested | Not tested | Not tested |
 | Sync compatibility | Old/new app versions exchange v1 files; damaged peers do not block later healthy peers across rounds. Manual sync retries; repaired files merge. No file is deleted or acknowledged after a failed merge. | Not tested | Not tested | Not tested |
 
 **Stable gate:** all automated checks and signing checks pass for the exact
@@ -66,6 +67,29 @@ Linux desktops. The signed advisory database currently records review at
 2026-10-29 06:50:57 UTC: the 14-day release gate expires on 2026-11-12 at that
 time. Review new advisories and re-sign before a later release; do not only
 advance the timestamp or relax the gate.
+
+### Final 1.8.7 → 1.8.8 desktop upgrade pass
+
+Use a disposable OS user/profile with synthetic history and spare keys. Record
+the exact installed candidate and OS for each observation; do not copy private
+production history into a test report.
+
+1. Install 1.8.7, create synthetic history, labels and settings, then close it.
+2. Install the candidate over it. Verify labels/settings/sync identity, encrypted
+   history and the retained plaintext original; close and reopen the app.
+3. Lock or deny access to the **native** credential store. History/sync must be
+   blocked visibly without overwriting either file or reverting to plaintext.
+   Unlock the store and retry/restart; original entries must return.
+4. Disable “Websites/accounts merken” with history enabled and disabled. Check
+   both files, restart and re-enable history: removed account details stay gone.
+5. Make the retained plaintext source non-writable in this test profile. An
+   opt-out must show the cleanup warning; restore access and retry successfully.
+6. Run native consent and clipboard checks above on Windows/Linux desktops,
+   including identical text copied by another app. Use spare keys for destructive
+   operations and record unsupported features separately.
+
+The packaged RC5 upgrade probe automates the data transitions with a synthetic
+credential store. It does not mark any manual row above as Passed.
 
 ## Matrix
 

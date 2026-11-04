@@ -137,6 +137,7 @@ async function probeSubmit() {
   const root = $('quick-unlock');
   const pin = root.querySelector('.ql-pin')?.value || '';
   const extra = (root.querySelector('.ql-extra')?.value || '').split(/[\s,;]+/).filter(Boolean);
+  clearSecretInputs(root);
   quickUnlock = { ...quickUnlock, busy: true, error: null, done: 0, total: 0, run };
   renderQuickUnlock();
   try {
@@ -247,6 +248,7 @@ function stopUnlockWait() {
 }
 
 function closeQuickUnlock() {
+  clearSecretInputs($('quick-unlock'));
   stopUnlockWait();
   quickUnlock = null;
   renderQuickUnlock();
@@ -258,6 +260,7 @@ async function quickUnlockSubmit() {
   const run = {};
   const pin = $('quick-unlock').querySelector('.ql-pin')?.value || '';
   if (!pin) { quickUnlock.error = t('pin.v.current'); return renderQuickUnlock(); }
+  clearSecretInputs($('quick-unlock'));
   quickUnlock = { ...quickUnlock, busy: true, error: null, run };
   renderQuickUnlock();
   try {
@@ -298,9 +301,10 @@ async function quickLockToggle(id) {
 
 async function unlockKey(method) {
   const token = tokens.get(selectedId);
-  if (!token) return;
+  if (!token || unlockBusy) return;
   const pin = document.querySelector(`[data-pane="${activeTab}"] .unlock-pin`)?.value || '';
   if (method !== 'uv' && !pin) { unlockError = t('pin.v.current'); renderManagement(); return; }
+  clearSecretInputs(document.querySelector(`[data-pane="${activeTab}"]`));
   unlockBusy = method;
   unlockError = null;
   renderManagement();

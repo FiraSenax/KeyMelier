@@ -826,7 +826,8 @@ function renderSecurity(token) {
     }
   }
   $('sec-attestation').innerHTML = html;
-  const rerunWith = args => call('attestation_rerun', { token_id: token.id, ...args }).catch(e => showToast(errorMessage(e), 'error'));
+  const rerunWith = args => secretSubmission('attestation', token.id, $('sec-attestation'),
+    () => call('attestation_rerun', { token_id: token.id, ...args }).catch(e => showToast(errorMessage(e), 'error')));
   const rerun = $('att-rerun');
   if (rerun) rerun.onclick = () => rerunWith({});
   const uvBtn = $('att-uv');
@@ -834,6 +835,7 @@ function renderSecurity(token) {
   const pinForm = $('sec-attestation').querySelector('.att-pin-form');
   if (pinForm) pinForm.onsubmit = ev => {
     ev.preventDefault();
+    if (secretSubmissionPending('attestation', token.id)) return;
     const pin = pinForm.querySelector('.att-pin').value;
     if (!pin) return showToast(t('pin.v.current'), 'error');
     rerunWith({ pin });
@@ -883,6 +885,8 @@ function renderDetails(token) {
 // ── Navigation ──────────────────────────────────────────────────────────────
 
 function resetViewState() {
+  clearSecretInputs(document);
+  clearOtpSecret();
   pinState = null;
   pkState = null;
   fpState = null;
@@ -922,6 +926,8 @@ async function loadCardApps(token) {
 
 function selectToken(id) {
   if (id === selectedId && mainView === 'key') return;
+  clearSecretInputs(document);
+  clearOtpSecret();
   mainView = 'key';
   selectedId = id;
   selectedHist = null;
@@ -1377,7 +1383,7 @@ function onTokenConnected(token) {
 
 function onTokenDisconnected(data) {
   unlockedUntil.delete(data.id);
-  if (quickUnlock?.id === data.id) { quickUnlock = null; renderQuickUnlock(); }
+  if (quickUnlock?.id === data.id) { clearSecretInputs($('quick-unlock')); quickUnlock = null; renderQuickUnlock(); }
   cardApps.delete(data.id);
   cardRetries.delete(data.id);
   const token = tokens.get(data.id);

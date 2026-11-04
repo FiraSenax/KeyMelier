@@ -187,7 +187,7 @@ function initPgpPane() {
     if (act === 'reload' && token) return loadPgp(token);
     if (act === 'form') { pgpForm = b.dataset.form; pgpError = null; return renderPgp(); }
     if (act === 'touch') { pgpForm = `touch:${b.dataset.slot}`; pgpError = null; return renderPgp(); }
-    if (act === 'hide-form') { pgpForm = null; pgpError = null; return renderPgp(); }
+    if (act === 'hide-form') { clearSecretInputs(el); pgpForm = null; pgpError = null; return renderPgp(); }
     if (act === 'reset-ask') { pgpConfirmReset = true; return renderPgp(); }
     if (act === 'reset-cancel') { pgpConfirmReset = false; return renderPgp(); }
     if (act === 'reset') return pgpCall('openpgp_reset', { confirm: true }, 'pgp.reset.done');
@@ -212,20 +212,23 @@ function initPgpPane() {
   el.addEventListener('submit', ev => {
     ev.preventDefault();
     const f = ev.target;
-    const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
-    const form = f.dataset.form;
-    if (['pin', 'admin', 'unblock'].includes(form) && val('pgp-new') !== val('pgp-confirm')) {
-      pgpError = t('pin.v.mismatch'); return renderPgp();
-    }
-    if (form === 'pin' || form === 'admin') {
-      return pgpCall('openpgp_change_pin', { which: form === 'admin' ? 'admin' : 'user', current: val('pgp-current'), new: val('pgp-new') }, 'pgp.saved');
-    }
-    if (form === 'unblock') return pgpCall('openpgp_unblock_pin', { admin_pin: val('pgp-admin'), new_pin: val('pgp-new') }, 'pgp.saved');
-    if (form === 'holder') return pgpCall('openpgp_cardholder', { name: val('pgp-name'), url: val('pgp-url'), admin_pin: val('pgp-admin') }, 'pgp.saved');
-    if (form === 'sigpin') return pgpCall('openpgp_signature_pin', { every_time: f.querySelector('.pgp-sigpin').checked, admin_pin: val('pgp-admin') }, 'pgp.saved');
-    if (form === 'generate') return pgpGenerate(f);
-    if (form?.startsWith('touch:')) {
-      return pgpCall('openpgp_touch', { slot: form.slice(6), policy: val('pgp-touch'), admin_pin: val('pgp-admin') }, 'pgp.saved');
-    }
+    if (!tokens.has(selectedId)) return;
+    return secretSubmission('openpgp', selectedId, f, () => {
+      const val = cls => f.querySelector(`.${cls}`)?.value ?? '';
+      const form = f.dataset.form;
+      if (['pin', 'admin', 'unblock'].includes(form) && val('pgp-new') !== val('pgp-confirm')) {
+        pgpError = t('pin.v.mismatch'); return renderPgp();
+      }
+      if (form === 'pin' || form === 'admin') {
+        return pgpCall('openpgp_change_pin', { which: form === 'admin' ? 'admin' : 'user', current: val('pgp-current'), new: val('pgp-new') }, 'pgp.saved');
+      }
+      if (form === 'unblock') return pgpCall('openpgp_unblock_pin', { admin_pin: val('pgp-admin'), new_pin: val('pgp-new') }, 'pgp.saved');
+      if (form === 'holder') return pgpCall('openpgp_cardholder', { name: val('pgp-name'), url: val('pgp-url'), admin_pin: val('pgp-admin') }, 'pgp.saved');
+      if (form === 'sigpin') return pgpCall('openpgp_signature_pin', { every_time: f.querySelector('.pgp-sigpin').checked, admin_pin: val('pgp-admin') }, 'pgp.saved');
+      if (form === 'generate') return pgpGenerate(f);
+      if (form?.startsWith('touch:')) {
+        return pgpCall('openpgp_touch', { slot: form.slice(6), policy: val('pgp-touch'), admin_pin: val('pgp-admin') }, 'pgp.saved');
+      }
+    });
   });
 }

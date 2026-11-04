@@ -195,7 +195,7 @@ async function oathAction(act, id, el) {
   if (act === 'reload') return loadOath(token);
   if (act === 'show-add') { oathForm = 'add'; oathError = null; return renderOath(); }
   if (act === 'show-password') { oathForm = 'password'; oathError = null; return renderOath(); }
-  if (act === 'hide-form') { oathForm = null; return renderOath(); }
+  if (act === 'hide-form') { clearSecretInputs($('oath-content')); oathForm = null; return renderOath(); }
   if (act === 'edit') { oathEdit = id; oathConfirm = null; return renderOath(); }
   if (act === 'edit-cancel') { oathEdit = null; return renderOath(); }
   if (act === 'ask-delete') { oathConfirm = id; oathEdit = null; return renderOath(); }
@@ -270,32 +270,35 @@ function initOathPane() {
   el.addEventListener('submit', ev => {
     ev.preventDefault();
     const f = ev.target;
-    if (f.classList.contains('oath-unlock-form')) {
-      const token = tokens.get(selectedId);
-      return call('oath_unlock', { token_id: token.id, password: f.querySelector('.oath-password').value })
-        .then(st => { oathState = st; oathError = null; renderOath(); startOathTimer(token); })
-        .catch(e => { oathError = errorMessage(e); renderOath(); });
-    }
-    if (f.classList.contains('oath-add-form')) {
-      const uri = f.querySelector('.oath-uri').value.trim();
-      return oathCall('oath_add', uri ? { uri, touch: f.querySelector('.oath-touch').checked } : {
-        issuer: f.querySelector('.oath-issuer').value, name: f.querySelector('.oath-name').value,
-        secret: f.querySelector('.oath-secret').value.replace(/\s+/g, ''),
-        oath_type: f.querySelector('.oath-type').value, digits: Number(f.querySelector('.oath-digits').value),
-        algorithm: f.querySelector('.oath-algorithm').value, period: Number(f.querySelector('.oath-period').value),
-        counter: Number(f.querySelector('.oath-counter').value),
-        touch: f.querySelector('.oath-touch').checked,
-      }, 'oath.added');
-    }
-    if (f.classList.contains('oath-rename-form')) {
-      return oathCall('oath_rename', { account_id: f.dataset.id, issuer: f.querySelector('.oath-rename-issuer').value,
-        name: f.querySelector('.oath-rename-name').value }, 'oath.renamed');
-    }
-    if (f.classList.contains('oath-password-form')) {
-      const a = f.querySelector('.oath-pw-new').value, b = f.querySelector('.oath-pw-confirm').value;
-      if (!a) { oathError = t('oath.pw.empty'); return renderOath(); }
-      if (a !== b) { oathError = t('pin.v.mismatch'); return renderOath(); }
-      return oathCall('oath_password', { password: a }, 'oath.pw.saved');
-    }
+    if (!tokens.has(selectedId)) return;
+    return secretSubmission('oath', selectedId, f, () => {
+      if (f.classList.contains('oath-unlock-form')) {
+        const token = tokens.get(selectedId);
+        return call('oath_unlock', { token_id: token.id, password: f.querySelector('.oath-password').value })
+          .then(st => { oathState = st; oathError = null; renderOath(); startOathTimer(token); })
+          .catch(e => { oathError = errorMessage(e); renderOath(); });
+      }
+      if (f.classList.contains('oath-add-form')) {
+        const uri = f.querySelector('.oath-uri').value.trim();
+        return oathCall('oath_add', uri ? { uri, touch: f.querySelector('.oath-touch').checked } : {
+          issuer: f.querySelector('.oath-issuer').value, name: f.querySelector('.oath-name').value,
+          secret: f.querySelector('.oath-secret').value.replace(/\s+/g, ''),
+          oath_type: f.querySelector('.oath-type').value, digits: Number(f.querySelector('.oath-digits').value),
+          algorithm: f.querySelector('.oath-algorithm').value, period: Number(f.querySelector('.oath-period').value),
+          counter: Number(f.querySelector('.oath-counter').value),
+          touch: f.querySelector('.oath-touch').checked,
+        }, 'oath.added');
+      }
+      if (f.classList.contains('oath-rename-form')) {
+        return oathCall('oath_rename', { account_id: f.dataset.id, issuer: f.querySelector('.oath-rename-issuer').value,
+          name: f.querySelector('.oath-rename-name').value }, 'oath.renamed');
+      }
+      if (f.classList.contains('oath-password-form')) {
+        const a = f.querySelector('.oath-pw-new').value, b = f.querySelector('.oath-pw-confirm').value;
+        if (!a) { oathError = t('oath.pw.empty'); return renderOath(); }
+        if (a !== b) { oathError = t('pin.v.mismatch'); return renderOath(); }
+        return oathCall('oath_password', { password: a }, 'oath.pw.saved');
+      }
+    });
   });
 }

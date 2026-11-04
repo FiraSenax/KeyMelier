@@ -70,6 +70,7 @@ a = Analysis(
         ('static',        'static'),
         ('data',          'data'),
         ('keymelier_core','keymelier_core'),
+        ('tests/fixtures/compat/v1.8.7', 'selftest/upgrade-v1.8.7'),
         ('LICENSE', '.'),
     ],
     hiddenimports=[
