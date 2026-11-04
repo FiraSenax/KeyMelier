@@ -111,7 +111,10 @@ async function main() {
       pending.resolve({...states.otp, secret: 'late-generated-secret'}); await flush();
       check('late OTP secret never enters another key view', otpSecret === null);
       selectedId = token.id; otpSecret = 'one-time-secret';
-      resetViewState(); check('leaving a key drops one-time OTP secret', otpSecret === null);
+      renderOtp();
+      const oldSecret = document.querySelector('#otp-content .pgp-fp');
+      resetViewState();
+      check('leaving a key clears one-time OTP secret from state and old DOM', otpSecret === null && oldSecret.textContent === '');
 
       // Synchronous errors must release the form as well; public fields survive.
       form = uiElement('form', {}, fieldNode('private', 'PIN'), fieldNode('public', 'Name', 'text', 'Keep name'),

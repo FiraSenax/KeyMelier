@@ -8,6 +8,15 @@ let otpForm = null;        // 'static:<n>' | 'hmac:<n>' | 'delete:<n>'
 let otpError = null;
 let otpSecret = null;      // challenge-response secret to show once
 
+function clearOtpSecret() {
+  otpSecret = null;
+  const value = $('otp-content')?.querySelector('[data-otp-secret]');
+  if (value) {
+    value.textContent = '';
+    value.closest('.callout')?.remove();
+  }
+}
+
 function renderOtp() {
   const el = $('otp-content');
   if (!el) return;
@@ -29,7 +38,7 @@ function renderOtp() {
   if (otpSecret) {
     parts.push(uiElement('div', {class: 'callout warn'}, uiElement('div', {class: 'callout-title'}, t('otp.secret.title')),
       uiElement('div', {class: 'callout-text'}, t('otp.secret.text')),
-      uiElement('div', {class: 'pgp-fp'}, (otpSecret.match(/.{1,4}/g) || []).join(' ')),
+      uiElement('div', {class: 'pgp-fp', 'data-otp-secret': true}, (otpSecret.match(/.{1,4}/g) || []).join(' ')),
       uiElement('div', {class: 'form-actions att-actions'}, actionButton('copy-secret', t('otp.secret.copy')),
         actionButton('secret-done', t('otp.secret.done'), 'btn btn-primary'))));
   }
@@ -105,7 +114,7 @@ function initOtpPane() {
     if (act === 'hide-form') { clearSecretInputs(el); otpForm = null; otpError = null; return renderOtp(); }
     if (act === 'swap') return otpCall('otp_swap', {}, 'otp.swapped');
     if (act === 'copy-secret') return copyText(otpSecret, 'oath.copied', true);
-    if (act === 'secret-done') { otpSecret = null; return renderOtp(); }
+    if (act === 'secret-done') { clearOtpSecret(); return renderOtp(); }
   });
   el.addEventListener('submit', ev => {
     ev.preventDefault();

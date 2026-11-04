@@ -886,7 +886,7 @@ function renderDetails(token) {
 
 function resetViewState() {
   clearSecretInputs(document);
-  otpSecret = null;
+  clearOtpSecret();
   pinState = null;
   pkState = null;
   fpState = null;
@@ -927,7 +927,7 @@ async function loadCardApps(token) {
 function selectToken(id) {
   if (id === selectedId && mainView === 'key') return;
   clearSecretInputs(document);
-  otpSecret = null;
+  clearOtpSecret();
   mainView = 'key';
   selectedId = id;
   selectedHist = null;
