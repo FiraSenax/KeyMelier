@@ -18,9 +18,18 @@ CI: https://github.com/FiraSenax/KeyMelier/actions/runs/42105490704
   the RC7 commit/tag. Installed uninstaller signature Valid.
 - Local elevated packaged start test: **63/63 passed**, exit 0, isolated profile.
   Evidence: `build/qa-rc7/smoke/`, `smoke.stdout.log`, `signatures.json`.
-- Owner reports TOKEN2 attestation fails in the current app. Exact failing step
-  and message are still awaited; do not mark packaged TOKEN2 attestation Passed
-  based on the earlier offline evidence recheck.
+- TOKEN2 PIN Plus attestation: **Passed (owner-reported actual RC7 UI result)**.
+  All seven checks passed, packed format; AAGUID
+  `eabb46cc-e241-80bf-ae9e-96fa6d2975cf` matches in getInfo and authData;
+  signature/profile, request binding, presence and certificate model binding
+  passed. Chain valid to `token2.com`. A preliminary failure report had no
+  captured details; the requested repeat produced this complete passing result.
+- TOKEN2 native reset consent: **Passed (owner-reported RC7)**. Correct action
+  and target; Enter with default selection, Escape and window close each cancel
+  without arming reset. Disconnect/reconnect while the dialog is open invalidates
+  the old acceptance; fresh Read key succeeds with the unchanged PIN. A fresh
+  accepted reset request was disarmed before unplugging; another request showed
+  a new native confirmation. No actual reset was performed in these RC7 tests.
 
 Earlier owner-reported TOKEN2 reset/PIN/read and Feitian K33 PIN-assisted
 attestation/read results retain their RC5 scope; see WINDOWS_QA_RC5.md.
@@ -48,8 +57,9 @@ The nine manual rows in HARDWARE_TESTS.md are not automatically satisfied by CI.
 Prioritize actual native consent cancellation/single-use/device-switch checks,
 clipboard expiry and other-app ownership, and installed 1.8.7 upgrade/restart/
 native credential-store denial/recovery/privacy checks. Windows Sandbox is not
-installed on this host; a disposable Windows account or VM is needed for safe
-native credential-store denial testing. No production credential-store changes
+installed on this host; the owner confirms no disposable Windows account or VM
+is available for native credential-store denial testing. This part is blocked
+on a separate test environment. No production credential-store changes
 have been made for this test.
 
 Actual GnuPG/import dialogs, real-device rendering and delayed sensitive forms,
