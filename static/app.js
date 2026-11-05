@@ -406,6 +406,7 @@ function tileHtml({ cls, iconName, label, value, sub, tab, view, primary }) {
 
 function policySourceWarning(token) {
   if (token.offline) return '';
+  if (dataStatus?.advisories?.policy_config_error) return t('data.policy.configError');
   const names = (dataStatus?.advisories?.policy || [])
     .filter(source => source.status === 'unreachable').map(source => source.name);
   return names.length ? t('chk.policyUnreachable', { names: names.join(', ') }) : '';
@@ -1050,6 +1051,7 @@ function renderDataStatus() {
   el.innerHTML = buildKv([
     [t('data.advisories'), adv.updated ? fmtDate(adv.updated) : t('data.none')],
     [t('data.source'), t(`data.source.${adv.source || 'none'}`)],
+    ...(adv.policy_config_error ? [[t('data.policy'), t('data.policy.configError')]] : []),
     ...(adv.policy || []).map((p, i) => [i ? '' : t('data.policy'),
       t(`data.policy.${['ok', 'invalid', 'unreachable'].includes(p.status) ? p.status : 'pending'}`, { name: p.name, n: p.count })]),
     ...(adv.policy?.length ? [['', t('data.policy.hint')]] : []),

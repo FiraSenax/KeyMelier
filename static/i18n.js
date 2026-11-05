@@ -4951,6 +4951,21 @@ const I18N_POLICY_UNREACHABLE = {
 };
 for (const [code, text] of Object.entries(I18N_POLICY_UNREACHABLE)) STRINGS[code]['chk.policyUnreachable'] = text;
 
+const I18N_POLICY_CONFIG_ERROR = {
+  de: 'Die Unternehmensrichtlinie für Sicherheitshinweise ist unvollständig oder nicht lesbar. Eine vollständige Bewertung ist nicht möglich. Bitte die IT um Korrektur bitten und KeyMelier danach neu starten.',
+  en: 'The company advisory policy is incomplete or unreadable. A complete assessment is not possible. Ask your IT team to correct it, then restart KeyMelier.',
+  es: 'La directiva de avisos de la empresa está incompleta o no se puede leer. No es posible una evaluación completa. Pide a TI que la corrija y después reinicia KeyMelier.',
+  fr: 'La stratégie des avis de sécurité de l’entreprise est incomplète ou illisible. Une évaluation complète est impossible. Demandez à votre service informatique de la corriger, puis redémarrez KeyMelier.',
+  it: 'Il criterio aziendale degli avvisi di sicurezza è incompleto o illeggibile. Non è possibile una valutazione completa. Chiedi al reparto IT di correggerlo, quindi riavvia KeyMelier.',
+  ja: '組織のセキュリティ情報ポリシーが不完全か、読み取れません。完全な評価はできません。IT 部門に修正を依頼し、その後 KeyMelier を再起動してください。',
+  ko: '조직의 보안 권고 정책이 불완전하거나 읽을 수 없습니다. 완전한 평가가 불가능합니다. IT 부서에 수정을 요청한 후 KeyMelier를 다시 시작하세요.',
+  nl: 'Het bedrijfsbeleid voor beveiligingsmeldingen is onvolledig of onleesbaar. Een volledige beoordeling is niet mogelijk. Vraag je IT-afdeling dit te corrigeren en start KeyMelier daarna opnieuw.',
+  pl: 'Firmowe zasady ostrzeżeń bezpieczeństwa są niekompletne lub nieczytelne. Pełna ocena nie jest możliwa. Poproś dział IT o poprawienie zasad, a następnie uruchom ponownie KeyMelier.',
+  pt: 'A política de avisos de segurança da organização está incompleta ou ilegível. Não é possível fazer uma avaliação completa. Pede à equipa de TI que a corrija e reinicia o KeyMelier.',
+  zh: '组织的安全公告策略不完整或无法读取，无法完成全面评估。请联系 IT 部门修正，然后重新启动 KeyMelier。',
+};
+for (const [code, text] of Object.entries(I18N_POLICY_CONFIG_ERROR)) STRINGS[code]['data.policy.configError'] = text;
+
 const I18N_LINUX = {
   de: {"upd.ready.linux": "Version {v} ist geladen; Signatur und Prüfsumme sind geprüft. „Öffnen“ zeigt den Ordner. Beende KeyMelier und starte die neue AppImage-Datei.", "ob.linux.title": "Zugriff auf Sicherheitsschlüssel unter Linux", "ob.linux.text": "Aktuelle Distributionen mit systemd erlauben den Zugriff auf FIDO-Schlüssel automatisch. Erscheint dein Schlüssel nicht, fehlen udev-Regeln – die Anleitung steht in der Dokumentation unter „Linux“. Für PIV, OpenPGP und die Codes muss außerdem pcscd laufen.", "ob.linux.keyring": "Das Sync-Passwort wird im Schlüsselbund des Desktops gespeichert (Secret Service, z. B. GNOME Schlüsselbund oder KWallet). Ohne Schlüsselbund funktioniert alles außer dem Sync.", "empty.linux": "Linux: Erscheint dein Schlüssel nicht, fehlen meist udev-Regeln (siehe Dokumentation, Abschnitt Linux).", "sync.err.sync_no_keyring": "Auf diesem Computer gibt es keinen Schlüsselbund, in dem das Passwort sicher gespeichert werden kann (Linux: GNOME Schlüsselbund, KWallet oder KeePassXC mit Secret Service)."},
   en: {"upd.ready.linux": "Version {v} is downloaded; its signature and checksum are verified. Open shows the folder. Quit KeyMelier and start the new AppImage.", "ob.linux.title": "Access to security keys on Linux", "ob.linux.text": "Current distributions with systemd allow access to FIDO keys automatically. If your key does not appear, udev rules are missing – see “Linux” in the documentation. For PIV, OpenPGP and codes, pcscd must be running as well.", "ob.linux.keyring": "The sync password is kept in the desktop keyring (Secret Service, e.g. GNOME Keyring or KWallet). Without a keyring everything works except sync.", "empty.linux": "Linux: if your key does not appear, udev rules are usually missing (see the documentation, section Linux).", "sync.err.sync_no_keyring": "This computer has no keyring to store the passphrase securely (Linux: GNOME Keyring, KWallet or KeePassXC with Secret Service)."},
