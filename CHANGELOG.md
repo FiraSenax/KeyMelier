@@ -6,6 +6,11 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC7 Linux release-build correction (2026-11-05):
+
+- Refresh the three Ubuntu PCRE2 runtime variants explicitly before Linux packaging, requiring the USN-8974-1 security fix. This prevents hosted-runner binaries from retaining a superseded version whose matching source is absent from the current source index; exact source/hash checks remain mandatory.
+- RC6's tag is retained for traceability. Its Windows and macOS builds passed, but missing matching PCRE2 sources stopped both Linux builds before a public RC6 release was created. RC7 includes the RC6 application fixes below.
+
 RC6 attestation compatibility and Windows QA (2026-11-05):
 
 - Accept self-signed X.509v1 attestation trust anchors from verified FIDO metadata when they lack extensions (observed with TOKEN2 PIN Plus). Continue validating the complete chain, dates, signatures, explicit constraints and model binding; strict MDS signing-certificate validation is unchanged.
