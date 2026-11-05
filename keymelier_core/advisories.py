@@ -112,7 +112,8 @@ class AdvisoryChecker:
         self.document: Optional[dict] = None
         self.source = "none"
         # Managed sources (company policy): name -> state; they only ever add findings
-        self._sources = policy.advisory_sources() if policy_sources is None else policy_sources
+        self._sources, self._policy_config_error = (policy.advisory_configuration() if policy_sources is None
+                                                   else (policy_sources, False))
         self._extra: dict[str, dict] = {s["name"]: {"status": "pending", "document": None} for s in self._sources}
         if not stateless():
             for src in self._sources:
@@ -205,7 +206,7 @@ class AdvisoryChecker:
     def policy_is_current(self) -> bool:
         """Every configured source must have succeeded and still be fresh."""
         from keymelier_core import updates
-        return not self._loading_policy and all(state["status"] == "ok" and not state.get("dropped") and updates.is_fresh(state["document"])
+        return not self._policy_config_error and not self._loading_policy and all(state["status"] == "ok" and not state.get("dropped") and updates.is_fresh(state["document"])
                    for state in self._extra.values())
 
     def _merge(self):
@@ -254,6 +255,7 @@ class AdvisoryChecker:
             "source": self.source,
             "updated": (self.document or {}).get("updated"),
             "count": len(self._official),
+            "policy_config_error": self._policy_config_error,
             "policy": [{"name": s["name"], "status": self._extra[s["name"]]["status"],
                         "count": self._extra[s["name"]].get("count", 0),
                         "updated": (self._extra[s["name"]]["document"] or {}).get("updated")}

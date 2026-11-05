@@ -839,6 +839,14 @@ async function main() {
     assert(text.includes('Contoso') && text.includes('3') && text.includes('Lab'), text);
     assert(await js('!document.querySelector("input[name*=policy], [data-act*=policy]")'), 'no settings for the sources');
   });
+  await test('rejected company policy stays visible with no accepted sources and in all languages', async () => {
+    await js(`dataStatus.advisories.policy = []; dataStatus.advisories.policy_config_error = true; renderDataStatus();`);
+    assert((await js('$("data-status").textContent')).includes(await js("t('data.policy.configError')")), 'configuration failure visible without sources');
+    assert(await js("!!policySourceWarning({offline:false}) && !policySourceWarning({offline:true})"), 'live assessment explains missing policy');
+    assert(await js("Object.values(STRINGS).every(s => typeof s['data.policy.configError'] === 'string' && s['data.policy.configError'].includes('KeyMelier'))"), 'all translations include restart guidance');
+    await js('dataStatus.advisories.policy_config_error = false; renderDataStatus();');
+    assert(await js("!policySourceWarning({offline:false})"), 'correct policy has no configuration warning');
+  });
   await test('About names the build commit; the diagnostic report has the same full commit', async () => {
     const full = '4216033e9d042fa2a010ffeb0374756297418b09';
     await js(`appSettings.build = { signed: false, notarized: false, ci: true, commit: '${full}', modified: false }; openAbout();`);

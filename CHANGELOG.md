@@ -6,6 +6,11 @@
 
 Security release candidate; hardware validation is ongoing.
 
+Managed advisory configuration correction (2026-11-05):
+
+- Keep rejected or unreadable managed advisory configuration visible and prevent an incomplete assessment from reporting OK, including partial Windows registry enumeration. Valid sources and known warnings remain available; absent or explicitly empty configuration remains valid.
+- Explain configuration failures in all eleven languages, with IT correction and application restart guidance. Existing source-list, history, sync and export formats remain compatible.
+
 RC7 Linux release-build correction (2026-11-05):
 
 - Refresh the three Ubuntu PCRE2 runtime variants explicitly before Linux packaging, requiring the USN-8974-1 security fix. This prevents hosted-runner binaries from retaining a superseded version whose matching source is absent from the current source index; exact source/hash checks remain mandatory.

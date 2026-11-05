@@ -22,6 +22,14 @@ for it in the app.
 
 ## Where KeyMelier reads the configuration
 
+Rejected or unreadable configuration prevents an `OK` assessment, even when no
+valid company source remains. This includes partial registry reads, malformed or
+unprotected policy files, invalid entries, duplicate names and excess sources.
+Valid sources and known warnings remain available. A missing policy or an
+explicitly empty `AdvisorySources` list is valid. The Security tab explains the
+failure without exposing raw configuration; ask IT to correct it and restart
+KeyMelier to load the corrected configuration.
+
 | System | Location | Written by |
 |---|---|---|
 | Windows | `HKLM\SOFTWARE\Policies\KeyMelier\AdvisorySources\<Name>` | Group Policy, Intune, `.reg` |
