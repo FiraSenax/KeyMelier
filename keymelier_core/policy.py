@@ -162,7 +162,7 @@ def _valid_location(value) -> bool:
     if value.startswith("https://"):
         try:
             url = urlsplit(value)
-            return bool(url.hostname) and not url.username and not url.password and url.port != 0
+            return bool(url.hostname) and url.port != 0
         except ValueError:
             return False
     if "://" in value:
