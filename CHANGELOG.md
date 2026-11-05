@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refresh the three Ubuntu PCRE2 runtime variants explicitly before Linux packaging, requiring the USN-8974-1 security fix. This prevents hosted-runner binaries from retaining a superseded version whose matching source is absent from the current source index; exact source/hash checks remain mandatory.
+
 ## 1.8.8 — 2026-10-29
 
 Security release candidate; hardware validation is ongoing.

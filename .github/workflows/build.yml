@@ -422,12 +422,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3-venv python3-dev libpcsclite-dev swig squashfs-tools liblzma5 \
+            libpcre2-8-0 libpcre2-16-0 libpcre2-32-0 \
             libminizip1t64 libopus0 libsnappy1v5 \
             libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libegl1 libgl1 libopengl0 \
             libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2t64 libxkbfile1 libfontconfig1 \
             libdbus-1-3 libxshmfence1 libgbm1 \
             xvfb xauth imagemagick dbus-x11 gnome-keyring
+          # Hosted images can retain the superseded PCRE2 binary after its
+          # exact source version leaves the current index. Explicit installation
+          # above upgrades all collected PCRE2 variants, including USN-8974-1.
+          for package in libpcre2-8-0 libpcre2-16-0 libpcre2-32-0; do
+            version=$(dpkg-query -W -f='${Version}' "$package")
+            dpkg --compare-versions "$version" ge 10.42-4ubuntu2.2
+          done
       - name: Record signing state and source commit in the app (introduction, About, diagnostics)
         run: |
           python3 tools/write_build_info.py --signed false --ci
