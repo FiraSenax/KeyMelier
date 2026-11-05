@@ -6,6 +6,12 @@
 
 Security release candidate; hardware validation is ongoing.
 
+RC6 attestation compatibility and Windows QA (2026-11-05):
+
+- Accept self-signed X.509v1 attestation trust anchors from verified FIDO metadata when they lack extensions (observed with TOKEN2 PIN Plus). Continue validating the complete chain, dates, signatures, explicit constraints and model binding; strict MDS signing-certificate validation is unchanged.
+- Explain known certificate validity, CA, key-usage, path-length and critical-extension failures in attestation chain results. Cryptographically intact but invalid chains remain unverified; unknown errors use a safe generic reason.
+- Record Windows RC5 testing of TOKEN2 reset/PIN/read and Feitian K33 PIN-assisted attestation/read. The TOKEN2 correction passes an offline recheck of captured hardware evidence; packaged RC6 hardware acceptance and other manual release checks remain open.
+
 RC5 input hardening and upgrade validation (2026-11-04):
 
 - Clear submitted PIN/password fields and OATH/OTP secret inputs before waiting for the device, including their form-reset defaults. Block duplicate submissions for the same form operation and key while a request is pending; permit a deliberate retry after it finishes. A failed operation requires re-entering the secret.

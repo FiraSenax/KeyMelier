@@ -419,22 +419,25 @@ def _verify_chain_against_mds3(chain_certs: list[bytes], aaguid: str, mds3_clien
         intermediates = [x509.load_der_x509_certificate(c) for c in chain_certs[1:]]
 
         # Try to find which MDS3 root the chain leads to
+        failures = []
         for root in root_certs:
-            if _chain_validates(leaf, intermediates, root):
+            valid, reason = _chain_validation(leaf, intermediates, root)
+            if valid:
                 root_cn = _get_cn(root)
                 leaf_cn = _get_cn(leaf)
                 return True, (
                     f"Chain valid: leaf='{leaf_cn}' → root='{root_cn}' "
                     f"({len(chain_certs)} cert(s))"
                 )
+            failures.append((root, reason))
 
         # Signatures chain to a vendor root, but the certificate profile or
         # validity is unusual: not evidence of forgery, but not verified either
         from keymelier_core.certificates import chains_cryptographically
-        for root in root_certs:
+        for root, reason in failures:
             if chains_cryptographically(leaf, intermediates, root):
                 return None, (f"Chain to '{_get_cn(root)}' is cryptographically intact but does not meet "
-                              "the certificate profile or validity rules – not verified")
+                              f"the certificate profile or validity rules – not verified. Reason: {reason}")
 
         leaf_cn = _get_cn(leaf)
         return False, (
@@ -487,12 +490,16 @@ def _model_binding(fmt, leaf_der: bytes, aaguid_auth, expected_aaguid, mds3_clie
 
 def _chain_validates(leaf, intermediates: list, root) -> bool:
     """Validate time, signatures, CA/key usage, path length and critical extensions."""
-    from keymelier_core.certificates import validate_path
+    return _chain_validation(leaf, intermediates, root)[0]
+
+
+def _chain_validation(leaf, intermediates: list, root) -> tuple[bool, str]:
+    from keymelier_core.certificates import validate_path, validation_failure_reason
     try:
         validate_path(leaf, intermediates, root, strict=False)
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as error:
+        return False, validation_failure_reason(error)
 
 
 def _get_cn(cert) -> str:
