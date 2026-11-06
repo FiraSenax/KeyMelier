@@ -156,24 +156,29 @@ async function main() {
       // Exercise the actual tab loader: a read queued behind UV can report
       // busy. Once UV ends, reload the newly requested pane instead of keeping
       // its cached attestation-wait screen, without retrying authentication.
-      activeTab = 'settings'; cfgState = {...gate}; renderManagement(); arm('unlock');
-      const queuedUnlock = unlockKey('uv');
-      const normalCall = call;
-      let fingerprintReads = 0;
-      call = (method, args) => {
-        if (method === 'fingerprints') {
-          fingerprintReads++;
-          if (fingerprintReads === 1) return Promise.reject(Object.assign(new Error('Busy'), {data: {code: 'busy'}}));
-        }
-        return normalCall(method, args);
-      };
-      switchTab('fingerprints'); await flush();
-      check('tab read reports busy while UV owns the key', fpState?.busy && fingerprintReads === 1);
-      fail(); await queuedUnlock; await flush();
-      check('failed UV reloads the busy tab without another authentication attempt', fingerprintReads === 2
-        && !fpState?.busy && calls.filter(c => c.method === 'unlock').length === 1
-        && !document.querySelector('#fp-content .unlock-form button[type="submit"]').disabled);
-      call = normalCall;
+      for (const returnToOrigin of [false, true]) {
+        activeTab = returnToOrigin ? 'fingerprints' : 'settings';
+        cfgState = {...gate}; fpState = {...gate}; renderManagement(); arm('unlock');
+        const queuedUnlock = unlockKey('uv');
+        const normalCall = call;
+        let fingerprintReads = 0;
+        call = (method, args) => {
+          if (method === 'fingerprints') {
+            fingerprintReads++;
+            if (fingerprintReads === 1) return Promise.reject(Object.assign(new Error('Busy'), {data: {code: 'busy'}}));
+          }
+          return normalCall(method, args);
+        };
+        if (returnToOrigin) switchTab('settings');
+        switchTab('fingerprints'); await flush();
+        check(`tab read reports busy while UV owns the key (return=${returnToOrigin})`, fpState?.busy && fingerprintReads === 1);
+        fail(); await queuedUnlock; await flush();
+        check(`failed UV reloads busy tab without another authentication attempt (return=${returnToOrigin})`, fingerprintReads === 2
+          && !fpState?.busy && calls.filter(c => c.method === 'unlock').length === 1
+          && !document.querySelector('#fp-content .unlock-form button[type="submit"]').disabled
+          && !!document.querySelector('#fp-content .unlock-form .field-error') === returnToOrigin);
+        call = normalCall;
+      }
       activeTab = 'settings'; cfgState = {...gate}; renderManagement(); arm('unlock');
       const refused = unlockKey('uv');
       pending.reject(Object.assign(new Error('UV not permitted'), {data: {code: 'unsupported', reason: 'uv_unlock'}}));

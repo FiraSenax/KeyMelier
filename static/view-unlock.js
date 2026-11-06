@@ -323,18 +323,21 @@ async function unlockKey(method) {
   } catch (e) {
     unlockBusy = null;
     if (selectedId === token.id) {
+      const activeState = activeTab === 'passkeys' ? pkState : activeTab === 'fingerprints' ? fpState : cfgState;
+      if (activeTab !== scope || activeState?.busy) {
+        // A tab opened during the device call may have cached a busy response,
+        // including when the user left and returned to the original tab.
+        await loadManagement(token);
+      }
+      if (selectedId !== token.id) return;
       if (activeTab === scope) {
         if (e.data?.code === 'unsupported' && e.data.reason === 'uv_unlock') {
           const state = scope === 'passkeys' ? pkState : scope === 'fingerprints' ? fpState : cfgState;
           if (state) state.uv_unlock = false;
         }
         unlockError = errorMessage(e);
-        renderManagement();
-      } else {
-        // A tab opened during the device call may have cached a busy response.
-        // Complete that requested read after the unlock has released the key.
-        await loadManagement(token);
       }
+      renderManagement();
     }
   }
 }
