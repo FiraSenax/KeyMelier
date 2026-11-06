@@ -96,7 +96,10 @@ the original expiry timer. Other clipboard managers were not tested.
 The owner also confirmed that the native reset consent names the correct
 YubiKey/action and that the offered default-Enter/Escape/window-close
 cancellation paths safely abort before any unplug/reset prompt. No reset was
-performed. Stale-confirmation and single-use checks remain pending.
+performed. The owner subsequently confirmed that disconnecting/reconnecting
+invalidates an open confirmation, followed by a successful fresh Read key.
+Accepting a fresh reset request and cancelling before unplugging requires a new
+native confirmation on the next request. Both checks passed without a reset.
 
 ## Published Windows native import dialog
 
@@ -105,8 +108,12 @@ The installed RC8 was launched without elevation for file-import-only testing
 The owner selected a UTF-8 export and a UTF-8-with-BOM export through the native
 picker. Both imports succeeded, with literal markup/quotes in their labels.
 The two synthetic entries and exact labels were independently verified in the
-encrypted file. Malformed/oversized input and picker cancellation observations
-remain pending; their backend checks return the expected errors.
+encrypted file. The owner confirmed rejection of invalid UTF-8, malformed JSON
+and a file larger than 20 MB with errors while the app and both entries remained
+available. Picker cancellation also passed. The encrypted file remained
+byte-for-byte identical to the snapshot taken before these negative tests.
+The invalid UTF-8 case was repeated in the correct import window after the
+separate restricted-token GUI startup traceback caused initial confusion.
 Local evidence: `build/qa-import-20261106/`.
 
 ## Additional integration and regression checks
@@ -138,8 +145,8 @@ unsigned and has no release tag; it is not a signed replacement for RC8.
 
 ## Remaining scope
 
-Record pending native import and macOS consent observations separately. Do not
-turn the native credential integration test into a packaged UI pass. GnuPG's
+Windows native import and the listed macOS reset-consent checks are complete.
+Do not turn the native credential integration test into a packaged UI pass. GnuPG's
 standard-install path, other real smart-card workflows, delayed sensitive forms,
 mixed-version real-desktop sync and Linux manual coverage remain untested unless
 explicitly recorded. The follow-up correction needs exact-commit CI/package
