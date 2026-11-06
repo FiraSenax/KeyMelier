@@ -322,12 +322,15 @@ async function unlockKey(method) {
     if (selectedId === token.id) await loadManagement(token);
   } catch (e) {
     unlockBusy = null;
-    if (selectedId === token.id && activeTab === scope) {
-      if (e.data?.code === 'unsupported' && e.data.reason === 'uv_unlock') {
-        const state = scope === 'passkeys' ? pkState : scope === 'fingerprints' ? fpState : cfgState;
-        if (state) state.uv_unlock = false;
+    if (selectedId === token.id) {
+      if (activeTab === scope) {
+        if (e.data?.code === 'unsupported' && e.data.reason === 'uv_unlock') {
+          const state = scope === 'passkeys' ? pkState : scope === 'fingerprints' ? fpState : cfgState;
+          if (state) state.uv_unlock = false;
+        }
+        unlockError = errorMessage(e);
       }
-      unlockError = errorMessage(e); renderManagement();
+      renderManagement();
     }
   }
 }

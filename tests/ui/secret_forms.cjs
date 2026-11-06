@@ -140,8 +140,16 @@ async function main() {
           check(`${scope}/${method}: single scoped request`, calls.length === 1 && calls[0].args.scope === scope);
           check(`${scope}/${method}: PIN cleared while pending`, input.value === '' && input.defaultValue === '');
           activeTab = scope === 'settings' ? 'passkeys' : 'settings';
+          renderManagement();
           fail(); await first;
           check(`${scope}/${method}: error releases busy state`, unlockBusy === null);
+          const activePane = document.querySelector(`[data-pane="${activeTab}"]`);
+          const ready = {pin: !!activePane.querySelector('.unlock-pin'),
+            disabled: activePane.querySelector('.unlock-form button[type="submit"]')?.disabled,
+            waiting: !!activePane.querySelector('.unlock-form .uv-wait'),
+            error: activePane.querySelector('.unlock-form .field-error')?.textContent};
+          check(`${scope}/${method}: switched pane permits a fresh attempt`,
+            ready.pin && ready.disabled === false && !ready.waiting && !ready.error);
         }
       }
       activeTab = 'settings'; cfgState = {...gate}; renderManagement(); arm('unlock');
