@@ -124,6 +124,54 @@ async function main() {
       check('synchronous failure clears secret and preserves existing control state', cleared(form)
         && form.querySelector('button').disabled && !form.querySelector('.private').disabled
         && form.querySelector('.public').value === 'Keep name' && pendingSecretSubmissions.size === 0);
+
+      // Each management pane requests its own permission, even if the user
+      // switches tabs while a request is pending. No duplicate PIN/UV call.
+      const gate = {supported: true, pin_set: true, uv_unlock: true, unlocked: false};
+      for (const scope of ['passkeys', 'fingerprints', 'settings']) {
+        for (const method of ['pin', 'uv']) {
+          selectedId = token.id; activeTab = scope;
+          pkState = {...gate}; fpState = {...gate}; cfgState = {...gate};
+          unlockBusy = null; renderManagement(); arm('unlock');
+          const pane = document.querySelector(`[data-pane="${scope}"]`);
+          const input = pane.querySelector('.unlock-pin');
+          input.value = 'synthetic-pin'; input.defaultValue = 'synthetic-pin';
+          const first = unlockKey(method); unlockKey(method);
+          check(`${scope}/${method}: single scoped request`, calls.length === 1 && calls[0].args.scope === scope);
+          check(`${scope}/${method}: PIN cleared while pending`, input.value === '' && input.defaultValue === '');
+          activeTab = scope === 'settings' ? 'passkeys' : 'settings';
+          fail(); await first;
+          check(`${scope}/${method}: error releases busy state`, unlockBusy === null);
+        }
+      }
+      activeTab = 'settings'; cfgState = {...gate}; renderManagement(); arm('unlock');
+      const refused = unlockKey('uv');
+      pending.reject(Object.assign(new Error('UV not permitted'), {data: {code: 'unsupported', reason: 'uv_unlock'}}));
+      await refused;
+      check('permission refusal offers PIN without repeating UV', calls.length === 1
+        && !document.querySelector('[data-pane="settings"] [data-act="unlock-uv"]')
+        && !!document.querySelector('[data-pane="settings"] .unlock-pin'));
+
+      token.options.credMgmt = true;
+      token.options.uv = false;
+      markUnlocked(token.id, 300, 'settings');
+      check('settings unlock is not sufficient to read passkeys', isUnlocked(token.id) && !isUnlocked(token.id, 'read'));
+      arm('unlock');
+      await readKey(token);
+      check('read after settings opens PIN dialog without locking or reading', calls.length === 0
+        && quickUnlock?.id === token.id && !!document.querySelector('#quick-unlock .ql-pin'));
+      document.querySelector('#quick-unlock .ql-pin').value = 'synthetic-pin';
+      const readUnlock = quickUnlockSubmit();
+      check('sidebar PIN requests read scope', calls.length === 1 && calls[0].args.scope === 'read');
+      fail(); await readUnlock; closeQuickUnlock();
+      quickUnlock = {id: token.id, mode: 'uv', busy: false}; arm('unlock');
+      const readUv = quickUnlockUv();
+      check('sidebar UV requests read scope', calls.length === 1 && calls[0].args.scope === 'read');
+      fail(); await readUv; closeQuickUnlock();
+      markUnlocked(token.id, 300, 'passkeys');
+      check('passkey permission permits read without another PIN', isUnlocked(token.id, 'read'));
+      onTokenDisconnected({id: token.id});
+      check('disconnect clears scoped UI unlock', !isUnlocked(token.id) && !unlockedScopes.has(token.id));
       stopOathTimer();
       return results;
     });

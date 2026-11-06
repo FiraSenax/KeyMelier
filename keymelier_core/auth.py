@@ -1,8 +1,9 @@
 """Unlocking a key for management operations.
 
 Unlocking with the PIN (or the built-in fingerprint sensor) yields a
-pinUvAuthToken carrying every management permission the key supports
-(passkeys, fingerprints). Only that token is kept in memory, per key, for a
+pinUvAuthToken scoped to the requested management operation. Legacy callers
+without a scope retain the previous supported-management permission set.
+Only that token is kept in memory, per key, for a
 few minutes so the user can work without re-entering the PIN. The PIN itself
 is never stored. Tokens are dropped when the key is unplugged, locked from
 the UI, or rejected by the key.
@@ -31,6 +32,7 @@ _tokens: dict[str, ManagementToken] = {}
 _pending: dict[str, object] = {}  # invalidated by lock/disconnect, even during a device call
 # Keys that grant only passkey management to a fingerprint (others need the PIN)
 _uv_limited: set[str] = set()
+_uv_denied: dict[str, int] = {}  # permissions explicitly refused for built-in UV
 _tokens_lock = threading.Lock()
 
 
@@ -68,6 +70,7 @@ def forget(token_id: str, *, disconnected: bool = False) -> None:
         _pending.pop(token_id, None)
         if disconnected:
             _uv_limited.discard(token_id)
+            _uv_denied.pop(token_id, None)
 
 
 def _current_token(token_id: str):
@@ -87,10 +90,14 @@ def is_unlocked(token_id: str, need=None) -> bool:
         return bool(entry) and (need is None or (int(need) & entry.permissions) == int(need))
 
 
-def uv_limited(token_id: str) -> bool:
-    """The fingerprint unlock of this key covers passkeys only."""
+def uv_limited(token_id: str, need=None) -> bool:
+    """Whether built-in UV has refused this management permission."""
+    from fido2.ctap2.pin import ClientPin
+
     with _tokens_lock:
-        return token_id in _uv_limited
+        legacy_limited = token_id in _uv_limited and need != ClientPin.PERMISSION.CREDENTIAL_MGMT
+        return legacy_limited or bool(
+            need is not None and _uv_denied.get(token_id, 0) & int(need))
 
 
 def uv_unlock_available(info) -> bool:
@@ -115,7 +122,32 @@ def _permissions(info):
     return perm
 
 
-def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, cancel=None) -> None:
+SCOPES = ("passkeys", "fingerprints", "settings", "read")
+
+
+def _scoped_permissions(info, scope):
+    from fido2.ctap2.pin import ClientPin
+
+    if scope is not None and (not isinstance(scope, str) or scope not in SCOPES):
+        raise AuthError("Invalid unlock scope.", "invalid_input")
+    supported = _permissions(info)
+    if scope is None:  # compatibility for existing bridge and Python callers
+        return supported
+    permissions = (ClientPin.PERMISSION.CREDENTIAL_MGMT,
+                   ClientPin.PERMISSION.BIO_ENROLL,
+                   ClientPin.PERMISSION.AUTHENTICATOR_CFG)
+    if scope == "read":
+        # The sidebar reads passkeys. Keys without credential management keep
+        # their existing unlock entry point, with just one supported permission.
+        return next((p for p in permissions if supported & p), ClientPin.PERMISSION(0))
+    requested = permissions[SCOPES.index(scope)]
+    if not supported & requested:
+        raise AuthError("This key does not support this function.", "unsupported", reason=scope)
+    return requested
+
+
+def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, cancel=None,
+           *, scope: str | None = None) -> None:
     """Obtain a management token with the PIN or the fingerprint sensor.
 
     cancel: a threading.Event; setting it stops a key that waits for a finger
@@ -126,7 +158,7 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
     info = ctap2.info
     if (info.options or {}).get("clientPin") is not True:
         raise AuthError("Set a PIN first – the key only allows management after PIN entry.", "pin_not_set")
-    perm = _permissions(info)
+    perm = _scoped_permissions(info, scope)
     if not perm:
         raise AuthError("This key cannot list or manage passkeys – that needs FIDO 2.1 "
                         "(on YubiKeys firmware 5.2 or newer). Its passkeys still work.", "no_management")
@@ -147,6 +179,13 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
             try:
                 token = client_pin.get_uv_token(permissions=perm, event=cancel)
             except CtapError as e:
+                if scope is not None and e.code == CtapError.ERR.UNAUTHORIZED_PERMISSION:
+                    with _tokens_lock:
+                        if _pending.get(token_id) is not attempt or (cancel is not None and cancel.is_set()):
+                            raise AuthError("Cancelled.", "cancelled") from None
+                        _uv_denied[token_id] = _uv_denied.get(token_id, 0) | int(perm)
+                    raise AuthError("Fingerprint unlock is not available on this key.",
+                                    "unsupported", reason="uv_unlock") from None
                 # Some keys (e.g. YubiKey Bio) grant fingerprint and settings
                 # management only with the PIN. The key checks permissions
                 # before it asks for the finger, so asking again for passkey
@@ -166,7 +205,7 @@ def unlock(token_id: str, ctap2, pin: str | None = None, use_uv: bool = False, c
                 raise AuthError("Cancelled.", "cancelled")
             _tokens[token_id] = ManagementToken(client_pin.protocol.VERSION, token,
                                                 time.monotonic() + TOKEN_TTL, int(perm))
-            if use_uv:
+            if use_uv and scope is None:
                 if limited:
                     _uv_limited.add(token_id)
                 else:

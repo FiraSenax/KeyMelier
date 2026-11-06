@@ -555,7 +555,7 @@ async function readKey(tok) {
   if (!tok || tok.offline) return;
   if (!canManage(tok)) return openProbe(tok.id);
   if (!tok.options?.clientPin && !tok.options?.uv) { showToast(t('read.needPin'), 'info'); return switchTab('pin'); }
-  if (!isUnlocked(tok.id)) return quickLockToggle(tok.id);
+  if (!isUnlocked(tok.id, 'read')) return quickLockToggle(tok.id, true);
   $('read-btn').disabled = true;
   try {
     await readContentsNow(tok);
@@ -1385,6 +1385,7 @@ function onTokenConnected(token) {
 
 function onTokenDisconnected(data) {
   unlockedUntil.delete(data.id);
+  unlockedScopes.delete(data.id);
   if (quickUnlock?.id === data.id) { clearSecretInputs($('quick-unlock')); quickUnlock = null; renderQuickUnlock(); }
   cardApps.delete(data.id);
   cardRetries.delete(data.id);

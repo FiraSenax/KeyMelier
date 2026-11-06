@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.8.9 — 2026-11-06
+
+Release candidate; operation-scoped management unlocks. Hardware acceptance is pending.
+
+- Request management PIN/fingerprint tokens for the selected area only: passkeys, fingerprints or key settings. Reading a key requests credential management where supported. Switching areas can require a new confirmation; tokens are replaced rather than combined. Preserve cancellation, disconnect binding and the five-minute maximum lifetime.
+- Keep legacy unlock callers without a scope compatible. Older authenticators without permission-scoped tokens retain their existing protocol; KeyMelier still enforces the selected area locally. Neither path provides device-enforced least privilege equivalent to modern scoped calls.
+- Keep a refused fingerprint permission limited to that area and offer PIN entry without an automatic authentication retry. Explain area-specific unlocks in all eleven languages. History, settings, sync, import/export and update formats are unchanged.
+
 ## 1.8.8 — 2026-10-29
 
 Security release candidate; hardware validation is ongoing.
