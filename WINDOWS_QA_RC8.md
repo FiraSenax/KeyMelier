@@ -93,6 +93,11 @@ contained both synthetic entries, without sync errors. This is source-level
 compatibility evidence, not a two-desktop or cloud-provider observation.
 Local evidence: `build/qa-sync-mixed-20261106/result.json`.
 
+With real cryptography and ten additional peer files, three bounded RC8 read
+rounds reached both healthy peers after eight damaged peers. Manual retries
+accepted a repaired peer; a rejected merge was not acknowledged, and all ten
+peer files remained present. No KDF or encryption mock was used.
+
 For the GnuPG follow-up, the full elevated Windows suite passed: 541 tests,
 529 passed and 12 platform skips. Ruff and diff whitespace checks passed.
 An initial non-elevated run lacked `uv` on PATH and symlink privileges; the
