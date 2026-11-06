@@ -10,6 +10,34 @@ from keymelier_core import desktop_io
 
 
 class DesktopIOTests(unittest.TestCase):
+    def test_gpg_import_releases_card_with_platform_companion(self):
+        import app
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as folder:
+            for platform, executable, companion in (
+                ('win32', 'gpg.exe', 'gpgconf.exe'),
+                ('darwin', 'gpg', 'gpgconf'),
+                ('linux', 'gpg2', 'gpgconf'),
+            ):
+                with self.subTest(platform=platform):
+                    gpg = Path(folder) / executable
+                    config = Path(folder) / companion
+                    config.touch()
+                    with patch.object(app.sys, 'platform', platform), \
+                         patch.object(app, '_gpg', return_value=str(gpg)), \
+                         patch.object(app, 'stateless', return_value=False), \
+                         patch.object(app, 'host_env', return_value=None), \
+                         patch.object(app.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+                        result = app.Api.gpg_import(None, '-----BEGIN PGP PUBLIC KEY BLOCK-----\nQA')
+                        self.assertTrue(result['ok'])
+                        self.assertEqual([call.args[0] for call in run.call_args_list], [
+                            [str(gpg), '--batch', '--import'],
+                            [str(gpg), '--batch', '--card-status'],
+                            [str(config), '--kill', 'scdaemon'],
+                        ])
+                    config.unlink()
+
     def test_known_gpg_installations_precede_path_and_custom_paths_remain_supported(self):
         known = (r'C:\Program Files\GnuPG\bin\gpg.exe' if sys.platform == 'win32' else
                  '/opt/homebrew/bin/gpg' if sys.platform == 'darwin' else '/usr/bin/gpg')

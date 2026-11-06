@@ -53,6 +53,12 @@ PR: https://github.com/FiraSenax/KeyMelier/pull/58
 
 ## Remaining stable acceptance
 
+Update 2026-11-06: see [WINDOWS_QA_RC8.md](WINDOWS_QA_RC8.md) for the subsequently
+completed installed upgrade/privacy tests, native Windows credential-denial
+integration test and macOS observations. The environment limitations below
+describe the earlier RC7 assessment; the packaged locked-store UI case remains
+untested.
+
 The nine manual rows in HARDWARE_TESTS.md are not automatically satisfied by CI.
 Prioritize actual native consent cancellation/single-use/device-switch checks,
 clipboard expiry and other-app ownership, and installed 1.8.7 upgrade/restart/

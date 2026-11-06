@@ -1,0 +1,153 @@
+# 1.8.8 RC8 acceptance and follow-up correction
+
+Date: 2026-11-06. Stable acceptance remains open in #39.
+Published candidate: `v1.8.8-rc.8`,
+`8544da222f34db55a25e34c0e497d8485bf0e683`.
+Windows host: Windows 11 Pro 10.0.26300 x64.
+
+## Published packages
+
+Release pipeline 42119877769 passed. Published Windows ZIP and setup matched
+SHA256SUMS, GitHub digests and the locally tested CI artifacts. Installed app,
+setup and uninstaller signatures were Valid. Isolated packaged startup passed
+63/63 checks. The pipeline also passed macOS notarization and Linux package
+compatibility checks; these are not manual desktop observations.
+
+## Installed 1.8.7 upgrade and privacy
+
+The owner installed signed 1.8.7. A separate profile was populated with the
+release's synthetic compatibility fixture; normal user history was not copied.
+The published RC8 setup upgraded the installation successfully (exit 0).
+
+- Owner confirmed labels/details in 1.8.7, after upgrade, and after restart.
+- Real Windows Credential Manager encryption worked without mocks. All baseline
+  entries, settings and sync identity survived; the four synthetic entries were
+  equivalent, and the legacy source stayed byte-for-byte unchanged at migration.
+- Turning off website/account memory scrubbed both legacy and encrypted files
+  while preserving key labels, including when history was disabled.
+- A real Windows sharing lock on the synthetic legacy file prevented cleanup.
+  The owner observed the warning; the source stayed intact. Releasing the lock
+  and retrying cleared the warning and cleaned both files.
+- The owner deliberately re-enabled both settings before closing. On the final
+  restart, removed account details stayed gone. The initial report of returned
+  details was clarified: the owner meant the intentionally retained key labels.
+
+Local ignored evidence: `build/qa-upgrade-187-rc8-20261106/`, including installer
+log, migration and privacy result JSON files. The test file lock was released.
+
+## Native Windows credential denial and recovery
+
+A separate process used Windows `CreateRestrictedToken` to disable its user SID
+and impersonated that restricted token for the test only. This produced an
+actual `CredRead` access denial (WinError 5) through `keyring.backends.Windows`.
+No OS account, production credential or credential-store permission was changed.
+Reverting the thread token restored access.
+
+The test used synthetic history and an existing native encryption key without
+printing or modifying that key. Its isolated history files remained readable
+under the restriction, so the failure was specifically the credential API.
+With the RC8 history/service code:
+
+- History reported `history_locked` and disabled persistence.
+- Sync was unavailable; enabling it returned `sync_unavailable`.
+- An attempted history import wrote neither history nor settings; no sync file
+  was created. File hashes remained identical.
+- After reverting the restriction, all four synthetic entries loaded normally;
+  file hashes remained identical after recovery.
+
+Local evidence: `build/qa-native-denial.py` and
+`build/qa-native-denial-20261106/result.json`. This is a real native-backend
+integration test, not an observation of a locked-store warning in the packaged
+desktop UI. That UI case remains untested.
+
+A follow-up launch of the published app under the same process-level restriction
+failed before a GUI could initialize: Python.NET could not resolve
+`Python.Runtime.Loader.Initialize`. Its synthetic history and settings hashes
+were unchanged. The test process was closed. This restriction also affects the
+GUI runtime, so that attempt cannot isolate or validate the app's locked-store
+message. Local evidence: `build/qa-native-ui-20261106/result.json`.
+
+## GnuPG follow-up correction
+
+Real custom-path GnuPG 2.4.9 from Git for Windows imported a generated public-only
+test key into an isolated `GNUPGHOME`. RC8 then skipped its intended smart-card
+daemon release: it looked for a sibling `gpgconf`, although Windows installed
+`gpgconf.exe`. This can leave GnuPG holding the smart-card interface.
+
+The follow-up selects `gpgconf.exe` on Windows and keeps `gpgconf` on macOS/Linux.
+The real import repeated successfully and invoked the Windows companion with
+`--kill scdaemon`. A regression test covers Windows/macOS/Linux companion names.
+Import and daemon-release commands both returned 0. `--card-status` returned 2
+without a usable OpenPGP test card; card linking/read-back was not validated.
+The generated private key existed only in process memory; only a synthetic
+public key was imported. Cleanup stopped only the isolated GnuPG home's daemons.
+
+Local evidence: `build/qa-gpg-real-20261106/` (before/after command traces).
+This source correction is not present in the published RC8 binaries.
+
+## macOS owner observations
+
+Apple M1, macOS 27.2 as reported by the owner; YubiKey firmware 5.2.7; RC8.
+Start, detection and Read key passed. Cancelling the PIN dialog left the retry
+counter unchanged. OATH clipboard expiry after 35 seconds passed; different
+text copied in TextEdit and identical text copied again in TextEdit both survived
+the original expiry timer. Other clipboard managers were not tested.
+
+The owner also confirmed that the native reset consent names the correct
+YubiKey/action and that the offered default-Enter/Escape/window-close
+cancellation paths safely abort before any unplug/reset prompt. No reset was
+performed. The owner subsequently confirmed that disconnecting/reconnecting
+invalidates an open confirmation, followed by a successful fresh Read key.
+Accepting a fresh reset request and cancelling before unplugging requires a new
+native confirmation on the next request. Both checks passed without a reset.
+
+## Published Windows native import dialog
+
+The installed RC8 was launched without elevation for file-import-only testing
+(`RunAsInvoker`), with a new synthetic profile and no attached test key.
+The owner selected a UTF-8 export and a UTF-8-with-BOM export through the native
+picker. Both imports succeeded, with literal markup/quotes in their labels.
+The two synthetic entries and exact labels were independently verified in the
+encrypted file. The owner confirmed rejection of invalid UTF-8, malformed JSON
+and a file larger than 20 MB with errors while the app and both entries remained
+available. Picker cancellation also passed. The encrypted file remained
+byte-for-byte identical to the snapshot taken before these negative tests.
+The invalid UTF-8 case was repeated in the correct import window after the
+separate restricted-token GUI startup traceback caused initial confusion.
+Local evidence: `build/qa-import-20261106/`.
+
+## Additional integration and regression checks
+
+The unchanged RC8 sync code and the tagged 1.8.7 source ran in separate Windows
+processes against an isolated shared folder. Real scrypt/AES-GCM v1 files were
+written and consumed in both directions. After four exchange rounds both sides
+contained both synthetic entries, without sync errors. This is source-level
+compatibility evidence, not a two-desktop or cloud-provider observation.
+Local evidence: `build/qa-sync-mixed-20261106/result.json`.
+
+With real cryptography and ten additional peer files, three bounded RC8 read
+rounds reached both healthy peers after eight damaged peers. Manual retries
+accepted a repaired peer; a rejected merge was not acknowledged, and all ten
+peer files remained present. No KDF or encryption mock was used.
+
+For the GnuPG follow-up, the full elevated Windows suite passed: 541 tests,
+529 passed and 12 platform skips. Ruff and diff whitespace checks passed.
+An initial non-elevated run lacked `uv` on PATH and symlink privileges; the
+configured elevated runner resolved these environment failures without changing
+tests or weakening assertions.
+
+Full PR CI run [42134241034](https://github.com/FiraSenax/KeyMelier/actions/runs/42134241034)
+passed for head `6eb5b171d0412c63ef900dd04ca2d3cbad3d90d7` (tested merge
+`0d80d5228a5413f9f73a8ed58e724d2fd095f90f`): three OS test jobs, browser UI,
+four package builds and eleven Linux compatibility jobs. Its Windows package
+was downloaded and its build metadata matches that merge. This PR artifact is
+unsigned and has no release tag; it is not a signed replacement for RC8.
+
+## Remaining scope
+
+Windows native import and the listed macOS reset-consent checks are complete.
+Do not turn the native credential integration test into a packaged UI pass. GnuPG's
+standard-install path, other real smart-card workflows, delayed sensitive forms,
+mixed-version real-desktop sync and Linux manual coverage remain untested unless
+explicitly recorded. The follow-up correction needs exact-commit CI/package
+validation before stable. RC7 hardware observations retain their original scope.
