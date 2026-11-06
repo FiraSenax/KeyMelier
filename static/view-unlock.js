@@ -329,8 +329,12 @@ async function unlockKey(method) {
           if (state) state.uv_unlock = false;
         }
         unlockError = errorMessage(e);
+        renderManagement();
+      } else {
+        // A tab opened during the device call may have cached a busy response.
+        // Complete that requested read after the unlock has released the key.
+        await loadManagement(token);
       }
-      renderManagement();
     }
   }
 }
