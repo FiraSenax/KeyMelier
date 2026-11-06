@@ -105,14 +105,14 @@ async function readAllKeys() {
       if (!tok) continue;
       // A key without PIN cannot be read yet (it would only point to the PIN tab): skip it
       if (canManage(tok) && !tok.options?.clientPin && !tok.options?.uv) continue;
-      if (canManage(tok) && (tok.options?.clientPin || tok.options?.uv) && isUnlocked(id)) {
+      if (canManage(tok) && (tok.options?.clientPin || tok.options?.uv) && isUnlocked(id, 'read')) {
         await readContentsNow(tok);
         done++;
         continue;
       }
       await readKey(tok);                       // opens the unlock or search dialog
       await dialogClosed();
-      const handled = canManage(tok) ? isUnlocked(id) : !!historyKeys.get(tok.history_id)?.probe;
+      const handled = canManage(tok) ? isUnlocked(id, 'read') : !!historyKeys.get(tok.history_id)?.probe;
       if (!handled) { showToast(t('keys.readStopped', { n: done }), 'info'); break; }
       done++;
     }

@@ -36,6 +36,29 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
       far stay, sites not asked stay unknown.
 4. Enter the **result** and anything unusual, with the date.
 
+## 1.8.9 management permission checklist
+
+Status: implementation preparation, **no 1.8.9 physical-device acceptance yet**.
+Record exact commit/package, OS, model/firmware and date. Use expendable test
+credentials and fingerprints; do not reset keys or alter production settings for
+these checks. Preserve existing native confirmations and PIN retry limits.
+
+| Check | Required observation | Status |
+|---|---|---|
+| Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Not tested |
+| Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | Not tested |
+| Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Not tested |
+| Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Not tested |
+| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Not tested |
+| Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
+
+Synthetic checks in `test_auth_scopes.py` cover permission separation, one PIN
+attempt, actual python-fido2 modern/legacy command selection, replacement,
+permission refusal and late-result invalidation. Browser checks in
+`tests/ui/secret_forms.cjs` cover each area's request, duplicate suppression,
+cleared PIN fields, read-after-settings and scoped UI cleanup. These do not
+establish firmware compatibility or count as manual results above.
+
 ## 1.8.8 security release checklist
 
 Record the exact RC/commit, OS, key model/firmware, result and date for each check.

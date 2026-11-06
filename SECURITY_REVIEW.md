@@ -1,3 +1,32 @@
+# 1.8.9 preparation: management permission scopes — 2026-11-06
+
+The UI requests one of credential management, biometric enrollment or
+authenticator configuration for the selected area. Sidebar reading requests
+credential management first (or one available management permission for keys
+without it). The backend validates the scope before sending credentials, refuses
+unsupported operations and checks the permission again on use. A successful
+unlock replaces the prior token rather than accumulating rights. TTL remains
+300 seconds; cancellation, lock and disconnect invalidate pending results.
+
+A scoped built-in-UV permission refusal does not trigger another authentication
+attempt. It marks only that permission unavailable for UV until disconnect;
+the PIN route and independently supported permissions remain available.
+Existing native consent requirements are unchanged.
+
+Compatibility limits: the optional `scope` argument preserves existing bridge
+and Python callers. Calls omitting it retain the previous supported-management
+permission set and fingerprint fallback; this remains a broader access path,
+including for a renderer capable of calling the legacy contract. On old
+authenticators python-fido2 uses the legacy PIN-token command without wire
+permissions. KeyMelier limits that cached token's local use to the requested
+scope, but cannot claim device-enforced least privilege for these paths.
+No change to persistent history/settings, sync/export or update formats.
+
+I1 is **not fully accepted**: representative PIN/fingerprint/firmware hardware
+checks and exact-candidate CI/package checks remain required in
+[HARDWARE_TESTS.md](HARDWARE_TESTS.md#189-management-permission-checklist).
+This change does not approve stable 1.8.8 or implement 1.9 identity migration.
+
 # RC5 sensitive forms and packaged upgrade checks — 2026-11-04
 
 Submitted PIN/password fields and OATH/OTP secret inputs are cleared before

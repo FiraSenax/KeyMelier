@@ -603,12 +603,16 @@ class KeyService:
 
     # ── Unlock ───────────────────────────────────────────────────────────────
 
-    def unlock(self, token_id: str, pin: str | None = None, method: str | None = None) -> dict:
+    def unlock(self, token_id: str, pin: str | None = None, method: str | None = None,
+               scope: str | None = None) -> dict:
         if method not in (None, "pin", "uv"):
             raise auth.AuthError("Invalid unlock method.", "invalid_input")
+        if scope is not None and (not isinstance(scope, str) or scope not in auth.SCOPES):
+            raise auth.AuthError("Invalid unlock scope.", "invalid_input")
         with self._unlock_waits.start(token_id, wait=UNLOCK_WAIT) as cancel:
             with self._scanner.session(token_id, timeout=UNLOCK_WAIT, refresh=False) as (_record, ctap2):
-                auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv", cancel=cancel)
+                kwargs = {"scope": scope} if scope is not None else {}
+                auth.unlock(token_id, ctap2, pin=pin, use_uv=method == "uv", cancel=cancel, **kwargs)
         return {"unlocked": True, "ttl": auth.TOKEN_TTL}
 
     def unlock_cancel(self, token_id: str) -> dict:
@@ -664,7 +668,9 @@ class KeyService:
 
     def _passkeys(self, token_id, ctap2) -> dict:
         caps = passkeys_mod.capabilities(ctap2)
-        if not caps["supported"] or not auth.is_unlocked(token_id):
+        if auth.uv_limited(token_id, _perm("CREDENTIAL_MGMT")):
+            caps["uv_unlock"] = False
+        if not caps["supported"] or not auth.is_unlocked(token_id, _perm("CREDENTIAL_MGMT")):
             return {**caps, "unlocked": False}
         data = passkeys_mod.list_passkeys(token_id, ctap2)
         self._remember_sites(token_id, data["rps"])
@@ -767,7 +773,7 @@ class KeyService:
     def _fingerprints(self, token_id, ctap2) -> dict:
         caps = fingerprints_mod.capabilities(ctap2)
         caps["enrolling"] = fingerprints_mod.is_enrolling(token_id)
-        if auth.uv_limited(token_id):
+        if auth.uv_limited(token_id, _perm("BIO_ENROLL")):
             caps["uv_unlock"] = False   # this key manages fingerprints only after the PIN
         if not caps["supported"] or not auth.is_unlocked(token_id, _perm("BIO_ENROLL")):
             return {**caps, "unlocked": False}
@@ -1175,7 +1181,7 @@ class KeyService:
 
     def _config(self, token_id, ctap2) -> dict:
         caps = key_config.capabilities(ctap2)
-        if auth.uv_limited(token_id):
+        if auth.uv_limited(token_id, _perm("AUTHENTICATOR_CFG")):
             caps["uv_unlock"] = False   # this key changes settings only after the PIN
         return {**caps, "unlocked": auth.is_unlocked(token_id, _perm("AUTHENTICATOR_CFG"))}
 

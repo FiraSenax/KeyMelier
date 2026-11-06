@@ -28,6 +28,27 @@ PIN/fingerprint/authenticator compatibility testing.
 **Windows privilege separation is planned for 1.9 or later**, with its own design
 and RC cycle; it is not part of 1.8.8/1.8.9 stabilization. No fixed delivery date.
 
+## 1.8.9 — operation-scoped management unlocks
+
+Implementation preparation (6 November 2026): the UI now supplies the selected
+management area to the backwards-compatible `unlock` bridge method. Modern
+authenticators receive only that permission; a new unlock replaces the previous
+token. Legacy no-scope callers and authenticators without permission tokens keep
+their existing access paths. The latter only get local scope enforcement.
+
+Before release, complete the [1.8.9 hardware checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
+for PIN, built-in fingerprint verification, old firmware, expiry and cancellation.
+Keep this separate from the still-open [1.8.8 stable acceptance](https://github.com/FiraSenax/KeyMelier/issues/39).
+RC9 publication and earlier RC observations do not close remaining manual gaps.
+The application version is 1.8.9 for RC1 preparation. Publishing a candidate
+does not approve a stable release or complete the physical-device checklist.
+
+Next: revalidate the 1.9 identity design against the accepted 1.8.8/1.8.9 code,
+starting with additive migration/mixed-version sync tests and early physical
+checks of silent recognition on two identical keys without serials. Then implement
+recognition, connection-bound assignment and repair/conflict handling. Windows
+privilege separation retains its independent design and acceptance cycle.
+
 ## Security review follow-ups (27 October 2026)
 
 - **Windows privilege separation (1.9+):** design a small, authenticated helper for raw

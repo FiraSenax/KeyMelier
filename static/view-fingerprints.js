@@ -4,6 +4,7 @@
 // ── Fingerprints tab ────────────────────────────────────────────────────────
 
 let fpState = null;       // last fingerprints response for the selected token
+let fpLoadVersion = 0;
 let fpConfirm = null;     // template id awaiting delete confirmation
 let fpRename = null;      // template id being renamed
 let fpEnroll = null;      // running enrollment: { stage, feedback, remaining, total, error }
@@ -100,6 +101,7 @@ function renderFingerprints() {
 }
 
 async function loadFingerprints(token, retried = false) {
+  const version = ++fpLoadVersion;
   fpState = null;
   if (!retried) unlockError = null;
   fpConfirm = null;
@@ -107,12 +109,12 @@ async function loadFingerprints(token, retried = false) {
   renderFingerprints();
   try {
     const st = await call('fingerprints', { token_id: token.id });
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== fpLoadVersion) return;
     fpState = st;
     if (st.enrolling && !fpEnroll) fpEnroll = { stage: 'touch' };
     if (!st.enrolling && fpEnroll && !fpEnroll.error) fpEnroll = null;
   } catch (e) {
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== fpLoadVersion) return;
     if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadFingerprints(token, true); }
     fpState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }

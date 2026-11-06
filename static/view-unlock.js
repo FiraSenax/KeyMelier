@@ -85,6 +85,7 @@ function loadManagement(token) {
 // ── Quick unlock from the sidebar ───────────────────────────────────────────
 
 const unlockedUntil = new Map();   // token id -> ms timestamp (mirrors the server-side TTL)
+const unlockedScopes = new Map();  // same token lifecycle; missing/null = legacy unlock
 let quickUnlock = null;            // { id, mode: 'uv' | 'pin' | 'probe', busy, error, run }
 
 // Something a PIN unlock gives access to (passkey list, fingerprints, settings)
@@ -93,12 +94,15 @@ function canManage(tok) {
   return !!(o.credMgmt || o.credentialMgmtPreview || o.bioEnroll || o.userVerificationMgmtPreview || o.authnrCfg);
 }
 
-function isUnlocked(id) {
-  return (unlockedUntil.get(id) || 0) > Date.now();
+function isUnlocked(id, scope = null) {
+  if ((unlockedUntil.get(id) || 0) <= Date.now()) return false;
+  const held = unlockedScopes.get(id);
+  return !scope || !held || held === scope || (scope === 'read' && held === 'passkeys');
 }
 
-function markUnlocked(id, ttlSeconds) {
+function markUnlocked(id, ttlSeconds, scope = null) {
   unlockedUntil.set(id, Date.now() + (ttlSeconds || 300) * 1000);
+  unlockedScopes.set(id, scope);
   setTimeout(() => { if (!isUnlocked(id)) renderSidebar(); }, (ttlSeconds || 300) * 1000 + 200);
   renderSidebar();
 }
@@ -222,9 +226,9 @@ async function quickUnlockUv() {
   quickUnlock = { ...quickUnlock, mode: 'uv', busy: true, error: null, run };
   renderQuickUnlock();
   try {
-    const res = await call('unlock', { token_id: tok.id, method: 'uv' });
+    const res = await call('unlock', { token_id: tok.id, method: 'uv', scope: 'read' });
     if (quickUnlock?.run !== run) return;   // a closed/replaced dialog no longer owns this result
-    markUnlocked(tok.id, res.ttl);
+    markUnlocked(tok.id, res.ttl, 'read');
     quickUnlock = null;
     renderQuickUnlock();
     await readContentsNow(tok);
@@ -264,9 +268,9 @@ async function quickUnlockSubmit() {
   quickUnlock = { ...quickUnlock, busy: true, error: null, run };
   renderQuickUnlock();
   try {
-    const res = await call('unlock', { token_id: tok.id, pin });
+    const res = await call('unlock', { token_id: tok.id, pin, scope: 'read' });
     if (quickUnlock?.run !== run) return;
-    markUnlocked(tok.id, res.ttl);
+    markUnlocked(tok.id, res.ttl, 'read');
     quickUnlock = null;
     renderQuickUnlock();
     await readContentsNow(tok);
@@ -285,10 +289,11 @@ async function quickUnlockSubmit() {
   }
 }
 
-async function quickLockToggle(id) {
-  if (isUnlocked(id)) {
+async function quickLockToggle(id, forRead = false) {
+  if (isUnlocked(id) && !forRead) {
     await call('lock', { token_id: id }).catch(() => {});
     unlockedUntil.delete(id);
+    unlockedScopes.delete(id);
     renderSidebar();
     const tok = tokens.get(id);
     if (tok && selectedId === id) loadManagement(tok);
@@ -302,6 +307,8 @@ async function quickLockToggle(id) {
 async function unlockKey(method) {
   const token = tokens.get(selectedId);
   if (!token || unlockBusy) return;
+  const scope = activeTab;
+  if (!['passkeys', 'fingerprints', 'settings'].includes(scope)) return;
   const pin = document.querySelector(`[data-pane="${activeTab}"] .unlock-pin`)?.value || '';
   if (method !== 'uv' && !pin) { unlockError = t('pin.v.current'); renderManagement(); return; }
   clearSecretInputs(document.querySelector(`[data-pane="${activeTab}"]`));
@@ -309,13 +316,26 @@ async function unlockKey(method) {
   unlockError = null;
   renderManagement();
   try {
-    const res = await call('unlock', method === 'uv' ? { token_id: token.id, method: 'uv' } : { token_id: token.id, pin });
-    markUnlocked(token.id, res.ttl);
+    const res = await call('unlock', method === 'uv' ? { token_id: token.id, method: 'uv', scope } : { token_id: token.id, pin, scope });
+    markUnlocked(token.id, res.ttl, scope);
     unlockBusy = null;
     if (selectedId === token.id) await loadManagement(token);
   } catch (e) {
     unlockBusy = null;
-    if (selectedId === token.id) { unlockError = errorMessage(e); renderManagement(); }
+    if (selectedId === token.id) {
+      // Complete the user-selected pane's read after releasing the key. Its
+      // loader discards superseded replies, including a late busy response.
+      await loadManagement(token);
+      if (selectedId !== token.id) return;
+      if (activeTab === scope) {
+        if (e.data?.code === 'unsupported' && e.data.reason === 'uv_unlock') {
+          const state = scope === 'passkeys' ? pkState : scope === 'fingerprints' ? fpState : cfgState;
+          if (state) state.uv_unlock = false;
+        }
+        unlockError = errorMessage(e);
+      }
+      renderManagement();
+    }
   }
 }
 
@@ -324,6 +344,7 @@ async function lockKey() {
   if (!token) return;
   await call('lock', { token_id: token.id }).catch(() => {});
   unlockedUntil.delete(token.id);
+  unlockedScopes.delete(token.id);
   renderSidebar();
   loadManagement(token);
 }

@@ -87,6 +87,23 @@ Useful switches: `UI_TIMEOUT_MS`, `UI_ARTIFACTS`, `SMOKE_TIMEOUT`,
 `KeyMelier --self-test result.json`; it quits by itself and writes
 `result.json` and `result.log`.
 
+## 1.8.9 management scopes
+
+`python -m unittest tests.test_auth_scopes tests.test_auth_lifecycle
+tests.test_unlock_queue tests.test_failure_cases` checks scoped PIN/UV requests,
+modern and legacy python-fido2 wire commands (including credentialMgmtPreview),
+unchanged unscoped bridge callers, cross-permission refusal, expiry and
+late-result invalidation. All devices/PINs/tokens are synthetic; no hardware or
+credential store is accessed by these authentication tests.
+
+`node tests/ui/secret_forms.cjs` additionally checks each management pane's
+scope, one in-flight request, PIN clearing, area-specific fingerprint refusal,
+read-after-settings and UI cleanup on disconnect in the production page/CSP.
+The full browser suite, CSP and stress/layout suites remain required. Run
+the [physical-device checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
+separately before releasing 1.8.9; synthetic results do not establish firmware
+support. Preserve the separate 1.8.8 stable acceptance gate.
+
 ## Upgrade compatibility
 
 `tests/fixtures/compat/<tag>/` holds `history.json` and `settings.json`
