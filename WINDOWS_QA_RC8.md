@@ -60,6 +60,13 @@ Local evidence: `build/qa-native-denial.py` and
 integration test, not an observation of a locked-store warning in the packaged
 desktop UI. That UI case remains untested.
 
+A follow-up launch of the published app under the same process-level restriction
+failed before a GUI could initialize: Python.NET could not resolve
+`Python.Runtime.Loader.Initialize`. Its synthetic history and settings hashes
+were unchanged. The test process was closed. This restriction also affects the
+GUI runtime, so that attempt cannot isolate or validate the app's locked-store
+message. Local evidence: `build/qa-native-ui-20261106/result.json`.
+
 ## GnuPG follow-up correction
 
 Real custom-path GnuPG 2.4.9 from Git for Windows imported a generated public-only
@@ -70,6 +77,8 @@ daemon release: it looked for a sibling `gpgconf`, although Windows installed
 The follow-up selects `gpgconf.exe` on Windows and keeps `gpgconf` on macOS/Linux.
 The real import repeated successfully and invoked the Windows companion with
 `--kill scdaemon`. A regression test covers Windows/macOS/Linux companion names.
+Import and daemon-release commands both returned 0. `--card-status` returned 2
+without a usable OpenPGP test card; card linking/read-back was not validated.
 The generated private key existed only in process memory; only a synthetic
 public key was imported. Cleanup stopped only the isolated GnuPG home's daemons.
 
@@ -83,6 +92,22 @@ Start, detection and Read key passed. Cancelling the PIN dialog left the retry
 counter unchanged. OATH clipboard expiry after 35 seconds passed; different
 text copied in TextEdit and identical text copied again in TextEdit both survived
 the original expiry timer. Other clipboard managers were not tested.
+
+The owner also confirmed that the native reset consent names the correct
+YubiKey/action and that the offered default-Enter/Escape/window-close
+cancellation paths safely abort before any unplug/reset prompt. No reset was
+performed. Stale-confirmation and single-use checks remain pending.
+
+## Published Windows native import dialog
+
+The installed RC8 was launched without elevation for file-import-only testing
+(`RunAsInvoker`), with a new synthetic profile and no attached test key.
+The owner selected a UTF-8 export and a UTF-8-with-BOM export through the native
+picker. Both imports succeeded, with literal markup/quotes in their labels.
+The two synthetic entries and exact labels were independently verified in the
+encrypted file. Malformed/oversized input and picker cancellation observations
+remain pending; their backend checks return the expected errors.
+Local evidence: `build/qa-import-20261106/`.
 
 ## Additional integration and regression checks
 
@@ -103,6 +128,13 @@ For the GnuPG follow-up, the full elevated Windows suite passed: 541 tests,
 An initial non-elevated run lacked `uv` on PATH and symlink privileges; the
 configured elevated runner resolved these environment failures without changing
 tests or weakening assertions.
+
+Full PR CI run [42134241034](https://github.com/FiraSenax/KeyMelier/actions/runs/42134241034)
+passed for head `6eb5b171d0412c63ef900dd04ca2d3cbad3d90d7` (tested merge
+`0d80d5228a5413f9f73a8ed58e724d2fd095f90f`): three OS test jobs, browser UI,
+four package builds and eleven Linux compatibility jobs. Its Windows package
+was downloaded and its build metadata matches that merge. This PR artifact is
+unsigned and has no release tag; it is not a signed replacement for RC8.
 
 ## Remaining scope
 
