@@ -6,6 +6,11 @@
 
 Security release candidate; hardware validation is ongoing.
 
+Windows GnuPG acceptance correction (2026-11-06):
+
+- Invoke the installed `gpgconf.exe` companion after importing an OpenPGP public key on Windows, so GnuPG releases its smart-card daemon as intended. macOS/Linux companion discovery and existing formats remain unchanged.
+- Record RC8 installed Windows upgrade, privacy cleanup/retry, native credential-store denial/recovery integration tests and owner-reported macOS checks in WINDOWS_QA_RC8.md. Remaining manual coverage is stated explicitly.
+
 Managed advisory configuration correction (2026-11-05):
 
 - Keep rejected or unreadable managed advisory configuration visible and prevent an incomplete assessment from reporting OK, including partial Windows registry enumeration. Valid sources and known warnings remain available; absent or explicitly empty configuration remains valid.

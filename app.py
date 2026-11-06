@@ -215,7 +215,7 @@ class Api:
             imp = subprocess.run([gpg, "--batch", "--import"], input=text.encode(), capture_output=True, timeout=60,
                                  env=host_env())
             subprocess.run([gpg, "--batch", "--card-status"], capture_output=True, timeout=60, env=host_env())
-            gpgconf = Path(gpg).with_name("gpgconf")
+            gpgconf = Path(gpg).with_name("gpgconf.exe" if sys.platform == "win32" else "gpgconf")
             if gpgconf.exists():
                 subprocess.run([str(gpgconf), "--kill", "scdaemon"], capture_output=True, timeout=30, env=host_env())
             return {"ok": imp.returncode == 0,
