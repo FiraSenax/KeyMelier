@@ -179,11 +179,31 @@ async function main() {
           && !!document.querySelector('#fp-content .unlock-form .field-error') === returnToOrigin);
         call = normalCall;
       }
+      for (const [scope, reader] of [['passkeys', 'passkeys'], ['fingerprints', 'fingerprints'], ['settings', 'config']]) {
+        activeTab = scope; pkState = {...gate}; fpState = {...gate}; cfgState = {...gate};
+        renderManagement(); arm('unlock');
+        const unlocking = unlockKey('uv');
+        const normalCall = call;
+        let reads = 0, rejectOldRead;
+        call = (method, args) => {
+          if (method === reader && ++reads === 1) return new Promise((resolve, reject) => { rejectOldRead = reject; });
+          return normalCall(method, args);
+        };
+        switchTab(scope); await flush();
+        fail(); await unlocking; await flush();
+        check(`${scope}: failed unlock refreshes the outstanding tab read`, reads === 2);
+        rejectOldRead(Object.assign(new Error('Late busy reply'), {data: {code: 'busy'}})); await flush();
+        const pane = document.querySelector(`[data-pane="${scope}"]`);
+        check(`${scope}: older busy reply cannot replace recovered controls`,
+          !!pane.querySelector('.unlock-pin') && !pane.querySelector('.unlock-form button[type="submit"]')?.disabled
+          && !!pane.querySelector('.unlock-form .field-error') && calls.filter(c => c.method === 'unlock').length === 1);
+        call = normalCall;
+      }
       activeTab = 'settings'; cfgState = {...gate}; renderManagement(); arm('unlock');
       const refused = unlockKey('uv');
       pending.reject(Object.assign(new Error('UV not permitted'), {data: {code: 'unsupported', reason: 'uv_unlock'}}));
       await refused;
-      check('permission refusal offers PIN without repeating UV', calls.length === 1
+      check('permission refusal offers PIN without repeating UV', calls.filter(c => c.method === 'unlock').length === 1
         && !document.querySelector('[data-pane="settings"] [data-act="unlock-uv"]')
         && !!document.querySelector('[data-pane="settings"] .unlock-pin'));
 

@@ -62,6 +62,7 @@ function initInterfacesPane() {
 // ── Settings tab / key configuration ────────────────────────────────────────
 
 let cfgState = null;
+let cfgLoadVersion = 0;
 let cfgBusy = false;
 
 function renderConfig() {
@@ -110,15 +111,16 @@ function renderConfig() {
 }
 
 async function loadConfig(token, retried = false) {
+  const version = ++cfgLoadVersion;
   cfgState = null;
   if (!retried) unlockError = null;
   renderConfig();
   try {
     const st = await call('config', { token_id: token.id });
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== cfgLoadVersion) return;
     cfgState = st;
   } catch (e) {
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== cfgLoadVersion) return;
     if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadConfig(token, true); }
     cfgState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }

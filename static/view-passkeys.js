@@ -4,6 +4,7 @@
 // ── Passkeys tab ────────────────────────────────────────────────────────────
 
 let pkState = null;       // last passkeys response for the selected token
+let pkLoadVersion = 0;
 let pkFilter = '';        // search in the passkey list
 const pkOpenDetails = new Set();   // credentials whose details are open
 let pkConfirm = null;     // credential_id awaiting delete confirmation
@@ -130,16 +131,17 @@ function passkeyGroupNode(rp, creds, st) {
 // retried: the key rejected the unlock (expired) – reload once to get the
 // locked state and show the unlock form with a hint instead of an error
 async function loadPasskeys(token, retried = false) {
+  const version = ++pkLoadVersion;
   pkState = null;
   if (!retried) unlockError = null;
   pkConfirm = null;
   renderPasskeys();
   try {
     const st = await call('passkeys', { token_id: token.id });
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== pkLoadVersion) return;
     pkState = st;
   } catch (e) {
-    if (selectedId !== token.id) return;
+    if (selectedId !== token.id || version !== pkLoadVersion) return;
     if (isLocked(e) && !retried) { unlockError = errorMessage(e); return loadPasskeys(token, true); }
     pkState = isBusy(e) ? { busy: true } : { error: errorMessage(e) };
   }

@@ -323,12 +323,9 @@ async function unlockKey(method) {
   } catch (e) {
     unlockBusy = null;
     if (selectedId === token.id) {
-      const activeState = activeTab === 'passkeys' ? pkState : activeTab === 'fingerprints' ? fpState : cfgState;
-      if (activeTab !== scope || activeState?.busy) {
-        // A tab opened during the device call may have cached a busy response,
-        // including when the user left and returned to the original tab.
-        await loadManagement(token);
-      }
+      // Complete the user-selected pane's read after releasing the key. Its
+      // loader discards superseded replies, including a late busy response.
+      await loadManagement(token);
       if (selectedId !== token.id) return;
       if (activeTab === scope) {
         if (e.data?.code === 'unsupported' && e.data.reason === 'uv_unlock') {
