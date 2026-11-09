@@ -26,15 +26,15 @@ build = [
     "pyinstaller==6.22.3",
     # zxing-cpp is rebuilt with these exact inputs; no opaque nanobind wheel copy.
     "nanobind==3.1.0",
-    "scikit-build-core==1.1.1",
+    "scikit-build-core==1.1.2",
     "cmake==4.4.4",
     "ninja==1.13.2",
     "wheel==0.48.0",
 ]
 quality = [
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     "PyYAML==6.0.3",
-    "uv==0.13.6",
+    "uv==0.13.7",
 ]
 
 # Correctness checks, without imposing a bulk formatting rewrite.
