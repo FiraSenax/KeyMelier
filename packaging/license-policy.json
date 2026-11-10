@@ -310,13 +310,13 @@
   "ruff": {
     "expression": "MIT",
     "versions": [
-      "0.17.3"
+      "0.17.4"
     ]
   },
   "scikit-build-core": {
     "expression": "Apache-2.0",
     "versions": [
-      "1.1.1"
+      "1.1.2"
     ]
   },
   "secretstorage": {
@@ -370,7 +370,7 @@
   "uv": {
     "expression": "MIT OR Apache-2.0",
     "versions": [
-      "0.13.6"
+      "0.13.7"
     ]
   },
   "wheel": {

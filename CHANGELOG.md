@@ -6,6 +6,7 @@
 
 Release candidate; operation-scoped management unlocks. Hardware acceptance is pending.
 
+- Refresh build/quality tools to scikit-build-core 1.1.2, Ruff 0.17.4 and uv 0.13.7, with matching hash-pinned installs, source archives and reviewed license evidence. Update the pinned stable-release action to 3.0.4. Runtime dependencies and supported platforms remain unchanged.
 - Request management PIN/fingerprint tokens for the selected area only: passkeys, fingerprints or key settings. Reading a key requests credential management where supported. Switching areas can require a new confirmation; tokens are replaced rather than combined. Preserve cancellation, disconnect binding and the five-minute maximum lifetime.
 - Keep legacy unlock callers without a scope compatible. Older authenticators without permission-scoped tokens retain their existing protocol; KeyMelier still enforces the selected area locally. Neither path provides device-enforced least privilege equivalent to modern scoped calls.
 - Keep a refused fingerprint permission limited to that area and offer PIN entry without an automatic authentication retry. Explain area-specific unlocks in all eleven languages. History, settings, sync, import/export and update formats are unchanged.

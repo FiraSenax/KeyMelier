@@ -392,19 +392,19 @@
     "modified": false
   },
   "ruff": {
-    "version": "0.17.3",
-    "url": "https://files.pythonhosted.org/packages/59/73/81f140c4edd9cc323de5478e6bbd3bbcfae9a82692df1a258de8cec6a6d2/ruff-0.17.3.tar.gz",
-    "filename": "ruff-0.17.3.tar.gz",
-    "sha256": "a57049c8addb3662073859bb55a7ad35aa54f8a7c9ed268911d1333c5aadaaa9",
-    "size": 5339444,
+    "version": "0.17.4",
+    "url": "https://files.pythonhosted.org/packages/84/0e/3d154514b5bad104f7e1c13169c2d09aa9959fccdc06eb47610ccdfa83ed/ruff-0.17.4.tar.gz",
+    "filename": "ruff-0.17.4.tar.gz",
+    "sha256": "f32d178b50e826e00f6c6c1be3f56333068acb9b67fe167143527fa9b81e890d",
+    "size": 5357750,
     "modified": false
   },
   "scikit-build-core": {
-    "version": "1.1.1",
-    "url": "https://files.pythonhosted.org/packages/b2/1a/8c00b19c0a1e7acf890676af2efa430339d38e59fa9437f2aab8517af3f4/scikit_build_core-1.1.1.tar.gz",
-    "filename": "scikit_build_core-1.1.1.tar.gz",
-    "sha256": "e347a59193c878ac56a363e57506938652a6dd8c965790cb1cbc6bc7e8d5abad",
-    "size": 516192,
+    "version": "1.1.2",
+    "url": "https://files.pythonhosted.org/packages/30/8a/a1777e7eef0e91cc182b8a1eea3b88be6520c7b5afaf08232a7d8899c0ae/scikit_build_core-1.1.2.tar.gz",
+    "filename": "scikit_build_core-1.1.2.tar.gz",
+    "sha256": "7893709119c5ab1be75cd10442383132c9433b9f104dacef5185949efbea7974",
+    "size": 519494,
     "modified": false
   },
   "secretstorage": {
@@ -448,11 +448,11 @@
     "modified": false
   },
   "uv": {
-    "version": "0.13.6",
-    "url": "https://files.pythonhosted.org/packages/08/d5/88d43310d425f6e3a43997ad771658ded3237d0ed78c16a89b2353eddf56/uv-0.13.6.tar.gz",
-    "filename": "uv-0.13.6.tar.gz",
-    "sha256": "d762215478854f6cf20c3faed8f1eb30c8101d568e7bc32a3abafc063929d5c5",
-    "size": 7545242,
+    "version": "0.13.7",
+    "url": "https://files.pythonhosted.org/packages/71/73/0021f6679b1b686f2fdb7cb9914a9d953428644e3057b173edc181d1590c/uv-0.13.7.tar.gz",
+    "filename": "uv-0.13.7.tar.gz",
+    "sha256": "5e766791cb825d7a07e2ef9e622d307b48754fb682a31ba7bc5f272fab9ea395",
+    "size": 7550003,
     "modified": false
   },
   "wheel": {
