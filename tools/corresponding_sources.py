@@ -13,6 +13,7 @@ import shlex
 import subprocess
 import sys
 import tarfile
+import time
 from importlib.metadata import distribution
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -21,6 +22,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "build/source-downloads"
+DOWNLOAD_ATTEMPTS = 3
 
 
 def norm(name):
@@ -83,22 +85,30 @@ def fetch(source):
             if hashlib.file_digest(f, "sha256").hexdigest() == source["sha256"]:
                 return target
     partial = target.with_suffix(target.suffix + ".partial")
-    digest, size = hashlib.sha256(), 0
-    try:
-        with requests.get(source["url"], stream=True, timeout=(20, 90)) as response, partial.open("wb") as dest:
-            response.raise_for_status()
-            for chunk in response.iter_content(1 << 20):
-                size += len(chunk)
-                if size > source["size"]:
-                    raise ValueError(f"Source exceeds expected size: {filename}")
-                digest.update(chunk)
-                dest.write(chunk)
-        if size != source["size"] or digest.hexdigest() != source["sha256"]:
-            raise ValueError(f"Source checksum/size mismatch: {filename}")
-        partial.replace(target)
-    finally:
-        partial.unlink(missing_ok=True)
-    return target
+    for attempt in range(DOWNLOAD_ATTEMPTS):
+        digest, size = hashlib.sha256(), 0
+        try:
+            with requests.get(source["url"], stream=True, timeout=(20, 90)) as response, partial.open("wb") as dest:
+                response.raise_for_status()
+                for chunk in response.iter_content(1 << 20):
+                    size += len(chunk)
+                    if size > source["size"]:
+                        raise ValueError(f"Source exceeds expected size: {filename}")
+                    digest.update(chunk)
+                    dest.write(chunk)
+            if size != source["size"] or digest.hexdigest() != source["sha256"]:
+                raise ValueError(f"Source checksum/size mismatch: {filename}")
+            partial.replace(target)
+            return target
+        except (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError) as error:
+            # Retry only transport interruptions, never certificate, HTTP,
+            # integrity or filesystem failures. No mirror/HTTP fallback.
+            if isinstance(error, requests.exceptions.SSLError) or attempt == DOWNLOAD_ATTEMPTS - 1:
+                raise
+        finally:
+            partial.unlink(missing_ok=True)
+        print(f"Retrying source download ({attempt + 2}/{DOWNLOAD_ATTEMPTS}): {filename}")
+        time.sleep(2 ** attempt)
 
 
 def archive_notices(path, inline=False):

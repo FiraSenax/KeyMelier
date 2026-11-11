@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,7 +31,11 @@ def keypair():
     return priv, base64.b64encode(pub).decode()
 
 
-def write_source(folder: Path, priv, advisories, updated="2026-09-27T00:00:00+00:00", name="corp.json"):
+def write_source(folder: Path, priv, advisories, updated=None, name="corp.json"):
+    # Positive fixtures must remain fresh as the real calendar advances.
+    # Rollback/future-date scenarios continue to supply explicit timestamps.
+    if updated is None:
+        updated = datetime.now(timezone.utc).isoformat(timespec="seconds")
     data = json.dumps({"updated": updated, "advisories": advisories}).encode()
     path = folder / name
     path.write_bytes(data)

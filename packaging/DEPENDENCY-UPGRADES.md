@@ -44,9 +44,53 @@ archives and, on Linux, the complete Alpine package database and linker map.
 The offline About license reader receives the newly generated notices and source
 manifest automatically. No manual copying into frontend strings is necessary.
 
+Source-download transport recovery (1.8.9): a connection interruption, connect/
+read timeout or broken chunked transfer may be retried up to three attempts,
+with one- and two-second backoffs. Each attempt restarts the digest/byte count
+and partial file; an existing cache file is replaced only after full verification.
+Certificate errors, HTTP errors, size/hash mismatches and filesystem failures
+are not retried. HTTPS, certificate validation, source URLs, expected hashes and
+the existing per-request timeouts remain unchanged. This build-only recovery
+does not retry PIN/UV requests or other application/device operations.
+
 The earlier upstream zxing and AppImage binaries cannot gain missing historical
 build evidence retroactively. Controlled builds replace those inputs in new
 packages. Nothing in this procedure rewrites a published release.
+
+## 1.8.9 build/quality patch review (2026-11-10)
+
+PRs #61/#62 update the pinned release action to 3.0.4 and build/quality tools to
+scikit-build-core 1.1.2, Ruff 0.17.4 and uv 0.13.7. Runtime dependencies, Python
+requirements, platform baselines and application data formats are unchanged.
+The release action retains its inputs/runtime and changes bundled dependencies;
+it is used by the stable publishing job. RC publication still uses the existing
+checked rehearsal and GitHub CLI path. The action remains pinned by commit SHA.
+
+The original old/new Python source archives were downloaded from the lock URLs
+and verified against their recorded SHA-256 hashes. All LICENSE/COPYING/NOTICE/
+AUTHORS/COPYRIGHT files, including vendored notices present in these sources,
+are byte-identical. License expressions remain unchanged. The scikit-build-core
+source's build-system requirements are unchanged; its pyproject diff only adds
+a development lint exception. Matching requirements exports, source manifest
+and exact reviewed policy versions accompany the new lock.
+
+New source hashes:
+
+- scikit-build-core 1.1.2: `7893709119c5ab1be75cd10442383132c9433b9f104dacef5185949efbea7974`
+- Ruff 0.17.4: `f32d178b50e826e00f6c6c1be3f56333068acb9b67fe167143527fa9b81e890d`
+- uv 0.13.7: `5e766791cb825d7a07e2ef9e622d307b48754fb682a31ba7bc5f272fab9ea395`
+
+Upstream changes: [scikit-build-core](https://github.com/scikit-build/scikit-build-core/releases/tag/v1.1.2),
+[Ruff](https://github.com/astral-sh/ruff/releases/tag/0.17.4),
+[uv](https://github.com/astral-sh/uv/releases/tag/0.13.7),
+[release action](https://github.com/softprops/action-gh-release/releases/tag/v3.0.4).
+Required validation remains export/source/license checks, tests and actual
+controlled builds/packaged startup on all four targets. Synthetic or CI results
+do not constitute new hardware acceptance or update a published RC retroactively.
+Local validation passed all 554 backend tests (two platform skips), export and
+source/license checks, and both Ruff correctness checks. The controlled zxing-cpp
+3.1.1 build with scikit-build-core 1.1.2 completed and verified its installed
+binary hashes; QR decoding and controlled-build/release regression checks passed.
 
 ## Setuptools 84.2.1 review (2026-10-27)
 
