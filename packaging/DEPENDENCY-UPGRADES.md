@@ -44,6 +44,15 @@ archives and, on Linux, the complete Alpine package database and linker map.
 The offline About license reader receives the newly generated notices and source
 manifest automatically. No manual copying into frontend strings is necessary.
 
+Source-download transport recovery (1.8.9): a connection interruption, connect/
+read timeout or broken chunked transfer may be retried up to three attempts,
+with one- and two-second backoffs. Each attempt restarts the digest/byte count
+and partial file; an existing cache file is replaced only after full verification.
+Certificate errors, HTTP errors, size/hash mismatches and filesystem failures
+are not retried. HTTPS, certificate validation, source URLs, expected hashes and
+the existing per-request timeouts remain unchanged. This build-only recovery
+does not retry PIN/UV requests or other application/device operations.
+
 The earlier upstream zxing and AppImage binaries cannot gain missing historical
 build evidence retroactively. Controlled builds replace those inputs in new
 packages. Nothing in this procedure rewrites a published release.
