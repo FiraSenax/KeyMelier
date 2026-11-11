@@ -156,3 +156,16 @@ identity when the USB serial is missing.
 ### Out of scope for 1.9
 
 Splitting entries that are already mixed; recognising keys without FIDO2 (U2F-only).
+
+## 2.0 — review and refine the desktop UI
+
+Planning direction (11 November 2026), without a fixed delivery date: review
+navigation, information hierarchy and the presentation of key status, contents
+and management actions after the 1.9 identity work. Start with a small set of
+mockups and common user tasks before deciding the final scope. Keep keyboard
+access, accessibility and all eleven languages part of the design.
+
+Preserve existing history/settings, import/export and sync formats, update paths
+and supported platforms. A UI revision alone does not justify replacing storage
+or public bridge contracts. Keep technical key recognition distinct from labels
+assigned by users. No UI redesign is included in 1.8.9 stabilization.
