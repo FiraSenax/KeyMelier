@@ -48,11 +48,11 @@ these checks. Preserve existing native confirmations and PIN retry limits.
 
 | Check | Required observation | Status |
 |---|---|---|
-| Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Not tested |
+| Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Passed for Passkeys/Key settings and scope switching on macOS 27.2, YubiKey 5.8.0, installed RC2; Fingerprints Not supported on this key. Earlier rejected source-probe PIN requests stopped without automatic retry; other models remain Not tested. |
 | Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | Not tested |
-| Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Not tested |
+| Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Passed for a fresh read prompt after settings and no new prompt with an active passkey token (installed RC2/YubiKey 5.8.0). Full completion after settings remains Not tested: owner-reported success was followed by a locked passkey pane; see below. |
 | Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7, isolated RC2 source probe with owner-entered PIN; see below for limits. |
-| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Not tested |
+| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for local five-minute expiry, cancelling an unsubmitted PIN dialog, and invalidating an active unlock on disconnect/reconnect (installed RC2/YubiKey 5.8.0). Fresh read after expiry and fresh settings unlock after reconnect work. In-flight PIN/UV cases and device-side expiry remain Not tested. |
 | Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
 
 Synthetic checks in `test_auth_scopes.py` cover permission separation, one PIN
@@ -139,9 +139,10 @@ PIN. A read-only inventory independently identified the sole device as a
 YubiKey reporting 5.8.0 and the expected AAGUID. The next local dialog required
 two matching masked entries before enabling submission. Its single PIN request
 was also rejected (6 → 5). PIN testing stopped; no automatic authentication
-retry occurred. There is no successful read-after-settings or expiry result for
-this key. The cause of the rejected entries is unresolved; these results are
-not attributed to an application regression or silently marked Passed.
+retry occurred. There was no successful read-after-settings or expiry result in
+this source-harness sequence. The cause of the rejected entries is unresolved;
+these results are not attributed to an application regression or silently marked
+Passed.
 
 At the owner's subsequent explicit request, a further probe independently
 verified that only the expected 5.8.0 key was connected, with 5 retries left.
@@ -149,7 +150,54 @@ This run added a single-token-request guard, verified against a fake device
 before use, and omitted additional scope unlocks. The owner entered the PIN
 locally in both masked fields. The sole token request returned `PIN_INVALID`
 (5 → 4), and the process exited without retrying. No successful read or expiry
-check resulted from this run. Further PIN testing remains stopped.
+check resulted from this run. This source-harness sequence stopped.
+
+Offline follow-up: five synthetic values (including leading zeroes, spaces
+and Unicode) survived the native secure-field/probe return path unchanged.
+Thirty synthetic checks through the actual auth/client-PIN code decrypted to
+the expected UTF-8 PIN hash for protocols 1/2 and passkeys/settings/read scopes.
+The modal result, field entry and shared secret were supplied by the probe;
+this does not test physical keyboard input or a real key-agreement peer.
+All 18 existing auth scope/lifecycle tests also passed. These checks contacted
+no real key and do not resolve the observed hardware rejection. The owner
+subsequently identified the key as empty and expendable for testing.
+The owner initially authorized a FIDO reset, then reported that the PIN worked
+and withdrew the reset request before any reset was armed or executed.
+
+**Subsequent installed RC2 UI checks on the same YubiKey 5.8.0:** The owner
+entered the working PIN locally in the app. Passkey management unlocked and
+displayed one stored passkey with 99 free slots. Switching to Key settings
+required a fresh PIN; after owner entry, the settings were displayed. Switching
+back to Passkeys again required a fresh PIN, and the owner-unlocked list loaded
+successfully. The PIN pane subsequently reported 8 retries; returning to
+Passkeys retained the active passkey-scoped session. No setting, PIN or passkey
+was changed. These successful packaged-app observations do not establish the
+cause of the earlier rejected source-harness entries.
+
+With the active passkey token, Read key ran without a new PIN prompt. After
+more than 300 seconds (318 seconds measured from the observed successful list
+load), revisiting Passkeys required a fresh explicit unlock. Opening Read key
+also required a PIN. Cancelling that unsubmitted dialog left the retry count
+unchanged at 8. Previously displayed passkey content was not proactively hidden
+at expiry; the check establishes that a new read requires unlocking.
+
+The owner explicitly unlocked Read key again after expiry; the passkey pane
+then loaded without another prompt and the retry counter stayed at 8. The owner
+physically disconnected the unlocked key: the app showed no connected key and
+retained known data. After reconnect, the passkey pane required a fresh unlock;
+a fresh owner-entered settings PIN worked. Read key from that settings session
+required its own PIN. The owner reported a successful completion message, but
+the next passkey-pane load required unlocking again. The counter stayed at 8.
+This last read-after-settings completion is inconclusive and is not marked
+Passed; no root cause of that hardware observation is established.
+
+A separate synthetic reproduction found that `read_contents` could return an
+empty failure list when passkey management was supported but locked, allowing
+the UI to announce success without reading passkeys. A post-RC2 source fix now
+reports that area as incomplete, preserves known history, continues other
+readable areas and still skips unsupported management. This changes reporting,
+not authentication or token lifetime. It is not included in the published RC2
+and has not yet received packaged real-key acceptance.
 
 **FEITIAN FIDO2 Security Key(0024): no acceptance.** A later read-only probe
 reported HID version 2.1.2 but received `INVALID_COMMAND` for CTAP2 getInfo on
@@ -216,6 +264,7 @@ credential store. It does not mark any manual row above as Passed.
 
 | Operating system + version | KeyMelier (version/commit) | Key model | Firmware | Detection | Read functions | Cancel + reconnect | Result | Date, notes |
 |---|---|---|---|---|---|---|---|---|
+| macOS 27.2, Apple M1 | 1.8.9-rc.2 / c42768c68bc0434ec73a290e2bcda545e3e70605 | YubiKey 5 Series with NFC (Consumer Profile) | 5.8.0 | Passed (installed app, initial connection and reconnect) | Passed (passkey list, separate settings unlock, passkeys after settings; Read key with active token and explicit unlock after expiry) | Passed (unsubmitted PIN cancellation preserves 8 retries; disconnect preserves known data; reconnect requires fresh unlock) | Passed (listed workflows only; partial coverage) | 2026-11-14 – owner enters PIN locally; app UI observed directly. Read after more than 300 seconds requires unlocking. No reset or PIN/settings/passkey change. Fingerprints Not supported on this key; in-flight unplug, waiting UV cancellation and other platforms remain untested. Earlier source-probe PIN rejections remain recorded separately above. |
 | macOS 27.2 (owner-reported), Apple M1 | 1.8.8-rc.8 / 8544da222f34db55a25e34c0e497d8485bf0e683 | YubiKey (exact variant not reported) | 5.2.7 | Passed (start and detection, owner-reported) | Passed (Read key, owner-reported; individual areas not recorded) | Passed (PIN cancellation preserves retries; native reset cancellation, reconnect invalidates stale consent, fresh Read key, new consent after disarming) | Passed (listed workflows only; partial coverage) | 2026-11-06 – owner also confirmed OATH clipboard expiry after 35 seconds and preservation of different/identical text recopied in TextEdit. Correct reset target/action; offered Enter/Escape/close paths cancel. No actual reset performed. Other clipboard managers and public certificate copies not tested. See WINDOWS_QA_RC8.md. |
 | Windows 11 Pro 10.0.26300 (x64) | 1.8.8-rc.7 / e6b4217580f72a29931ba300cce2d8578db33363 | YubiKey 5 Series with NFC | 5.2.7 | Passed (model/firmware observed) | Passed (synthetic OATH account creation and code copy, owner-reported) | Not tested | Passed (OATH rendering, clipboard and test-account deletion; partial coverage) | 2026-11-05 – literal markup/quotes in the test name; code expiry after 35 seconds, different and identical Notepad recopy preserved, subsequent public AAGUID copy preserved. Native deletion identified the test account; only that account was removed. Other PIV/OpenPGP/OTP workflows not tested. |
 | Windows 11 Pro 10.0.26300 (x64) | 1.8.8-rc.7 / e6b4217580f72a29931ba300cce2d8578db33363 | TOKEN2 PIN Plus Security Key Series | 0.1.0 (same test key as RC5) | Passed (owner-reported packed attestation, all seven checks; chain valid to token2.com) | Passed (Read key with existing PIN after rejected stale consent) | Passed (reset consent Enter/Escape/close; reconnect invalidates old consent; fresh request requires new confirmation) | Passed (listed workflows only; partial coverage) | 2026-11-05 – owner supplied complete attestation output. Native reset dialog names correct action/target, cancels safely, rejects acceptance after disconnect/reconnect, and requires a new confirmation after disarming. No actual RC7 reset performed. See WINDOWS_QA_RC7.md; other application/upgrade/clipboard checks remain separate. |

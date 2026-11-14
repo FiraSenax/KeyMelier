@@ -76,6 +76,16 @@ now **in progress**, with observed results recorded in HARDWARE_TESTS.md.
 The [hardware checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
 stays open; RC2 publication and automated tests do not authorize stable.
 
+Post-RC2 source correction (not in the published RC2): a synthetic reproduction
+showed that `read_contents` omitted locked-but-supported passkey management from
+its failure list, allowing a misleading success message. It now reports that
+area as incomplete without deleting known history, blocking other readable
+areas, or treating unsupported management as failure. Authentication, scopes,
+formats and expiry are unchanged. Installed RC2 PIN unlock, scope switching,
+local expiry and reconnect results are recorded in HARDWARE_TESTS.md; the last
+read-after-settings completion remains inconclusive and requires candidate
+retesting. The reporting bug does not establish the cause of that observation.
+
 # 1.8.9 preparation: management permission scopes — 2026-11-06
 
 The UI requests one of credential management, biometric enrollment or

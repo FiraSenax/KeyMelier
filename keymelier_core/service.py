@@ -628,6 +628,8 @@ class KeyService:
             data = self.passkeys(token_id)
             if data.get("unlocked"):
                 result["sites"] = len(data.get("rps", []))
+            elif data.get("supported"):
+                result["failed"].append("passkeys")
         except Exception as e:
             logger.info("read_contents passkeys: %s", type(e).__name__)
             result["failed"].append("passkeys")

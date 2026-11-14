@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report an incomplete "Read key" operation when supported passkey management is locked, instead of announcing success without reading it. Preserve known history and other successful read results; keys without passkey management remain supported.
+
 ## 1.8.9 — 2026-11-14
 
 RC2 preparation; operation-scoped management unlocks. Management-scope hardware
