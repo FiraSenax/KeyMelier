@@ -38,7 +38,9 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 
 ## 1.8.9 management permission checklist
 
-Status: implementation preparation, **no 1.8.9 physical-device acceptance yet**.
+Status (2026-11-14): **no 1.8.9 management-scope acceptance yet**. The maintainer
+confirmed that the checklist has not been tested since RC1. RC2 preparation includes the
+merged build corrections; automated results do not complete this checklist.
 Record exact commit/package, OS, model/firmware and date. Use expendable test
 credentials and fingerprints; do not reset keys or alter production settings for
 these checks. Preserve existing native confirmations and PIN retry limits.
@@ -58,6 +60,17 @@ permission refusal and late-result invalidation. Browser checks in
 `tests/ui/secret_forms.cjs` cover each area's request, duplicate suppression,
 cleared PIN fields, read-after-settings and scoped UI cleanup. These do not
 establish firmware compatibility or count as manual results above.
+
+Separate OTP observation (2026-11-14): the installed, Developer ID signed and
+notarized **v1.8.9-rc.1** (`a19dcba`) on macOS **27.2** showed an OTP permission
+error with a **YubiKey 5 NFC, firmware 5.2.7**. Input Monitoring was visibly
+enabled for KeyMelier in System Settings; a complete app quit/relaunch did not
+restore access. The read-only Carbon API reported Secure Event Input active.
+This establishes a failed OTP read in that system state, not a missing grant
+or a proven sole cause. RC2 adds specific guidance for observed Secure Input.
+Recovery after logout/restart and OTP access in the RC2 package are **Not tested**.
+No OTP slot was programmed, swapped or deleted. This is not acceptance of the
+management-scope checklist above.
 
 ## 1.8.8 security release checklist
 
@@ -86,10 +99,10 @@ RC assets. These checks alone do not turn untested hardware rows into Passed.
 
 For 1.8.8 stable, prioritize native consent (Enter/Escape/close, disconnect and
 single-use authorization) and conditional clipboard expiry on real Windows and
-Linux desktops. The signed advisory database currently records review at
-2026-10-29 06:50:57 UTC: the 14-day release gate expires on 2026-11-12 at that
-time. Review new advisories and re-sign before a later release; do not only
-advance the timestamp or relax the gate.
+Linux desktops. Every new release must pass the signed advisory database's
+14-day freshness gate. Review new vendor/MDS evidence before re-signing; do not
+only advance the timestamp or relax the gate. Review evidence is recorded in
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md).
 
 ### Final 1.8.7 → 1.8.8 desktop upgrade pass
 

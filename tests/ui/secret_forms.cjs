@@ -225,6 +225,27 @@ async function main() {
       fail(); await readUv; closeQuickUnlock();
       markUnlocked(token.id, 300, 'passkeys');
       check('passkey permission permits read without another PIN', isUnlocked(token.id, 'read'));
+      // A native Secure Input observation must not send users back to an
+      // already-enabled permission. Keep explicit retry and its recovery path.
+      const originalLang = LANG;
+      for (const lang of Object.keys(STRINGS)) {
+        LANG = lang;
+        const error = Object.assign(new Error('Synthetic HID access denial'), {data: {code: 'otp_secure_input'}});
+        otpState = {error: errorMessage(error), code: error.data.code}; renderOtp();
+        const pane = $('otp-content');
+        check(`${lang}: Secure Input guidance is localized and permits retry`,
+          !!STRINGS[lang]['err.otp_secure_input'] && !!STRINGS[lang]['otp.secureInput.title']
+          && pane.querySelector('.callout-title')?.textContent === t('otp.secureInput.title')
+          && pane.querySelector('.callout-text')?.textContent === t('err.otp_secure_input')
+          && !!pane.querySelector('[data-act="reload"]') && !pane.querySelector('[data-act="privacy"]'));
+      }
+      LANG = originalLang;
+      otpState = {error: t('err.otp_permission'), code: 'otp_permission'}; renderOtp();
+      check('permission denial retains System Settings action', !!$('otp-content').querySelector('[data-act="privacy"]'));
+      wanted = null; calls.length = 0;
+      $('otp-content').querySelector('[data-act="reload"]').click(); await flush();
+      check('explicit OTP retry recovers when access returns', calls.length === 1 && calls[0].method === 'otp'
+        && otpState.slots.length === 2 && !$('otp-content').querySelector('[data-act="reload"]'));
       onTokenDisconnected({id: token.id});
       check('disconnect clears scoped UI unlock', !isUnlocked(token.id) && !unlockedScopes.has(token.id));
       stopOathTimer();

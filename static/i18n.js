@@ -5414,3 +5414,19 @@ for (const [lang, message] of Object.entries({
   ko: '이전 일반 텍스트 기록 사본({file})을 정리하지 못했습니다. 웹사이트와 계정 정보가 남아 있을 수 있습니다. 파일 접근 권한을 확인하고 기억 기능을 다시 끄거나, 사본을 확인한 후 직접 삭제하세요.',
   zh: '无法清理旧的明文历史记录副本（{file}）。其中可能仍含有网站和账户信息。请检查文件访问权限并再次关闭记忆功能，或检查后自行删除该副本。',
 })) Object.assign(STRINGS[lang], { 'problem.history_privacy_cleanup': message });
+
+// macOS can refuse OTP HID access while Secure Event Input is active, even
+// when Input Monitoring is enabled. Diagnose it without changing protection.
+for (const [lang, [title, message]] of Object.entries({
+  de: ['Sichere Tastatureingabe aktiv', 'Die sichere Tastatureingabe von macOS ist aktiv und kann den OTP-Zugriff trotz erlaubter Eingabeüberwachung blockieren. Beende die Passworteingabe in anderen Apps und versuche es erneut. Bleibt das Problem bestehen, sichere deine Arbeit und melde dich ab und wieder an oder starte den Mac neu.'],
+  en: ['Secure Input is active', 'macOS Secure Input is active and can block OTP access even with Input Monitoring allowed. Finish password entry in other apps, then try again. If this persists, save your work and log out and back in, or restart your Mac.'],
+  fr: ['Saisie sécurisée active', 'La saisie sécurisée de macOS est active et peut bloquer l’accès OTP même si la surveillance de l’entrée est autorisée. Terminez la saisie de mots de passe dans les autres apps, puis réessayez. Si le problème persiste, enregistrez votre travail et fermez puis rouvrez votre session, ou redémarrez le Mac.'],
+  es: ['Entrada segura activa', 'La entrada segura de macOS está activa y puede bloquear el acceso OTP aunque la monitorización de entrada esté permitida. Termina de introducir contraseñas en otras apps y vuelve a intentarlo. Si persiste, guarda tu trabajo y cierra y vuelve a abrir la sesión, o reinicia el Mac.'],
+  it: ['Inserimento sicuro attivo', 'L’inserimento sicuro di macOS è attivo e può bloccare l’accesso OTP anche se il monitoraggio dell’input è consentito. Termina l’inserimento delle password nelle altre app e riprova. Se il problema persiste, salva il lavoro ed esci e rientra nella sessione, oppure riavvia il Mac.'],
+  pt: ['Entrada segura ativa', 'A entrada segura do macOS está ativa e pode bloquear o acesso OTP mesmo com a monitorização de entrada permitida. Termine a introdução de palavras-passe noutras apps e tente novamente. Se persistir, guarde o trabalho e termine e reinicie a sessão, ou reinicie o Mac.'],
+  nl: ['Beveiligde invoer actief', 'Beveiligde invoer van macOS is actief en kan OTP-toegang blokkeren, ook als invoermonitoring is toegestaan. Rond het invoeren van wachtwoorden in andere apps af en probeer het opnieuw. Blijft het probleem bestaan, sla je werk op en log uit en weer in, of herstart de Mac.'],
+  pl: ['Bezpieczne wprowadzanie aktywne', 'Bezpieczne wprowadzanie w macOS jest aktywne i może blokować dostęp OTP mimo zgody na monitorowanie wprowadzania. Zakończ wpisywanie haseł w innych aplikacjach i spróbuj ponownie. Jeśli problem nie ustępuje, zapisz pracę i wyloguj się, a następnie zaloguj ponownie lub uruchom Maca ponownie.'],
+  ja: ['セキュア入力が有効です', 'macOSのセキュア入力が有効なため、入力監視を許可していてもOTPへのアクセスがブロックされる場合があります。他のアプリでパスワードの入力を終えてから再試行してください。解決しない場合は作業を保存し、ログアウトして再ログインするか、Macを再起動してください。'],
+  ko: ['보안 입력 활성화됨', 'macOS 보안 입력이 활성화되어 입력 모니터링이 허용되어 있어도 OTP 접근이 차단될 수 있습니다. 다른 앱에서 비밀번호 입력을 마친 후 다시 시도하세요. 문제가 계속되면 작업을 저장하고 로그아웃한 후 다시 로그인하거나 Mac을 재시동하세요.'],
+  zh: ['安全输入已启用', 'macOS 安全输入已启用，即使已允许输入监控，也可能阻止 OTP 访问。请先完成其他应用中的密码输入，再重试。如果问题仍然存在，请保存工作后退出登录并重新登录，或重新启动 Mac。'],
+})) Object.assign(STRINGS[lang], { 'otp.secureInput.title': title, 'err.otp_secure_input': message });

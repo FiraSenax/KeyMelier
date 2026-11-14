@@ -24,8 +24,9 @@ function renderOtp() {
   if (!st) return el.replaceChildren(loadingNode());
   if (st.error) {
     const permission = st.code === 'otp_permission';
-    el.replaceChildren(uiElement('div', {class: `callout ${permission ? 'warn' : 'crit'}`},
-      uiElement('div', {class: 'callout-title'}, t(permission ? 'otp.perm.title' : 'otp.error')),
+    const secureInput = st.code === 'otp_secure_input';
+    el.replaceChildren(uiElement('div', {class: `callout ${permission || secureInput ? 'warn' : 'crit'}`},
+      uiElement('div', {class: 'callout-title'}, t(permission ? 'otp.perm.title' : secureInput ? 'otp.secureInput.title' : 'otp.error')),
       uiElement('div', {class: 'callout-text'}, permission ? t('otp.perm.text') : st.error),
       uiElement('div', {class: 'form-actions att-actions'},
         permission ? actionButton('privacy', t('otp.perm.open')) : null,
