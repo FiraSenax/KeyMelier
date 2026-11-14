@@ -128,6 +128,27 @@ read-only adapter after a successful unlock. The normal app was closed and the
 adapter fixed and checked before a fresh, owner-authorized PIN attempt. Neither
 setup attempt is recorded as a KeyMelier application regression or a passed case.
 
+**YubiKey 5.8.0, macOS 27.2: no complete acceptance yet.** Actual passkey
+unlock/listing and a subsequent settings-only unlock succeeded in the first
+probe run. The latter replaced the local passkey token and prevented a passkey
+read before any credential-management command. The following owner-entered
+PIN for the read scope was rejected with `PIN_INVALID`; the retry count was 7.
+An owner-requested full repeat was rejected at its first unlock (7 → 6).
+The owner then left only this key connected and confirmed knowing its FIDO2
+PIN. A read-only inventory independently identified the sole device as a
+YubiKey reporting 5.8.0 and the expected AAGUID. The next local dialog required
+two matching masked entries before enabling submission. Its single PIN request
+was also rejected (6 → 5). PIN testing stopped; no automatic authentication
+retry occurred. There is no successful read-after-settings or expiry result for
+this key. The cause of the rejected entries is unresolved; these results are
+not attributed to an application regression or silently marked Passed.
+
+**FEITIAN FIDO2 Security Key(0024): no acceptance.** A later read-only probe
+reported HID version 2.1.2 but received `INVALID_COMMAND` for CTAP2 getInfo on
+two fresh connections. No PIN was submitted to this device. This does not
+establish the key's canonical firmware version or a KeyMelier regression;
+device/connection-state diagnosis and the scoped PIN tests remain open.
+
 ## 1.8.8 security release checklist
 
 Record the exact RC/commit, OS, key model/firmware, result and date for each check.
