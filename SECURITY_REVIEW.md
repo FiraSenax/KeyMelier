@@ -1,3 +1,72 @@
+# 1.8.9 RC2 advisory and release review — 2026-11-14
+
+The 29 October advisory signature had exceeded the 14-day release gate. Review
+for RC2 used the current [Yubico advisory index](https://www.yubico.com/support/security-advisories/)
+and the original [EUCLEAK](https://www.yubico.com/support/security-advisories/ysa-2024-03/),
+[RP enumeration](https://www.yubico.com/support/security-advisories/ysa-2024-02/)
+and [Protocol Two](https://www.yubico.com/support/security-advisories/ysa-2025-02/)
+publications. The seven existing entries, AAGUIDs and firmware boundaries remain
+unchanged. [YSA-2026-01](https://www.yubico.com/support/security-advisories/ysa-2026-01/)
+is covered by the locked fido2 2.2.1 / yubikey-manager 5.9.2;
+[YSA-2026-02](https://www.yubico.com/support/security-advisories/ysa-2026-02/)
+concerns Java server software absent from KeyMelier, not key firmware.
+
+FIDO MDS sequence **301**, `nextUpdate=2026-12-01`, was fetched and verified
+with the production certificate-path, JWT-signature and mandatory CRL checks.
+The signer revocation evidence was valid until 2026-11-20 13:20:30 UTC; the
+download's SHA-256 was
+`bcdf74e5c25d529de6007f1e49b53bed01d38ce57452e2585f71c7fd95ff0b09`.
+All affected AAGUIDs still exist in its 537 entries. No alarming status report
+dated since 29 October was present. The one historical REVOKED report
+(TruU Windows Authenticator, 2023-12-20) remains covered by the existing MDS
+status path. No MDS statements/icons are added to the repository.
+
+NVD publication-date queries from 29 October through 14 November covered all
+nine existing watch keywords (yubikey, yubico, feitian, token2, solokeys,
+nitrokey, titan security key, fido2 authenticator, security key firmware).
+All returned zero results. Initial timeouts/HTTP 503 responses for Feitian,
+TOKEN2 and SoloKeys were retried successfully; failed queries were not counted
+as clean results. This limited publication-window search is not a historical
+coverage audit or proof that no vulnerability exists.
+
+Additional source checks covered [TOKEN2's blog](https://www.token2.com/site/page/blog),
+[FEITIAN's side-channel statement](https://www.ftsafe.com/about/press_release/Company_Statement_on_Side-Channel_Vulnerability),
+and the [Nitrokey](https://github.com/Nitrokey/nitrokey-3-firmware/security/advisories)
+and [Solo2](https://github.com/solokeys/solo2/security/advisories) advisory lists.
+Nitrokey's historical [CVE-2025-25201](https://github.com/Nitrokey/nitrokey-3-firmware/security/advisories/GHSA-jfhm-ppq8-7hgx)
+affects PIV admin-key validation in firmware 1.8.0 (fixed in 1.8.1), not FIDO.
+The verified Nitrokey 3 MDS entry reports authenticatorVersion 1, insufficient
+to map that PIV firmware range safely. No guessed AAGUID/firmware warning is
+added; this review is not a complete audit of every non-FIDO application.
+
+Local validation used Python 3.14.8 and hash-pinned runtime/quality dependencies:
+562 backend tests passed (two platform skips), as did 45 browser tests, 20 UI
+stress tests, production CSP, 95 secret-form checks, 62 PIV/OpenPGP/OTP DOM
+checks, Ruff, dependency exports, source/license inputs, emergency-stop policy,
+HTML-sink/native-text guards, account/website checks and JavaScript syntax.
+The release workflow retains Python 3.14.10 and all native package/signing gates.
+Code Scanning had no open alerts at review time. Dependencies, storage, sync,
+export and existing public contracts are unchanged in this preparation.
+
+An installed RC1 OTP failure was reproduced on macOS 27.2 with Input Monitoring
+enabled and Secure Event Input active, including after an app restart. As also
+reported [upstream](https://github.com/Yubico/yubikey-manager/issues/452), HID
+`kIOReturnNotPermitted` does not establish a missing Input Monitoring grant.
+On this error only, RC2 calls Apple's read-only `IsSecureEventInputEnabled`
+from the system Carbon framework. A positive observation gets a separate
+`otp_secure_input` error and localized guidance in all eleven languages. A
+missing API retains the prior permission path; unrelated errors do not probe
+the system state. No protection, permission or keyboard event stream is changed
+or read, and no automatic retry or write fallback is introduced. Four synthetic
+backend tests cover detection, error-code representations, platform isolation
+and unavailable APIs. Browser checks cover every translation, the retained
+permission action, explicit retry and recovery. Actual recovery and the new
+packaged diagnostic remain to be tested after the OS condition clears.
+
+The maintainer confirmed that **the 1.8.9 management-scope checklist has not been tested**.
+The [hardware checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
+stays open; RC2 publication and automated tests do not authorize stable.
+
 # 1.8.9 preparation: management permission scopes — 2026-11-06
 
 The UI requests one of credential management, biometric enrollment or

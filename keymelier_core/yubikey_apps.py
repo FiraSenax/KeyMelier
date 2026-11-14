@@ -18,9 +18,31 @@ NOT_PERMITTED = -536870174  # kIOReturnNotPermitted
 
 # ── OTP slots ────────────────────────────────────────────────────────────────
 
+def _secure_input_active() -> bool:
+    """Observe macOS Secure Event Input; never change the system protection."""
+    if sys.platform != "darwin":
+        return False
+    import ctypes
+    try:
+        carbon = ctypes.CDLL("/System/Library/Frameworks/Carbon.framework/Carbon")
+        check = carbon.IsSecureEventInputEnabled
+        check.argtypes = []
+        check.restype = ctypes.c_bool
+        return bool(check())
+    except (OSError, AttributeError):
+        return False  # retain the existing permission guidance if unavailable
+
+
 def _otp_error(e) -> CardError:
     text = str(e)
-    if str(NOT_PERMITTED) in text or "not permitted" in text.lower():
+    if (any(code in text.lower() for code in
+            (str(NOT_PERMITTED), str(NOT_PERMITTED & 0xffffffff), "0xe00002e2"))
+            or "not permitted" in text.lower()):
+        if _secure_input_active():
+            return CardError(
+                "macOS Secure Input is active and can block OTP access even with Input Monitoring allowed. "
+                "Finish password entry in other apps, then try again. If this persists, save your work "
+                "and log out and back in, or restart your Mac.", "otp_secure_input")
         return CardError("macOS blocks access to the key's keyboard interface. Allow KeyMelier under "
                          "System Settings › Privacy & Security › Input Monitoring, then restart KeyMelier.",
                          "otp_permission")

@@ -48,6 +48,12 @@ And it manages everything on the key: PIN, passkeys, fingerprints and key settin
 - **macOS menu bar:** connected keys with status at a glance; illustrations of each key's form factor
 - Explicit CSV export of connected keys to `~/keymelier/exports/`
 
+If macOS still refuses OTP access with Input Monitoring enabled, finish password
+entry in other apps and try again. Secure Input can also block the key's keyboard
+interface. If that state persists, save your work and log out and back in, or
+restart the Mac. KeyMelier reports observed Secure Input separately; it does not
+disable that protection.
+
 ## Code signing
 
 From version 1.8.2 the **macOS app is signed** with an Apple Developer ID and **notarized** by Apple. Windows releases published before Certum setup remain **unsigned**; the real SimplySign signing probe passed on 26 October 2026, and subsequent candidates must pass signature checks before publication. Each release's notes state its actual signing status. Linux packages remain unsigned. An experimental [MSIX testing path](packaging/windows-msix/TESTING.md) uses temporary test certificates; Microsoft Store approval and distribution are not yet established. See [CODE_SIGNING.md](CODE_SIGNING.md) for the policy, team roles and privacy statement.

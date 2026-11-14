@@ -1,5 +1,5 @@
 {
-  "_comment": "Advisories checked against vendor publications and signature/CRL-verified FIDO MDS3 sequence 292 (nextUpdate 2026-11-01), including AAGUID and authenticatorVersion. Last reviewed 2026-10-29.",
+  "_comment": "Advisories checked against vendor publications and signature/CRL-verified FIDO MDS3 sequence 301 (nextUpdate 2026-12-01), including AAGUID and authenticatorVersion. Last reviewed 2026-11-14; scope and evidence in SECURITY_REVIEW.md.",
   "advisories": [
     {
       "id": "CVE-2024-45678",
@@ -174,5 +174,5 @@
       "firmware_min_inclusive": null
     }
   ],
-  "updated": "2026-10-29T06:50:57+00:00"
+  "updated": "2026-11-14T02:05:15+00:00"
 }
