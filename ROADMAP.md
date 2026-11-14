@@ -40,10 +40,12 @@ Before release, complete the [1.8.9 hardware checklist](HARDWARE_TESTS.md#189-ma
 for PIN, built-in fingerprint verification, old firmware, expiry and cancellation.
 Keep this separate from the still-open [1.8.8 stable acceptance](https://github.com/FiraSenax/KeyMelier/issues/39).
 RC9 publication and earlier RC observations do not close remaining manual gaps.
-RC1 was published on 6 November. RC2 preparation (14 November) includes the
+RC1 was published on 6 November. RC2, published on 14 November, includes the
 merged build/quality updates and interrupted source-download recovery. The
-maintainer confirmed that no physical-device tests have been performed since
-RC1. The application/package version remains 1.8.9; the verified RC tag identifies
+local packaged/native probes, mixed 1.8.8/RC2 data roundtrip and owner-confirmed
+OTP permission recovery are recorded in HARDWARE_TESTS.md. Management-scope
+hardware acceptance is in progress. The application/package version remains
+1.8.9; the verified RC tag identifies
 the candidate. Publishing it does not approve a stable release or complete the
 physical-device checklist.
 
