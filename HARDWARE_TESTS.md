@@ -143,6 +143,14 @@ retry occurred. There is no successful read-after-settings or expiry result for
 this key. The cause of the rejected entries is unresolved; these results are
 not attributed to an application regression or silently marked Passed.
 
+At the owner's subsequent explicit request, a further probe independently
+verified that only the expected 5.8.0 key was connected, with 5 retries left.
+This run added a single-token-request guard, verified against a fake device
+before use, and omitted additional scope unlocks. The owner entered the PIN
+locally in both masked fields. The sole token request returned `PIN_INVALID`
+(5 → 4), and the process exited without retrying. No successful read or expiry
+check resulted from this run. Further PIN testing remains stopped.
+
 **FEITIAN FIDO2 Security Key(0024): no acceptance.** A later read-only probe
 reported HID version 2.1.2 but received `INVALID_COMMAND` for CTAP2 getInfo on
 two fresh connections. No PIN was submitted to this device. This does not
