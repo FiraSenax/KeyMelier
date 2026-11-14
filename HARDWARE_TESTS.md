@@ -38,9 +38,10 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 
 ## 1.8.9 management permission checklist
 
-Status (2026-11-14): **no 1.8.9 management-scope acceptance yet**. The maintainer
-confirmed that the checklist has not been tested since RC1. RC2 preparation includes the
-merged build corrections; automated results do not complete this checklist.
+Status (2026-11-14): **1.8.9 management-scope acceptance is in progress**.
+RC2 is published at `c42768c68bc0434ec73a290e2bcda545e3e70605`. The local
+checks and OTP recovery below are separate from firmware/management acceptance;
+the remaining rows retain their untested status until observed.
 Record exact commit/package, OS, model/firmware and date. Use expendable test
 credentials and fingerprints; do not reset keys or alter production settings for
 these checks. Preserve existing native confirmations and PIN retry limits.
@@ -50,7 +51,7 @@ these checks. Preserve existing native confirmations and PIN retry limits.
 | Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Not tested |
 | Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | Not tested |
 | Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Not tested |
-| Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Not tested |
+| Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7, isolated RC2 source probe with owner-entered PIN; see below for limits. |
 | Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Not tested |
 | Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
 
@@ -68,9 +69,85 @@ enabled for KeyMelier in System Settings; a complete app quit/relaunch did not
 restore access. The read-only Carbon API reported Secure Event Input active.
 This establishes a failed OTP read in that system state, not a missing grant
 or a proven sole cause. RC2 adds specific guidance for observed Secure Input.
-Recovery after logout/restart and OTP access in the RC2 package are **Not tested**.
-No OTP slot was programmed, swapped or deleted. This is not acceptance of the
+RC2 follow-up: with Secure Input no longer active, the TCC log explicitly reported
+that the stored Input Monitoring code requirement did not match KeyMelier. The
+running process and installed RC2 both had the current signing identity; the
+stored permission retained an older code hash. Only KeyMelier's `ListenEvent`
+approval was reset. After the owner added the installed app again and restarted
+it, the owner confirmed that both OTP slots were displayed and that the button
+opened the correct permission pane: **Passed (owner observation)**. This confirms
+recovery after re-granting Input Monitoring, not recovery through reboot alone.
+No OTP slot was programmed, swapped or deleted. This does not accept the
 management-scope checklist above.
+
+### Additional local RC2 checks (2026-11-14)
+
+On macOS 27.2, the installed, signed/notarized RC2 passed all **63 packaged
+self-test checks** in a temporary profile with device scanning/network disabled.
+A separate native probe at the same source commit passed bridge/script loading,
+blocked file/data navigation, Cancel as the native default button (activated
+programmatically), and four clipboard checks on a private pasteboard. This is
+not a physical Enter-key test or a timed test of the user's clipboard manager.
+Neither probe reads the user's history, changes
+the real clipboard or supplies physical-device acceptance.
+
+A separate isolated process used the original `v1.8.8` code (`630609d`) to write
+encrypted fictional history/settings. RC2 reopened that profile with unchanged
+history contents, labels, lost/replacement state and settings, then wrote an
+export and v1 sync file. Original 1.8.8 reopened RC2's encrypted history/settings
+and imported/merged its export/sync. It then wrote an update that RC2 reopened
+and imported/merged successfully. **All four roundtrip stages passed.** Export
+generation times differ normally; the original release's own restart behavior
+provides the baseline for saved security verdicts. The credential backend was
+simulated throughout; no native keychain or real sync folder was modified.
+This verifies mixed-version data compatibility, not installer or native
+credential-store denial/recovery acceptance.
+
+### Real-device PIN probes (2026-11-14)
+
+The probe uses the RC2 Python application/authentication code at `c42768c` with
+real keys. The owner enters each PIN into a local secure text field. The test
+adapter accepts only PIN retry/key-agreement/token commands and read-only
+credential-management commands; PIN changes and credential deletion/update are
+blocked by the adapter. Reports contain capabilities and boolean results, no
+PINs, tokens, serial numbers, credential IDs or account names. This is a source
+hardware probe, not acceptance of the packaged app's complete UI flow.
+
+**YubiKey 5 NFC, firmware 5.2.7, macOS 27.2: Passed** for all 13 completed checks.
+The actual legacy `getPINToken` command was used with credentialMgmtPreview;
+passkey listing worked and the other management permissions were absent locally.
+The PIN retry counter stayed at 8. A pre-cancelled request and unsupported
+fingerprint/settings requests sent no additional PIN command. After the full
+300-second local lifetime, the cached unlock expired and a new read was blocked
+before any device command or automatic authentication retry. Device-side expiry,
+waiting fingerprint cancellation and physical unplug/reconnect remain untested.
+
+Two setup attempts preceded this successful run: a connection failure with the
+normal app polling in parallel, and an argument-name error in the probe's
+read-only adapter after a successful unlock. The normal app was closed and the
+adapter fixed and checked before a fresh, owner-authorized PIN attempt. Neither
+setup attempt is recorded as a KeyMelier application regression or a passed case.
+
+**YubiKey 5.8.0, macOS 27.2: no complete acceptance yet.** Actual passkey
+unlock/listing and a subsequent settings-only unlock succeeded in the first
+probe run. The latter replaced the local passkey token and prevented a passkey
+read before any credential-management command. The following owner-entered
+PIN for the read scope was rejected with `PIN_INVALID`; the retry count was 7.
+An owner-requested full repeat was rejected at its first unlock (7 → 6).
+The owner then left only this key connected and confirmed knowing its FIDO2
+PIN. A read-only inventory independently identified the sole device as a
+YubiKey reporting 5.8.0 and the expected AAGUID. The next local dialog required
+two matching masked entries before enabling submission. Its single PIN request
+was also rejected (6 → 5). PIN testing stopped; no automatic authentication
+retry occurred. There is no successful read-after-settings or expiry result for
+this key. The cause of the rejected entries is unresolved; these results are
+not attributed to an application regression or silently marked Passed.
+
+**FEITIAN FIDO2 Security Key(0024): no acceptance.** A later read-only probe
+reported HID version 2.1.2 but received `INVALID_COMMAND` for CTAP2 getInfo on
+two fresh connections. No PIN was submitted to this device. This does not
+establish the key's canonical firmware version or a KeyMelier regression;
+device/connection-state diagnosis and the scoped PIN tests remain open.
 
 ## 1.8.8 security release checklist
 

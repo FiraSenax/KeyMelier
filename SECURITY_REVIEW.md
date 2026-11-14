@@ -61,9 +61,18 @@ or read, and no automatic retry or write fallback is introduced. Four synthetic
 backend tests cover detection, error-code representations, platform isolation
 and unavailable APIs. Browser checks cover every translation, the retained
 permission action, explicit retry and recovery. Actual recovery and the new
-packaged diagnostic remain to be tested after the OS condition clears.
+packaged diagnostic were still untested when RC2 was prepared. Follow-up on
+14 November: with Secure Input inactive, the TCC log identified a stored
+Input Monitoring code requirement that did not match the valid running/installed
+RC2. Resetting only KeyMelier's ListenEvent approval and having the owner re-add
+the app restored OTP slot reading. The owner also confirmed that the Settings
+button opens the correct permission pane. See HARDWARE_TESTS.md for scope and
+the additional isolated local package/native/data compatibility checks. This
+does not establish that Secure Input caused the earlier failure or approve
+OTP programming, deletion or slot swapping.
 
-The maintainer confirmed that **the 1.8.9 management-scope checklist has not been tested**.
+The maintainer initially reported no 1.8.9 management-scope tests. Acceptance is
+now **in progress**, with observed results recorded in HARDWARE_TESTS.md.
 The [hardware checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
 stays open; RC2 publication and automated tests do not authorize stable.
 
