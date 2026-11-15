@@ -38,10 +38,11 @@ is generated from this file (`python3 tools/make_hardware_page.py`).
 
 ## 1.8.9 management permission checklist
 
-Status (2026-11-14): **1.8.9 management-scope acceptance is in progress**.
-RC2 is published at `c42768c68bc0434ec73a290e2bcda545e3e70605`. The local
-checks and OTP recovery below are separate from firmware/management acceptance;
-the remaining rows retain their untested status until observed.
+Status (2026-11-15): **1.8.9 management-scope acceptance is in progress**.
+RC3 is published at `9f22b78a97339e7bc6e1acad0a1a05942100b90d`. It includes
+both read corrections verified below. Earlier RC2 observations refer to
+`c42768c68bc0434ec73a290e2bcda545e3e70605`; they do not automatically accept
+the installed RC3. Remaining rows retain their untested status until observed.
 Record exact commit/package, OS, model/firmware and date. Use expendable test
 credentials and fingerprints; do not reset keys or alter production settings for
 these checks. Preserve existing native confirmations and PIN retry limits.
@@ -50,9 +51,9 @@ these checks. Preserve existing native confirmations and PIN retry limits.
 |---|---|---|
 | Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Passed for Passkeys/Key settings and scope switching on macOS 27.2, YubiKey 5.8.0, installed RC2; Fingerprints Not supported on this key. Earlier rejected source-probe PIN requests stopped without automatic retry; other models remain Not tested. |
 | Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | PIN-assisted fingerprint listing and local BIO/passkey separation Passed on both supplied FEITIAN preview keys. Their management UV-token route is Not supported; modern scoped UV, physical fingerprint matching and waiting-UV cancellation remain Not tested. |
-| Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Passed for a fresh read prompt after settings and no new prompt with an active passkey token (installed RC2/YubiKey 5.8.0). Full completion after settings remains Not tested: owner-reported success was followed by a locked passkey pane; see below. |
+| Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Passed (owner observation), installed RC3 / 9f22b78, macOS 27.2.1, YubiKey 5.8.0: settings unlock, fresh Read key PIN, then immediate Passkeys without another PIN or error. Earlier RC2 ambiguity remains recorded below; other model/UV combinations remain Not tested. |
 | Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7 and both FEITIAN preview keys, source probes with owner-entered PIN. FEITIAN empty-store reads require the post-RC2 fix at 56147c1; see below for limits. |
-| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for local five-minute expiry, cancelling an unsubmitted PIN dialog, and invalidating an active unlock on disconnect/reconnect (installed RC2/YubiKey 5.8.0). Fresh read after expiry and fresh settings unlock after reconnect work. In-flight PIN/UV cases and device-side expiry remain Not tested. |
+| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for the recorded RC2 expiry/cancellation/reconnect checks and, by owner report, installed RC3 removal with an unsubmitted PIN dialog and during Read key, followed by successful reconnect/read. The key model was not separately reported for these two RC3 cases. In-flight PIN/UV authentication, waiting-UV cancellation and device-side expiry remain Not tested. |
 | Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
 
 Synthetic checks in `test_auth_scopes.py` cover permission separation, one PIN
@@ -272,6 +273,58 @@ package acceptance. The initial failures are retained above; the installed
 RC2 does not contain this correction. Physical UV matching/cancellation,
 enrollment/writes, device-side expiry and other desktop platforms remain open.
 
+### Published RC3 and installed-app follow-up (2026-11-15)
+
+[v1.8.9-rc.3](https://github.com/FiraSenax/KeyMelier/releases/tag/v1.8.9-rc.3)
+was published from exact merged commit
+`9f22b78a97339e7bc6e1acad0a1a05942100b90d` by successful
+[Build run 43697498407](https://github.com/FiraSenax/KeyMelier/actions/runs/43697498407).
+Backend/browser checks, all four package builds, all eleven Linux compatibility
+jobs, and the final release rehearsal/publication passed. macOS app/DMG
+notarization and macOS/Windows signing were verified by the workflow.
+
+An independent local follow-up verified the update signature bound to the RC3
+tag, matched all 22 checksum entries to the 24 published assets' reported
+digests (the two additional assets are the checksum file and its signature),
+and checked the exact source commit and dependency lock. Five downloaded macOS
+files matched the signed checksum entries. The extracted app's clean build
+metadata named the RC3 tag and source commit; codesign, Gatekeeper and stapled
+notarization checks passed. Its designated signing requirement matched the
+previous installed app. Latest stable remained v1.8.8 at publication.
+
+The owner subsequently reported that RC3 runs. Metadata read from the installed
+`/Applications/KeyMelier.app` independently matched the same clean RC3 commit.
+The OS now reports macOS **27.2.1** via sw_vers; earlier rows retained the
+previously reported 27.2 rather than retroactively assigning a new OS version.
+Per-function installed-app acceptance is recorded only after an observation.
+
+**Installed RC3 empty-store acceptance: Passed (owner observation).** On macOS
+27.2.1, the owner selected each FEITIAN key in the installed app, ran Read key
+with local PIN entry, and opened Passkeys. Both the K33 and the separate
+BioPass showed 0 passkeys and 128 free slots without an error. This accepts the
+corrected packaged empty-store workflow on these two keys; it does not accept
+fingerprint matching, enrollment, cancellation or other unobserved workflows.
+
+**Installed RC3 read-after-settings: Passed (owner observation).** With only
+the YubiKey 5.8.0 connected, the owner unlocked Advanced → Key settings locally,
+changed nothing, selected Read key, entered the separately requested PIN, then
+immediately opened Passkeys within five minutes. The list loaded without any
+further PIN prompt or error. This closes the specific read-after-settings
+acceptance gap for installed RC3 on this key; it does not establish the cause
+of the earlier RC2 observation or accept modern management UV and in-flight
+authentication cases.
+
+**Installed RC3 disconnect checks: Passed (owner observation).** The owner
+confirmed both described procedures as working: (1) lock the app, open Read key
+without submitting a PIN, remove the key, check that the dialog closes and a
+fresh unlock is needed after reconnect; (2) start Read key with local PIN entry,
+remove the key while Reading is active, check an interruption message and
+retained known data, then reconnect and read successfully. No exact message text
+or separate key-model assignment was supplied, so this is limited acceptance
+of the reported sequences, not additional per-model matrix coverage. Removing
+a key during a read does not establish behavior during an in-flight PIN/UV
+authentication command or a waiting fingerprint verification.
+
 ## 1.8.8 security release checklist
 
 Record the exact RC/commit, OS, key model/firmware, result and date for each check.
@@ -331,6 +384,9 @@ credential store. It does not mark any manual row above as Passed.
 
 | Operating system + version | KeyMelier (version/commit) | Key model | Firmware | Detection | Read functions | Cancel + reconnect | Result | Date, notes |
 |---|---|---|---|---|---|---|---|---|
+| macOS 27.2.1, Apple M1 | 1.8.9-rc.3 / 9f22b78a97339e7bc6e1acad0a1a05942100b90d | YubiKey 5 Series with NFC (Consumer Profile) | 5.8.0 | Passed (owner app observation) | Passed (settings unlock, separate Read key unlock, then Passkeys without further PIN or error) | Not tested on RC3 | Passed (read-after-settings workflow only; partial coverage) | 2026-11-15 – owner performed the sequence with only this key connected, within five minutes. Installed app metadata independently verified. No setting changed; no PIN/account data recorded. Earlier RC2 ambiguity remains historical; other lifecycle/UV workflows are separate. |
+| macOS 27.2.1, Apple M1 | 1.8.9-rc.3 / 9f22b78a97339e7bc6e1acad0a1a05942100b90d | FEITIAN K33 (owner identified), USB 096e:0866 | Not confirmed | Passed (owner app observation) | Passed (Read key with PIN, then Passkeys: 0 stored / 128 free, no error) | Not tested | Passed (installed empty-store workflow only; partial coverage) | 2026-11-15 – owner observation in installed signed RC3; app build metadata independently verified. No PIN/account data recorded. Other key functions and lifecycle cases remain separate. |
+| macOS 27.2.1, Apple M1 | 1.8.9-rc.3 / 9f22b78a97339e7bc6e1acad0a1a05942100b90d | FEITIAN BioPassFIDO2, USB 096e:085d (casing model unconfirmed) | Not confirmed | Passed (owner app observation) | Passed (Read key with PIN, then Passkeys: 0 stored / 128 free, no error) | Not tested | Passed (installed empty-store workflow only; partial coverage) | 2026-11-15 – owner observation in installed signed RC3; separate device from K33. App build metadata independently verified. Other key functions and lifecycle cases remain separate. |
 | macOS 27.2, Apple M1 | 1.8.9 source / 56147c103a5d32b77914988d60fd89494c6d6ac8 | FEITIAN K33 (owner identified), USB 096e:0866 | Not confirmed (HID version 1.0.1) | Passed (getInfo after owner replaced USB cable) | Passed (corrected empty passkey store read; PIN-assisted fingerprint list at c1a011a) | Passed (pre-cancel only); physical reconnect during an operation Not tested | Passed (listed source-probe workflows only; partial coverage) | 2026-11-15 – isolated read-only source harness, owner-entered PIN; one fingerprint listed, 0 passkeys/128 free slots, retries 8 to 8. Initial empty-store failures reproduced and corrected. Legacy local scope separation; management UV tokens Not supported. No reset, enrollment, credential or setting changes; signed package/UI acceptance remains open. |
 | macOS 27.2, Apple M1 | 1.8.9 source / 56147c103a5d32b77914988d60fd89494c6d6ac8 | FEITIAN BioPassFIDO2, USB 096e:085d (casing model unconfirmed) | Not confirmed (HID version 1.0.1) | Passed (getInfo) | Passed (corrected empty passkey store read; PIN-assisted fingerprint list at c1a011a) | Passed (pre-cancel only); physical reconnect during an operation Not tested | Passed (listed source-probe workflows only; partial coverage) | 2026-11-15 – AAGUID 77010bd7; separate device from K33. Isolated read-only source harness, owner-entered PIN; one fingerprint listed, 0 passkeys/128 free slots, retries 8 to 8. Initial empty-store failures corrected. Management UV tokens Not supported. No reset, enrollment, credential or setting changes; signed package/UI acceptance remains open. |
 | macOS 27.2, Apple M1 | 1.8.9-rc.2 / c42768c68bc0434ec73a290e2bcda545e3e70605 | YubiKey 5 Series with NFC (Consumer Profile) | 5.8.0 | Passed (installed app, initial connection and reconnect) | Passed (passkey list, separate settings unlock, passkeys after settings; Read key with active token and explicit unlock after expiry) | Passed (unsubmitted PIN cancellation preserves 8 retries; disconnect preserves known data; reconnect requires fresh unlock) | Passed (listed workflows only; partial coverage) | 2026-11-14 – owner enters PIN locally; app UI observed directly. Read after more than 300 seconds requires unlocking. No reset or PIN/settings/passkey change. Fingerprints Not supported on this key; in-flight unplug, waiting UV cancellation and other platforms remain untested. Earlier source-probe PIN rejections remain recorded separately above. |
