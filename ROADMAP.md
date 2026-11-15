@@ -48,8 +48,9 @@ hardware acceptance is in progress. RC3 was published on 15 November at
 `9f22b78a97339e7bc6e1acad0a1a05942100b90d`, adding the verified empty FEITIAN
 passkey-store correction and accurate incomplete-read reporting. Its signed
 packages and release checks passed. The owner confirmed installed RC3 empty
-FEITIAN reads and the YubiKey 5.8.0 read-after-settings sequence; remaining UV,
-in-flight lifecycle and platform coverage is recorded in HARDWARE_TESTS.md.
+FEITIAN reads, the YubiKey 5.8.0 read-after-settings sequence, and removal with
+an open PIN dialog or during reading followed by reconnect/recovery. Remaining
+UV, in-flight authentication and platform coverage is recorded in HARDWARE_TESTS.md.
 The application/package version remains
 1.8.9; the verified RC tag identifies
 the candidate. Publishing it does not approve a stable release or complete the

@@ -53,7 +53,7 @@ these checks. Preserve existing native confirmations and PIN retry limits.
 | Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | PIN-assisted fingerprint listing and local BIO/passkey separation Passed on both supplied FEITIAN preview keys. Their management UV-token route is Not supported; modern scoped UV, physical fingerprint matching and waiting-UV cancellation remain Not tested. |
 | Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Passed (owner observation), installed RC3 / 9f22b78, macOS 27.2.1, YubiKey 5.8.0: settings unlock, fresh Read key PIN, then immediate Passkeys without another PIN or error. Earlier RC2 ambiguity remains recorded below; other model/UV combinations remain Not tested. |
 | Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7 and both FEITIAN preview keys, source probes with owner-entered PIN. FEITIAN empty-store reads require the post-RC2 fix at 56147c1; see below for limits. |
-| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for local five-minute expiry, cancelling an unsubmitted PIN dialog, and invalidating an active unlock on disconnect/reconnect (installed RC2/YubiKey 5.8.0). Fresh read after expiry and fresh settings unlock after reconnect work. In-flight PIN/UV cases and device-side expiry remain Not tested. |
+| Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for the recorded RC2 expiry/cancellation/reconnect checks and, by owner report, installed RC3 removal with an unsubmitted PIN dialog and during Read key, followed by successful reconnect/read. The key model was not separately reported for these two RC3 cases. In-flight PIN/UV authentication, waiting-UV cancellation and device-side expiry remain Not tested. |
 | Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
 
 Synthetic checks in `test_auth_scopes.py` cover permission separation, one PIN
@@ -312,7 +312,18 @@ immediately opened Passkeys within five minutes. The list loaded without any
 further PIN prompt or error. This closes the specific read-after-settings
 acceptance gap for installed RC3 on this key; it does not establish the cause
 of the earlier RC2 observation or accept modern management UV and in-flight
-disconnect/cancellation cases.
+authentication cases.
+
+**Installed RC3 disconnect checks: Passed (owner observation).** The owner
+confirmed both described procedures as working: (1) lock the app, open Read key
+without submitting a PIN, remove the key, check that the dialog closes and a
+fresh unlock is needed after reconnect; (2) start Read key with local PIN entry,
+remove the key while Reading is active, check an interruption message and
+retained known data, then reconnect and read successfully. No exact message text
+or separate key-model assignment was supplied, so this is limited acceptance
+of the reported sequences, not additional per-model matrix coverage. Removing
+a key during a read does not establish behavior during an in-flight PIN/UV
+authentication command or a waiting fingerprint verification.
 
 ## 1.8.8 security release checklist
 
