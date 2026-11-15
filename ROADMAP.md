@@ -44,9 +44,13 @@ RC1 was published on 6 November. RC2, published on 14 November, includes the
 merged build/quality updates and interrupted source-download recovery. The
 local packaged/native probes, mixed 1.8.8/RC2 data roundtrip and owner-confirmed
 OTP permission recovery are recorded in HARDWARE_TESTS.md. Management-scope
-hardware acceptance is in progress. RC3 preparation adds the verified empty
-FEITIAN passkey-store correction and accurate incomplete-read reporting; the
-corrected signed package still needs installed-app acceptance. The application/package version remains
+hardware acceptance is in progress. RC3 was published on 15 November at
+`9f22b78a97339e7bc6e1acad0a1a05942100b90d`, adding the verified empty FEITIAN
+passkey-store correction and accurate incomplete-read reporting. Its signed
+packages and release checks passed. The owner confirmed installed RC3 empty
+FEITIAN reads and the YubiKey 5.8.0 read-after-settings sequence; remaining UV,
+in-flight lifecycle and platform coverage is recorded in HARDWARE_TESTS.md.
+The application/package version remains
 1.8.9; the verified RC tag identifies
 the candidate. Publishing it does not approve a stable release or complete the
 physical-device checklist.
