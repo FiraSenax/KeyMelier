@@ -129,11 +129,13 @@ class ReviewGateTests(unittest.TestCase):
             {"filename": ".github/workflows/build.yml"},
             {"filename": "requirements.txt"},
             {"filename": "pyproject.toml"},
+            {"filename": "uv.lock"},
+            {"filename": "archived-lock.txt", "previous_filename": "uv.lock"},
             {"filename": "AGENTS.md"},
             {"filename": SOURCE, "previous_filename": ".github/hooks/start.json"},
         ):
             with self.subTest(row=row):
-                self.api.files = [row]
+                self.api.files = [{"filename": SOURCE}, row]
                 with self.assertRaises(controller.Skip):
                     controller.snapshot(self.api, 7)
 
@@ -217,6 +219,17 @@ class ReviewGateTests(unittest.TestCase):
         controller.report(self.api, context, comment_id, "success", "https://example.invalid/run")
         self.assertIn("stale", self.api.writes[-1][2]["body"])
         self.assertIn(controller.MARKER, self.api.writes[-1][2]["body"])
+
+    def test_success_report_links_the_exact_publisher_artifact(self):
+        context = controller.snapshot(self.api, 7)
+        run_url = "https://github.com/FiraSenax/KeyMelier/actions/runs/43726788962"
+        comment_id = controller.claim(self.api, context, run_url)
+        with self.assertRaises(ValueError):
+            controller.report(self.api, context, comment_id, "success", run_url)
+        controller.report(self.api, context, comment_id, "success", run_url, "123456789")
+        self.assertIn(run_url + "/artifacts/123456789", self.api.writes[-1][2]["body"])
+        controller.report(self.api, context, comment_id, "failure", run_url)
+        self.assertIn("No tested patch was published", self.api.writes[-1][2]["body"])
 
     def test_stale_preflight_fails_instead_of_skipping_into_inference(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -379,6 +392,26 @@ class PatchTests(unittest.TestCase):
         self.assertFalse((copied / ".github").exists())
         self.assertFalse((copied / "AGENTS.md").exists())
 
+    def test_publisher_revalidation_rejects_a_replaced_patch(self):
+        repo = self.git_fixture()
+        trusted, proposal = self.root / "trusted", self.root / "proposal"
+        trusted.mkdir()
+        proposal.mkdir()
+        context = controller.snapshot(FakeGitHub(), 7)
+        context["head_sha"] = controller.git(repo, "rev-parse", "HEAD")
+        for folder in (trusted, proposal):
+            (folder / "context.json").write_text(json.dumps(context))
+        (proposal / "result.json").write_text(json.dumps({
+            "head_sha": context["head_sha"], "files": [SOURCE], "cli": controller.CLI_VERSION}))
+        # A test-runner replacement cannot be published merely because the
+        # previous test result was successful. The fresh publisher revalidates.
+        (proposal / "fix.patch").write_text(
+            "diff --git a/.github/workflows/replaced.yml b/.github/workflows/replaced.yml\n"
+            "new file mode 100644\n--- /dev/null\n+++ b/.github/workflows/replaced.yml\n"
+            "@@ -0,0 +1 @@\n+untrusted replacement\n", encoding="utf-8", newline="")
+        with self.assertRaisesRegex(ValueError, "Patch file set does not match"):
+            controller.validate(repo, trusted, proposal)
+
     def test_worker_does_not_forward_job_credentials_or_publish_transcripts(self):
         trusted = self.root / "controller"
         trusted.mkdir()
@@ -402,7 +435,8 @@ class PatchTests(unittest.TestCase):
             kwargs["stdout"].write(b"github_pat_SYNTHETIC_SECRET must not be published")
             return subprocess.CompletedProcess(command, 0)
 
-        environment = {"COPILOT_REVIEW_TOKEN": "github_pat_SYNTHETIC_SECRET",
+        environment = {"GITHUB_RUN_ATTEMPT": "1",
+                       "COPILOT_REVIEW_TOKEN": "github_pat_SYNTHETIC_SECRET",
                        "GH_TOKEN": "synthetic-actions-token",
                        "ACTIONS_RUNTIME_TOKEN": "synthetic-runtime-token",
                        "OPENAI_API_KEY": "synthetic-unrelated-key"}
@@ -427,11 +461,27 @@ class PatchTests(unittest.TestCase):
         trusted = self.root / "controller"
         trusted.mkdir()
         (trusted / "context.json").write_text(json.dumps(controller.snapshot(FakeGitHub(), 7)))
-        with patch.dict(os.environ, COPILOT_REVIEW_TOKEN="gho_DO_NOT_REUSE"), \
+        with patch.dict(os.environ, GITHUB_RUN_ATTEMPT="1",
+                        COPILOT_REVIEW_TOKEN="gho_DO_NOT_REUSE"), \
                 patch.object(controller, "copy_sources") as copy_source:
             with self.assertRaises(ValueError):
                 controller.generate(self.source, trusted, self.root / "output", Path("copilot"))
         copy_source.assert_not_called()
+
+    def test_partial_rerun_with_a_retained_claim_cannot_repeat_inference(self):
+        # GitHub retains successful claim outputs when only the failed worker
+        # is rerun. The controller must reject this before reading credentials.
+        for attempt in ("2", "3", "50", "", "unexpected"):
+            with self.subTest(attempt=attempt), \
+                    patch.dict(os.environ, GITHUB_RUN_ATTEMPT=attempt,
+                               COPILOT_REVIEW_TOKEN="github_pat_SYNTHETIC"), \
+                    patch.object(controller, "copy_sources") as copy_source, \
+                    patch.object(controller.subprocess, "run") as inference:
+                with self.assertRaises(ValueError):
+                    controller.generate(self.source, self.root / "controller",
+                                        self.root / "output", Path("copilot"))
+                copy_source.assert_not_called()
+                inference.assert_not_called()
 
     def test_cli_failure_never_publishes_partial_edits_or_retries(self):
         trusted = self.root / "controller"
@@ -442,7 +492,8 @@ class PatchTests(unittest.TestCase):
         for error in (subprocess.CalledProcessError(1, ["copilot"]),
                       subprocess.TimeoutExpired(["copilot"], 300)):
             with self.subTest(error=type(error).__name__), \
-                    patch.dict(os.environ, COPILOT_REVIEW_TOKEN="github_pat_SYNTHETIC"), \
+                    patch.dict(os.environ, GITHUB_RUN_ATTEMPT="1",
+                               COPILOT_REVIEW_TOKEN="github_pat_SYNTHETIC"), \
                     patch.object(controller, "copy_sources", return_value={}), \
                     patch.object(controller.subprocess, "run", side_effect=error) as run:
                 with self.assertRaises(subprocess.SubprocessError):
@@ -526,6 +577,37 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(occurrences[1][:3], ("propose", "copilot", "COPILOT_REVIEW_TOKEN"))
         self.assertTrue(any("npm ci --ignore-scripts" in step.get("run", "")
                             for step in self.workflow["jobs"]["propose"]["steps"]))
+
+    def test_successful_claim_does_not_authorize_a_partial_rerun(self):
+        gate = self.workflow["jobs"]["propose"]["if"]
+        self.assertIn("needs.claim.outputs.claimed == 'true'", gate)
+        self.assertIn("&& github.run_attempt == 1", gate)
+
+    def test_publication_is_separate_from_tests_and_uses_original_artifact_ids(self):
+        jobs = self.workflow["jobs"]
+        self.assertIn("verify", jobs["publish"]["needs"])
+        self.assertIn("needs.verify.result == 'success'", jobs["publish"]["if"])
+        self.assertFalse(any(step.get("uses", "").startswith("actions/upload-artifact@")
+                             for step in jobs["verify"]["steps"]))
+        publisher_commands = [step["run"] for step in jobs["publish"]["steps"] if "run" in step]
+        self.assertEqual(len(publisher_commands), 2)
+        self.assertIn('python -I "$RUNNER_TEMP/controller/controller.py" preflight', publisher_commands[0])
+        self.assertIn('python -I "$RUNNER_TEMP/controller/controller.py" validate', publisher_commands[1])
+        for job_name, job in jobs.items():
+            if job_name != "prepare":
+                self.assertIn("needs.prepare.outputs.controller_artifact_id != ''", job["if"])
+            if job_name in {"verify", "publish"}:
+                self.assertIn("needs.propose.outputs.proposal_artifact_id != ''", job["if"])
+            for step in job["steps"]:
+                if step.get("uses", "").startswith("actions/download-artifact@"):
+                    self.assertNotIn("name", step["with"])
+                    self.assertIn(step["with"]["artifact-ids"], {
+                        "${{ needs.prepare.outputs.controller_artifact_id }}",
+                        "${{ needs.propose.outputs.proposal_artifact_id }}"})
+                    self.assertEqual(step["with"]["merge-multiple"], "true")
+        report = jobs["report"]["steps"][-1]["env"]
+        self.assertEqual(report["VALIDATION_RESULT"], "${{ needs.publish.result }}")
+        self.assertEqual(report["TESTED_ARTIFACT_ID"], "${{ needs.publish.outputs.artifact_id }}")
 
     def test_every_action_is_pinned_and_no_source_checkout_persists_credentials(self):
         for job in [*self.workflow["jobs"].values(), *self.inspection["jobs"].values()]:

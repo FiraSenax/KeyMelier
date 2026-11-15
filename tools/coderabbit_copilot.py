@@ -136,7 +136,7 @@ def protected(path):
     parts = PurePosixPath(path).parts
     return (any(part.startswith(".") for part in parts)
             or Path(path).name in {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md"}
-            or path.startswith("requirements") or path == "pyproject.toml")
+            or path.startswith("requirements") or path in {"pyproject.toml", "uv.lock"})
 
 
 def findings(api, pr, changed_paths):
@@ -343,6 +343,8 @@ def patch_from_tree(original, folder, finding_paths):
 
 
 def generate(repo, controller, output, executable):
+    if os.environ.get("GITHUB_RUN_ATTEMPT") != "1":
+        raise ValueError("Inference is disabled on workflow reruns")
     context = json.loads((controller / "context.json").read_text())
     valid_sha(context["head_sha"])
     if context["repository"] != REPOSITORY or context["version"] != 1:
@@ -451,18 +453,19 @@ def summary(message):
             stream.write(message + "\n")
 
 
-def report(api, context, comment_id, status, run_url):
+def report(api, context, comment_id, status, run_url, artifact_id=None):
     pull = api.request(f"/repos/{REPOSITORY}/pulls/{context['pr']}")
     stale = pull["state"] != "open" or pull["head"]["sha"] != context["head_sha"]
     comment_id = number(comment_id)
     comment = api.request(f"/repos/{REPOSITORY}/issues/comments/{comment_id}")
     if (comment.get("user") or {}).get("id") != ACTIONS_BOT_ID or MARKER not in comment["body"]:
         raise ValueError("Refusing to edit an unrelated comment")
-    result = ("A tested patch proposal is available in the workflow artifacts."
-              if status == "success" else
-              "No tested patch was published. Check the workflow result; there is no automatic retry.")
+    result = "No tested patch was published. Check the workflow result; there is no automatic retry."
     if stale:
         result = "The PR head changed or the PR closed. Any proposal is stale; do not apply it blindly."
+    elif status == "success":
+        result = ("A [tested patch proposal]"
+                  f"({run_url}/artifacts/{number(artifact_id)}) was published by the trusted job.")
     api.request(f"/repos/{REPOSITORY}/issues/comments/{comment_id}", method="PATCH",
                 body={"body": MARKER + "\n\n" + result + "\n\n"
                       f"Reviewed head: {context['head_sha']}. [Workflow run]({run_url}). "
@@ -526,7 +529,7 @@ def main():
             raise ValueError("Review context changed; no inference may start")
     elif args.command == "report":
         report(api, context, os.environ["CLAIM_COMMENT_ID"],
-               os.environ["VALIDATION_RESULT"], run_url)
+               os.environ["VALIDATION_RESULT"], run_url, os.environ.get("TESTED_ARTIFACT_ID"))
 
 
 if __name__ == "__main__":

@@ -49,6 +49,9 @@ https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authen
 - A short, serialized claim job writes a durable attempt marker before
   inference. Each PR gets **one attempt**, including failed, cancelled,
   quota-limited or timed-out attempts. New commits do not reset it.
+- Full and partial workflow reruns cannot invoke Copilot again, even when
+  GitHub retains successful claim outputs. Both the job and controller require
+  the first workflow attempt.
 
 The CLI gets five minutes and a 25-credit soft response limit. It can read and
 edit an isolated copy of source/test files, with no shell, GitHub MCP, web tools,
@@ -74,6 +77,13 @@ The checks do not establish
 physical-key acceptance, browser/native package acceptance or Windows/macOS
 coverage. Existing PR CI and human review remain necessary after applying it.
 
+A fresh publishing runner downloads the original controller and proposal by
+their fixed artifact IDs, rechecks eligibility, and validates the patch without
+executing PR code or tests. It never publishes a file from the mutable testing
+runner. Every inter-job download uses the producing job's original artifact ID;
+deleting or replacing an artifact name cannot substitute another controller or
+patch. The final comment links the exact artifact ID from the publishing job.
+
 ## Inspect a handoff manually
 
 In Actions → Inspect CodeRabbit handoff → Run workflow, select main and enter
@@ -96,8 +106,10 @@ eligible completed review can start a fresh claim if no marker was created.
 
 ## Review and apply a tested proposal
 
-Use only the artifact named **tested-copilot-patch-pr-N**, and inspect the
-workflow's validation logs. The intermediate **copilot-unvalidated-proposal**
+Follow the final workflow comment's artifact link and confirm that both
+**verify** and **publish** succeeded. The linked artifact is named
+**tested-copilot-patch-pr-N**; a matching name alone is insufficient. Inspect
+the workflow's validation logs. The intermediate **copilot-unvalidated-proposal**
 artifact is not an accepted/tested fix. Raw model transcripts are not uploaded.
 Intermediate artifacts expire after one day; tested proposals after seven days.
 
