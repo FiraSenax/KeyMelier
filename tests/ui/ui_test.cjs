@@ -554,6 +554,21 @@ async function main() {
     assert(await js('!$("read-btn").disabled'), 'button usable again');
     await js('window.pywebview.api.call = window.__realCall');
   });
+  await test('reading: a supported but locked passkey area reports an incomplete read, never success', async () => {
+    await js(`(() => { const real = window.pywebview.api.call;
+      window.__realCall = real;
+      window.pywebview.api.call = async (m, a) => m === 'read_contents'
+        ? { ok: true, data: { sites: null, oath: 0, openpgp: null, piv: null, failed: ['passkeys'], removed: false } }
+        : real(m, a); })()`);
+    await js('document.querySelectorAll("#toast-container .toast").forEach(t => t.remove())');
+    await click('#read-btn');
+    await until('document.querySelector("#toast-container .toast")', 'incomplete read message');
+    const toast = await js('[...document.querySelectorAll("#toast-container .toast")].map(t => t.className + " | " + t.textContent)');
+    assert(toast.length === 1 && toast[0].includes('error') && /passkey/i.test(toast[0]), `message: ${toast}`);
+    assert(!/removed|abgezogen/.test(toast[0]), 'a locked area is not reported as a removal');
+    assert(await js('!$("read-btn").disabled'), 'a fresh read remains available');
+    await js('window.pywebview.api.call = window.__realCall');
+  });
   await test('passkey search on a FIDO 2.0 key: cancelling the PIN/search dialog calls nothing on the key', async () => {
     // simulate a FIDO 2.0 key (no credential management) with the second demo key
     await js(`(() => { const t = tokens.get("demo-t2"); t.options = { rk: true, up: true, clientPin: true };

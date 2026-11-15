@@ -51,7 +51,10 @@ def list_passkeys(token_id: str, ctap2) -> dict:
 
     cm = _credman(token_id, ctap2)
     meta = auth.call(token_id, cm.get_metadata)
-    rps_raw = auth.call(token_id, cm.enumerate_rps)
+    existing = meta.get(CM.RESULT.EXISTING_CRED_COUNT)
+    # Some preview authenticators return an empty map for RP enumeration on
+    # an empty key. Only an explicit integer zero establishes that it is empty.
+    rps_raw = [] if type(existing) is int and existing == 0 else auth.call(token_id, cm.enumerate_rps)
 
     rps = []
     for rp_entry in rps_raw:

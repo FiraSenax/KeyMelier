@@ -61,11 +61,39 @@ or read, and no automatic retry or write fallback is introduced. Four synthetic
 backend tests cover detection, error-code representations, platform isolation
 and unavailable APIs. Browser checks cover every translation, the retained
 permission action, explicit retry and recovery. Actual recovery and the new
-packaged diagnostic remain to be tested after the OS condition clears.
+packaged diagnostic were still untested when RC2 was prepared. Follow-up on
+14 November: with Secure Input inactive, the TCC log identified a stored
+Input Monitoring code requirement that did not match the valid running/installed
+RC2. Resetting only KeyMelier's ListenEvent approval and having the owner re-add
+the app restored OTP slot reading. The owner also confirmed that the Settings
+button opens the correct permission pane. See HARDWARE_TESTS.md for scope and
+the additional isolated local package/native/data compatibility checks. This
+does not establish that Secure Input caused the earlier failure or approve
+OTP programming, deletion or slot swapping.
 
-The maintainer confirmed that **the 1.8.9 management-scope checklist has not been tested**.
+The maintainer initially reported no 1.8.9 management-scope tests. Acceptance is
+now **in progress**, with observed results recorded in HARDWARE_TESTS.md.
 The [hardware checklist](HARDWARE_TESTS.md#189-management-permission-checklist)
 stays open; RC2 publication and automated tests do not authorize stable.
+
+Post-RC2 source correction (not in the published RC2): a synthetic reproduction
+showed that `read_contents` omitted locked-but-supported passkey management from
+its failure list, allowing a misleading success message. It now reports that
+area as incomplete without deleting known history, blocking other readable
+areas, or treating unsupported management as failure. Authentication, scopes,
+formats and expiry are unchanged. Installed RC2 PIN unlock, scope switching,
+local expiry and reconnect results are recorded in HARDWARE_TESTS.md; the last
+read-after-settings completion remains inconclusive and requires candidate
+retesting. The reporting bug does not establish the cause of that observation.
+
+15 November preview-authenticator correction (source, not published RC2): the
+K33 reported zero existing credentials and 128 remaining slots, then returned
+an empty map for RP enumeration. The library expected TOTAL_RPS and raised
+KeyError. Passkey listing now skips RP enumeration only when authenticated
+metadata supplies an explicit integer zero. Missing, boolean, floating-point,
+string or nonzero counts still follow normal enumeration; malformed nonempty
+responses and authentication failures remain errors. No fallback weakens PIN
+checks, modifies key contents or changes history/export formats.
 
 # 1.8.9 preparation: management permission scopes — 2026-11-06
 

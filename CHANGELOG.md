@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-## 1.8.9 — 2026-11-14
+## 1.8.9 — 2026-11-15
 
-RC2 preparation; operation-scoped management unlocks. Management-scope hardware
+RC3 preparation; operation-scoped management unlocks. Management-scope hardware
 acceptance remains required before stable.
 
+- Read an explicitly empty passkey store without unnecessary RP enumeration. This avoids a missing-counter error on older FEITIAN preview authenticators while retaining authentication and normal enumeration for nonempty or unconfirmed stores.
+- Report an incomplete "Read key" operation when supported passkey management is locked, instead of announcing success without reading it. Preserve known history and other successful read results; keys without passkey management remain supported.
 - Retry interrupted build-time source downloads at most three times, starting each transfer fresh and cleaning partial files before retrying. Keep HTTPS, certificate validation, exact sizes and SHA-256 checks; certificate, HTTP, integrity and filesystem failures still stop the build without retry.
 - When macOS refuses OTP keyboard-interface access while Secure Input is active, explain that condition and its recovery in all eleven languages instead of only asking for Input Monitoring. Observe the system state without changing protections or retrying device operations automatically.
 - Review vendor publications, NVD and signature/CRL-verified FIDO MDS sequence 301, then renew the advisory signature. Existing warnings and firmware boundaries remain unchanged; the 14-day release freshness gate stays enforced.

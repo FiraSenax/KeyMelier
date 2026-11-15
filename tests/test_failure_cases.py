@@ -99,6 +99,32 @@ class KeyRemovedWhileReadingTests(unittest.TestCase):
         got = self.read(lambda t, c: (_ for _ in ()).throw(OSError("busy")))
         self.assertEqual((got["failed"], got["removed"]), (["passkeys"], False))
 
+    def test_locked_passkey_read_is_incomplete_and_keeps_known_data(self):
+        self.read(lambda token_id, ctap2: {"rps": RPS})
+        before = self.history.list()
+        with patch.object(service_mod.auth, "is_unlocked", return_value=False), \
+                patch.object(service_mod.passkeys_mod, "list_passkeys") as read:
+            got = self.svc.read_contents("tok")
+        self.assertEqual((got["sites"], got["failed"], got["removed"]),
+                         (None, ["passkeys"], False))
+        read.assert_not_called()
+        self.assertEqual(self.history.list(), before)
+
+    def test_unsupported_passkey_management_is_skipped(self):
+        with patch.object(service_mod.passkeys_mod, "capabilities", return_value={"supported": False}), \
+                patch.object(service_mod.passkeys_mod, "list_passkeys") as read:
+            got = self.svc.read_contents("tok")
+        self.assertEqual((got["sites"], got["failed"], got["removed"]), (None, [], False))
+        read.assert_not_called()
+
+    def test_locked_passkeys_do_not_prevent_other_read_results(self):
+        self.svc.card_apps = lambda token_id: {"apps": {"oath": True}}
+        with patch.object(service_mod.auth, "is_unlocked", return_value=False), \
+                patch.object(self.svc, "oath", return_value={"unlocked": True, "accounts": []}):
+            got = self.svc.read_contents("tok")
+        self.assertEqual((got["sites"], got["oath"], got["failed"], got["removed"]),
+                         (None, 0, ["passkeys"], False))
+
 
 class SearchAfterCancelTests(unittest.TestCase):
     def test_a_new_search_runs_after_a_cancelled_one(self):
