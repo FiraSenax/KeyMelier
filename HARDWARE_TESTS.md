@@ -205,6 +205,30 @@ two fresh connections. No PIN was submitted to this device. This does not
 establish the key's canonical firmware version or a KeyMelier regression;
 device/connection-state diagnosis and the scoped PIN tests remain open.
 
+### Biometric-key follow-up (2026-11-15)
+
+PR #64 at `cbb09c3` passed all CI test, security-analysis, platform-build and
+Linux compatibility checks. This is source/build validation; it does not accept
+the remaining physical-device cases.
+
+A connected device identified itself as **BioPassFIDO2**, VID/PID `096e:085d`,
+AAGUID `77010bd7-212a-4fc9-b236-d2ca5e9d4084`. Its HID version was 1.0.1 (not
+established as canonical firmware), with FIDO 2.0/2.1_PRE, PIN protocol 1,
+credentialMgmtPreview and userVerificationMgmtPreview. It reported `uv: true`
+and `clientPin: false`, without permission-scoped PIN/UV token support. An initial
+getInfo call failed with a CTAP error; a fresh connection subsequently read it
+successfully. The exact initial error code was not captured.
+
+The owner attempted to set a PIN locally in KeyMelier and reported the PIN
+policy rejection message. A subsequent read still reported no PIN set. The
+owner clarified that the K33 was **not connected**: the attached BioPass must
+not be identified as that K33. No reset was requested or performed for this key.
+The [BioPass manufacturer manual, page 10](https://www.ftsafe.com/download/files/FIDO/Manual/BioPass%20FIDO2%20Manual.pdf)
+describes a Fingerprint Only mode that cannot be changed to PIN and Fingerprint
+without resetting. This is a possible explanation for the observed state, not
+a confirmed diagnosis or evidence that the entered PIN was too simple. No
+further PIN-setting attempt or fingerprint verification was sent by the probe.
+
 ## 1.8.8 security release checklist
 
 Record the exact RC/commit, OS, key model/firmware, result and date for each check.
