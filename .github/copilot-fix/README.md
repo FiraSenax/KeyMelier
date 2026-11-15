@@ -37,9 +37,15 @@ https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authen
 
 ## What starts a run
 
-- A successfully completed check from the verified CodeRabbit App, for the
-  latest head of exactly one open, non-draft, owner-authored PR in KeyMelier.
-  Forks, other authors and targets other than main are excluded.
+- A PR comment created or edited by the verified CodeRabbit bot signals the
+  trusted main-branch controller. The sender and comment author must both be
+  the real bot; edits by other users and ordinary issue comments are excluded.
+- The controller requires a successfully completed check from the verified
+  CodeRabbit App for the latest head of an open, non-draft, owner-authored PR
+  in KeyMelier. Forks, other authors and targets other than main are excluded.
+  If the summary arrives before the check completes, it polls metadata for
+  at most 60 seconds, without requesting reviews or reserving an attempt.
+  A still-pending check is skipped; a later bot summary update can inspect it again.
 - The controller re-reads the PR, the check and unresolved review threads.
   Only verified CodeRabbit findings on changed files are eligible. Resolved
   and outdated threads do not start work.
@@ -68,11 +74,14 @@ with the Copilot secret present.
 
 A separate runner applies the proposal to its exact head and runs backend,
 lint and static UI checks without the Copilot secret. The entire workflow uses
-only the `check_run` trigger, which GitHub grants read-only access to the
+only the `issue_comment` trigger, which GitHub grants read-only access to the
 default-branch cache scope. It cannot poison caches used by main or releases.
 Node's automatic dependency caching is disabled as well. Manual inspection is
 a separate workflow that never checks out or executes PR code. See
 https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#cache-access-for-low-trust-workflow-triggers.
+It deliberately avoids `check_run`, which GitHub can suppress for a PR head
+already associated with Actions checks. See
+https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#check_run.
 The checks do not establish
 physical-key acceptance, browser/native package acceptance or Windows/macOS
 coverage. Existing PR CI and human review remain necessary after applying it.

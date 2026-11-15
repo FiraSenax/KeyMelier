@@ -21,6 +21,15 @@ SOURCE = "keymelier_core/example.py"
 REPO = controller.REPOSITORY
 
 
+def comment_event():
+    bot = {"id": controller.CODERABBIT_BOT_ID, "type": "Bot", "login": "coderabbitai[bot]"}
+    return {"repository": {"full_name": REPO, "id": controller.REPOSITORY_ID,
+                           "default_branch": "main"},
+            "action": "edited", "sender": bot,
+            "comment": {"id": 6896413349, "user": copy.deepcopy(bot)},
+            "issue": {"number": 7, "pull_request": {"url": f"https://api.github.com/repos/{REPO}/pulls/7"}}}
+
+
 class FakeGitHub:
     def __init__(self):
         self.pull = {
@@ -67,8 +76,6 @@ class FakeGitHub:
         raise AssertionError("Unexpected API request: " + path)
 
     def pages(self, path):
-        if "/commits/" in path:
-            return [copy.deepcopy(self.pull)]
         if path.endswith("/files"):
             return copy.deepcopy(self.files)
         if path.endswith("/comments"):
@@ -154,15 +161,53 @@ class ReviewGateTests(unittest.TestCase):
         with self.assertRaises(controller.Skip):
             controller.snapshot(self.api, 7)
 
-    def test_check_run_with_empty_pr_array_resolves_commit_association(self):
-        event = {"repository": {"full_name": REPO, "id": controller.REPOSITORY_ID,
-                                "default_branch": "main"},
-                 "action": "completed", "check_run": self.api.check}
-        context = controller.event_snapshot(self.api, event, "check_run", "coderabbitai[bot]")
+    def test_bot_summary_identifies_pr_without_check_run_event_or_pr_array(self):
+        event = comment_event()
+        context = controller.event_snapshot(self.api, event, "issue_comment", "coderabbitai[bot]")
         self.assertEqual(context["pr"], 7)
-        event["check_run"] = {**self.api.check, "app": {"id": 1}}
+        self.assertEqual(context["check_id"], CHECK)
+        self.assertEqual(self.api.check["pull_requests"], [])
+
+    def test_spoofed_edited_issue_and_unsupported_comment_events_are_ignored(self):
+        for mutate in (
+            lambda event: event["sender"].update(id=123),
+            lambda event: event["comment"]["user"].update(id=123),
+            lambda event: event["sender"].update(type="User"),
+            lambda event: event["comment"]["user"].update(login="fake-bot"),
+            lambda event: event["issue"].pop("pull_request"),
+            lambda event: event.update(action="deleted"),
+        ):
+            event = comment_event()
+            mutate(event)
+            with self.subTest(event=event), patch.object(controller.time, "sleep") as sleep:
+                with self.assertRaises(controller.Skip):
+                    controller.event_snapshot(self.api, event, "issue_comment", "coderabbitai[bot]")
+                sleep.assert_not_called()
         with self.assertRaises(controller.Skip):
-            controller.event_snapshot(self.api, event, "check_run", "coderabbitai[bot]")
+            controller.event_snapshot(self.api, comment_event(), "check_run", "coderabbitai[bot]")
+        self.assertEqual(self.api.writes, [])
+
+    def test_summary_before_check_completion_waits_for_metadata_without_writes(self):
+        self.api.check.update(status="in_progress", conclusion=None)
+        with patch.object(controller.time, "sleep", side_effect=lambda _: self.api.check.update(
+                status="completed", conclusion="success")) as sleep:
+            context = controller.event_snapshot(self.api, comment_event(), "issue_comment", "coderabbitai[bot]")
+        self.assertEqual(context["head_sha"], HEAD)
+        sleep.assert_called_once_with(10)
+        self.assertEqual(self.api.writes, [])
+
+    def test_pending_review_polling_is_bounded_and_never_claims_an_attempt(self):
+        self.api.check.update(status="in_progress", conclusion=None)
+        with patch.object(controller.time, "sleep") as sleep:
+            with self.assertRaisesRegex(controller.Skip, "Review is still pending"):
+                controller.event_snapshot(self.api, comment_event(), "issue_comment", "coderabbitai[bot]")
+        self.assertEqual(sleep.call_count, 6)
+        self.assertEqual(self.api.writes, [])
+        self.api.pull["draft"] = True
+        with patch.object(controller.time, "sleep") as sleep:
+            with self.assertRaises(controller.Skip):
+                controller.event_snapshot(self.api, comment_event(), "issue_comment", "coderabbitai[bot]")
+            sleep.assert_not_called()
 
     def test_manual_dispatch_requires_the_owner_and_exact_repository(self):
         event = {"repository": {"full_name": REPO, "id": controller.REPOSITORY_ID,
@@ -251,9 +296,8 @@ class ReviewGateTests(unittest.TestCase):
             (root / "AGENTS.md").write_text("Trusted policy")
             (root / ".github/copilot-fix").mkdir(parents=True)
             (root / ".github/copilot-instructions.md").write_text("Trusted guidance")
-            event = {"repository": {"full_name": REPO, "id": controller.REPOSITORY_ID,
-                                    "default_branch": "main"}, "inputs": {"pr": "7"},
-                     "action": "completed", "check_run": self.api.check}
+            event = comment_event()
+            event["inputs"] = {"pr": "7"}
             event_path, output = root / "event.json", root / "outputs"
             event_path.write_text(json.dumps(event))
             environment = {
@@ -261,7 +305,7 @@ class ReviewGateTests(unittest.TestCase):
                 "GITHUB_REF": "refs/heads/main", "GITHUB_ACTOR": "FiraSenax",
                 "GITHUB_RUN_ID": "43726788962", "GITHUB_OUTPUT": str(output),
                 "EXECUTE_FIX": "true", "HAS_COPILOT_TOKEN": "false"}
-            cases = [("check_run", "false"), ("workflow_dispatch", "true")]
+            cases = [("issue_comment", "false"), ("workflow_dispatch", "true")]
             for event_name, has_token in cases:
                 environment.update(GITHUB_EVENT_NAME=event_name, HAS_COPILOT_TOKEN=has_token)
                 with self.subTest(event=event_name), patch.object(sys, "argv", [
@@ -514,12 +558,14 @@ class WorkflowTests(unittest.TestCase):
             (root / ".github/workflows/inspect-coderabbit-copilot.yml").read_text(),
             Loader=yaml.BaseLoader)
 
-    def test_only_coderabbit_completion_can_enter_execution(self):
+    def test_only_verified_bot_comments_can_signal_execution(self):
         triggers = self.workflow["on"]
-        self.assertEqual(set(triggers), {"check_run"})
-        self.assertEqual(triggers["check_run"]["types"], ["completed"])
+        self.assertEqual(set(triggers), {"issue_comment"})
+        self.assertEqual(triggers["issue_comment"]["types"], ["created", "edited"])
         gate = self.workflow["jobs"]["prepare"]["if"]
-        for guard in ("refs/heads/main", "347564", "FiraSenax/KeyMelier", "check_run"):
+        for guard in ("refs/heads/main", "136622811", "FiraSenax/KeyMelier", "issue_comment",
+                      "github.event.issue.pull_request", "github.event.comment.user.id",
+                      "github.event.sender.id"):
             self.assertIn(guard, gate)
 
     def test_only_claim_and_report_have_pr_write_permission(self):

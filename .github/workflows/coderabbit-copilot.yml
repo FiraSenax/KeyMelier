@@ -2,11 +2,12 @@ name: CodeRabbit to Copilot
 
 # Controller/policy always come from main. PR code is never executed with the
 # Copilot secret. The only delivery is a tested patch artifact for human review.
-# Keep execution on check_run only: GitHub makes default-branch caches read-only
-# for this trigger. Manual inspection lives in a separate, non-executing workflow.
+# CodeRabbit summary comments avoid check_run's suppression on Actions-linked
+# PR heads. issue_comment has read-only default-branch cache access. Manual
+# inspection lives in a separate, non-executing workflow.
 on:
-  check_run:
-    types: [completed]
+  issue_comment:
+    types: [created, edited]
 
 permissions: {}
 
@@ -15,11 +16,8 @@ jobs:
     if: >-
       github.repository == 'FiraSenax/KeyMelier' &&
       github.ref == 'refs/heads/main' &&
-      github.event_name == 'check_run' &&
-      github.event.check_run.app.id == 347564 &&
-      github.event.check_run.name == 'CodeRabbit' &&
-      github.event.check_run.status == 'completed' &&
-      github.event.check_run.conclusion == 'success'
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.id == 136622811 && github.event.sender.id == 136622811
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     permissions:

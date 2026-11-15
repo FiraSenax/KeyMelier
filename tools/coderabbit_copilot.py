@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path, PurePosixPath
@@ -60,6 +61,10 @@ query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
 
 class Skip(Exception):
     """A safe, expected reason not to spend credits."""
+
+
+class ReviewPending(Skip):
+    """A bot comment may arrive just before its current check completes."""
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -199,14 +204,17 @@ def snapshot(api, pr, check_id=None):
         candidates = [c for c in checks["check_runs"]
                       if (c.get("app") or {}).get("id") == CODERABBIT_APP_ID]
         if not candidates:
-            raise Skip("No CodeRabbit check for the current head")
+            raise ReviewPending("No CodeRabbit check for the current head yet")
         check = max(candidates, key=lambda c: number(c["id"]))
     else:
         check = api.request(f"/repos/{REPOSITORY}/check-runs/{number(check_id)}")
-    if ((check.get("app") or {}).get("id") != CODERABBIT_APP_ID
-            or (check.get("app") or {}).get("slug") != "coderabbitai"
-            or check.get("name") != "CodeRabbit" or check.get("head_sha") != head
-            or check.get("status") != "completed" or check.get("conclusion") != "success"):
+    identity_matches = ((check.get("app") or {}).get("id") == CODERABBIT_APP_ID
+                        and (check.get("app") or {}).get("slug") == "coderabbitai"
+                        and check.get("name") == "CodeRabbit" and check.get("head_sha") == head)
+    if identity_matches and check.get("status") in {"queued", "in_progress"}:
+        raise ReviewPending("CodeRabbit is still reviewing the current head")
+    if (not identity_matches or check.get("status") != "completed"
+            or check.get("conclusion") != "success"):
         raise Skip("CodeRabbit has not successfully finished the current head")
     files = api.pages(f"/repos/{REPOSITORY}/pulls/{pr}/files")
     if any(protected(p) for row in files
@@ -227,21 +235,24 @@ def event_snapshot(api, event, event_name, actor):
         if actor != "FiraSenax":
             raise Skip("Only the owner can dispatch this workflow")
         return snapshot(api, number(event["inputs"]["pr"]))
-    if event_name != "check_run" or event.get("action") != "completed":
+    if event_name != "issue_comment" or event.get("action") not in {"created", "edited"}:
         raise Skip("Unsupported event")
-    check = event["check_run"]
-    if (check.get("app") or {}).get("id") != CODERABBIT_APP_ID:
-        raise Skip("This check is not from the CodeRabbit App")
-    head = valid_sha(check["head_sha"])
-    # CodeRabbit check runs can have an empty pull_requests array even for local PRs.
-    prs = api.pages(f"/repos/{REPOSITORY}/commits/{head}/pulls")
-    candidates = [p for p in prs if p["state"] == "open"
-                  and p["base"]["ref"] == "main"
-                  and (p["head"].get("repo") or {}).get("full_name") == REPOSITORY
-                  and p["head"]["sha"] == head and p["user"].get("id") == OWNER_ID]
-    if len(candidates) != 1:
-        raise Skip("The reviewed commit does not identify exactly one eligible PR")
-    return snapshot(api, candidates[0]["number"], check["id"])
+    for author in (event.get("sender") or {}, (event.get("comment") or {}).get("user") or {}):
+        if (author.get("id") != CODERABBIT_BOT_ID or author.get("type") != "Bot"
+                or author.get("login") != "coderabbitai[bot]"):
+            raise Skip("Only comments created or edited by the verified CodeRabbit bot are eligible")
+    issue = event["issue"]
+    if not issue.get("pull_request"):
+        raise Skip("This comment is not on a pull request")
+    # CodeRabbit can edit its summary before completing its check. Poll metadata
+    # only, at most seven snapshots; never request another review or retry inference.
+    for attempt in range(7):
+        try:
+            return snapshot(api, number(issue["number"]))
+        except ReviewPending:
+            if attempt == 6:
+                raise Skip("Review is still pending; a later bot summary update can inspect it again")
+            time.sleep(10)
 
 
 def claim(api, context, run_url):
@@ -506,7 +517,7 @@ def main():
         shutil.copytree(TRUSTED_ROOT / ".github/copilot-fix", args.directory / "cli")
         emit("pr", context["pr"])
         emit("head_sha", context["head_sha"])
-        execute = (os.environ["GITHUB_EVENT_NAME"] == "check_run"
+        execute = (os.environ["GITHUB_EVENT_NAME"] == "issue_comment"
                    and os.environ.get("EXECUTE_FIX") == "true"
                    and os.environ.get("HAS_COPILOT_TOKEN") == "true")
         emit("ready", str(execute).lower())
