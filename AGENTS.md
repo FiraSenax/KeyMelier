@@ -54,3 +54,8 @@
   öffentliche Repositories unter zehn Sternen benötigen laut Anbieter manuelle
   Review-Anfragen. Automatische Reviews daher nicht allein aufgrund eines
   aktivierten Schalters versprechen.
+- Falls der Workflow „CodeRabbit to Copilot“ aktiviert ist, vor eigener
+  Korrekturarbeit dessen Versuch-Markierung und Ergebnis prüfen. Einen bereits
+  laufenden Copilot-Versuch nicht erneut starten. Getestete Patch-Artefakte nur
+  nach Prüfung von Inhalt und passendem PR-Head übernehmen und anschließend die
+  betroffenen Prüfungen ausführen; ein Artefakt ist keine Merge-Freigabe.

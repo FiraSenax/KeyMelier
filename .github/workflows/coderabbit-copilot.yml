@@ -1,0 +1,326 @@
+name: CodeRabbit to Copilot
+
+# Controller/policy always come from main. PR code is never executed with the
+# Copilot secret. The only delivery is a tested patch artifact for human review.
+# CodeRabbit summary comments avoid check_run's suppression on Actions-linked
+# PR heads. issue_comment has read-only default-branch cache access. Manual
+# inspection lives in a separate, non-executing workflow.
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions: {}
+
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'FiraSenax/KeyMelier' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.id == 136622811 && github.event.sender.id == 136622811
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      ready: ${{ steps.context.outputs.ready }}
+      pr: ${{ steps.context.outputs.pr }}
+      head_sha: ${{ steps.context.outputs.head_sha }}
+      controller_artifact_id: ${{ steps.controller-artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Inspect the current CodeRabbit review
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_REVIEW_TOKEN != '' }}
+          EXECUTE_FIX: "true"
+        run: python tools/coderabbit_copilot.py prepare --directory "$RUNNER_TEMP/controller"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: controller-artifact
+        if: steps.context.outputs.head_sha != ''
+        with:
+          name: copilot-trusted-controller
+          path: ${{ runner.temp }}/controller
+          retention-days: 3
+          if-no-files-found: error
+
+  claim:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true' && needs.prepare.outputs.controller_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    # Serialize only the short atomic decision; later checks see its durable marker.
+    concurrency:
+      group: copilot-correction-pr-${{ needs.prepare.outputs.pr }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: read
+    outputs:
+      claimed: ${{ steps.claim.outputs.claimed }}
+      comment_id: ${{ steps.claim.outputs.comment_id }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Reserve one attempt for this PR
+        id: claim
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python "$RUNNER_TEMP/controller/controller.py" claim --directory "$RUNNER_TEMP/controller"
+
+  source:
+    needs: [prepare, claim]
+    # Successful claim outputs survive partial reruns; inference must not.
+    if: >-
+      needs.claim.outputs.claimed == 'true' && github.run_attempt == 1 &&
+      needs.prepare.outputs.controller_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      source_artifact_id: ${{ steps.source-artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          persist-credentials: false
+          path: reviewed-source
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Recheck freshness before collecting source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -I "$RUNNER_TEMP/controller/controller.py" preflight --directory "$RUNNER_TEMP/controller"
+      - name: Copy only allowed plain source files without executing PR code
+        run: >-
+          python -I "$RUNNER_TEMP/controller/controller.py" stage
+          --directory "$RUNNER_TEMP/controller" --repo "$GITHUB_WORKSPACE/reviewed-source"
+          --output "$RUNNER_TEMP/staged-source"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: source-artifact
+        with:
+          name: copilot-plain-source
+          path: ${{ runner.temp }}/staged-source
+          retention-days: 1
+          if-no-files-found: error
+
+  propose:
+    needs: [prepare, claim, source]
+    if: >-
+      needs.claim.outputs.claimed == 'true' && github.run_attempt == 1 &&
+      needs.prepare.outputs.controller_artifact_id != '' && needs.source.outputs.source_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      changed: ${{ steps.copilot.outputs.changed }}
+      proposal_artifact_id: ${{ steps.proposal-artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.source.outputs.source_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/staged-source
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.0"
+          package-manager-cache: false
+      - name: Recheck freshness without the inference secret
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -I "$RUNNER_TEMP/controller/controller.py" preflight --directory "$RUNNER_TEMP/controller"
+      - name: Install the hash-locked CLI without lifecycle scripts or credentials
+        working-directory: ${{ runner.temp }}/controller/cli
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ask Copilot for one bounded patch
+        id: copilot
+        env:
+          COPILOT_REVIEW_TOKEN: ${{ secrets.COPILOT_REVIEW_TOKEN }}
+        run: >-
+          python -I "$RUNNER_TEMP/controller/controller.py" generate
+          --directory "$RUNNER_TEMP/controller"
+          --repo "$RUNNER_TEMP/staged-source"
+          --output "$RUNNER_TEMP/proposal"
+          --executable "$RUNNER_TEMP/controller/cli/node_modules/.bin/copilot"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: proposal-artifact
+        if: steps.copilot.outputs.changed == 'true'
+        with:
+          name: copilot-unvalidated-proposal
+          path: ${{ runner.temp }}/proposal
+          retention-days: 1
+          if-no-files-found: error
+
+  verify:
+    needs: [prepare, propose]
+    if: >-
+      needs.propose.outputs.changed == 'true' &&
+      needs.prepare.outputs.controller_artifact_id != '' && needs.propose.outputs.proposal_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.propose.outputs.proposal_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/proposal
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.0"
+          package-manager-cache: false
+      - name: Recheck the PR before testing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python "$RUNNER_TEMP/controller/controller.py" preflight --directory "$RUNNER_TEMP/controller"
+      - name: Validate and apply the bounded proposal
+        run: >-
+          python "$RUNNER_TEMP/controller/controller.py" validate
+          --directory "$RUNNER_TEMP/controller" --output "$RUNNER_TEMP/proposal"
+      - name: Install test prerequisites in this secret-free job
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpcsclite-dev swig
+          python -m pip install --require-hashes -r requirements.txt
+          python -m pip install --require-hashes --only-binary=:all: -r requirements-quality.txt
+      - name: Validate the proposed source and regression tests
+        run: |
+          python -m unittest discover -s tests -v
+          ruff check app.py keymelier_core tools
+          ruff check tools tests --select E9,F63,F7,F82
+          for script in static/*.js; do node --check "$script"; done
+          node tests/ui_security.cjs
+          python tools/check_html_sinks.py
+          node tools/export_native_text.cjs --check
+          node tests/accounts_model.cjs
+          node tests/website_release.cjs
+          git diff --cached --check
+
+  publish:
+    needs: [prepare, propose, verify]
+    if: >-
+      needs.verify.result == 'success' && needs.propose.outputs.changed == 'true' &&
+      needs.prepare.outputs.controller_artifact_id != '' && needs.propose.outputs.proposal_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      artifact_id: ${{ steps.tested-artifact.outputs.artifact-id }}
+    # Tests can mutate their runner. Re-download the original artifacts by ID
+    # and validate them here without executing PR code or proposal tests.
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.propose.outputs.proposal_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/proposal
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Recheck the PR before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -I "$RUNNER_TEMP/controller/controller.py" preflight --directory "$RUNNER_TEMP/controller"
+      - name: Revalidate the original proposal without executing it
+        run: >-
+          python -I "$RUNNER_TEMP/controller/controller.py" validate
+          --directory "$RUNNER_TEMP/controller" --output "$RUNNER_TEMP/proposal"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: tested-artifact
+        with:
+          name: tested-copilot-patch-pr-${{ needs.prepare.outputs.pr }}
+          path: |
+            ${{ runner.temp }}/proposal/fix.patch
+            ${{ runner.temp }}/proposal/context.json
+            ${{ runner.temp }}/proposal/result.json
+          retention-days: 7
+          if-no-files-found: error
+
+  report:
+    needs: [prepare, claim, propose, verify, publish]
+    if: >-
+      always() && needs.claim.outputs.claimed == 'true' && needs.prepare.outputs.controller_artifact_id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.controller_artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/controller
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Update the attempt marker with the outcome
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLAIM_COMMENT_ID: ${{ needs.claim.outputs.comment_id }}
+          VALIDATION_RESULT: ${{ needs.publish.result }}
+          TESTED_ARTIFACT_ID: ${{ needs.publish.outputs.artifact_id }}
+        run: python -I "$RUNNER_TEMP/controller/controller.py" report --directory "$RUNNER_TEMP/controller"
