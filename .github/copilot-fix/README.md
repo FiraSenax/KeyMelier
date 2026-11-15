@@ -59,8 +59,13 @@ https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authen
   GitHub retains successful claim outputs. Both the job and controller require
   the first workflow attempt.
 
+A separate source-collection runner checks out the exact head without the
+Copilot secret and copies only allowed regular source/test files into an
+artifact. The Copilot job never checks out the PR. It downloads this plain
+source by its fixed artifact ID and validates the file allowlist again.
+
 The CLI gets five minutes and a 25-credit soft response limit. It can read and
-edit an isolated copy of source/test files, with no shell, GitHub MCP, web tools,
+edit an isolated copy of those files, with no shell, GitHub MCP, web tools,
 project hooks, repository metadata, PR-provided instructions or subagents.
 Trusted main-branch project rules are included explicitly. It receives only the
 Copilot Requests token, not the Actions job token or unrelated credentials.

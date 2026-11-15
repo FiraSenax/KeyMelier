@@ -456,6 +456,17 @@ class PatchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Patch file set does not match"):
             controller.validate(repo, trusted, proposal)
 
+    def test_staged_source_needs_no_git_and_rejects_policy_files(self):
+        copied = self.root / "staged-copy"
+        copied.mkdir()
+        with patch.object(controller.subprocess, "check_output") as git:
+            self.assertEqual(controller.copy_sources(self.source, copied, staged=True), self.original)
+            git.assert_not_called()
+        self.assertEqual((copied / SOURCE).read_bytes(), self.original[SOURCE])
+        (self.source / "AGENTS.md").write_text("must not enter the model's source tree")
+        with self.assertRaisesRegex(ValueError, "outside the allowlist"):
+            controller.copy_sources(self.source, copied, staged=True)
+
     def test_worker_does_not_forward_job_credentials_or_publish_transcripts(self):
         trusted = self.root / "controller"
         trusted.mkdir()
@@ -466,7 +477,8 @@ class PatchTests(unittest.TestCase):
         output = self.root / "proposal"
         observed = {}
 
-        def copy_source(repo, destination):
+        def copy_source(repo, destination, *, staged=False):
+            self.assertTrue(staged)
             target = destination / SOURCE
             target.parent.mkdir(parents=True)
             target.write_bytes(self.original[SOURCE])
@@ -624,6 +636,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(any("npm ci --ignore-scripts" in step.get("run", "")
                             for step in self.workflow["jobs"]["propose"]["steps"]))
 
+    def test_secret_job_never_checks_out_pr_code_and_uses_plain_staged_source(self):
+        jobs = self.workflow["jobs"]
+        self.assertIn("source", jobs["propose"]["needs"])
+        self.assertIn("needs.source.outputs.source_artifact_id != ''", jobs["propose"]["if"])
+        self.assertFalse(any(step.get("uses", "").startswith("actions/checkout@")
+                             for step in jobs["propose"]["steps"]))
+        source_commands = [step["run"] for step in jobs["source"]["steps"] if "run" in step]
+        self.assertEqual(len(source_commands), 2)
+        self.assertIn('python -I "$RUNNER_TEMP/controller/controller.py" preflight', source_commands[0])
+        self.assertIn('python -I "$RUNNER_TEMP/controller/controller.py" stage', source_commands[1])
+        self.assertNotIn("secrets.", json.dumps(jobs["source"]))
+        model = next(step for step in jobs["propose"]["steps"] if step.get("id") == "copilot")
+        self.assertIn('--repo "$RUNNER_TEMP/staged-source"', model["run"])
+
     def test_successful_claim_does_not_authorize_a_partial_rerun(self):
         gate = self.workflow["jobs"]["propose"]["if"]
         self.assertIn("needs.claim.outputs.claimed == 'true'", gate)
@@ -649,6 +675,7 @@ class WorkflowTests(unittest.TestCase):
                     self.assertNotIn("name", step["with"])
                     self.assertIn(step["with"]["artifact-ids"], {
                         "${{ needs.prepare.outputs.controller_artifact_id }}",
+                        "${{ needs.source.outputs.source_artifact_id }}",
                         "${{ needs.propose.outputs.proposal_artifact_id }}"})
                     self.assertEqual(step["with"]["merge-multiple"], "true")
         report = jobs["report"]["steps"][-1]["env"]
