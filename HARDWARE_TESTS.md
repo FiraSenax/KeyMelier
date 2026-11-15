@@ -49,9 +49,9 @@ these checks. Preserve existing native confirmations and PIN retry limits.
 | Check | Required observation | Status |
 |---|---|---|
 | Modern PIN unlock | Unlock Passkeys, Fingerprints and Key settings separately where supported. Each area works; switching areas requests confirmation again. A refused/failed operation does not consume an additional automatic PIN attempt. | Passed for Passkeys/Key settings and scope switching on macOS 27.2, YubiKey 5.8.0, installed RC2; Fingerprints Not supported on this key. Earlier rejected source-probe PIN requests stopped without automatic retry; other models remain Not tested. |
-| Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | Not tested |
+| Built-in fingerprint | On representative fingerprint keys, passkey unlock succeeds; BIO_ENROLL/AUTHENTICATOR_CFG either work after their own verification or offer the existing PIN route. Refusal for one area does not disable a supported other area. | PIN-assisted fingerprint listing and local BIO/passkey separation Passed on both supplied FEITIAN preview keys. Their management UV-token route is Not supported; modern scoped UV, physical fingerprint matching and waiting-UV cancellation remain Not tested. |
 | Read after settings | After unlocking only settings/fingerprints, Read key requests the read unlock and updates supported content. After a passkey unlock, reading needs no new PIN while the token remains valid. | Passed for a fresh read prompt after settings and no new prompt with an active passkey token (installed RC2/YubiKey 5.8.0). Full completion after settings remains Not tested: owner-reported success was followed by a locked passkey pane; see below. |
-| Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7, isolated RC2 source probe with owner-entered PIN; see below for limits. |
+| Legacy firmware | Check credentialMgmtPreview and keys without pinUvAuthToken. PIN-based management still works through the library's legacy command. Device-level permission restriction is unavailable; local area checks still apply. | Passed: macOS 27.2, YubiKey 5 NFC 5.2.7 and both FEITIAN preview keys, source probes with owner-entered PIN. FEITIAN empty-store reads require the post-RC2 fix at 56147c1; see below for limits. |
 | Lifetime and cancellation | After five minutes or device-side expiry, re-unlock explicitly. Cancel a waiting fingerprint request; lock or unplug/reconnect during PIN/UV; no late result restores the unlock or carries over to another key. A fresh deliberate attempt works. | Passed for local five-minute expiry, cancelling an unsubmitted PIN dialog, and invalidating an active unlock on disconnect/reconnect (installed RC2/YubiKey 5.8.0). Fresh read after expiry and fresh settings unlock after reconnect work. In-flight PIN/UV cases and device-side expiry remain Not tested. |
 | Compatibility | Existing unscoped callers retain their original contract. History/settings, sync and import/export remain readable by supported old versions. No new persistent auth state is written. | Not tested |
 
@@ -229,6 +229,49 @@ without resetting. This is a possible explanation for the observed state, not
 a confirmed diagnosis or evidence that the entered PIN was too simple. No
 further PIN-setting attempt or fingerprint verification was sent by the probe.
 
+**Both FEITIAN keys subsequently connected:** the owner reported that replacing
+the K33's USB cable restored its connection. Inventory then independently found
+both keys, each reporting `clientPin: true`, `uv: true` and 8 PIN retries:
+
+| Owner/model identification | USB VID:PID | AAGUID | Reported protocols |
+|---|---|---|---|
+| BioPassFIDO2 (precise casing model not confirmed) | 096e:085d | 77010bd7-212a-4fc9-b236-d2ca5e9d4084 | FIDO 2.0/2.1_PRE, PIN protocol 1 |
+| FEITIAN K33 (owner identified) | 096e:0866 | 12ded745-4bed-47d4-abaa-e713f51d6393 | FIDO 2.0/2.1_PRE, PIN protocol 1 |
+
+Both advertise credentialMgmtPreview and userVerificationMgmtPreview, without
+pinUvAuthToken or authenticatorConfig. Both report HID version 1.0.1; canonical
+firmware is unconfirmed. The later successful PIN state does not confirm the
+earlier Fingerprint Only hypothesis or establish why the first PIN setup failed.
+
+With the normal app closed, an isolated source probe at `c1a011a` selected each
+key by its unique AAGUID. The owner supplied three separate local PIN entries
+for Passkeys, Fingerprints, then Read. Each key passed 12 of 14 checks: actual
+legacy PIN unlocks, local permission separation/replacement, listing one
+fingerprint, locally blocking credential reads with a BIO-only token and
+reporting that read as incomplete, unsupported settings/management-UV without
+a new PIN/device request, pre-cancellation, and one token request per deliberate
+PIN entry. Both counters remained 8 → 8. Neither probe verifies a fingerprint
+physically, changes a key, accesses real history or exercises the installed UI.
+
+Both initial probes failed their two passkey-read checks. Diagnostic capture
+on the K33 showed authenticated metadata with 0 existing credentials and 128
+remaining slots, followed by an empty RP-enumeration map. The library then
+raised KeyError for missing protocol field 5 (TOTAL_RPS). There was no CTAP
+authentication error. A separate synthetic test reproduces that exact response
+sequence. The post-RC2 fix skips RP enumeration only for an explicit integer-zero
+metadata count; missing/malformed/nonzero counts still enumerate normally.
+
+**Corrected source retests at `56147c103a5d32b77914988d60fd89494c6d6ac8`: Passed**
+on both devices, seven checks each, with one fresh owner-entered PIN per key.
+Actual Read key/FIDO passkey reading succeeded, metadata confirmed 0 credentials
+and 128 free slots, and no unnecessary RP enumeration was sent. Local read-scope
+separation, unsupported settings/UV, pre-cancellation and one-request behavior
+passed; both counters again stayed 8 → 8. The full backend suite passed 570
+tests with two platform skips. These are source-level retests, not a new signed
+package acceptance. The initial failures are retained above; the installed
+RC2 does not contain this correction. Physical UV matching/cancellation,
+enrollment/writes, device-side expiry and other desktop platforms remain open.
+
 ## 1.8.8 security release checklist
 
 Record the exact RC/commit, OS, key model/firmware, result and date for each check.
@@ -288,6 +331,8 @@ credential store. It does not mark any manual row above as Passed.
 
 | Operating system + version | KeyMelier (version/commit) | Key model | Firmware | Detection | Read functions | Cancel + reconnect | Result | Date, notes |
 |---|---|---|---|---|---|---|---|---|
+| macOS 27.2, Apple M1 | 1.8.9 source / 56147c103a5d32b77914988d60fd89494c6d6ac8 | FEITIAN K33 (owner identified), USB 096e:0866 | Not confirmed (HID version 1.0.1) | Passed (getInfo after owner replaced USB cable) | Passed (corrected empty passkey store read; PIN-assisted fingerprint list at c1a011a) | Passed (pre-cancel only); physical reconnect during an operation Not tested | Passed (listed source-probe workflows only; partial coverage) | 2026-11-15 – isolated read-only source harness, owner-entered PIN; one fingerprint listed, 0 passkeys/128 free slots, retries 8 to 8. Initial empty-store failures reproduced and corrected. Legacy local scope separation; management UV tokens Not supported. No reset, enrollment, credential or setting changes; signed package/UI acceptance remains open. |
+| macOS 27.2, Apple M1 | 1.8.9 source / 56147c103a5d32b77914988d60fd89494c6d6ac8 | FEITIAN BioPassFIDO2, USB 096e:085d (casing model unconfirmed) | Not confirmed (HID version 1.0.1) | Passed (getInfo) | Passed (corrected empty passkey store read; PIN-assisted fingerprint list at c1a011a) | Passed (pre-cancel only); physical reconnect during an operation Not tested | Passed (listed source-probe workflows only; partial coverage) | 2026-11-15 – AAGUID 77010bd7; separate device from K33. Isolated read-only source harness, owner-entered PIN; one fingerprint listed, 0 passkeys/128 free slots, retries 8 to 8. Initial empty-store failures corrected. Management UV tokens Not supported. No reset, enrollment, credential or setting changes; signed package/UI acceptance remains open. |
 | macOS 27.2, Apple M1 | 1.8.9-rc.2 / c42768c68bc0434ec73a290e2bcda545e3e70605 | YubiKey 5 Series with NFC (Consumer Profile) | 5.8.0 | Passed (installed app, initial connection and reconnect) | Passed (passkey list, separate settings unlock, passkeys after settings; Read key with active token and explicit unlock after expiry) | Passed (unsubmitted PIN cancellation preserves 8 retries; disconnect preserves known data; reconnect requires fresh unlock) | Passed (listed workflows only; partial coverage) | 2026-11-14 – owner enters PIN locally; app UI observed directly. Read after more than 300 seconds requires unlocking. No reset or PIN/settings/passkey change. Fingerprints Not supported on this key; in-flight unplug, waiting UV cancellation and other platforms remain untested. Earlier source-probe PIN rejections remain recorded separately above. |
 | macOS 27.2 (owner-reported), Apple M1 | 1.8.8-rc.8 / 8544da222f34db55a25e34c0e497d8485bf0e683 | YubiKey (exact variant not reported) | 5.2.7 | Passed (start and detection, owner-reported) | Passed (Read key, owner-reported; individual areas not recorded) | Passed (PIN cancellation preserves retries; native reset cancellation, reconnect invalidates stale consent, fresh Read key, new consent after disarming) | Passed (listed workflows only; partial coverage) | 2026-11-06 – owner also confirmed OATH clipboard expiry after 35 seconds and preservation of different/identical text recopied in TextEdit. Correct reset target/action; offered Enter/Escape/close paths cancel. No actual reset performed. Other clipboard managers and public certificate copies not tested. See WINDOWS_QA_RC8.md. |
 | Windows 11 Pro 10.0.26300 (x64) | 1.8.8-rc.7 / e6b4217580f72a29931ba300cce2d8578db33363 | YubiKey 5 Series with NFC | 5.2.7 | Passed (model/firmware observed) | Passed (synthetic OATH account creation and code copy, owner-reported) | Not tested | Passed (OATH rendering, clipboard and test-account deletion; partial coverage) | 2026-11-05 – literal markup/quotes in the test name; code expiry after 35 seconds, different and identical Notepad recopy preserved, subsequent public AAGUID copy preserved. Native deletion identified the test account; only that account was removed. Other PIV/OpenPGP/OTP workflows not tested. |
