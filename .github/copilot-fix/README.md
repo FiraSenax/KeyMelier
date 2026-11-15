@@ -64,16 +64,23 @@ or a 100-KB patch. New regression tests are allowed. It never executes PR code
 with the Copilot secret present.
 
 A separate runner applies the proposal to its exact head and runs backend,
-lint and static UI checks without the Copilot secret. It does not establish
+lint and static UI checks without the Copilot secret. The entire workflow uses
+only the `check_run` trigger, which GitHub grants read-only access to the
+default-branch cache scope. It cannot poison caches used by main or releases.
+Node's automatic dependency caching is disabled as well. Manual inspection is
+a separate workflow that never checks out or executes PR code. See
+https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#cache-access-for-low-trust-workflow-triggers.
+The checks do not establish
 physical-key acceptance, browser/native package acceptance or Windows/macOS
 coverage. Existing PR CI and human review remain necessary after applying it.
 
-## Inspect or request a handoff manually
+## Inspect a handoff manually
 
-In Actions → CodeRabbit to Copilot → Run workflow, select main, enter the PR
-number and leave **execute** unchecked for an inspection with no claim or
-inference. To use an eligible PR's one attempt, check execute. Only FiraSenax can
-dispatch it; the same head/finding/policy guards apply.
+In Actions → Inspect CodeRabbit handoff → Run workflow, select main and enter
+the PR number. This only inspects the current review; it cannot reserve an
+attempt, invoke Copilot or execute PR code. Only FiraSenax can dispatch it.
+The executing workflow deliberately has no manual-dispatch entry point,
+because manual dispatches receive main-branch cache write access by default.
 
 No open findings, a missing secret, an already-used attempt, incomplete/stale
 reviews or unsupported scope produce a skip instead of repeated requests.
@@ -82,9 +89,10 @@ back to another identity or buy more usage. A stale preflight fails the worker
 rather than being treated as permission to continue.
 
 To authorize another attempt deliberately, the owner can remove the workflow's
-own attempt-marker comment, then inspect and dispatch again. Do not automate
-that removal. GitHub's concurrency queue can collapse pending duplicate claim
-jobs; inspection/manual dispatch remains the fallback.
+own attempt-marker comment and wait for a new eligible CodeRabbit review to
+complete. Do not automate that removal or repeatedly request reviews.
+GitHub's concurrency queue can collapse pending duplicate claim jobs; a later
+eligible completed review can start a fresh claim if no marker was created.
 
 ## Review and apply a tested proposal
 

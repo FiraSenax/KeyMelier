@@ -232,14 +232,15 @@ class ReviewGateTests(unittest.TestCase):
                     controller.main()
         self.assertEqual(self.api.writes, [])
 
-    def test_missing_secret_keeps_prepare_read_only(self):
+    def test_missing_secret_and_manual_dispatch_keep_prepare_read_only(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "AGENTS.md").write_text("Trusted policy")
             (root / ".github/copilot-fix").mkdir(parents=True)
             (root / ".github/copilot-instructions.md").write_text("Trusted guidance")
             event = {"repository": {"full_name": REPO, "id": controller.REPOSITORY_ID,
-                                    "default_branch": "main"}, "inputs": {"pr": "7"}}
+                                    "default_branch": "main"}, "inputs": {"pr": "7"},
+                     "action": "completed", "check_run": self.api.check}
             event_path, output = root / "event.json", root / "outputs"
             event_path.write_text(json.dumps(event))
             environment = {
@@ -247,14 +248,17 @@ class ReviewGateTests(unittest.TestCase):
                 "GITHUB_REF": "refs/heads/main", "GITHUB_ACTOR": "FiraSenax",
                 "GITHUB_RUN_ID": "43726788962", "GITHUB_OUTPUT": str(output),
                 "EXECUTE_FIX": "true", "HAS_COPILOT_TOKEN": "false"}
-            with patch.object(sys, "argv", [
-                    "controller", "prepare", "--directory", str(root / "controller")]), \
-                    patch.object(controller, "GitHub", return_value=self.api), \
-                    patch.object(controller, "TRUSTED_ROOT", root), \
-                    patch.dict(os.environ, environment):
-                controller.main()
-            self.assertNotIn("ready=true", output.read_text())
-            self.assertIn("ready=false", output.read_text())
+            cases = [("check_run", "false"), ("workflow_dispatch", "true")]
+            for event_name, has_token in cases:
+                environment.update(GITHUB_EVENT_NAME=event_name, HAS_COPILOT_TOKEN=has_token)
+                with self.subTest(event=event_name), patch.object(sys, "argv", [
+                        "controller", "prepare", "--directory", str(root / event_name)]), \
+                        patch.object(controller, "GitHub", return_value=self.api), \
+                        patch.object(controller, "TRUSTED_ROOT", root), \
+                        patch.dict(os.environ, environment):
+                    controller.main()
+                self.assertNotIn("ready=true", output.read_text())
+                self.assertIn("ready=false", output.read_text())
         self.assertEqual(self.api.writes, [])
 
 
@@ -455,13 +459,16 @@ class WorkflowTests(unittest.TestCase):
         cls.workflow = yaml.load(
             (root / ".github/workflows/coderabbit-copilot.yml").read_text(),
             Loader=yaml.BaseLoader)
+        cls.inspection = yaml.load(
+            (root / ".github/workflows/inspect-coderabbit-copilot.yml").read_text(),
+            Loader=yaml.BaseLoader)
 
-    def test_only_coderabbit_completion_and_owner_dispatch_can_enter(self):
+    def test_only_coderabbit_completion_can_enter_execution(self):
         triggers = self.workflow["on"]
-        self.assertEqual(set(triggers), {"check_run", "workflow_dispatch"})
-        self.assertEqual(triggers["workflow_dispatch"]["inputs"]["execute"]["default"], "false")
+        self.assertEqual(set(triggers), {"check_run"})
+        self.assertEqual(triggers["check_run"]["types"], ["completed"])
         gate = self.workflow["jobs"]["prepare"]["if"]
-        for guard in ("refs/heads/main", "347564", "FiraSenax/KeyMelier", "github.actor"):
+        for guard in ("refs/heads/main", "347564", "FiraSenax/KeyMelier", "check_run"):
             self.assertIn(guard, gate)
 
     def test_only_claim_and_report_have_pr_write_permission(self):
@@ -473,6 +480,38 @@ class WorkflowTests(unittest.TestCase):
                              "write" if name in {"claim", "report"} else "read")
         self.assertIn("needs.prepare.outputs.pr", jobs["claim"]["concurrency"]["group"])
         self.assertEqual(jobs["claim"]["concurrency"]["cancel-in-progress"], "false")
+
+    def test_pr_execution_has_no_trigger_with_main_branch_cache_write_access(self):
+        # GITHUB_TOKEN permissions do not constrain cache tokens. GitHub grants
+        # default-branch cache writes only to these trigger types.
+        cache_write_events = {"push", "workflow_dispatch", "repository_dispatch", "delete",
+                              "registry_package", "page_build", "schedule"}
+        self.assertTrue(set(self.workflow["on"]).isdisjoint(cache_write_events))
+        self.assertNotIn(self.workflow.get("cache-mode"), {"write", "write-only"})
+        for job in self.workflow["jobs"].values():
+            self.assertNotIn(job.get("cache-mode"), {"write", "write-only"})
+            for step in job["steps"]:
+                self.assertFalse(step.get("uses", "").startswith("actions/cache"))
+                if step.get("uses", "").startswith("actions/setup-node@"):
+                    self.assertEqual(step["with"]["package-manager-cache"], "false")
+
+    def test_manual_inspection_cannot_claim_infer_or_execute_pr_source(self):
+        self.assertEqual(set(self.inspection["on"]), {"workflow_dispatch"})
+        self.assertEqual(set(self.inspection["on"]["workflow_dispatch"]["inputs"]), {"pr"})
+        self.assertEqual(self.inspection["permissions"], {})
+        self.assertEqual(set(self.inspection["jobs"]), {"inspect"})
+        job = self.inspection["jobs"]["inspect"]
+        self.assertIn("github.actor == 'FiraSenax'", job["if"])
+        self.assertEqual(set(job["permissions"].values()), {"read"})
+        commands = [step for step in job["steps"] if "run" in step]
+        self.assertEqual(len(commands), 1)
+        self.assertIn(" prepare --directory ", commands[0]["run"])
+        self.assertEqual(commands[0]["env"]["EXECUTE_FIX"], "false")
+        self.assertEqual(commands[0]["env"]["HAS_COPILOT_TOKEN"], "false")
+        for step in job["steps"]:
+            self.assertNotIn("secrets.", json.dumps(step))
+            if step.get("uses", "").startswith("actions/checkout@"):
+                self.assertEqual(step["with"]["ref"], "main")
 
     def test_secret_is_only_passed_to_the_model_step_not_install_or_tests(self):
         occurrences = []
@@ -489,7 +528,7 @@ class WorkflowTests(unittest.TestCase):
                             for step in self.workflow["jobs"]["propose"]["steps"]))
 
     def test_every_action_is_pinned_and_no_source_checkout_persists_credentials(self):
-        for job in self.workflow["jobs"].values():
+        for job in [*self.workflow["jobs"].values(), *self.inspection["jobs"].values()]:
             for step in job["steps"]:
                 if "uses" in step:
                     self.assertRegex(step["uses"], r"^[A-Za-z0-9_./-]+@[0-9a-f]{40}$")

@@ -503,12 +503,13 @@ def main():
         shutil.copytree(TRUSTED_ROOT / ".github/copilot-fix", args.directory / "cli")
         emit("pr", context["pr"])
         emit("head_sha", context["head_sha"])
-        execute = (os.environ.get("EXECUTE_FIX") == "true"
+        execute = (os.environ["GITHUB_EVENT_NAME"] == "check_run"
+                   and os.environ.get("EXECUTE_FIX") == "true"
                    and os.environ.get("HAS_COPILOT_TOKEN") == "true")
         emit("ready", str(execute).lower())
         summary(f"PR #{context['pr']}: {len(context['findings'])} eligible finding(s). "
                 + ("Ready to claim one attempt." if execute else
-                   "Inspection only; execution was not requested or the Copilot secret is absent."))
+                   "Inspection only; automatic execution is disabled or the Copilot secret is absent."))
         return
     context = json.loads((args.directory / "context.json").read_text())
     if args.command == "claim":

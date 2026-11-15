@@ -1,0 +1,39 @@
+name: Inspect CodeRabbit handoff
+
+# workflow_dispatch can write main's cache scope. This workflow only executes
+# the trusted main-branch controller, never PR code, tests or Copilot inference.
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Owner-authored PR number to inspect without spending credits"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'FiraSenax/KeyMelier' &&
+      github.ref == 'refs/heads/main' && github.actor == 'FiraSenax'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Inspect without reserving an attempt or invoking Copilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_COPILOT_TOKEN: "false"
+          EXECUTE_FIX: "false"
+        run: python tools/coderabbit_copilot.py prepare --directory "$RUNNER_TEMP/inspection"
