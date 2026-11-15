@@ -1,0 +1,9 @@
+{
+  "name": "keymelier-copilot-review-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated, pinned CLI for the CodeRabbit-to-Copilot workflow",
+  "dependencies": {
+    "@github/copilot": "1.0.112"
+  }
+}
