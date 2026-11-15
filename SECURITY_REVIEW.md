@@ -86,6 +86,15 @@ local expiry and reconnect results are recorded in HARDWARE_TESTS.md; the last
 read-after-settings completion remains inconclusive and requires candidate
 retesting. The reporting bug does not establish the cause of that observation.
 
+15 November preview-authenticator correction (source, not published RC2): the
+K33 reported zero existing credentials and 128 remaining slots, then returned
+an empty map for RP enumeration. The library expected TOTAL_RPS and raised
+KeyError. Passkey listing now skips RP enumeration only when authenticated
+metadata supplies an explicit integer zero. Missing, boolean, floating-point,
+string or nonzero counts still follow normal enumeration; malformed nonempty
+responses and authentication failures remain errors. No fallback weakens PIN
+checks, modifies key contents or changes history/export formats.
+
 # 1.8.9 preparation: management permission scopes — 2026-11-06
 
 The UI requests one of credential management, biometric enrollment or

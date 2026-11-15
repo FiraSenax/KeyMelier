@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Read an explicitly empty passkey store without unnecessary RP enumeration. This avoids a missing-counter error on older FEITIAN preview authenticators while retaining authentication and normal enumeration for nonempty or unconfirmed stores.
+
 - Report an incomplete "Read key" operation when supported passkey management is locked, instead of announcing success without reading it. Preserve known history and other successful read results; keys without passkey management remain supported.
 
 ## 1.8.9 — 2026-11-14
