@@ -32,9 +32,9 @@ build = [
     "wheel==0.48.0",
 ]
 quality = [
-    "ruff==0.17.4",
+    "ruff==0.17.5",
     "PyYAML==6.0.3",
-    "uv==0.13.7",
+    "uv==0.13.8",
 ]
 
 # Correctness checks, without imposing a bulk formatting rewrite.
