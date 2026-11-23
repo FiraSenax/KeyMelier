@@ -27,14 +27,14 @@ build = [
     # zxing-cpp is rebuilt with these exact inputs; no opaque nanobind wheel copy.
     "nanobind==3.1.0",
     "scikit-build-core==1.1.2",
-    "cmake==4.4.4",
+    "cmake==4.4.5",
     "ninja==1.13.2",
     "wheel==0.48.0",
 ]
 quality = [
-    "ruff==0.17.4",
+    "ruff==0.17.6",
     "PyYAML==6.0.3",
-    "uv==0.13.7",
+    "uv==0.13.9",
 ]
 
 # Correctness checks, without imposing a bulk formatting rewrite.
